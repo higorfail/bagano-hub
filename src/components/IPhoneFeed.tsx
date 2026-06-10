@@ -93,7 +93,7 @@ export default function IPhoneFeed({
   return (
     <div className="flex gap-6 items-start">
       <div className="flex-shrink-0">
-        <div style={{ width: 290, border: '1.5px solid #d4d4d4', borderRadius: 46, overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: 290, border: '1.5px solid #EBEAE5', borderRadius: 46, overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 18px 8px' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{clientName.toLowerCase().replace(/\s+/g, '.')}</span>
             <div style={{ display: 'flex', gap: 14 }}>

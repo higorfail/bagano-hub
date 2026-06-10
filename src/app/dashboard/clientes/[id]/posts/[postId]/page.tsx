@@ -122,7 +122,7 @@ export default function PostPage() {
                     style={{
                       background: status === key ? val.bg : 'transparent',
                       color: status === key ? val.color : '#A8A59E',
-                      borderColor: status === key ? val.color : '#E8E6E0'
+                      borderColor: status === key ? val.color : '#EBEAE5'
                     }}>
                     {val.label}
                   </button>

@@ -163,7 +163,7 @@ export default function KanbanPage() {
                         onDragStart={() => setDragging(post.id)}
                         onDragEnd={() => setDragging(null)}
                         className={`bg-white rounded-xl p-4 flex flex-col gap-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all ${dragging === post.id ? 'opacity-50' : ''}`}
-                        style={{ borderLeft: `3px solid ${client?.color_hex || '#E8E6E0'}` }}
+                        style={{ borderLeft: `3px solid ${client?.color_hex || '#EBEAE5'}` }}
                       >
                         {/* Approval badge — sempre no topo se existir */}
                         <ApprovalBadge status={post.approval_status} comment={post.approval_comment} />
