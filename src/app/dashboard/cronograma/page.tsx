@@ -150,19 +150,19 @@ export default function CronogramaPage() {
   return (
     <div className="flex h-full">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap">
+        <div className="p-6 border-b border-[#EBEAE5] flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-[var(--color-text-primary)] font-semibold text-lg">Cronograma</h1>
             <p className="text-[var(--color-text-secondary)] text-sm mt-0.5">{posts.length} posts · {MONTHS[selectedMonth-1]} {selectedYear}</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <select value={selectedClient} onChange={e => { setSelectedClient(e.target.value); setSelected(null) }} className="border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none">
+            <select value={selectedClient} onChange={e => { setSelectedClient(e.target.value); setSelected(null) }} className="border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none">
               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <div className="flex items-center gap-1">
-              <button onClick={() => setSelectedMonth(m => m===1?12:m-1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
+              <button onClick={() => setSelectedMonth(m => m===1?12:m-1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
               <span className="text-sm font-medium text-[var(--color-text-primary)] w-24 text-center">{MONTHS[selectedMonth-1]} {selectedYear}</span>
-              <button onClick={() => setSelectedMonth(m => m===12?1:m+1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
+              <button onClick={() => setSelectedMonth(m => m===12?1:m+1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
             </div>
             {posts.length > 0 && <button onClick={openApprovalModal} className="border border-[var(--color-text-primary)] text-[var(--color-text-primary)] rounded-lg px-4 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Enviar para aprovação</button>}
             <button onClick={() => setShowModal(true)} className="bg-[var(--color-text-primary)] text-white rounded-lg px-4 py-2 text-sm font-medium">+ Novo post</button>
@@ -179,7 +179,7 @@ export default function CronogramaPage() {
             <div className="grid grid-cols-3 gap-4">
               {posts.map(post => (
                 <button key={post.id} onClick={() => { setSelected(selected?.id===post.id?null:post); setEditing(false); setConfirmDelete(false) }}
-                  className={`text-left bg-white border rounded-2xl p-5 flex flex-col gap-3 hover:shadow-md transition-all ${selected?.id===post.id?'ring-2 border-transparent':'border-[var(--color-border)]'}`}
+                  className={`text-left bg-white border rounded-2xl p-5 flex flex-col gap-3 hover:shadow-md transition-all ${selected?.id===post.id?'ring-2 border-transparent':'border-[#EBEAE5]'}`}
                   style={selected?.id===post.id?{ringColor:client?.color_hex,outlineColor:client?.color_hex,boxShadow:`0 0 0 2px ${client?.color_hex}`}:{}}>
                   <div className="flex items-center justify-between">
                     <span className="text-3xl font-black text-[var(--color-border)]">#{post.post_number}</span>
@@ -203,8 +203,8 @@ export default function CronogramaPage() {
 
       {/* Drawer */}
       {selected && (
-        <div className="w-96 border-l border-[var(--color-border)] flex flex-col overflow-hidden bg-white">
-          <div className="p-5 border-b border-[var(--color-border)] flex items-start justify-between gap-3">
+        <div className="w-96 border-l border-[#EBEAE5] flex flex-col overflow-hidden bg-white">
+          <div className="p-5 border-b border-[#EBEAE5] flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-bold text-[var(--color-text-muted)]">#{selected.post_number}</span>
@@ -228,7 +228,7 @@ export default function CronogramaPage() {
             <div className="p-4 bg-red-50 border-b border-red-100 flex items-center justify-between gap-3">
               <p className="text-sm text-red-700 font-medium">Excluir este post?</p>
               <div className="flex gap-2">
-                <button onClick={() => setConfirmDelete(false)} className="px-3 py-1.5 text-xs border border-[var(--color-border)] rounded-lg bg-white text-[var(--color-text-secondary)]">Cancelar</button>
+                <button onClick={() => setConfirmDelete(false)} className="px-3 py-1.5 text-xs border border-[#EBEAE5] rounded-lg bg-white text-[var(--color-text-secondary)]">Cancelar</button>
                 <button onClick={deletePost} disabled={deleting} className="px-3 py-1.5 text-xs bg-red-500 text-white rounded-lg disabled:opacity-50">{deleting?'Excluindo...':'Excluir'}</button>
               </div>
             </div>
@@ -236,17 +236,17 @@ export default function CronogramaPage() {
 
           {editing ? (
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={editForm.title} onChange={e => setEditForm(f=>({...f,title:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)]" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={editForm.title} onChange={e => setEditForm(f=>({...f,title:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={editForm.post_type} onChange={e => setEditForm(f=>({...f,post_type:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none">{POST_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={editForm.status} onChange={e => setEditForm(f=>({...f,status:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none">{STATUSES.map(s=><option key={s}>{s}</option>)}</select></div>
+                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={editForm.post_type} onChange={e => setEditForm(f=>({...f,post_type:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none">{POST_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={editForm.status} onChange={e => setEditForm(f=>({...f,status:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none">{STATUSES.map(s=><option key={s}>{s}</option>)}</select></div>
               </div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Data estimada</label><input type="date" value={editForm.scheduled_date} onChange={e => setEditForm(f=>({...f,scheduled_date:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)]" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Copy / Briefing</label><textarea value={editForm.copy} onChange={e => setEditForm(f=>({...f,copy:e.target.value}))} rows={4} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)] resize-none" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link Drive</label><input value={editForm.drive_url} onChange={e => setEditForm(f=>({...f,drive_url:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)]" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Referências</label><textarea value={editForm.reference_notes} onChange={e => setEditForm(f=>({...f,reference_notes:e.target.value}))} rows={2} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)] resize-none" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Data estimada</label><input type="date" value={editForm.scheduled_date} onChange={e => setEditForm(f=>({...f,scheduled_date:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Copy / Briefing</label><textarea value={editForm.copy} onChange={e => setEditForm(f=>({...f,copy:e.target.value}))} rows={4} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916] resize-none" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link Drive</label><input value={editForm.drive_url} onChange={e => setEditForm(f=>({...f,drive_url:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Referências</label><textarea value={editForm.reference_notes} onChange={e => setEditForm(f=>({...f,reference_notes:e.target.value}))} rows={2} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916] resize-none" /></div>
               <div className="flex gap-2 pt-2">
-                <button onClick={() => setEditing(false)} className="flex-1 py-2 text-sm border border-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
+                <button onClick={() => setEditing(false)} className="flex-1 py-2 text-sm border border-[#EBEAE5] rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
                 <button onClick={saveEdit} disabled={saving||!editForm.title.trim()} className="flex-1 py-2 text-sm bg-[var(--color-text-primary)] text-white rounded-lg disabled:opacity-50">{saving?'Salvando...':'Salvar'}</button>
               </div>
             </div>
@@ -273,23 +273,23 @@ export default function CronogramaPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
+            <div className="p-5 border-b border-[#EBEAE5] flex items-center justify-between">
               <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Novo post · {client?.name}</h2>
               <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM) }} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-lg leading-none">×</button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))} placeholder="Ex: Abertura do forno a lenha" className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)]" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))} placeholder="Ex: Abertura do forno a lenha" className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={form.post_type} onChange={e => setForm(f=>({...f,post_type:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none focus:border-[var(--color-text-primary)]">{POST_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={form.status} onChange={e => setForm(f=>({...f,status:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none focus:border-[var(--color-text-primary)]">{STATUSES.map(s=><option key={s}>{s}</option>)}</select></div>
+                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={form.post_type} onChange={e => setForm(f=>({...f,post_type:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none focus:border-[#1A1916]">{POST_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={form.status} onChange={e => setForm(f=>({...f,status:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none focus:border-[#1A1916]">{STATUSES.map(s=><option key={s}>{s}</option>)}</select></div>
               </div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Data estimada</label><input type="date" value={form.scheduled_date} onChange={e => setForm(f=>({...f,scheduled_date:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)]" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Copy / Briefing</label><textarea value={form.copy} onChange={e => setForm(f=>({...f,copy:e.target.value}))} rows={4} placeholder="Texto da legenda ou briefing do post..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)] resize-none" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link Drive</label><input value={form.drive_url} onChange={e => setForm(f=>({...f,drive_url:e.target.value}))} placeholder="https://drive.google.com/..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)]" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Referências / Comentários</label><textarea value={form.reference_notes} onChange={e => setForm(f=>({...f,reference_notes:e.target.value}))} rows={2} placeholder="Links de referência, observações..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)] resize-none" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Data estimada</label><input type="date" value={form.scheduled_date} onChange={e => setForm(f=>({...f,scheduled_date:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Copy / Briefing</label><textarea value={form.copy} onChange={e => setForm(f=>({...f,copy:e.target.value}))} rows={4} placeholder="Texto da legenda ou briefing do post..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916] resize-none" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link Drive</label><input value={form.drive_url} onChange={e => setForm(f=>({...f,drive_url:e.target.value}))} placeholder="https://drive.google.com/..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Referências / Comentários</label><textarea value={form.reference_notes} onChange={e => setForm(f=>({...f,reference_notes:e.target.value}))} rows={2} placeholder="Links de referência, observações..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916] resize-none" /></div>
             </div>
-            <div className="p-5 border-t border-[var(--color-border)] flex gap-3 justify-end">
-              <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM) }} className="px-4 py-2 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
+            <div className="p-5 border-t border-[#EBEAE5] flex gap-3 justify-end">
+              <button onClick={() => { setShowModal(false); setForm(EMPTY_FORM) }} className="px-4 py-2 text-sm text-[var(--color-text-secondary)] border border-[#EBEAE5] rounded-lg hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
               <button onClick={savePost} disabled={saving||!form.title.trim()} className="px-4 py-2 text-sm text-white bg-[var(--color-text-primary)] rounded-lg disabled:opacity-50">{saving?'Salvando...':'Salvar post'}</button>
             </div>
           </div>
@@ -300,7 +300,7 @@ export default function CronogramaPage() {
       {showApprovalModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
+            <div className="p-5 border-b border-[#EBEAE5] flex items-center justify-between">
               <div><h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Enviar para aprovação</h2><p className="text-xs text-[var(--color-text-muted)] mt-0.5">{client?.name} · {MONTHS[selectedMonth-1]} {selectedYear}</p></div>
               <button onClick={() => setShowApprovalModal(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-lg leading-none">×</button>
             </div>
@@ -310,7 +310,7 @@ export default function CronogramaPage() {
               ) : (
                 <>
                   <div className="bg-[var(--color-bg-input)] rounded-xl p-3"><span className="text-xs text-[var(--color-text-secondary)] break-all">{approvalLink}</span></div>
-                  <div className="border-2 border-[var(--color-border)] rounded-xl p-4 flex flex-col gap-3">
+                  <div className="border-2 border-[#EBEAE5] rounded-xl p-4 flex flex-col gap-3">
                     <div className="flex items-center gap-2">
                       <span className="w-6 h-6 rounded-full bg-[var(--color-text-primary)] text-white text-xs flex items-center justify-center font-bold flex-shrink-0">1</span>
                       <div><p className="text-sm font-semibold text-[var(--color-text-primary)]">Copiar link e enviar manualmente</p><p className="text-xs text-[var(--color-text-muted)]">Cole no WhatsApp, e-mail ou onde preferir</p></div>

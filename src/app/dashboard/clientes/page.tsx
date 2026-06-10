@@ -57,14 +57,14 @@ export default function ClientesPage() {
         placeholder="Buscar cliente..."
         value={search}
         onChange={e => setSearch(e.target.value)}
-        className="w-full max-w-xs border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-text-primary)] bg-white"
+        className="w-full max-w-xs border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916] bg-white"
       />
       <div className="grid grid-cols-4 gap-4">
         {filtered.map(client => (
           <a
             key={client.id}
             href={'/dashboard/clientes/' + client.id}
-            className="bg-white border border-[var(--color-border)] rounded-2xl p-4 block hover:shadow-sm transition-all"
+            className="bg-white border border-[#EBEAE5] rounded-2xl p-4 block hover:shadow-sm transition-all"
             style={{ borderLeftWidth: 3, borderLeftColor: client.color_hex }}
           >
             <div className="flex items-center gap-3 mb-4">

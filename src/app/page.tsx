@@ -33,7 +33,7 @@ export default function Home() {
           </div>
           <span className="text-[var(--color-text-primary)] font-semibold text-lg">Bagano Hub</span>
         </div>
-        <div className="bg-white rounded-2xl border border-[var(--color-border)] p-8">
+        <div className="bg-white rounded-2xl border border-[#EBEAE5] p-8">
           <h1 className="text-[var(--color-text-primary)] font-semibold text-xl mb-1">Entrar</h1>
           <p className="text-[var(--color-text-secondary)] text-sm mb-6">Acesse o sistema da Bagano</p>
           <div className="flex flex-col gap-4">
@@ -44,7 +44,7 @@ export default function Home() {
                 placeholder="seu@email.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)] transition-colors bg-white"
+                className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916] transition-colors bg-white"
               />
             </div>
             <div>
@@ -55,7 +55,7 @@ export default function Home() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)] transition-colors bg-white"
+                className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916] transition-colors bg-white"
               />
             </div>
             {error && <p className="text-xs text-red-500">{error}</p>}

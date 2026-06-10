@@ -101,7 +101,7 @@ export default function KanbanPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap">
+      <div className="p-6 border-b border-[#EBEAE5] flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
           <div>
             <h1 className="text-[var(--color-text-primary)] font-semibold text-lg">Kanban</h1>
@@ -115,9 +115,9 @@ export default function KanbanPage() {
           )}
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => setSelectedMonth(m => m === 1 ? 12 : m - 1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
+          <button onClick={() => setSelectedMonth(m => m === 1 ? 12 : m - 1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
           <span className="text-sm font-medium text-[var(--color-text-primary)] w-28 text-center">{MONTHS_FULL[selectedMonth - 1]} {selectedYear}</span>
-          <button onClick={() => setSelectedMonth(m => m === 12 ? 1 : m + 1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
+          <button onClick={() => setSelectedMonth(m => m === 12 ? 1 : m + 1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
         </div>
       </div>
 
@@ -150,7 +150,7 @@ export default function KanbanPage() {
                 {/* Cards */}
                 <div className="flex-1 overflow-y-auto px-3 pb-3 flex flex-col gap-2">
                   {colPosts.length === 0 && (
-                    <div className={`flex items-center justify-center h-20 border-2 border-dashed rounded-xl transition-all ${isDragOver ? 'border-[var(--color-text-primary)]' : 'border-[var(--color-border)]'}`}>
+                    <div className={`flex items-center justify-center h-20 border-2 border-dashed rounded-xl transition-all ${isDragOver ? 'border-[var(--color-text-primary)]' : 'border-[#EBEAE5]'}`}>
                       <p className="text-xs text-[var(--color-text-faint)]">Arraste aqui</p>
                     </div>
                   )}
