@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
 type Client = { id: string; name: string; color_hex: string }
@@ -52,6 +53,8 @@ const approvalColor: Record<string,string> = { 'aprovado':'bg-green-50 text-gree
 export default function CronogramaPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [posts, setPosts] = useState<Post[]>([])
+  const searchParams = useSearchParams()
+  const clientParam = searchParams.get('client')
   const [selectedClient, setSelectedClient] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear] = useState(new Date().getFullYear())
@@ -75,6 +78,7 @@ export default function CronogramaPage() {
     async function loadClients() {
       const supabase = createClient()
       const { data } = await supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name')
+      if (clientParam && data?.some(c => c.id === clientParam)) { setSelectedClient(clientParam); setTimeout(() => setShowModal(true), 100) }
       setClients(data || [])
       if (data && data.length > 0) setSelectedClient(data[0].id)
       setLoading(false)
