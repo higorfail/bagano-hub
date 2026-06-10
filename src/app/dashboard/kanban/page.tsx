@@ -20,10 +20,12 @@ type Post = {
 type Client = { id: string; name: string; color_hex: string }
 
 const COLUMNS = [
-  { key: 'pendente', label: 'Pendente', color: 'var(--color-text-muted)' },
-  { key: 'em produção', label: 'Em produção', color: '#F59E0B' },
-  { key: 'aprovado', label: 'Aprovado', color: '#3B82F6' },
-  { key: 'publicado', label: 'Publicado', color: '#22C55E' },
+  { key: 'producao',             label: 'Produção',     color: '#F59E0B' },
+  { key: 'revisao_interna',      label: 'Revisão',      color: '#8B5CF6' },
+  { key: 'aguardando_aprovacao', label: 'Com cliente',  color: '#EC4899' },
+  { key: 'aprovado',             label: 'Aprovado',     color: '#3B82F6' },
+  { key: 'agendado',             label: 'Agendado',     color: '#14B8A6' },
+  { key: 'publicado',            label: 'Publicado',    color: '#22C55E' },
 ]
 
 const typeColor: Record<string, string> = {

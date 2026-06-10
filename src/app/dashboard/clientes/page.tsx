@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useUser } from '@/lib/UserContext'
 
 type Client = {
   id: string
@@ -15,7 +16,9 @@ function getInitials(name: string) {
 }
 
 export default function ClientesPage() {
+  const { currentMember, showOnlyMine } = useUser()
   const [clients, setClients] = useState<Client[]>([])
+  const [myClientIds, setMyClientIds] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -28,12 +31,16 @@ export default function ClientesPage() {
         .eq('status', 'active')
         .order('name')
       setClients(data || [])
+      const { data: teamData } = await supabase.from('client_team').select('client_id, member_id')
+      if (currentMember && teamData) {
+        setMyClientIds(teamData.filter(t => t.member_id === currentMember.id).map(t => t.client_id))
+      }
       setLoading(false)
     }
     load()
-  }, [])
+  }, [currentMember])
 
-  const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+  const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) && (!showOnlyMine || !currentMember || myClientIds.includes(c.id)))
 
   if (loading) return (
     <div className="p-6 flex items-center justify-center h-full">

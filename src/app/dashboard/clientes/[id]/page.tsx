@@ -21,6 +21,7 @@ const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','A
 const typeColor: Record<string,string> = { 'Reels':'bg-red-50 text-red-600','Carrossel':'bg-blue-50 text-blue-600','Stories':'bg-purple-50 text-purple-600','Carrossel/Stories':'bg-indigo-50 text-indigo-600','Post':'bg-amber-50 text-amber-600' }
 const statusColor: Record<string,string> = { 'publicado':'bg-green-50 text-green-600','aprovado':'bg-blue-50 text-blue-600','em produção':'bg-yellow-50 text-yellow-700','pendente':'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]' }
 const approvalColor: Record<string,string> = { 'aprovado':'bg-green-50 text-green-600','não aprovado':'bg-red-50 text-red-500' }
+const FUNCAO_LABEL: Record<string,string> = { videos:'Editor', posts:'Designer', estrategia:'Estratégia', social:'Social Media', acompanha:'Acompanha', outro:'Outro' }
 function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }
 
 export default function ClientePage({ params }: { params: Promise<{ id: string }> }) {
@@ -33,6 +34,11 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
   const [selectedYear] = useState(new Date().getFullYear())
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Post | null>(null)
+  const [team, setTeam] = useState<any[]>([])
+  const [allMembers, setAllMembers] = useState<any[]>([])
+  const [showAddMember, setShowAddMember] = useState(false)
+  const [newMemberId, setNewMemberId] = useState('')
+  const [newFuncao, setNewFuncao] = useState('posts')
 
   useEffect(() => {
     async function load() {
@@ -43,10 +49,37 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
       ])
       setClient(clientData)
       setPosts(postData || [])
+      const { data: membersData } = await supabase.from('team_members').select('id, name, role').order('name')
+      const { data: teamData } = await supabase.from('client_team').select('id, funcao, member_id').eq('client_id', id)
+      // Junta manualmente para não depender do join do PostgREST
+      const enriched = (teamData || []).map(t => ({
+        ...t,
+        team_members: (membersData || []).find(m => m.id === t.member_id)
+      }))
+      setTeam(enriched)
+      setAllMembers(membersData || [])
       setLoading(false)
     }
     load()
   }, [id, selectedMonth, selectedYear])
+
+  async function addMember() {
+    if (!newMemberId) return
+    const supabase = createClient()
+    await supabase.from('client_team').insert({ client_id: id, member_id: newMemberId, funcao: newFuncao })
+    const { data } = await supabase.from('client_team').select('id, funcao, member_id').eq('client_id', id)
+    const enriched = (data || []).map(t => ({ ...t, team_members: allMembers.find(m => m.id === t.member_id) }))
+    setTeam(enriched)
+    setShowAddMember(false)
+    setNewMemberId('')
+    setNewFuncao('posts')
+  }
+
+  async function removeMember(teamId: string) {
+    const supabase = createClient()
+    await supabase.from('client_team').delete().eq('id', teamId)
+    setTeam(t => t.filter(m => m.id !== teamId))
+  }
 
   if (loading) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Carregando...</div>
   if (!client) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Cliente não encontrado</div>
@@ -178,11 +211,67 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
           )}
 
           {tab === 'time' && (
-            <div className="flex flex-col items-center justify-center h-48 text-center">
-              <p className="text-2xl mb-2">👥</p>
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">Time atribuído</p>
-              <p className="text-xs text-[var(--color-text-muted)] mt-1">Estrategista, designer, editor deste cliente.</p>
-              <button className="mt-4 bg-[var(--color-text-primary)] text-white rounded-lg px-4 py-2 text-sm font-medium">+ Atribuir pessoa</button>
+            <div className="flex flex-col gap-4 max-w-2xl">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[var(--color-text-primary)]">Time deste cliente</p>
+                <button onClick={() => setShowAddMember(true)} className="bg-[var(--color-text-primary)] text-white rounded-lg px-3 py-1.5 text-sm font-medium">+ Atribuir pessoa</button>
+              </div>
+
+              {team.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-40 text-center border border-dashed border-[#EBEAE5] rounded-2xl">
+                  <p className="text-2xl mb-2">👥</p>
+                  <p className="text-sm text-[var(--color-text-muted)]">Nenhuma pessoa atribuída ainda.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {team.map(m => (
+                    <div key={m.id} className="flex items-center gap-3 bg-white border border-[#EBEAE5] rounded-xl px-4 py-3">
+                      <div className="w-9 h-9 rounded-full bg-[var(--color-text-primary)] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                        {getInitials(m.team_members?.name || '?')}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[var(--color-text-primary)]">{m.team_members?.name}</p>
+                        <p className="text-xs text-[var(--color-text-muted)] capitalize">{m.team_members?.role?.replace('_',' ')}</p>
+                      </div>
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]">{FUNCAO_LABEL[m.funcao] || m.funcao}</span>
+                      <button onClick={() => removeMember(m.id)} className="text-[var(--color-text-muted)] hover:text-red-500 transition-colors text-lg leading-none">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showAddMember && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setShowAddMember(false) }}>
+                  <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+                    <p className="font-semibold text-[var(--color-text-primary)] mb-4">Atribuir pessoa</p>
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Pessoa</label>
+                        <select value={newMemberId} onChange={e => setNewMemberId(e.target.value)} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none">
+                          <option value="">Selecione...</option>
+                          {allMembers.filter(am => !team.some(t => t.member_id === am.id)).map(am => (
+                            <option key={am.id} value={am.id}>{am.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Função neste cliente</label>
+                        <select value={newFuncao} onChange={e => setNewFuncao(e.target.value)} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none">
+                          <option value="videos">Editor (vídeos)</option>
+                          <option value="posts">Designer (posts)</option>
+                          <option value="estrategia">Estratégia / Cronograma</option>
+                          <option value="social">Social Media</option>
+                          <option value="acompanha">Acompanha</option>
+                        </select>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={() => setShowAddMember(false)} className="flex-1 py-2 text-sm border border-[#EBEAE5] rounded-lg text-[var(--color-text-secondary)]">Cancelar</button>
+                        <button onClick={addMember} disabled={!newMemberId} className="flex-1 py-2 text-sm bg-[var(--color-text-primary)] text-white rounded-lg disabled:opacity-50">Adicionar</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

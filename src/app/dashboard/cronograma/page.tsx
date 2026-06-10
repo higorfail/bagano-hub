@@ -12,9 +12,26 @@ type Post = {
 }
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
-const POST_TYPES = ['Reels', 'Carrossel', 'Post', 'Stories', 'Carrossel/Stories']
-const STATUSES = ['pendente', 'em produção', 'aprovado', 'publicado']
-const EMPTY_FORM = { title: '', copy: '', post_type: 'Reels', scheduled_date: '', status: 'pendente', drive_url: '', reference_notes: '' }
+const POST_TYPES = [
+  { value: 'reels', label: 'Reels' },
+  { value: 'carrossel', label: 'Carrossel' },
+  { value: 'post', label: 'Post' },
+  { value: 'story', label: 'Story' },
+  { value: 'carrossel_stories', label: 'Carrossel/Stories' },
+]
+const STATUSES = [
+  { value: 'producao', label: 'Produção' },
+  { value: 'revisao_interna', label: 'Revisão interna' },
+  { value: 'aguardando_aprovacao', label: 'Aguardando aprovação' },
+  { value: 'aprovado', label: 'Aprovado' },
+  { value: 'agendado', label: 'Agendado' },
+  { value: 'publicado', label: 'Publicado' },
+]
+const STATUS_LABEL: Record<string,string> = Object.fromEntries(STATUSES.map(s => [s.value, s.label]))
+const TYPE_LABEL: Record<string,string> = Object.fromEntries([
+  ['reels','Reels'],['carrossel','Carrossel'],['post','Post'],['story','Story'],['carrossel_stories','Carrossel/Stories']
+])
+const EMPTY_FORM = { title: '', copy: '', post_type: 'reels', scheduled_date: '', status: 'producao', drive_url: '', reference_notes: '' }
 
 function ReferenceLinks({ text }: { text: string }) {
   return (
@@ -111,7 +128,7 @@ export default function CronogramaPage() {
 
   function startEdit() {
     if (!selected) return
-    setEditForm({ title: selected.title, copy: selected.copy || '', post_type: selected.post_type || 'Reels', scheduled_date: selected.scheduled_date || '', status: selected.status || 'pendente', drive_url: selected.drive_url || '', reference_notes: selected.reference_notes || '' })
+    setEditForm({ title: selected.title, copy: selected.copy || '', post_type: selected.post_type || 'reels', scheduled_date: selected.scheduled_date || '', status: selected.status || 'producao', drive_url: selected.drive_url || '', reference_notes: selected.reference_notes || '' })
     setEditing(true)
   }
 
@@ -191,7 +208,7 @@ export default function CronogramaPage() {
                     <span className="text-xs text-[var(--color-text-muted)]">{post.scheduled_date?new Date(post.scheduled_date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}):'Sem data'}</span>
                     <div className="flex items-center gap-1.5">
                       {post.approval_status&&post.approval_status!=='pendente'&&<span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${approvalColor[post.approval_status]||''}`}>{post.approval_status==='aprovado'?'✓':'✗'}</span>}
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{post.status}</span>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{STATUS_LABEL[post.status]||post.status}</span>
                     </div>
                   </div>
                 </button>
@@ -238,8 +255,8 @@ export default function CronogramaPage() {
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
               <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={editForm.title} onChange={e => setEditForm(f=>({...f,title:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={editForm.post_type} onChange={e => setEditForm(f=>({...f,post_type:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none">{POST_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={editForm.status} onChange={e => setEditForm(f=>({...f,status:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none">{STATUSES.map(s=><option key={s}>{s}</option>)}</select></div>
+                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={editForm.post_type} onChange={e => setEditForm(f=>({...f,post_type:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none">{POST_TYPES.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
+                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={editForm.status} onChange={e => setEditForm(f=>({...f,status:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none">{STATUSES.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select></div>
               </div>
               <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Data estimada</label><input type="date" value={editForm.scheduled_date} onChange={e => setEditForm(f=>({...f,scheduled_date:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
               <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Copy / Briefing</label><textarea value={editForm.copy} onChange={e => setEditForm(f=>({...f,copy:e.target.value}))} rows={4} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916] resize-none" /></div>
@@ -254,7 +271,7 @@ export default function CronogramaPage() {
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
               <div className="flex gap-4">
                 <div className="flex-1"><p className="text-xs text-[var(--color-text-muted)] mb-1">Data estimada</p><p className="text-sm font-medium text-[var(--color-text-primary)]">{selected.scheduled_date?new Date(selected.scheduled_date+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</p></div>
-                <div className="flex-1"><p className="text-xs text-[var(--color-text-muted)] mb-1">Status</p><span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusColor[selected.status]||''}`}>{selected.status}</span></div>
+                <div className="flex-1"><p className="text-xs text-[var(--color-text-muted)] mb-1">Status</p><span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusColor[selected.status]||''}`}>{STATUS_LABEL[selected.status]||selected.status}</span></div>
               </div>
               {selected.approval_status&&selected.approval_status!=='pendente'&&(
                 <div><p className="text-xs text-[var(--color-text-muted)] mb-2">Aprovação do cliente</p>
@@ -280,8 +297,8 @@ export default function CronogramaPage() {
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
               <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))} placeholder="Ex: Abertura do forno a lenha" className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={form.post_type} onChange={e => setForm(f=>({...f,post_type:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none focus:border-[#1A1916]">{POST_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={form.status} onChange={e => setForm(f=>({...f,status:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none focus:border-[#1A1916]">{STATUSES.map(s=><option key={s}>{s}</option>)}</select></div>
+                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={form.post_type} onChange={e => setForm(f=>({...f,post_type:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none focus:border-[#1A1916]">{POST_TYPES.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
+                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={form.status} onChange={e => setForm(f=>({...f,status:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none focus:border-[#1A1916]">{STATUSES.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select></div>
               </div>
               <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Data estimada</label><input type="date" value={form.scheduled_date} onChange={e => setForm(f=>({...f,scheduled_date:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
               <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Copy / Briefing</label><textarea value={form.copy} onChange={e => setForm(f=>({...f,copy:e.target.value}))} rows={4} placeholder="Texto da legenda ou briefing do post..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916] resize-none" /></div>

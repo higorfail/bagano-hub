@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
+import { UserProvider, useUser } from '@/lib/UserContext'
+import { ChevronDown, Check } from 'lucide-react'
 import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, CheckCircle, XCircle } from 'lucide-react'
 
 const navItems = [
@@ -23,8 +25,11 @@ const contentItems = [
 
 type Notification = { id: string; post_title: string; client_name: string; approval_status: string; approval_comment: string }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+function DashboardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const { members, currentMember, setCurrentMember, showOnlyMine, setShowOnlyMine } = useUser()
+  const [showMemberPicker, setShowMemberPicker] = useState(false)
+  const memberRef = useRef<HTMLDivElement>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
@@ -56,6 +61,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  useEffect(() => {
+    function h(e: MouseEvent) {
+      if (memberRef.current && !memberRef.current.contains(e.target as Node)) setShowMemberPicker(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
   }, [])
 
   const unread = notifications.filter(n => n.approval_status === 'não aprovado').length
@@ -107,7 +120,69 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="h-14 border-b border-[#EBEAE5] bg-[#F9F8F5] flex items-center justify-end px-8" ref={notifRef}>
+        <div className="h-14 border-b border-[#EBEAE5] bg-[#F9F8F5] flex items-center justify-between px-8">
+          {/* Seletor de pessoa + filtro */}
+          <div className="flex items-center gap-3">
+            <div className="relative" ref={memberRef}>
+              <button
+                onClick={() => setShowMemberPicker(v => !v)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#EBEAE5] bg-white hover:border-[#D4D1CB] transition-all text-sm"
+              >
+                {currentMember ? (
+                  <>
+                    <div className="w-5 h-5 rounded-full bg-[#1A1916] flex items-center justify-center text-white text-[9px] font-semibold">
+                      {currentMember.name.slice(0,2).toUpperCase()}
+                    </div>
+                    <span className="font-medium text-[#1A1916]">{currentMember.name}</span>
+                  </>
+                ) : (
+                  <span className="text-[#A8A59E]">Quem é você?</span>
+                )}
+                <ChevronDown size={14} className="text-[#A8A59E]" />
+              </button>
+
+              {showMemberPicker && (
+                <div className="absolute left-0 top-11 w-56 bg-white rounded-2xl border border-[#EBEAE5] overflow-hidden z-50 max-h-80 overflow-y-auto">
+                  {members.map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => { setCurrentMember(m); setShowMemberPicker(false) }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-[#F2F0EB] transition-colors text-left"
+                    >
+                      <div className="w-6 h-6 rounded-full bg-[#1A1916] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
+                        {m.name.slice(0,2).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[#1A1916] truncate">{m.name}</p>
+                        <p className="text-[10px] text-[#A8A59E] capitalize">{m.role.replace('_',' ')}</p>
+                      </div>
+                      {currentMember?.id === m.id && <Check size={14} className="text-[#1A1916]" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Toggle meus / todos */}
+            {currentMember && (
+              <div className="flex items-center bg-white border border-[#EBEAE5] rounded-xl p-0.5">
+                <button
+                  onClick={() => setShowOnlyMine(true)}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${showOnlyMine ? 'bg-[#1A1916] text-white' : 'text-[#A8A59E]'}`}
+                >
+                  Meus
+                </button>
+                <button
+                  onClick={() => setShowOnlyMine(false)}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${!showOnlyMine ? 'bg-[#1A1916] text-white' : 'text-[#A8A59E]'}`}
+                >
+                  Todos
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div ref={notifRef}>
           <div className="relative">
             <button onClick={() => setShowNotifications(v => !v)} className="relative w-9 h-9 rounded-xl hover:bg-[#F2F0EB] flex items-center justify-center transition-all">
               <Bell size={18} strokeWidth={1.75} className="text-[#6B6963]" />
@@ -136,6 +211,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             )}
           </div>
+          </div>
         </div>
 
         <main className="flex-1 overflow-auto">
@@ -143,5 +219,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
     </div>
+  )
+}
+
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <UserProvider>
+      <DashboardInner>{children}</DashboardInner>
+    </UserProvider>
   )
 }
