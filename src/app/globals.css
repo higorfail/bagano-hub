@@ -1,32 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  /* Texto */
-  --color-text-primary:   #1A1A18;
-  --color-text-secondary: #6B6A65;
-  --color-text-muted:     #A8A7A2;
-  --color-text-faint:     #C8C6C0;
+  --color-text-primary: #1A1916;
+  --color-text-secondary: #6B6963;
+  --color-text-muted: #A8A59E;
+  --color-text-faint: #C8C5BE;
 
-  /* Superfícies */
-  --color-bg-page:        #F5F4F0;
-  --color-bg-subtle:      #F0EEE9;
-  --color-bg-card:        #FFFFFF;
-  --color-bg-input:       #F7F6F3;
+  --color-bg-page: #F9F8F5;
+  --color-bg-card: #FFFFFF;
+  --color-bg-subtle: #F2F0EB;
+  --color-bg-input: #F9F8F5;
 
-  /* Bordas */
-  --color-border:         #E8E6E0;
-  --color-border-strong:  #C8C6C0;
+  --color-border: #EBEAE5;
+  --color-border-strong: #D4D0C8;
 
-  /* Ações */
-  --color-action:         #1A1A18;
-  --color-action-text:    #FFFFFF;
-
-  /* Status */
-  --color-success:        #22C55E;
-  --color-warning:        #F59E0B;
-  --color-danger:         #EF4444;
-  --color-info:           #3B82F6;
-
-  /* Especiais */
+  --color-success:        #22c55e;
+  --color-warning:        #f59e0b;
+  --color-danger:         #ef4444;
+  --color-info:           #3b82f6;
   --color-whatsapp:       #25D366;
 }

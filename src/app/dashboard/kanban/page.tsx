@@ -171,7 +171,7 @@ export default function KanbanPage() {
                         {/* Client + number */}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style={{ background: client?.color_hex || '#A8A7A2' }}>
+                            <div className="w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style={{ background: client?.color_hex || '#A8A59E' }}>
                               {client?.name?.slice(0, 1)}
                             </div>
                             <span className="text-xs text-[var(--color-text-muted)] font-medium truncate max-w-[110px]">{client?.name}</span>

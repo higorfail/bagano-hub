@@ -121,7 +121,7 @@ export default function PostPage() {
                     className="text-[10px] font-medium px-2 py-1 rounded-full border transition-all"
                     style={{
                       background: status === key ? val.bg : 'transparent',
-                      color: status === key ? val.color : '#A8A7A2',
+                      color: status === key ? val.color : '#A8A59E',
                       borderColor: status === key ? val.color : '#E8E6E0'
                     }}>
                     {val.label}
