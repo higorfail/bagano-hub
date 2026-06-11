@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check } from 'lucide-react'
 import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, CheckCircle, XCircle } from 'lucide-react'
+import CommandPalette from '@/components/CommandPalette'
 
 const navItems = [
   { href: '/dashboard',          icon: Home,          label: 'Início' },
@@ -180,6 +181,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 </button>
               </div>
             )}
+            <CommandPalette />
           </div>
 
           <div ref={notifRef}>

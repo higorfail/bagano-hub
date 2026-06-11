@@ -32,7 +32,8 @@ const STATUS_LABEL: Record<string,string> = Object.fromEntries(STATUSES.map(s =>
 const TYPE_LABEL: Record<string,string> = Object.fromEntries([
   ['reels','Reels'],['carrossel','Carrossel'],['post','Post'],['story','Story'],['carrossel_stories','Carrossel/Stories']
 ])
-const EMPTY_FORM = { title: '', copy: '', post_type: 'reels', scheduled_date: '', status: 'producao', drive_url: '', reference_notes: '' }
+const EMPTY_FORM = { title: '', copy: '', post_type: 'reels', scheduled_date: '', status: 'producao', drive_url: '', reference_notes: '', funil: '' }
+const FUNIL_OPTIONS = ['Topo de funil', 'Meio de funil', 'Fundo de funil', 'Institucional', 'Promocional', 'Engajamento', 'Venda']
 
 function ReferenceLinks({ text }: { text: string }) {
   return (
@@ -57,7 +58,8 @@ export default function CronogramaPage() {
   const clientParam = searchParams.get('client')
   const [selectedClient, setSelectedClient] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
-  const [selectedYear] = useState(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [selected, setSelected] = useState<Post | null>(null)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -181,9 +183,35 @@ export default function CronogramaPage() {
               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <div className="flex items-center gap-1">
-              <button onClick={() => setSelectedMonth(m => m===1?12:m-1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
-              <span className="text-sm font-medium text-[var(--color-text-primary)] w-24 text-center">{MONTHS[selectedMonth-1]} {selectedYear}</span>
-              <button onClick={() => setSelectedMonth(m => m===12?1:m+1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
+              <div className="relative">
+                <button onClick={() => setShowMonthPicker(v => !v)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#EBEAE5] bg-white hover:border-[#D4D1CB] transition-all text-sm font-medium text-[var(--color-text-primary)]">
+                  {MONTHS[selectedMonth-1]} {selectedYear}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#A8A59E]"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {showMonthPicker && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowMonthPicker(false)} />
+                    <div className="absolute right-0 top-11 z-50 bg-white rounded-2xl border border-[#EBEAE5] p-4 w-64">
+                      <div className="flex items-center justify-between mb-3">
+                        <button onClick={() => setSelectedYear(y => y-1)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]">‹</button>
+                        <span className="text-sm font-semibold text-[var(--color-text-primary)]">{selectedYear}</span>
+                        <button onClick={() => setSelectedYear(y => y+1)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]">›</button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {MONTHS.map((m, i) => (
+                          <button
+                            key={m}
+                            onClick={() => { setSelectedMonth(i+1); setShowMonthPicker(false) }}
+                            className={`py-2 rounded-lg text-xs font-medium transition-colors ${selectedMonth === i+1 ? 'bg-[var(--color-text-primary)] text-white' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}
+                          >
+                            {m.slice(0,3)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
             {posts.length > 0 && <button onClick={openApprovalModal} className="border border-[var(--color-text-primary)] text-[var(--color-text-primary)] rounded-lg px-4 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Enviar para aprovação</button>}
             <button onClick={() => setShowModal(true)} className="bg-[var(--color-text-primary)] text-white rounded-lg px-4 py-2 text-sm font-medium">+ Novo post</button>
@@ -304,6 +332,7 @@ export default function CronogramaPage() {
                 <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={form.post_type} onChange={e => setForm(f=>({...f,post_type:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none focus:border-[#1A1916]">{POST_TYPES.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
                 <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={form.status} onChange={e => setForm(f=>({...f,status:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none focus:border-[#1A1916]">{STATUSES.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select></div>
               </div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Funil</label><input list="funil-options" value={form.funil} onChange={e => setForm(f=>({...f,funil:e.target.value}))} placeholder="Escolha ou escreva..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-white outline-none focus:border-[#1A1916]" /><datalist id="funil-options">{FUNIL_OPTIONS.map(o => <option key={o} value={o} />)}</datalist></div>
               <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Data estimada</label><input type="date" value={form.scheduled_date} onChange={e => setForm(f=>({...f,scheduled_date:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
               <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Copy / Briefing</label><textarea value={form.copy} onChange={e => setForm(f=>({...f,copy:e.target.value}))} rows={4} placeholder="Texto da legenda ou briefing do post..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916] resize-none" /></div>
               <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link Drive</label><input value={form.drive_url} onChange={e => setForm(f=>({...f,drive_url:e.target.value}))} placeholder="https://drive.google.com/..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
