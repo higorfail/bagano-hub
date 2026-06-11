@@ -51,7 +51,7 @@ export default function CommandPalette() {
 
       const [clientsRes, postsRes, materialsRes] = await Promise.all([
         supabase.from('clients').select('id, name, color_hex').ilike('name', `%${q}%`).limit(5),
-        supabase.from('schedules').select('id, title, client_id, clients(name)').ilike('title', `%${q}%`).limit(5),
+        supabase.from('schedules').select('id, title, client_id, month, year, clients(name)').ilike('title', `%${q}%`).limit(5),
         supabase.from('materials').select('id, title, client_id, clients(name)').ilike('title', `%${q}%`).limit(5),
       ])
 
@@ -62,7 +62,7 @@ export default function CommandPalette() {
       }))
       postsRes.data?.forEach((p: any) => out.push({
         type: 'post', id: p.id, title: p.title || 'Post sem título',
-        subtitle: p.clients?.name || 'Post', href: `/dashboard/clientes/${p.client_id}`,
+        subtitle: p.clients?.name || 'Post', href: `/dashboard/clientes/${p.client_id}?post=${p.id}&m=${p.month}&y=${p.year}`,
       }))
       materialsRes.data?.forEach((m: any) => out.push({
         type: 'material', id: m.id, title: m.title,
