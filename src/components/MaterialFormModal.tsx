@@ -29,6 +29,8 @@ type Props = {
 export default function MaterialFormModal({ fixedClientId, clients = [], editingMaterial, onClose, onSaved }: Props) {
   const { members } = useUser()
   const [saving, setSaving] = useState(false)
+  const [clientManual, setClientManual] = useState(false)
+  const [typeManual, setTypeManual] = useState(false)
   const [form, setForm] = useState<any>({
     title: '', type: 'Arte avulsa', status: 'producao', client_id: fixedClientId || '',
     description: '', drive_url: '', notes: '', due_date: '', assigned_to: '', label: '',
@@ -46,31 +48,34 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
     }
   }, [editingMaterial, fixedClientId])
 
-  // Detecção local inteligente: sugere cliente e tipo a partir do título
+  // Detecção local inteligente REATIVA: reavalia a cada mudança do título
   function detectFromTitle(title: string) {
-    if (!title.trim()) return
     const lower = title.toLowerCase()
 
-    // Detectar cliente (só se ainda não escolhido manualmente)
-    if (!fixedClientId && !form.client_id) {
+    // Detectar cliente (enquanto o usuário não escolher manualmente)
+    if (!fixedClientId && !clientManual) {
       const match = clients.find(c => {
         const name = c.name.toLowerCase()
-        // tenta nome completo ou primeira palavra significativa
         const firstWord = name.split(' ')[0]
         return lower.includes(name) || (firstWord.length > 3 && lower.includes(firstWord))
       })
-      if (match) setForm((f:any) => ({ ...f, client_id: match.id }))
+      // Atualiza pro match novo, ou limpa se não achar mais nada
+      setForm((f:any) => ({ ...f, client_id: match ? match.id : '' }))
     }
 
-    // Detectar tipo
-    const typeMap: Record<string,string> = {
-      'menu': 'Menu', 'cardapio': 'Cardápio', 'cardápio': 'Cardápio', 'logo': 'Logo',
-      'placa': 'Placa', 'cartao': 'Cartão', 'cartão': 'Cartão', 'sacola': 'Sacola',
-      'sousplat': 'Sousplat', 'story': 'Story', 'stories': 'Story', 'capa': 'Capas destaque',
-      'fundo': 'Fundos', 'manual': 'Manual',
-    }
-    for (const [key, val] of Object.entries(typeMap)) {
-      if (lower.includes(key)) { setForm((f:any) => ({ ...f, type: val })); break }
+    // Detectar tipo (enquanto não escolher manualmente)
+    if (!typeManual) {
+      const typeMap: Record<string,string> = {
+        'menu': 'Menu', 'cardapio': 'Cardápio', 'cardápio': 'Cardápio', 'logo': 'Logo',
+        'placa': 'Placa', 'cartao': 'Cartão', 'cartão': 'Cartão', 'sacola': 'Sacola',
+        'sousplat': 'Sousplat', 'story': 'Story', 'stories': 'Story', 'capa': 'Capas destaque',
+        'fundo': 'Fundos', 'manual': 'Manual',
+      }
+      let found = ''
+      for (const [key, val] of Object.entries(typeMap)) {
+        if (lower.includes(key)) { found = val; break }
+      }
+      if (found) setForm((f:any) => ({ ...f, type: found }))
     }
   }
 
@@ -102,13 +107,13 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
           <div><label className="text-xs text-[#A8A59E] mb-1 block">Título *</label><input value={form.title} onChange={e => { const v = e.target.value; setForm((f:any)=>({...f,title:v})); detectFromTitle(v) }} placeholder="Ex: Menu entrada Piastro" className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916]" /></div>
 
           {!fixedClientId && (
-            <div><label className="text-xs text-[#A8A59E] mb-1 block">Cliente *</label><select value={form.client_id} onChange={e => setForm((f:any)=>({...f,client_id:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none"><option value="">Selecione...</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            <div><label className="text-xs text-[#A8A59E] mb-1 block">Cliente *</label><select value={form.client_id} onChange={e => { setClientManual(true); setForm((f:any)=>({...f,client_id:e.target.value})) }} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none"><option value="">Selecione...</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-[#A8A59E] mb-1 block">Tipo</label>
-              <input list="mat-types" value={form.type} onChange={e => setForm((f:any)=>({...f,type:e.target.value}))} placeholder="Escolha ou escreva..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-[#1A1916]" />
+              <input list="mat-types" value={form.type} onChange={e => { setTypeManual(true); setForm((f:any)=>({...f,type:e.target.value})) }} placeholder="Escolha ou escreva..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-[#1A1916]" />
               <datalist id="mat-types">{TYPE_OPTIONS.map(t => <option key={t} value={t} />)}</datalist>
             </div>
             <div>
