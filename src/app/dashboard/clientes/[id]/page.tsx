@@ -23,6 +23,8 @@ const typeColor: Record<string,string> = { 'reels':'bg-red-100 text-red-700','ca
 const statusColor: Record<string,string> = { 'publicado':'bg-green-50 text-green-600','aprovado':'bg-blue-50 text-blue-600','agendado':'bg-teal-50 text-teal-600','aguardando_aprovacao':'bg-pink-50 text-pink-600','revisao_interna':'bg-purple-50 text-purple-600','producao':'bg-yellow-50 text-yellow-700','pendente':'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]' }
 const STATUS_LABEL: Record<string,string> = { producao:'Produção', revisao_interna:'Revisão', aguardando_aprovacao:'Aguardando aprovação', aprovado:'Aprovado', agendado:'Agendado', publicado:'Publicado' }
 const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'Carrossel/Stories' }
+const MAT_TYPE_LABEL: Record<string,string> = { menu:'Menu', cardapio:'Cardápio', arte_avulsa:'Arte avulsa', logo:'Logo', manual:'Manual', outro:'Outro' }
+const MAT_TYPE_COLOR: Record<string,string> = { menu:'bg-orange-100 text-orange-700', cardapio:'bg-amber-100 text-amber-700', arte_avulsa:'bg-purple-100 text-purple-700', logo:'bg-blue-100 text-blue-700', manual:'bg-green-100 text-green-700', outro:'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]' }
 const approvalColor: Record<string,string> = { 'aprovado':'bg-green-50 text-green-600','não aprovado':'bg-red-50 text-red-500' }
 const FUNCAO_LABEL: Record<string,string> = { videos:'Editor', posts:'Designer', estrategia:'Estratégia', social:'Social Media', acompanha:'Acompanha', outro:'Outro' }
 function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }
@@ -56,6 +58,11 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
   const [allMembers, setAllMembers] = useState<any[]>([])
   const [showAddMember, setShowAddMember] = useState(false)
   const [showNewPost, setShowNewPost] = useState(false)
+  const [materials, setMaterials] = useState<any[]>([])
+  const [showNewMaterial, setShowNewMaterial] = useState(false)
+  const [editingMaterial, setEditingMaterial] = useState<any>(null)
+  const [matForm, setMatForm] = useState({ title: '', type: 'arte_avulsa', drive_url: '', notes: '' })
+  const [savingMat, setSavingMat] = useState(false)
   const [newMemberId, setNewMemberId] = useState('')
   const [newFuncao, setNewFuncao] = useState('posts')
 
@@ -82,6 +89,8 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
       }))
       setTeam(enriched)
       setAllMembers(membersData || [])
+      const { data: matData } = await supabase.from('materials').select('*').eq('client_id', id).order('created_at', { ascending: false })
+      setMaterials(matData || [])
       setLoading(false)
     }
     load()
@@ -148,6 +157,44 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
     setConfirmDelete(false)
     setSelected(null)
     reloadPosts()
+  }
+
+  async function reloadMaterials() {
+    const supabase = createClient()
+    const { data } = await supabase.from('materials').select('*').eq('client_id', id).order('created_at', { ascending: false })
+    setMaterials(data || [])
+  }
+
+  function openNewMaterial() {
+    setEditingMaterial(null)
+    setMatForm({ title: '', type: 'arte_avulsa', drive_url: '', notes: '' })
+    setShowNewMaterial(true)
+  }
+
+  function openEditMaterial(m: any) {
+    setEditingMaterial(m)
+    setMatForm({ title: m.title || '', type: m.type || 'arte_avulsa', drive_url: m.drive_url || '', notes: m.notes || '' })
+    setShowNewMaterial(true)
+  }
+
+  async function saveMaterial() {
+    if (!matForm.title.trim()) return
+    setSavingMat(true)
+    const supabase = createClient()
+    if (editingMaterial) {
+      await supabase.from('materials').update(matForm).eq('id', editingMaterial.id)
+    } else {
+      await supabase.from('materials').insert({ ...matForm, client_id: id })
+    }
+    setSavingMat(false)
+    setShowNewMaterial(false)
+    reloadMaterials()
+  }
+
+  async function deleteMaterial(matId: string) {
+    const supabase = createClient()
+    await supabase.from('materials').delete().eq('id', matId)
+    setMaterials(ms => ms.filter(m => m.id !== matId))
   }
 
   async function reloadPosts() {
@@ -341,11 +388,56 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
           )}
 
           {tab === 'materiais' && (
-            <div className="flex flex-col items-center justify-center h-48 text-center">
-              <p className="text-2xl mb-2">📦</p>
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">Materiais extras</p>
-              <p className="text-xs text-[var(--color-text-muted)] mt-1">Menus, brindes, materiais de evento e artes avulsas.</p>
-              <button className="mt-4 bg-[var(--color-text-primary)] text-white rounded-lg px-4 py-2 text-sm font-medium">+ Novo material</button>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">Materiais extras</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Menus, cardápios, artes avulsas, logos.</p>
+                </div>
+                <button onClick={openNewMaterial} className="bg-[var(--color-text-primary)] text-white rounded-lg px-3 py-1.5 text-sm font-medium">+ Novo material</button>
+              </div>
+
+              {materials.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-40 text-center border border-dashed border-[#EBEAE5] rounded-2xl">
+                  <p className="text-2xl mb-2">📦</p>
+                  <p className="text-sm text-[var(--color-text-muted)]">Nenhum material ainda.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {materials.map(m => (
+                    <div key={m.id} className="group bg-white border border-[#EBEAE5] rounded-xl p-4 flex flex-col gap-2 hover:shadow-sm transition-all">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${MAT_TYPE_COLOR[m.type]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{MAT_TYPE_LABEL[m.type]||m.type}</span>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openEditMaterial(m)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] text-xs" title="Editar">✏️</button>
+                          <button onClick={() => deleteMaterial(m.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-xs" title="Excluir">🗑️</button>
+                        </div>
+                      </div>
+                      <p className="text-sm font-medium text-[var(--color-text-primary)]">{m.title}</p>
+                      {m.notes && <p className="text-xs text-[var(--color-text-muted)] line-clamp-2">{m.notes}</p>}
+                      {m.drive_url && <a href={m.drive_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline mt-auto"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Abrir no Drive</a>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showNewMaterial && (
+                <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setShowNewMaterial(false) }}>
+                  <div className="bg-white rounded-2xl w-full max-w-md p-6">
+                    <p className="font-semibold text-[var(--color-text-primary)] mb-4">{editingMaterial ? 'Editar material' : 'Novo material'}</p>
+                    <div className="flex flex-col gap-3">
+                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={matForm.title} onChange={e => setMatForm(f => ({...f, title: e.target.value}))} placeholder="Ex: Menu de inverno 2026" className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916]" /></div>
+                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={matForm.type} onChange={e => setMatForm(f => ({...f, type: e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none">{Object.entries(MAT_TYPE_LABEL).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link do Drive</label><input value={matForm.drive_url} onChange={e => setMatForm(f => ({...f, drive_url: e.target.value}))} placeholder="https://drive.google.com/..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916]" /></div>
+                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Observações</label><textarea value={matForm.notes} onChange={e => setMatForm(f => ({...f, notes: e.target.value}))} rows={2} placeholder="Notas, contexto..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916] resize-none" /></div>
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={() => setShowNewMaterial(false)} className="flex-1 py-2 text-sm border border-[#EBEAE5] rounded-lg text-[var(--color-text-secondary)]">Cancelar</button>
+                        <button onClick={saveMaterial} disabled={savingMat || !matForm.title.trim()} className="flex-1 py-2 text-sm bg-[var(--color-text-primary)] text-white rounded-lg disabled:opacity-50">{savingMat ? 'Salvando...' : 'Salvar'}</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

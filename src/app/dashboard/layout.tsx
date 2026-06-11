@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check } from 'lucide-react'
-import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, CheckCircle, XCircle } from 'lucide-react'
+import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, CheckCircle, XCircle, Package } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 
 const navItems = [
@@ -17,6 +17,7 @@ const productionItems = [
   { href: '/dashboard/cronograma', icon: Calendar,     label: 'Cronograma' },
   { href: '/dashboard/kanban',     icon: Kanban,       label: 'Kanban' },
   { href: '/dashboard/feed',       icon: Smartphone,   label: 'Feed Visual' },
+  { href: '/dashboard/materiais',  icon: Package,      label: 'Materiais' },
   { href: '/dashboard/campanhas',  icon: Megaphone,    label: 'Campanhas' },
 ]
 const contentItems = [
