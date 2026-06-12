@@ -4,6 +4,8 @@ import { use, useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
+import MaterialCard from '@/components/MaterialCard'
+import MaterialCardMini from '@/components/MaterialCardMini'
 import PostFormModal from '@/components/PostFormModal'
 
 type Client = {
@@ -59,7 +61,9 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
   const [showAddMember, setShowAddMember] = useState(false)
   const [showNewPost, setShowNewPost] = useState(false)
   const [materials, setMaterials] = useState<any[]>([])
+  const [matCounts, setMatCounts] = useState<Record<string,any>>({})
   const [showNewMaterial, setShowNewMaterial] = useState(false)
+  const [cardOpen, setCardOpen] = useState<string | 'new' | null>(null)
   const [editingMaterial, setEditingMaterial] = useState<any>(null)
   const [matForm, setMatForm] = useState({ title: '', type: 'arte_avulsa', drive_url: '', notes: '' })
   const [savingMat, setSavingMat] = useState(false)
@@ -91,6 +95,17 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
       setAllMembers(membersData || [])
       const { data: matData } = await supabase.from('materials').select('*').eq('client_id', id).order('created_at', { ascending: false })
       setMaterials(matData || [])
+      const [{ data: chk }, { data: cms }, { data: atts }] = await Promise.all([
+        supabase.from('material_checklist').select('material_id, done'),
+        supabase.from('material_comments').select('material_id'),
+        supabase.from('material_attachments').select('material_id'),
+      ])
+      const mc: Record<string,any> = {}
+      ;(matData || []).forEach((m: any) => { mc[m.id] = { checklist: 0, checkDone: 0, comments: 0, attachments: 0 } })
+      ;(chk || []).forEach((x: any) => { if (mc[x.material_id]) { mc[x.material_id].checklist++; if (x.done) mc[x.material_id].checkDone++ } })
+      ;(cms || []).forEach((x: any) => { if (mc[x.material_id]) mc[x.material_id].comments++ })
+      ;(atts || []).forEach((x: any) => { if (mc[x.material_id]) mc[x.material_id].attachments++ })
+      setMatCounts(mc)
       setLoading(false)
     }
     load()
@@ -166,15 +181,11 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
   }
 
   function openNewMaterial() {
-    setEditingMaterial(null)
-    setMatForm({ title: '', type: 'arte_avulsa', drive_url: '', notes: '' })
-    setShowNewMaterial(true)
+    setCardOpen('new')
   }
 
   function openEditMaterial(m: any) {
-    setEditingMaterial(m)
-    setMatForm({ title: m.title || '', type: m.type || 'arte_avulsa', drive_url: m.drive_url || '', notes: m.notes || '' })
-    setShowNewMaterial(true)
+    setCardOpen(m.id)
   }
 
   async function saveMaterial() {
@@ -405,23 +416,26 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   {materials.map(m => (
-                    <div key={m.id} className="group bg-white border border-[#EBEAE5] rounded-xl p-4 flex flex-col gap-2 hover:shadow-sm transition-all">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${MAT_TYPE_COLOR[m.type]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{MAT_TYPE_LABEL[m.type]||m.type}</span>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => openEditMaterial(m)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] text-xs" title="Editar">✏️</button>
-                          <button onClick={() => deleteMaterial(m.id)} className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-xs" title="Excluir">🗑️</button>
-                        </div>
-                      </div>
-                      <p className="text-sm font-medium text-[var(--color-text-primary)]">{m.title}</p>
-                      {m.notes && <p className="text-xs text-[var(--color-text-muted)] line-clamp-2">{m.notes}</p>}
-                      {m.drive_url && <a href={m.drive_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline mt-auto"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Abrir no Drive</a>}
-                    </div>
+                    <MaterialCardMini
+                      key={m.id}
+                      material={{ ...m, _checkTotal: (matCounts[m.id]||{}).checklist||0, _checkDone: (matCounts[m.id]||{}).checkDone||0, _comments: (matCounts[m.id]||{}).comments||0, _attachments: (matCounts[m.id]||{}).attachments||0 }}
+                      members={allMembers}
+                      onClick={() => setCardOpen(m.id)}
+                    />
                   ))}
                 </div>
               )}
 
-              {showNewMaterial && (
+              {cardOpen && (
+                <MaterialCard
+                  materialId={cardOpen === 'new' ? undefined : cardOpen}
+                  fixedClientId={id as string}
+                  clients={[client].filter(Boolean)}
+                  onClose={() => setCardOpen(null)}
+                  onSaved={reloadMaterials}
+                />
+              )}
+              {false && (
                 <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setShowNewMaterial(false) }}>
                   <div className="bg-white rounded-2xl w-full max-w-md p-6">
                     <p className="font-semibold text-[var(--color-text-primary)] mb-4">{editingMaterial ? 'Editar material' : 'Novo material'}</p>

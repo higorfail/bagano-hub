@@ -32,7 +32,7 @@ export default function FeedPage() {
   useEffect(() => {
     if (!selected) return
     setLoading(true)
-    supabase.from('schedules').select('id, title, post_type, status, drive_url, copy, scheduled_date, feed_order').eq('client_id', selected.id).order('feed_order', { ascending: true })
+    supabase.from('schedules').select('id, title, post_type, status, drive_url, drive_folder_url, copy, scheduled_date, feed_order').eq('client_id', selected.id).order('feed_order', { ascending: true })
       .then(({ data }) => {
         if (data) {
           setPosts(data.map(s => ({
@@ -41,6 +41,7 @@ export default function FeedPage() {
             type: s.post_type === 'reels' ? 'reel' : s.post_type === 'carousel' ? 'carousel' : 'photo',
             status: s.status === 'approved' ? 'approved' : s.status === 'changes_requested' ? 'changes_requested' : s.status === 'draft' ? 'draft' : 'pending',
             drive_url: s.drive_url,
+            drive_folder_url: s.drive_folder_url,
             copy: s.copy,
             scheduled_date: s.scheduled_date,
             feed_order: s.feed_order,
