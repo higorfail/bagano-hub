@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
 import MaterialCard from '@/components/MaterialCard'
+import CampaignsTab from '@/components/CampaignsTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
 import PostFormModal from '@/components/PostFormModal'
 
@@ -456,11 +457,11 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
           )}
 
           {tab === 'campanhas' && (
-            <div className="flex flex-col items-center justify-center h-48 text-center">
-              <p className="text-2xl mb-2">📣</p>
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">Campanhas</p>
-              <p className="text-xs text-[var(--color-text-muted)] mt-1">Posts deste cliente vinculados a campanhas ativas.</p>
-            </div>
+            <CampaignsTab
+              clientId={id as string}
+              clientColor={client.color_hex}
+              members={allMembers}
+            />
           )}
 
           {tab === 'time' && (
