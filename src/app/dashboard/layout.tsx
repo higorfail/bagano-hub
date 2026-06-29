@@ -10,6 +10,7 @@ import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, Calenda
 import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider } from '@/lib/ToastContext'
+import LogoIcon from '@/components/logos/LogoIcon'
 
 const navItems = [
   { href: '/dashboard',          icon: Home,          label: 'Início' },
@@ -197,9 +198,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-[var(--color-bg-page)] overflow-hidden">
       <aside className="w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col py-6 px-4">
         <div className="flex items-center gap-2.5 px-2 mb-8">
-          <div className="w-8 h-8 bg-[var(--color-brand)] rounded-xl flex items-center justify-center">
-            <span className="text-white text-xs font-bold">B</span>
-          </div>
+          <LogoIcon size={34} className="text-[var(--color-logo)] flex-shrink-0" />
           <span className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight">Bagano Hub</span>
         </div>
 

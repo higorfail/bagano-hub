@@ -38,6 +38,7 @@ export default function RootLayout({
   --color-bg-page:#F9F8F5;--color-bg-card:#FFFFFF;--color-bg-subtle:#F2F0EB;--color-bg-alt:#FBFAF8;--color-bg-input:#F9F8F5;
   --color-border:#EBEAE5;--color-border-hover:#D4D1CB;--color-border-strong:#D4D0C8;
   --color-brand:#1A1916;--color-brand-fg:#FFFFFF;
+  --color-logo:#7c0006;
 }
 
 /* shared dark palette — applied by media query (auto) or data-theme (manual) */
@@ -46,6 +47,7 @@ export default function RootLayout({
   --color-bg-page:#1C1A18;--color-bg-card:#252320;--color-bg-subtle:#2E2C29;--color-bg-alt:#211F1D;--color-bg-input:#252320;
   --color-border:#333028;--color-border-hover:#3D3A36;--color-border-strong:#484440;
   --color-brand:#E8E4DC;--color-brand-fg:#1A1916;
+  --color-logo:#d44040;
   /* Tailwind green — tints become dark, text becomes light */
   --color-green-50:#052e16;--color-green-100:#14532d;--color-green-200:#166534;
   --color-green-600:#4ade80;--color-green-700:#86efac;--color-green-800:#bbf7d0;
@@ -116,6 +118,7 @@ export default function RootLayout({
   --color-brand:#1A1916;--color-brand-fg:#FFFFFF;
 }
         `}} />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

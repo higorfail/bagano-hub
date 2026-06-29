@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import LogoWordmark from '@/components/logos/LogoWordmark'
 
 export default function Home() {
   const [email, setEmail] = useState('')
@@ -27,11 +28,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[var(--color-bg-input)] flex items-center justify-center">
       <div className="w-full max-w-sm">
-        <div className="flex items-center gap-3 mb-8 justify-center">
-          <div className="w-9 h-9 rounded-xl bg-[var(--color-text-primary)] flex items-center justify-center">
-            <span className="text-white font-semibold text-sm">B</span>
-          </div>
-          <span className="text-[var(--color-text-primary)] font-semibold text-lg">Bagano Hub</span>
+        <div className="flex justify-center mb-8">
+          <LogoWordmark width={180} className="text-[#7c0006]" />
         </div>
         <div className="bg-white rounded-2xl border border-[var(--color-border)] p-8">
           <h1 className="text-[var(--color-text-primary)] font-semibold text-xl mb-1">Entrar</h1>
