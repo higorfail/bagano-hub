@@ -306,7 +306,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           </div>
 
           <div className="flex items-center gap-1 mt-5">
-            {[{key:'cronograma',label:'📅 Cronograma'},{key:'feed',label:'🖼 Feed'},{key:'materiais',label:'📦 Materiais'},{key:'campanhas',label:'📣 Campanhas'},{key:'time',label:'👥 Time'},{key:'extras',label:'📋 Extras'},{key:'historico',label:'🕓 Histórico'}].map(t => (
+            {[{key:'cronograma',label:'📅 Cronograma'},{key:'feed',label:'🖼 Feed'},{key:'materiais',label:'📦 Materiais'},{key:'campanhas',label:'📣 Campanhas'},{key:'time',label:'👥 Time'},{key:'extras',label:'📋 Extras'},{key:'drive',label:'📁 Drive'},{key:'historico',label:'🕓 Histórico'}].map(t => (
               <button key={t.key} onClick={() => setTab(t.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab===t.key?'bg-[var(--color-text-primary)] text-white':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
             ))}
           </div>
@@ -619,6 +619,41 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Tarefas, notas e lembretes específicos deste cliente</p>
               </div>
               <ExtrasKanban clientId={client.id} members={allMembers} />
+            </div>
+          )}
+
+          {tab === 'drive' && (
+            <div className="flex flex-col h-full">
+              {client.drive_folder_url ? (() => {
+                const match = client.drive_folder_url.match(/folders\/([a-zA-Z0-9_-]+)/)
+                const folderId = match?.[1]
+                const embedUrl = folderId
+                  ? `https://drive.google.com/embeddedfolderview?id=${folderId}#list`
+                  : null
+                return embedUrl ? (
+                  <iframe
+                    src={embedUrl}
+                    className="w-full flex-1 rounded-xl border border-[var(--color-border)]"
+                    style={{ minHeight: 'calc(100vh - 220px)' }}
+                    title="Google Drive"
+                    allow="autoplay"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 gap-3">
+                    <p className="text-sm text-[var(--color-text-muted)]">Não foi possível interpretar o link do Drive.</p>
+                    <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer"
+                      className="text-sm text-blue-600 underline">Abrir no Drive →</a>
+                  </div>
+                )
+              })() : (
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                  <p className="text-[var(--color-text-muted)] text-sm">Nenhuma pasta do Drive configurada.</p>
+                  <button onClick={openEditClient}
+                    className="text-sm border border-[var(--color-border)] rounded-lg px-4 py-2 text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                    ✏️ Editar cliente para adicionar
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
