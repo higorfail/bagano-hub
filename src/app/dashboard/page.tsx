@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
-import { ArrowRight, AlertTriangle, Clock, Calendar, ChevronRight, Zap, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, AlertTriangle, Clock, Calendar, ChevronRight, Zap, CheckCircle2, Camera } from 'lucide-react'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
 const CFG = {
@@ -59,6 +59,7 @@ type Schedule = {
   month: number; year: number
 }
 type SpecialDate = { id: string; name: string; date: string }
+type Captacao    = { id: string; client_id: string; scheduled_date: string; status: string; months_covered: number }
 
 function getInitials(name: string) {
   return name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
@@ -83,6 +84,7 @@ export default function DashboardPage() {
   const [clients,      setClients]      = useState<Client[]>([])
   const [schedules,    setSchedules]    = useState<Schedule[]>([])
   const [specialDates, setSpecialDates] = useState<SpecialDate[]>([])
+  const [captacoes,    setCaptacoes]    = useState<Captacao[]>([])
   const [loading,      setLoading]      = useState(true)
 
   const now      = new Date()
@@ -94,7 +96,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: cls }, { data: sch }, { data: sd }] = await Promise.all([
+      const in90Str = new Date(now.getTime() + 90 * 86400000).toISOString().split('T')[0]
+      const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
+      const [{ data: cls }, { data: sch }, { data: sd }, { data: cap }] = await Promise.all([
         supabase.from(CFG.t.clients)
           .select('id, name, color_hex')
           .eq('status', 'active')
@@ -108,10 +112,16 @@ export default function DashboardPage() {
           .gte('date', todayStr)
           .lte('date', in120Str)
           .order('date'),
+        supabase.from('captacoes')
+          .select('id, client_id, scheduled_date, status, months_covered')
+          .gte('scheduled_date', ago45Str)
+          .lte('scheduled_date', in90Str)
+          .order('scheduled_date'),
       ])
       setClients(cls || [])
       setSchedules(sch || [])
       setSpecialDates(sd || [])
+      setCaptacoes(cap || [])
       setLoading(false)
     }
     load()
@@ -195,7 +205,38 @@ export default function DashboardPage() {
     { label: 'Precisam ajuste', value: notOk,      color: notOk > 0 ? '#dc2626' : '#A8A59E' },
   ]
 
+  // ── Alertas de captação ──────────────────────────────────────────────────
+  const captacaoAlerts = useMemo(() => {
+    const futureCaptacoes  = captacoes.filter(c => c.scheduled_date >= todayStr && c.status === 'agendada')
+    const recentCaptacoes  = captacoes.filter(c => c.scheduled_date < todayStr && c.status === 'realizada')
+    const clientsWithFuture = new Set(futureCaptacoes.map(c => c.client_id))
+    const clientsWithRecent = new Set(recentCaptacoes.map(c => c.client_id))
+
+    const semAgendada: Client[] = []
+    const vencida:     Client[] = []
+    const postsAcabando: Client[] = []
+
+    clients.forEach(cl => {
+      const hasFuture = clientsWithFuture.has(cl.id)
+      const hasRecent = clientsWithRecent.has(cl.id)
+      if (!hasFuture) semAgendada.push(cl)
+      if (!hasFuture && !hasRecent) vencida.push(cl)
+
+      // posts acabando: menos de 5 posts futuros no cronograma deste mês
+      const clientPosts = schedules.filter(s =>
+        s.client_id === cl.id &&
+        !['publicado', 'agendado'].includes(s.status)
+      )
+      if (clientPosts.length < 3 && schedules.some(s => s.client_id === cl.id)) {
+        postsAcabando.push(cl)
+      }
+    })
+
+    return { semAgendada, vencida, postsAcabando }
+  }, [clients, captacoes, schedules, todayStr])
+
   const hasAlerts = delayed.length > 0 || rejected.length > 0 || urgentDates.length > 0
+    || captacaoAlerts.vencida.length > 0 || captacaoAlerts.semAgendada.length > 0 || captacaoAlerts.postsAcabando.length > 0
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -324,6 +365,77 @@ export default function DashboardPage() {
                       </div>
                     )
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Captação vencida */}
+            {captacaoAlerts.vencida.length > 0 && (
+              <div className="bg-red-50 border border-red-100 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Camera size={14} className="text-red-500" />
+                  <p className="text-sm font-semibold text-red-700">
+                    {captacaoAlerts.vencida.length} cliente{captacaoAlerts.vencida.length !== 1 ? 's' : ''} sem captação recente ou agendada
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {captacaoAlerts.vencida.map(cl => (
+                    <button key={cl.id} onClick={() => router.push(`/dashboard/clientes/${cl.id}`)}
+                      className="flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-red-100 hover:border-red-300 rounded-xl px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] transition-all">
+                      <span className="w-4 h-4 rounded flex items-center justify-center text-white text-[8px] font-bold" style={{ background: cl.color_hex }}>
+                        {getInitials(cl.name)}
+                      </span>
+                      {cl.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sem captação agendada (mas tem recente) */}
+            {captacaoAlerts.semAgendada.filter(cl => !captacaoAlerts.vencida.some(v => v.id === cl.id)).length > 0 && (
+              <div className="bg-purple-50 border border-purple-100 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Camera size={14} className="text-purple-500" />
+                  <p className="text-sm font-semibold text-purple-700">
+                    Clientes sem captação futura agendada
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {captacaoAlerts.semAgendada
+                    .filter(cl => !captacaoAlerts.vencida.some(v => v.id === cl.id))
+                    .map(cl => (
+                      <button key={cl.id} onClick={() => router.push(`/dashboard/agenda`)}
+                        className="flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-purple-100 hover:border-purple-300 rounded-xl px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] transition-all">
+                        <span className="w-4 h-4 rounded flex items-center justify-center text-white text-[8px] font-bold" style={{ background: cl.color_hex }}>
+                          {getInitials(cl.name)}
+                        </span>
+                        {cl.name}
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Posts acabando */}
+            {captacaoAlerts.postsAcabando.length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-100 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap size={14} className="text-yellow-600" />
+                  <p className="text-sm font-semibold text-yellow-700">
+                    {captacaoAlerts.postsAcabando.length} cliente{captacaoAlerts.postsAcabando.length !== 1 ? 's' : ''} com poucos posts em produção
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {captacaoAlerts.postsAcabando.map(cl => (
+                    <button key={cl.id} onClick={() => router.push(`/dashboard/clientes/${cl.id}`)}
+                      className="flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-yellow-100 hover:border-yellow-300 rounded-xl px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] transition-all">
+                      <span className="w-4 h-4 rounded flex items-center justify-center text-white text-[8px] font-bold" style={{ background: cl.color_hex }}>
+                        {getInitials(cl.name)}
+                      </span>
+                      {cl.name}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
