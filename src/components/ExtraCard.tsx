@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import ActivityLog from '@/components/ActivityLog'
+import { useToast } from '@/lib/ToastContext'
 import {
   X, Plus, Calendar, Tag, CheckSquare, Paperclip,
   Trash2, Link2, MessageSquare, User, AlignLeft, Check,
@@ -60,6 +61,7 @@ type Props = {
 
 export default function ExtraCard({ extraId, initialStatus, fixedClientId, clients = [], members: membersProp, onClose, onSaved, onDeleted }: Props) {
   const { members: ctxMembers, currentMember } = useUser()
+  const { toast } = useToast()
   const members = membersProp ?? ctxMembers
   const supabase = createClient()
 
@@ -219,7 +221,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       savedData = data
     }
     setSaving(false)
-    if (savedData) onSaved(savedData)
+    if (savedData) { toast('Extra salvo!'); onSaved(savedData) }
   }
 
   async function handleDelete() {

@@ -9,6 +9,7 @@ import { ChevronDown, Check } from 'lucide-react'
 import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
+import { ToastProvider } from '@/lib/ToastContext'
 
 const navItems = [
   { href: '/dashboard',          icon: Home,          label: 'Início' },
@@ -401,7 +402,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ThemeProvider>
       <UserProvider>
-        <DashboardInner>{children}</DashboardInner>
+        <ToastProvider>
+          <DashboardInner>{children}</DashboardInner>
+        </ToastProvider>
       </UserProvider>
     </ThemeProvider>
   )

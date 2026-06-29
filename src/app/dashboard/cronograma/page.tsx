@@ -5,6 +5,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import PostCard from '@/components/PostCard'
+import { useToast } from '@/lib/ToastContext'
 
 type Client = { id: string; name: string; color_hex: string }
 type Post = {
@@ -54,6 +55,7 @@ const statusColor: Record<string,string> = { 'publicado':'bg-green-50 text-green
 const approvalColor: Record<string,string> = { 'aprovado':'bg-green-50 text-green-600','não aprovado':'bg-red-50 text-red-500' }
 
 function CronogramaPageInner() {
+  const { toast } = useToast()
   const [clients, setClients] = useState<Client[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   const searchParams = useSearchParams()
@@ -95,6 +97,19 @@ function CronogramaPageInner() {
     const supabase = createClient()
     const { data } = await supabase.from('schedules').select('*').eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear).order('post_number')
     setPosts(data || [])
+  }
+
+  async function duplicatePost(post: Post) {
+    const supabase = createClient()
+    const { title, copy, post_type, drive_url, reference_notes } = post
+    await supabase.from('schedules').insert({
+      client_id: selectedClient, month: selectedMonth, year: selectedYear,
+      post_number: posts.length + 1,
+      title: `${title} (cópia)`, copy, post_type, drive_url, reference_notes,
+      status: 'producao', scheduled_date: null,
+    })
+    await loadPosts()
+    toast('Post duplicado!')
   }
 
   async function generateApprovalLink() {
@@ -196,12 +211,20 @@ function CronogramaPageInner() {
           ) : (
             <div className="grid grid-cols-3 gap-4">
               {posts.map(post => (
-                <button key={post.id} onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
-                  className={`text-left bg-[var(--color-bg-card)] border rounded-2xl p-5 flex flex-col gap-3 hover:shadow-md transition-all ${selected?.id===post.id?'ring-2 border-transparent':'border-[var(--color-border)]'}`}
-                  style={selected?.id===post.id?{boxShadow:`0 0 0 2px ${client?.color_hex}`}:{}}>
+                <div key={post.id} className={`group relative text-left bg-[var(--color-bg-card)] border rounded-2xl p-5 flex flex-col gap-3 hover:shadow-md transition-all cursor-pointer ${selected?.id===post.id?'ring-2 border-transparent':'border-[var(--color-border)]'}`}
+                  style={selected?.id===post.id?{boxShadow:`0 0 0 2px ${client?.color_hex}`}:{}}
+                  onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}>
                   <div className="flex items-center justify-between">
                     <span className="text-3xl font-black text-[var(--color-border)]">#{post.post_number}</span>
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${typeColor[post.post_type]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{post.post_type||'—'}</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={e => { e.stopPropagation(); duplicatePost(post) }}
+                        title="Duplicar post"
+                        className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[var(--color-bg-subtle)] hover:bg-[var(--color-border)] flex items-center justify-center transition-all text-[var(--color-text-muted)] text-xs">
+                        ⧉
+                      </button>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${typeColor[post.post_type]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{post.post_type||'—'}</span>
+                    </div>
                   </div>
                   <p className="text-[var(--color-text-primary)] font-semibold text-base leading-snug line-clamp-2">{post.title}</p>
                   {post.copy && <p className="text-[var(--color-text-muted)] text-xs leading-relaxed line-clamp-2">{post.copy}</p>}
@@ -212,7 +235,7 @@ function CronogramaPageInner() {
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{STATUS_LABEL[post.status]||post.status}</span>
                     </div>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}

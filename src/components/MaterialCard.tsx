@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import ActivityLog from '@/components/ActivityLog'
+import { useToast } from '@/lib/ToastContext'
 import {
   X, Plus, Calendar, Tag, CheckSquare, Paperclip,
   Trash2, Link2, MessageSquare, User, Briefcase,
@@ -49,6 +50,7 @@ type Props = {
 
 export default function MaterialCard({ materialId, fixedClientId, clients = [], onClose, onSaved, onDeleted }: Props) {
   const { members, currentMember } = useUser()
+  const { toast } = useToast()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const originalStatusRef = useRef('')
@@ -223,6 +225,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       await supabase.from('materials').update(payload).eq('id', id)
     }
     setSaving(false)
+    toast('Material salvo!')
     onSaved()
   }
 

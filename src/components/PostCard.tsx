@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, ChevronRight, Trash2, Link2, AlignLeft } from 'lucide-react'
+import { X, Calendar, ChevronRight, Trash2, Link2, AlignLeft, ImagePlus, XCircle } from 'lucide-react'
+import { useToast } from '@/lib/ToastContext'
 
 const POST_TYPES = [
   { value: 'reels',             label: 'Reels',             color: '#ef4444' },
@@ -27,8 +28,9 @@ const DIAS  = ['dom','seg','ter','qua','qui','sex','sáb']
 type PostForm = {
   title: string; copy: string; post_type: string; scheduled_date: string
   status: string; drive_url: string; reference_notes: string; funil: string
+  reference_images: string[]
 }
-const EMPTY: PostForm = { title:'', copy:'', post_type:'reels', scheduled_date:'', status:'producao', drive_url:'', reference_notes:'', funil:'' }
+const EMPTY: PostForm = { title:'', copy:'', post_type:'reels', scheduled_date:'', status:'producao', drive_url:'', reference_notes:'', funil:'', reference_images:[] }
 
 type Props = {
   postId?: string
@@ -45,10 +47,14 @@ type Props = {
 
 export default function PostCard({ postId, clientId, clientName, clientColor, month, year, postNumber, onClose, onSaved, onDeleted }: Props) {
   const supabase = createClient()
-  const [loading,  setLoading]  = useState(!!postId)
-  const [saving,   setSaving]   = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const { toast } = useToast()
+  const [loading,      setLoading]      = useState(!!postId)
+  const [saving,       setSaving]       = useState(false)
+  const [deleting,     setDeleting]     = useState(false)
+  const [confirmDelete,setConfirmDelete]= useState(false)
+  const [uploadingRef, setUploadingRef] = useState(false)
+  const [currentId,    setCurrentId]    = useState<string | undefined>(postId)
+  const refInputRef = useRef<HTMLInputElement>(null)
 
   const [form,     setForm]     = useState<PostForm>(EMPTY)
   const [showCal,  setShowCal]  = useState(false)
@@ -65,22 +71,61 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         scheduled_date: data.scheduled_date || '', status: data.status || 'producao',
         drive_url: data.drive_url || '', reference_notes: data.reference_notes || '',
         funil: data.funil || '',
+        reference_images: Array.isArray(data.reference_images) ? data.reference_images : [],
       })
       setLoading(false)
     }
     load()
   }, [postId])
 
+  async function ensurePostId(): Promise<string | undefined> {
+    if (currentId) return currentId
+    if (!form.title.trim()) return undefined
+    const { data } = await supabase.from('schedules').insert({
+      client_id: clientId, month, year, post_number: postNumber,
+      title: form.title, post_type: form.post_type, status: form.status,
+    }).select().single()
+    if (data) { setCurrentId(data.id); return data.id }
+    return undefined
+  }
+
+  async function handleRefImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingRef(true)
+    const pid = await ensurePostId()
+    if (!pid) { toast('Adicione um título antes de subir imagens', 'info'); setUploadingRef(false); return }
+    const path = `posts/${pid}/${Date.now()}_${file.name}`
+    const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false })
+    if (error) { toast('Erro no upload', 'error'); setUploadingRef(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
+    const newImages = [...form.reference_images, publicUrl]
+    setForm(f => ({ ...f, reference_images: newImages }))
+    await supabase.from('schedules').update({ reference_images: newImages }).eq('id', pid)
+    setUploadingRef(false)
+    if (refInputRef.current) refInputRef.current.value = ''
+  }
+
+  async function removeRefImage(url: string) {
+    const newImages = form.reference_images.filter(u => u !== url)
+    setForm(f => ({ ...f, reference_images: newImages }))
+    if (currentId) await supabase.from('schedules').update({ reference_images: newImages }).eq('id', currentId)
+    const path = url.split('/bagano-materiais/')[1]
+    if (path) supabase.storage.from('bagano-materiais').remove([path])
+  }
+
   async function handleSave() {
     if (!form.title.trim()) return
     setSaving(true)
     const payload = { ...form, scheduled_date: form.scheduled_date || null }
-    if (isNew) {
-      await supabase.from('schedules').insert({ client_id: clientId, month, year, post_number: postNumber, ...payload })
+    if (!currentId) {
+      const { data } = await supabase.from('schedules').insert({ client_id: clientId, month, year, post_number: postNumber, ...payload }).select().single()
+      if (data) setCurrentId(data.id)
     } else {
-      await supabase.from('schedules').update(payload).eq('id', postId)
+      await supabase.from('schedules').update(payload).eq('id', currentId)
     }
     setSaving(false)
+    toast('Post salvo!')
     onSaved()
     onClose()
   }
@@ -189,9 +234,18 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
             {/* Referências */}
             <div className="px-7 py-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Link2 size={14} className="text-[var(--color-text-muted)]" />
-                <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Referências</span>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Link2 size={14} className="text-[var(--color-text-muted)]" />
+                  <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Referências</span>
+                </div>
+                <button onClick={() => refInputRef.current?.click()}
+                  disabled={uploadingRef}
+                  className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-brand)] transition-colors disabled:opacity-50">
+                  <ImagePlus size={13} />
+                  {uploadingRef ? 'Enviando…' : 'Imagem'}
+                </button>
+                <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefImageUpload} />
               </div>
               <textarea
                 value={form.reference_notes}
@@ -200,6 +254,23 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 className="w-full bg-transparent text-sm text-[var(--color-text-primary)] outline-none resize-none leading-relaxed placeholder:text-[var(--color-text-faint)]"
                 rows={3}
               />
+              {form.reference_images.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 mt-3">
+                  {form.reference_images.map((url, i) => (
+                    <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-[var(--color-border)]">
+                      <img src={url} alt={`Referência ${i + 1}`} className="w-full h-full object-cover" />
+                      <button onClick={() => removeRefImage(url)}
+                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5">
+                        <XCircle size={14} className="text-white" />
+                      </button>
+                      <a href={url} target="_blank" rel="noopener noreferrer"
+                        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 flex items-end p-1.5">
+                        <span className="text-[9px] text-white font-medium bg-black/40 rounded px-1">abrir</span>
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
