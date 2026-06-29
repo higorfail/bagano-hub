@@ -9,6 +9,9 @@ interface Client {
   id: string
   name: string
   color_hex: string
+  instagram_url: string | null
+  instagram_followers: number | null
+  instagram_following: number | null
 }
 
 export default function FeedPage() {
@@ -25,21 +28,21 @@ export default function FeedPage() {
   const initials = (name: string) => name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
   useEffect(() => {
-    supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name')
+    supabase.from('clients').select('id, name, color_hex, instagram_url, instagram_followers, instagram_following').eq('status', 'active').order('name')
       .then(({ data }) => { if (data) setClients(data) })
   }, [])
 
   useEffect(() => {
     if (!selected) return
     setLoading(true)
-    supabase.from('schedules').select('id, title, post_type, status, drive_url, drive_folder_url, copy, scheduled_date, feed_order').eq('client_id', selected.id).order('feed_order', { ascending: true })
+    supabase.from('schedules').select('id, title, post_type, status, approval_status, drive_url, drive_folder_url, copy, scheduled_date, feed_order').eq('client_id', selected.id).order('feed_order', { ascending: true })
       .then(({ data }) => {
         if (data) {
           setPosts(data.map(s => ({
             id: s.id,
             title: s.title || 'Post sem título',
-            type: s.post_type === 'reels' ? 'reel' : s.post_type === 'carousel' ? 'carousel' : 'photo',
-            status: s.status === 'approved' ? 'approved' : s.status === 'changes_requested' ? 'changes_requested' : s.status === 'draft' ? 'draft' : 'pending',
+            type: s.post_type === 'reels' ? 'reel' : (s.post_type === 'carrossel' || s.post_type === 'carrossel_stories') ? 'carousel' : 'photo',
+            status: s.approval_status === 'aprovado' ? 'approved' : s.approval_status === 'não aprovado' ? 'changes_requested' : s.status === 'publicado' ? 'approved' : 'pending',
             drive_url: s.drive_url,
             drive_folder_url: s.drive_folder_url,
             copy: s.copy,
@@ -59,7 +62,7 @@ export default function FeedPage() {
 
   return (
     <div className="flex h-screen bg-[var(--color-bg-page)]">
-      <aside className="w-60 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
+      <aside className="w-60 flex-shrink-0 bg-[var(--color-bg-card)] border-r border-gray-200 flex flex-col">
         <div className="px-4 pt-6 pb-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-900">Feed Visual</h2>
           <p className="text-xs text-gray-400 mt-0.5">Preview do Instagram</p>
@@ -93,13 +96,13 @@ export default function FeedPage() {
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative">
-                  <select value={month} onChange={e => setMonth(Number(e.target.value))} className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-7 text-sm text-gray-700 cursor-pointer outline-none">
+                  <select value={month} onChange={e => setMonth(Number(e.target.value))} className="appearance-none bg-[var(--color-bg-card)] border border-gray-200 rounded-lg px-3 py-2 pr-7 text-sm text-gray-700 cursor-pointer outline-none">
                     {months.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
                   </select>
                   <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
                 <div className="relative">
-                  <select value={year} onChange={e => setYear(Number(e.target.value))} className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-7 text-sm text-gray-700 cursor-pointer outline-none">
+                  <select value={year} onChange={e => setYear(Number(e.target.value))} className="appearance-none bg-[var(--color-bg-card)] border border-gray-200 rounded-lg px-3 py-2 pr-7 text-sm text-gray-700 cursor-pointer outline-none">
                     {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                   <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -111,7 +114,16 @@ export default function FeedPage() {
                 <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-700 rounded-full animate-spin" />
               </div>
             ) : (
-              <IPhoneFeed posts={posts} clientName={selected.name} clientColor={selected.color_hex} clientInitials={initials(selected.name)} onReorder={handleReorder} />
+              <IPhoneFeed
+                posts={posts}
+                clientName={selected.name}
+                clientColor={selected.color_hex}
+                clientInitials={initials(selected.name)}
+                instagramUrl={selected.instagram_url || undefined}
+                followersCount={selected.instagram_followers ?? undefined}
+                followingCount={selected.instagram_following ?? undefined}
+                onReorder={handleReorder}
+              />
             )}
           </>
         ) : (

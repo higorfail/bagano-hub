@@ -103,7 +103,7 @@ export default function KanbanPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-6 border-b border-[#EBEAE5] flex items-center justify-between gap-4 flex-wrap">
+      <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
           <div>
             <h1 className="text-[var(--color-text-primary)] font-semibold text-lg">Kanban</h1>
@@ -117,9 +117,9 @@ export default function KanbanPage() {
           )}
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => setSelectedMonth(m => m === 1 ? 12 : m - 1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
+          <button onClick={() => setSelectedMonth(m => m === 1 ? 12 : m - 1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
           <span className="text-sm font-medium text-[var(--color-text-primary)] w-28 text-center">{MONTHS_FULL[selectedMonth - 1]} {selectedYear}</span>
-          <button onClick={() => setSelectedMonth(m => m === 12 ? 1 : m + 1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
+          <button onClick={() => setSelectedMonth(m => m === 12 ? 1 : m + 1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
         </div>
       </div>
 
@@ -132,8 +132,8 @@ export default function KanbanPage() {
             return (
               <div
                 key={col.key}
-                className={`flex flex-col w-72 rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-[#1A1A18] ring-offset-2' : ''}`}
-                style={{ background: isDragOver ? '#F0EEE9' : '#F8F7F4' }}
+                className={`flex flex-col w-72 rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-[var(--color-brand)] ring-offset-2' : ''}`}
+                style={{ background: isDragOver ? 'var(--color-border)' : 'var(--color-bg-subtle)' }}
                 onDragOver={e => { e.preventDefault(); setDragOver(col.key) }}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={() => { movePost(dragging!, col.key); setDragging(null); setDragOver(null) }}
@@ -144,7 +144,7 @@ export default function KanbanPage() {
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
                     <span className="text-sm font-semibold text-[var(--color-text-primary)]">{col.label}</span>
                   </div>
-                  <span className="text-xs font-bold text-[var(--color-text-muted)] bg-white rounded-full w-6 h-6 flex items-center justify-center">
+                  <span className="text-xs font-bold text-[var(--color-text-muted)] bg-[var(--color-bg-card)] rounded-full w-6 h-6 flex items-center justify-center">
                     {colPosts.length}
                   </span>
                 </div>
@@ -152,7 +152,7 @@ export default function KanbanPage() {
                 {/* Cards */}
                 <div className="flex-1 overflow-y-auto px-3 pb-3 flex flex-col gap-2">
                   {colPosts.length === 0 && (
-                    <div className={`flex items-center justify-center h-20 border-2 border-dashed rounded-xl transition-all ${isDragOver ? 'border-[var(--color-text-primary)]' : 'border-[#EBEAE5]'}`}>
+                    <div className={`flex items-center justify-center h-20 border-2 border-dashed rounded-xl transition-all ${isDragOver ? 'border-[var(--color-text-primary)]' : 'border-[var(--color-border)]'}`}>
                       <p className="text-xs text-[var(--color-text-faint)]">Arraste aqui</p>
                     </div>
                   )}
@@ -164,8 +164,8 @@ export default function KanbanPage() {
                         draggable
                         onDragStart={() => setDragging(post.id)}
                         onDragEnd={() => setDragging(null)}
-                        className={`bg-white rounded-xl p-4 flex flex-col gap-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all ${dragging === post.id ? 'opacity-50' : ''}`}
-                        style={{ borderLeft: `3px solid ${client?.color_hex || '#EBEAE5'}` }}
+                        className={`bg-[var(--color-bg-card)] rounded-xl p-4 flex flex-col gap-3 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all ${dragging === post.id ? 'opacity-50' : ''}`}
+                        style={{ borderLeft: `3px solid ${client?.color_hex || 'var(--color-border-hover)'}` }}
                       >
                         {/* Approval badge — sempre no topo se existir */}
                         <ApprovalBadge status={post.approval_status} comment={post.approval_comment} />

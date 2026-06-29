@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useState, useRef } from 'react'
+import { use, useEffect, useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
@@ -8,10 +8,12 @@ import MaterialCard from '@/components/MaterialCard'
 import CampaignsTab from '@/components/CampaignsTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
 import PostFormModal from '@/components/PostFormModal'
+import ExtrasKanban from '@/components/ExtrasKanban'
 
 type Client = {
   id: string; name: string; color_hex: string; logo_url: string
   drive_folder_url: string; sous_chef_url: string; status: string
+  instagram_url: string; instagram_followers: number | null; instagram_following: number | null
 }
 
 type Post = {
@@ -32,7 +34,7 @@ const approvalColor: Record<string,string> = { 'aprovado':'bg-green-50 text-gree
 const FUNCAO_LABEL: Record<string,string> = { videos:'Editor', posts:'Designer', estrategia:'Estratégia', social:'Social Media', acompanha:'Acompanha', outro:'Outro' }
 function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }
 
-export default function ClientePage({ params }: { params: Promise<{ id: string }> }) {
+function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -70,6 +72,9 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
   const [savingMat, setSavingMat] = useState(false)
   const [newMemberId, setNewMemberId] = useState('')
   const [newFuncao, setNewFuncao] = useState('posts')
+  const [showEditClient, setShowEditClient] = useState(false)
+  const [editClientForm, setEditClientForm] = useState({ name: '', color_hex: '', drive_folder_url: '', sous_chef_url: '', instagram_url: '', instagram_followers: '', instagram_following: '' })
+  const [savingClient, setSavingClient] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -233,6 +238,35 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
     setTeam(t => t.filter(m => m.id !== teamId))
   }
 
+  function openEditClient() {
+    if (!client) return
+    setEditClientForm({
+      name: client.name,
+      color_hex: client.color_hex,
+      drive_folder_url: client.drive_folder_url || '',
+      sous_chef_url: client.sous_chef_url || '',
+      instagram_url: client.instagram_url || '',
+      instagram_followers: client.instagram_followers?.toString() || '',
+      instagram_following: client.instagram_following?.toString() || '',
+    })
+    setShowEditClient(true)
+  }
+
+  async function saveEditClient() {
+    if (!client || !editClientForm.name.trim()) return
+    setSavingClient(true)
+    const supabase = createClient()
+    const payload = {
+      ...editClientForm,
+      instagram_followers: editClientForm.instagram_followers ? parseInt(editClientForm.instagram_followers) : null,
+      instagram_following: editClientForm.instagram_following ? parseInt(editClientForm.instagram_following) : null,
+    }
+    await supabase.from('clients').update(payload).eq('id', client.id)
+    setClient((c: any) => ({ ...c, ...payload }))
+    setShowEditClient(false)
+    setSavingClient(false)
+  }
+
   if (loading) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Carregando...</div>
   if (!client) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Cliente não encontrado</div>
 
@@ -243,7 +277,7 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
   return (
     <div className="flex h-full">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-6 border-b border-[#EBEAE5]">
+        <div className="p-6 border-b border-[var(--color-border)]">
 
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 mb-4">
@@ -268,14 +302,16 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="border border-[#EBEAE5] text-[var(--color-text-primary)] rounded-lg px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">📚 Manual</a>}
-              {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="border border-[#EBEAE5] text-[var(--color-text-primary)] rounded-lg px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">📁 Drive</a>}
+              {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">📸 Instagram</a>}
+              {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">📚 Manual</a>}
+              {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">📁 Drive</a>}
+              <button onClick={openEditClient} className="border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">✏️ Editar</button>
               <button onClick={() => setShowNewPost(true)} className="bg-[var(--color-text-primary)] text-white rounded-lg px-4 py-2 text-sm font-medium">+ Novo post</button>
             </div>
           </div>
 
           <div className="flex items-center gap-1 mt-5">
-            {[{key:'cronograma',label:'📅 Cronograma'},{key:'feed',label:'🖼 Feed'},{key:'materiais',label:'📦 Materiais'},{key:'campanhas',label:'📣 Campanhas'},{key:'time',label:'👥 Time'}].map(t => (
+            {[{key:'cronograma',label:'📅 Cronograma'},{key:'feed',label:'🖼 Feed'},{key:'materiais',label:'📦 Materiais'},{key:'campanhas',label:'📣 Campanhas'},{key:'time',label:'👥 Time'},{key:'extras',label:'📋 Extras'}].map(t => (
               <button key={t.key} onClick={() => setTab(t.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab===t.key?'bg-[var(--color-text-primary)] text-white':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
             ))}
           </div>
@@ -287,14 +323,14 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
               <div className="flex items-center justify-between">
                 <p className="text-sm text-[var(--color-text-secondary)]">{posts.length} posts em {MONTHS[selectedMonth-1]}</p>
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center bg-white border border-[#EBEAE5] rounded-lg p-0.5">
+                  <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
                     <button onClick={() => setViewMode('list')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-white':'text-[var(--color-text-muted)]'}`}>Lista</button>
                     <button onClick={() => setViewMode('grid')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-white':'text-[var(--color-text-muted)]'}`}>Cards</button>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => setSelectedMonth(m => m===1?12:m-1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
+                    <button onClick={() => setSelectedMonth(m => m===1?12:m-1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
                     <span className="text-sm font-medium text-[var(--color-text-primary)] w-24 text-center">{MONTHS[selectedMonth-1]} {selectedYear}</span>
-                    <button onClick={() => setSelectedMonth(m => m===12?1:m+1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
+                    <button onClick={() => setSelectedMonth(m => m===12?1:m+1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
                   </div>
                 </div>
               </div>
@@ -304,7 +340,7 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
                 <div className="flex flex-col gap-2">
                   {posts.map(post => (
                     <button key={post.id} onClick={() => setSelected(selected?.id===post.id?null:post)}
-                      className={`w-full text-left bg-white border rounded-xl px-4 py-3 flex items-center gap-4 hover:shadow-sm transition-all ${selected?.id===post.id?'border-[var(--color-text-primary)]':'border-[#EBEAE5]'}`}
+                      className={`w-full text-left bg-[var(--color-bg-card)] border rounded-xl px-4 py-3 flex items-center gap-4 hover:shadow-sm transition-all ${selected?.id===post.id?'border-[var(--color-text-primary)]':'border-[var(--color-border)]'}`}
                       style={{borderLeftWidth:3,borderLeftColor:selected?.id===post.id?client.color_hex:'transparent'}}>
                       <span className="text-xs font-bold text-[var(--color-text-muted)] w-8">#{post.post_number}</span>
                       <span className={`text-xs font-semibold px-2 py-1 rounded-full w-28 text-center flex-shrink-0 ${typeColor[post.post_type]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{TYPE_LABEL[post.post_type]||post.post_type||'—'}</span>
@@ -321,7 +357,7 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
                 <div className="grid grid-cols-3 gap-4">
                   {posts.map(post => (
                     <button key={post.id} onClick={() => setSelected(selected?.id===post.id?null:post)}
-                      className={`group text-left bg-white border rounded-2xl p-5 flex flex-col gap-3 hover:shadow-md transition-all ${selected?.id===post.id?'border-transparent':'border-[#EBEAE5]'}`}
+                      className={`group text-left bg-[var(--color-bg-card)] border rounded-2xl p-5 flex flex-col gap-3 hover:shadow-md transition-all ${selected?.id===post.id?'border-transparent':'border-[var(--color-border)]'}`}
                       style={selected?.id===post.id?{boxShadow:`0 0 0 2px ${client.color_hex}`}:{}}>
                       <div className="flex items-center justify-between relative">
                         <div className="flex items-center gap-2">
@@ -332,7 +368,7 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
                         {menuOpen===post.id && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setMenuOpen(null) }} />
-                            <div className="absolute right-0 top-8 z-50 bg-white rounded-xl border border-[#EBEAE5] py-1 w-36" onClick={e => e.stopPropagation()}>
+                            <div className="absolute right-0 top-8 z-50 bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] py-1 w-36" onClick={e => e.stopPropagation()}>
                               <button onClick={() => quickEdit(post)} className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] flex items-center gap-2">✏️ Editar</button>
                               <button onClick={() => quickDuplicate(post)} className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] flex items-center gap-2">📋 Duplicar</button>
                               <button onClick={() => quickDelete(post.id)} className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 flex items-center gap-2">🗑️ Excluir</button>
@@ -353,7 +389,7 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
                           {statusOpen===post.id && (
                             <>
                               <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setStatusOpen(null) }} />
-                              <div className="absolute right-0 bottom-7 z-50 bg-white rounded-xl border border-[#EBEAE5] py-1 w-44" onClick={e => e.stopPropagation()}>
+                              <div className="absolute right-0 bottom-7 z-50 bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] py-1 w-44" onClick={e => e.stopPropagation()}>
                                 {Object.entries(STATUS_LABEL).map(([v,l]) => (
                                   <button key={v} onClick={() => quickStatus(post.id, v)} className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--color-bg-subtle)] ${post.status===v?'font-semibold text-[var(--color-text-primary)]':'text-[var(--color-text-secondary)]'}`}>{l}</button>
                                 ))}
@@ -374,16 +410,16 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
               <div className="flex items-center justify-between">
                 <p className="text-sm text-[var(--color-text-secondary)]">Feed · {MONTHS[selectedMonth-1]}</p>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => setSelectedMonth(m => m===1?12:m-1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
+                  <button onClick={() => setSelectedMonth(m => m===1?12:m-1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
                   <span className="text-sm font-medium text-[var(--color-text-primary)] w-24 text-center">{MONTHS[selectedMonth-1]} {selectedYear}</span>
-                  <button onClick={() => setSelectedMonth(m => m===12?1:m+1)} className="w-8 h-8 rounded-lg border border-[#EBEAE5] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
+                  <button onClick={() => setSelectedMonth(m => m===12?1:m+1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
                 </div>
               </div>
               <IPhoneFeed
                 posts={posts.map(p => ({
                   id: p.id,
                   title: p.title || 'Post sem título',
-                  type: p.post_type === 'Reels' ? 'reel' : p.post_type === 'Carrossel' || p.post_type === 'Carrossel/Stories' ? 'carousel' : 'photo',
+                  type: p.post_type === 'reels' ? 'reel' : p.post_type === 'carrossel' || p.post_type === 'carrossel_stories' ? 'carousel' : p.post_type === 'story' ? 'story' : 'photo',
                   status: p.approval_status === 'aprovado' ? 'approved' : p.approval_status === 'não aprovado' ? 'changes_requested' : p.status === 'publicado' ? 'approved' : 'pending',
                   drive_url: p.drive_url,
                   copy: p.copy,
@@ -392,6 +428,9 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
                 clientName={client.name}
                 clientColor={client.color_hex}
                 clientInitials={getInitials(client.name)}
+                followersCount={client.instagram_followers ?? undefined}
+                followingCount={client.instagram_following ?? undefined}
+                instagramUrl={client.instagram_url || undefined}
                 onReorder={async (reordered) => {
                   await Promise.all(reordered.map(p => createClient().from('schedules').update({ feed_order: p.feed_order }).eq('id', p.id)))
                 }}
@@ -410,7 +449,7 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
               </div>
 
               {materials.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-40 text-center border border-dashed border-[#EBEAE5] rounded-2xl">
+                <div className="flex flex-col items-center justify-center h-40 text-center border border-dashed border-[var(--color-border)] rounded-2xl">
                   <p className="text-2xl mb-2">📦</p>
                   <p className="text-sm text-[var(--color-text-muted)]">Nenhum material ainda.</p>
                 </div>
@@ -438,15 +477,15 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
               )}
               {false && (
                 <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setShowNewMaterial(false) }}>
-                  <div className="bg-white rounded-2xl w-full max-w-md p-6">
+                  <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-md p-6">
                     <p className="font-semibold text-[var(--color-text-primary)] mb-4">{editingMaterial ? 'Editar material' : 'Novo material'}</p>
                     <div className="flex flex-col gap-3">
-                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={matForm.title} onChange={e => setMatForm(f => ({...f, title: e.target.value}))} placeholder="Ex: Menu de inverno 2026" className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916]" /></div>
-                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={matForm.type} onChange={e => setMatForm(f => ({...f, type: e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none">{Object.entries(MAT_TYPE_LABEL).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link do Drive</label><input value={matForm.drive_url} onChange={e => setMatForm(f => ({...f, drive_url: e.target.value}))} placeholder="https://drive.google.com/..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916]" /></div>
-                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Observações</label><textarea value={matForm.notes} onChange={e => setMatForm(f => ({...f, notes: e.target.value}))} rows={2} placeholder="Notas, contexto..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916] resize-none" /></div>
+                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={matForm.title} onChange={e => setMatForm(f => ({...f, title: e.target.value}))} placeholder="Ex: Menu de inverno 2026" className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]" /></div>
+                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={matForm.type} onChange={e => setMatForm(f => ({...f, type: e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">{Object.entries(MAT_TYPE_LABEL).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link do Drive</label><input value={matForm.drive_url} onChange={e => setMatForm(f => ({...f, drive_url: e.target.value}))} placeholder="https://drive.google.com/..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]" /></div>
+                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Observações</label><textarea value={matForm.notes} onChange={e => setMatForm(f => ({...f, notes: e.target.value}))} rows={2} placeholder="Notas, contexto..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] resize-none" /></div>
                       <div className="flex gap-2 mt-2">
-                        <button onClick={() => setShowNewMaterial(false)} className="flex-1 py-2 text-sm border border-[#EBEAE5] rounded-lg text-[var(--color-text-secondary)]">Cancelar</button>
+                        <button onClick={() => setShowNewMaterial(false)} className="flex-1 py-2 text-sm border border-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)]">Cancelar</button>
                         <button onClick={saveMaterial} disabled={savingMat || !matForm.title.trim()} className="flex-1 py-2 text-sm bg-[var(--color-text-primary)] text-white rounded-lg disabled:opacity-50">{savingMat ? 'Salvando...' : 'Salvar'}</button>
                       </div>
                     </div>
@@ -472,14 +511,14 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
               </div>
 
               {team.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-40 text-center border border-dashed border-[#EBEAE5] rounded-2xl">
+                <div className="flex flex-col items-center justify-center h-40 text-center border border-dashed border-[var(--color-border)] rounded-2xl">
                   <p className="text-2xl mb-2">👥</p>
                   <p className="text-sm text-[var(--color-text-muted)]">Nenhuma pessoa atribuída ainda.</p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
                   {team.map(m => (
-                    <div key={m.id} className="flex items-center gap-3 bg-white border border-[#EBEAE5] rounded-xl px-4 py-3">
+                    <div key={m.id} className="flex items-center gap-3 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl px-4 py-3">
                       <div className="w-9 h-9 rounded-full bg-[var(--color-text-primary)] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
                         {getInitials(m.team_members?.name || '?')}
                       </div>
@@ -496,12 +535,12 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
 
               {showAddMember && (
                 <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setShowAddMember(false) }}>
-                  <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+                  <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-sm p-6">
                     <p className="font-semibold text-[var(--color-text-primary)] mb-4">Atribuir pessoa</p>
                     <div className="flex flex-col gap-3">
                       <div>
                         <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Pessoa</label>
-                        <select value={newMemberId} onChange={e => setNewMemberId(e.target.value)} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none">
+                        <select value={newMemberId} onChange={e => setNewMemberId(e.target.value)} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">
                           <option value="">Selecione...</option>
                           {allMembers.filter(am => !team.some(t => t.member_id === am.id)).map(am => (
                             <option key={am.id} value={am.id}>{am.name}</option>
@@ -510,7 +549,7 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
                       </div>
                       <div>
                         <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Função neste cliente</label>
-                        <select value={newFuncao} onChange={e => setNewFuncao(e.target.value)} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none">
+                        <select value={newFuncao} onChange={e => setNewFuncao(e.target.value)} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">
                           <option value="videos">Editor (vídeos)</option>
                           <option value="posts">Designer (posts)</option>
                           <option value="estrategia">Estratégia / Cronograma</option>
@@ -519,7 +558,7 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
                         </select>
                       </div>
                       <div className="flex gap-2 mt-2">
-                        <button onClick={() => setShowAddMember(false)} className="flex-1 py-2 text-sm border border-[#EBEAE5] rounded-lg text-[var(--color-text-secondary)]">Cancelar</button>
+                        <button onClick={() => setShowAddMember(false)} className="flex-1 py-2 text-sm border border-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)]">Cancelar</button>
                         <button onClick={addMember} disabled={!newMemberId} className="flex-1 py-2 text-sm bg-[var(--color-text-primary)] text-white rounded-lg disabled:opacity-50">Adicionar</button>
                       </div>
                     </div>
@@ -528,12 +567,22 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
               )}
             </div>
           )}
+
+          {tab === 'extras' && (
+            <div className="flex flex-col gap-4">
+              <div>
+                <p className="text-sm font-medium text-[var(--color-text-primary)]">Extras de {client.name}</p>
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Tarefas, notas e lembretes específicos deste cliente</p>
+              </div>
+              <ExtrasKanban clientId={client.id} members={allMembers} />
+            </div>
+          )}
         </div>
       </div>
 
       {selected && (
-        <div className="w-96 border-l border-[#EBEAE5] flex flex-col overflow-hidden bg-white">
-          <div className="p-5 border-b border-[#EBEAE5] flex items-start justify-between gap-3">
+        <div className="w-96 border-l border-[var(--color-border)] flex flex-col overflow-hidden bg-[var(--color-bg-card)]">
+          <div className="p-5 border-b border-[var(--color-border)] flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-bold text-[var(--color-text-muted)]">#{selected.post_number}</span>
@@ -560,25 +609,25 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
             <div className="p-4 bg-red-50 border-b border-red-100 flex items-center justify-between gap-3">
               <p className="text-sm text-red-700 font-medium">Excluir este post?</p>
               <div className="flex gap-2">
-                <button onClick={() => setConfirmDelete(false)} className="px-3 py-1.5 text-xs border border-[#EBEAE5] rounded-lg bg-white text-[var(--color-text-secondary)]">Cancelar</button>
+                <button onClick={() => setConfirmDelete(false)} className="px-3 py-1.5 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-card)] text-[var(--color-text-secondary)]">Cancelar</button>
                 <button onClick={deletePost} disabled={deleting} className="px-3 py-1.5 text-xs bg-red-500 text-white rounded-lg disabled:opacity-50">{deleting?'Excluindo...':'Excluir'}</button>
               </div>
             </div>
           )}
           {editing ? (
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={editForm.title} onChange={e => setEditForm((f:any)=>({...f,title:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916]" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={editForm.title} onChange={e => setEditForm((f:any)=>({...f,title:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={editForm.post_type} onChange={e => setEditForm((f:any)=>({...f,post_type:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none">{Object.entries(TYPE_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={editForm.status} onChange={e => setEditForm((f:any)=>({...f,status:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none">{Object.entries(STATUS_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
+                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={editForm.post_type} onChange={e => setEditForm((f:any)=>({...f,post_type:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">{Object.entries(TYPE_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
+                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={editForm.status} onChange={e => setEditForm((f:any)=>({...f,status:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">{Object.entries(STATUS_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
               </div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Funil</label><input list="funil-edit-cliente" value={editForm.funil} onChange={e => setEditForm((f:any)=>({...f,funil:e.target.value}))} placeholder="Escolha ou escreva..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-[#1A1916]" /><datalist id="funil-edit-cliente">{['Topo de funil','Meio de funil','Fundo de funil','Institucional','Promocional','Engajamento','Venda'].map(o=><option key={o} value={o} />)}</datalist></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Data estimada</label><input type="date" value={editForm.scheduled_date} onChange={e => setEditForm((f:any)=>({...f,scheduled_date:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916]" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Copy / Briefing</label><textarea value={editForm.copy} onChange={e => setEditForm((f:any)=>({...f,copy:e.target.value}))} rows={4} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916] resize-none" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link Drive</label><input value={editForm.drive_url} onChange={e => setEditForm((f:any)=>({...f,drive_url:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916]" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Referências</label><textarea value={editForm.reference_notes} onChange={e => setEditForm((f:any)=>({...f,reference_notes:e.target.value}))} rows={2} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916] resize-none" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Funil</label><input list="funil-edit-cliente" value={editForm.funil} onChange={e => setEditForm((f:any)=>({...f,funil:e.target.value}))} placeholder="Escolha ou escreva..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none focus:border-[var(--color-brand)]" /><datalist id="funil-edit-cliente">{['Topo de funil','Meio de funil','Fundo de funil','Institucional','Promocional','Engajamento','Venda'].map(o=><option key={o} value={o} />)}</datalist></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Data estimada</label><input type="date" value={editForm.scheduled_date} onChange={e => setEditForm((f:any)=>({...f,scheduled_date:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Copy / Briefing</label><textarea value={editForm.copy} onChange={e => setEditForm((f:any)=>({...f,copy:e.target.value}))} rows={4} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] resize-none" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link Drive</label><input value={editForm.drive_url} onChange={e => setEditForm((f:any)=>({...f,drive_url:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]" /></div>
+              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Referências</label><textarea value={editForm.reference_notes} onChange={e => setEditForm((f:any)=>({...f,reference_notes:e.target.value}))} rows={2} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] resize-none" /></div>
               <div className="flex gap-2 mt-2">
-                <button onClick={() => setEditing(false)} className="flex-1 py-2 text-sm border border-[#EBEAE5] rounded-lg text-[var(--color-text-secondary)]">Cancelar</button>
+                <button onClick={() => setEditing(false)} className="flex-1 py-2 text-sm border border-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)]">Cancelar</button>
                 <button onClick={saveEdit} disabled={saving||!editForm.title?.trim()} className="flex-1 py-2 text-sm bg-[var(--color-text-primary)] text-white rounded-lg disabled:opacity-50">{saving?'Salvando...':'Salvar'}</button>
               </div>
             </div>
@@ -615,6 +664,82 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
           onSaved={reloadPosts}
         />
       )}
+
+      {/* Modal editar cliente */}
+      {showEditClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowEditClient(false)} />
+          <div className="relative bg-[var(--color-bg-card)] rounded-2xl shadow-xl w-full max-w-md p-6 flex flex-col gap-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Editar cliente</h2>
+              <button onClick={() => setShowEditClient(false)} className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] text-lg">×</button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0" style={{ background: editClientForm.color_hex }}>
+                {editClientForm.name ? editClientForm.name.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase() : '?'}
+              </div>
+              <p className="text-sm text-[var(--color-text-muted)]">Prévia do avatar</p>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Nome do cliente *</label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={editClientForm.name}
+                  onChange={e => setEditClientForm((f: any) => ({ ...f, name: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && saveEditClient()}
+                  className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Cor</label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {['#1A1916','#dc2626','#ea580c','#d97706','#16a34a','#0891b2','#2563eb','#7c3aed','#db2777','#475569'].map(c => (
+                    <button key={c} onClick={() => setEditClientForm((f: any) => ({ ...f, color_hex: c }))} className="w-7 h-7 rounded-lg transition-all" style={{ background: c, boxShadow: editClientForm.color_hex === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : 'none' }} />
+                  ))}
+                  <input type="color" value={editClientForm.color_hex} onChange={e => setEditClientForm((f: any) => ({ ...f, color_hex: e.target.value }))} className="w-7 h-7 rounded-lg cursor-pointer border border-[var(--color-border)] p-0.5" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Link do Drive</label>
+                <input type="url" value={editClientForm.drive_folder_url} onChange={e => setEditClientForm((f: any) => ({ ...f, drive_folder_url: e.target.value }))} placeholder="https://drive.google.com/..." className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Link do Manual (Sous Chef)</label>
+                <input type="url" value={editClientForm.sous_chef_url} onChange={e => setEditClientForm((f: any) => ({ ...f, sous_chef_url: e.target.value }))} placeholder="https://..." className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Instagram</label>
+                <input type="url" value={editClientForm.instagram_url} onChange={e => setEditClientForm((f: any) => ({ ...f, instagram_url: e.target.value }))} placeholder="https://instagram.com/perfil" className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]" />
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Seguidores</label>
+                  <input type="number" value={editClientForm.instagram_followers} onChange={e => setEditClientForm((f: any) => ({ ...f, instagram_followers: e.target.value }))} placeholder="0" className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Seguindo</label>
+                  <input type="number" value={editClientForm.instagram_following} onChange={e => setEditClientForm((f: any) => ({ ...f, instagram_following: e.target.value }))} placeholder="0" className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]" />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button onClick={() => setShowEditClient(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">Cancelar</button>
+              <button onClick={saveEditClient} disabled={savingClient || !editClientForm.name.trim()} className="px-5 py-2 rounded-xl text-sm font-semibold bg-[var(--color-brand)] text-[var(--color-brand-fg)] hover:opacity-90 disabled:opacity-40 transition-opacity">
+                {savingClient ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+export default function ClientePage({ params }: { params: Promise<{ id: string }> }) {
+  return <Suspense><ClientePageInner params={params} /></Suspense>
 }

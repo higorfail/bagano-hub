@@ -97,39 +97,39 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-white rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh]">
-        <div className="p-5 border-b border-[#EBEAE5] flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[#1A1916]">{editingMaterial ? 'Editar material' : 'Novo material'}</h2>
-          <button onClick={onClose} className="text-[#A8A59E] hover:text-[#1A1916] text-lg leading-none">×</button>
+      <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh]">
+        <div className="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">{editingMaterial ? 'Editar material' : 'Novo material'}</h2>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-lg leading-none">×</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-          <div><label className="text-xs text-[#A8A59E] mb-1 block">Título *</label><input value={form.title} onChange={e => { const v = e.target.value; setForm((f:any)=>({...f,title:v})); detectFromTitle(v) }} placeholder="Ex: Menu entrada Piastro" className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916]" /></div>
+          <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={form.title} onChange={e => { const v = e.target.value; setForm((f:any)=>({...f,title:v})); detectFromTitle(v) }} placeholder="Ex: Menu entrada Piastro" className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]" /></div>
 
           {!fixedClientId && (
-            <div><label className="text-xs text-[#A8A59E] mb-1 block">Cliente *</label><select value={form.client_id} onChange={e => { setClientManual(true); setForm((f:any)=>({...f,client_id:e.target.value})) }} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none"><option value="">Selecione...</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Cliente *</label><select value={form.client_id} onChange={e => { setClientManual(true); setForm((f:any)=>({...f,client_id:e.target.value})) }} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none"><option value="">Selecione...</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-[#A8A59E] mb-1 block">Tipo</label>
-              <input list="mat-types" value={form.type} onChange={e => { setTypeManual(true); setForm((f:any)=>({...f,type:e.target.value})) }} placeholder="Escolha ou escreva..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-[#1A1916]" />
+              <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label>
+              <input list="mat-types" value={form.type} onChange={e => { setTypeManual(true); setForm((f:any)=>({...f,type:e.target.value})) }} placeholder="Escolha ou escreva..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none focus:border-[var(--color-brand)]" />
               <datalist id="mat-types">{TYPE_OPTIONS.map(t => <option key={t} value={t} />)}</datalist>
             </div>
             <div>
-              <label className="text-xs text-[#A8A59E] mb-1 block">Status</label>
-              <select value={form.status} onChange={e => setForm((f:any)=>({...f,status:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none">{STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}</select>
+              <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label>
+              <select value={form.status} onChange={e => setForm((f:any)=>({...f,status:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">{STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}</select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs text-[#A8A59E] mb-1 block">Prazo de entrega</label><input type="date" value={form.due_date} onChange={e => setForm((f:any)=>({...f,due_date:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916]" /></div>
-            <div><label className="text-xs text-[#A8A59E] mb-1 block">Responsável</label><select value={form.assigned_to} onChange={e => setForm((f:any)=>({...f,assigned_to:e.target.value}))} className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none"><option value="">Ninguém</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
+            <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Prazo de entrega</label><input type="date" value={form.due_date} onChange={e => setForm((f:any)=>({...f,due_date:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]" /></div>
+            <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Responsável</label><select value={form.assigned_to} onChange={e => setForm((f:any)=>({...f,assigned_to:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none"><option value="">Ninguém</option>{members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
           </div>
 
           <div>
-            <label className="text-xs text-[#A8A59E] mb-1 block">Etiqueta</label>
-            <input list="mat-labels" value={form.label} onChange={e => setForm((f:any)=>({...f,label:e.target.value}))} placeholder="Escolha ou crie uma etiqueta..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-[#1A1916]" />
+            <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Etiqueta</label>
+            <input list="mat-labels" value={form.label} onChange={e => setForm((f:any)=>({...f,label:e.target.value}))} placeholder="Escolha ou crie uma etiqueta..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none focus:border-[var(--color-brand)]" />
             <datalist id="mat-labels">{LABEL_PRESETS.map(l => <option key={l.text} value={l.text} />)}</datalist>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {LABEL_PRESETS.map(l => (
@@ -138,16 +138,16 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
             </div>
           </div>
 
-          <div><label className="text-xs text-[#A8A59E] mb-1 block">Descrição / Briefing</label><textarea value={form.description} onChange={e => setForm((f:any)=>({...f,description:e.target.value}))} rows={5} placeholder="Especificações, dimensões, instruções, referências..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916] resize-none" /></div>
+          <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Descrição / Briefing</label><textarea value={form.description} onChange={e => setForm((f:any)=>({...f,description:e.target.value}))} rows={5} placeholder="Especificações, dimensões, instruções, referências..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] resize-none" /></div>
 
-          <div><label className="text-xs text-[#A8A59E] mb-1 block">Link do Drive</label><input value={form.drive_url} onChange={e => setForm((f:any)=>({...f,drive_url:e.target.value}))} placeholder="https://drive.google.com/..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916]" /></div>
+          <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link do Drive</label><input value={form.drive_url} onChange={e => setForm((f:any)=>({...f,drive_url:e.target.value}))} placeholder="https://drive.google.com/..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]" /></div>
 
-          <div><label className="text-xs text-[#A8A59E] mb-1 block">Notas</label><textarea value={form.notes} onChange={e => setForm((f:any)=>({...f,notes:e.target.value}))} rows={2} placeholder="Observações extras..." className="w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1A1916] resize-none" /></div>
+          <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Notas</label><textarea value={form.notes} onChange={e => setForm((f:any)=>({...f,notes:e.target.value}))} rows={2} placeholder="Observações extras..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] resize-none" /></div>
         </div>
 
-        <div className="p-5 border-t border-[#EBEAE5] flex gap-3 justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-[#6B6963] border border-[#EBEAE5] rounded-lg hover:bg-[#F2F0EB]">Cancelar</button>
-          <button onClick={save} disabled={saving||!form.title.trim()} className="px-4 py-2 text-sm text-white bg-[#1A1916] rounded-lg disabled:opacity-50">{saving?'Salvando...':'Salvar material'}</button>
+        <div className="p-5 border-t border-[var(--color-border)] flex gap-3 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
+          <button onClick={save} disabled={saving||!form.title.trim()} className="px-4 py-2 text-sm text-[var(--color-brand-fg)] bg-[var(--color-brand)] rounded-lg disabled:opacity-50">{saving?'Salvando...':'Salvar material'}</button>
         </div>
       </div>
     </div>

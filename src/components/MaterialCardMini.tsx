@@ -28,7 +28,7 @@ const MAT_TYPE_COLOR: Record<string, string> = {
   arte_avulsa: 'bg-purple-100 text-purple-700',
   logo: 'bg-blue-100 text-blue-700',
   manual: 'bg-green-100 text-green-700',
-  outro: 'bg-[#F2F0EB] text-[#6B6963]',
+  outro: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -51,7 +51,7 @@ export default function MaterialCardMini({ material: m, members, onClick }: Mate
   const due = m.due_date ? new Date(m.due_date + 'T23:59:59') : null
   const now = new Date()
   const diff = due ? Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
-  const dueColor = diff === null ? '' : diff < 0 ? 'text-red-600 bg-red-50' : diff <= 2 ? 'text-amber-700 bg-amber-50' : 'text-[#6B6963] bg-[#F2F0EB]'
+  const dueColor = diff === null ? '' : diff < 0 ? 'text-red-600 bg-red-50' : diff <= 2 ? 'text-amber-700 bg-amber-50' : 'text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)]'
   const dueLabel = diff === null ? '' : diff < 0 ? ' · atrasado' : diff === 0 ? ' · hoje' : diff === 1 ? ' · amanhã' : ''
 
   const assignedArr: string[] = Array.isArray(m.assigned_members) && m.assigned_members.length > 0
@@ -71,7 +71,7 @@ export default function MaterialCardMini({ material: m, members, onClick }: Mate
   return (
     <div
       onClick={onClick}
-      className="group bg-white border border-[#EBEAE5] rounded-xl p-3 flex flex-col gap-2 hover:shadow-md hover:border-[#D4D1CB] transition-all cursor-pointer"
+      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 flex flex-col gap-2 hover:shadow-md hover:border-[var(--color-border-hover)] transition-all cursor-pointer"
     >
       {/* Etiquetas coloridas */}
       {labels.length > 0 && (
@@ -83,15 +83,15 @@ export default function MaterialCardMini({ material: m, members, onClick }: Mate
       )}
 
       {/* Título */}
-      <p className="text-sm font-medium text-[#1A1916] leading-snug">{m.title}</p>
+      <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug">{m.title}</p>
 
       {/* Badges: tipo + status */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${MAT_TYPE_COLOR[m.type] || 'bg-[#F2F0EB] text-[#6B6963]'}`}>
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${MAT_TYPE_COLOR[m.type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
           {MAT_TYPE_LABEL[m.type] || m.type}
         </span>
         {m.status && (
-          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLOR[m.status] || 'bg-[#F2F0EB] text-[#6B6963]'}`}>
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLOR[m.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
             {STATUS_LABEL[m.status] || m.status}
           </span>
         )}
@@ -99,7 +99,7 @@ export default function MaterialCardMini({ material: m, members, onClick }: Mate
 
       {/* Rodapé: data + badges + avatares */}
       <div className="flex items-center justify-between mt-0.5">
-        <div className="flex items-center gap-2 text-[11px] text-[#A8A59E] flex-wrap">
+        <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-muted)] flex-wrap">
           {/* Data com cor de alerta */}
           {due && (
             <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded font-medium ${dueColor}`}>
@@ -152,14 +152,14 @@ export default function MaterialCardMini({ material: m, members, onClick }: Mate
             {assignedData.slice(0, 3).map(mem => (
               <div
                 key={mem.id}
-                className="w-6 h-6 rounded-full bg-[#1A1916] border-2 border-white flex items-center justify-center text-white text-[8px] font-bold"
+                className="w-6 h-6 rounded-full bg-[var(--color-brand)] border-2 border-white flex items-center justify-center text-[var(--color-brand-fg)] text-[8px] font-bold"
                 title={mem.name}
               >
                 {initials(mem.name)}
               </div>
             ))}
             {assignedData.length > 3 && (
-              <div className="w-6 h-6 rounded-full bg-[#F2F0EB] border-2 border-white flex items-center justify-center text-[#6B6963] text-[8px] font-bold">
+              <div className="w-6 h-6 rounded-full bg-[var(--color-bg-subtle)] border-2 border-white flex items-center justify-center text-[var(--color-text-secondary)] text-[8px] font-bold">
                 +{assignedData.length - 3}
               </div>
             )}

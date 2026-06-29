@@ -1,22 +1,3 @@
 @import "tailwindcss";
 
-:root {
-  --color-text-primary: #1A1916;
-  --color-text-secondary: #6B6963;
-  --color-text-muted: #A8A59E;
-  --color-text-faint: #C8C5BE;
-
-  --color-bg-page: #F9F8F5;
-  --color-bg-card: #FFFFFF;
-  --color-bg-subtle: #F2F0EB;
-  --color-bg-input: #F9F8F5;
-
-  --color-border: #EBEAE5;
-  --color-border-strong: #D4D0C8;
-
-  --color-success:        #22c55e;
-  --color-warning:        #f59e0b;
-  --color-danger:         #ef4444;
-  --color-info:           #3b82f6;
-  --color-whatsapp:       #25D366;
-}
+/* Theme variables are injected via <style> in layout.tsx to survive Tailwind v4/Turbopack processing */

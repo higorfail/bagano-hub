@@ -81,21 +81,21 @@ export default function MateriaisPage() {
     setMaterials(data || [])
   }
 
-  if (loading) return <div className="p-6 text-sm text-[#A8A59E]">Carregando materiais...</div>
+  if (loading) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Carregando materiais...</div>
 
   return (
     <div className="p-6 flex flex-col gap-5 h-full">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[#1A1916] font-semibold text-lg">Materiais</h1>
-          <p className="text-[#6B6963] text-sm mt-0.5">{visible.length} materiais · menus, cardápios, artes</p>
+          <h1 className="text-[var(--color-text-primary)] font-semibold text-lg">Materiais</h1>
+          <p className="text-[var(--color-text-secondary)] text-sm mt-0.5">{visible.length} materiais · menus, cardápios, artes</p>
         </div>
         <div className="flex items-center gap-3">
-          <select value={filterClient} onChange={e => setFilterClient(e.target.value)} className="border border-[#EBEAE5] rounded-lg px-3 py-1.5 text-sm bg-white outline-none text-[#1A1916]">
+          <select value={filterClient} onChange={e => setFilterClient(e.target.value)} className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)]">
             <option value="">Todos os clientes</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <button onClick={() => setCardOpen('new')} className="bg-[#1A1916] text-white rounded-lg px-4 py-1.5 text-sm font-medium">+ Novo material</button>
+          <button onClick={() => setCardOpen('new')} className="bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg px-4 py-1.5 text-sm font-medium">+ Novo material</button>
         </div>
       </div>
 
@@ -106,8 +106,8 @@ export default function MateriaisPage() {
             <div key={col.key} className="flex-1 min-w-[300px] flex flex-col">
               <div className="flex items-center gap-2 mb-3 px-1">
                 <span className="w-2 h-2 rounded-full" style={{ background: col.color }} />
-                <span className="text-sm font-semibold text-[#1A1916]">{col.label}</span>
-                <span className="text-xs text-[#A8A59E]">{items.length}</span>
+                <span className="text-sm font-semibold text-[var(--color-text-primary)]">{col.label}</span>
+                <span className="text-xs text-[var(--color-text-muted)]">{items.length}</span>
               </div>
               <div className="flex flex-col gap-2.5">
                 {items.map(m => {
@@ -121,7 +121,7 @@ export default function MateriaisPage() {
                     />
                   )
                 })}
-                {items.length === 0 && <p className="text-xs text-[#C8C5BE] px-1 py-4 text-center">Vazio</p>}
+                {items.length === 0 && <p className="text-xs text-[var(--color-text-faint)] px-1 py-4 text-center">Vazio</p>}
               </div>
             </div>
           )

@@ -73,24 +73,24 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
 
   const Field = ({ label, children }: { label: string, children: React.ReactNode }) => (
     <div>
-      <label className="text-xs font-medium text-[#A8A59E] mb-1.5 block uppercase tracking-wide">{label}</label>
+      <label className="text-xs font-medium text-[var(--color-text-muted)] mb-1.5 block uppercase tracking-wide">{label}</label>
       {children}
     </div>
   )
 
-  const inputCls = "w-full border border-[#EBEAE5] rounded-lg px-3 py-2 text-sm text-[#1A1916] outline-none focus:border-[#1A1916] bg-white transition-colors"
+  const inputCls = "w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)] transition-colors"
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-white rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh] shadow-2xl">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh] shadow-2xl">
 
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[#EBEAE5] flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-[#1A1916]">Novo post</h2>
-            <p className="text-xs text-[#A8A59E] mt-0.5">#{nextPostNumber} · {clientName}</p>
+            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Novo post</h2>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">#{nextPostNumber} · {clientName}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-[#F2F0EB] flex items-center justify-center text-[#A8A59E] transition-colors">
+          <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -128,7 +128,7 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
                 <button
                   type="button"
                   onClick={() => setForm(f => ({ ...f, campaign_type: '' }))}
-                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${!form.campaign_type ? 'bg-[#1A1916] text-white border-[#1A1916]' : 'border-[#EBEAE5] text-[#6B6963] hover:border-[#D4D1CB]'}`}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${!form.campaign_type ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)] border-[var(--color-brand)]' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]'}`}
                 >
                   Nenhuma
                 </button>
@@ -137,7 +137,7 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
                     key={camp.id}
                     type="button"
                     onClick={() => setForm(f => ({ ...f, campaign_type: f.campaign_type === camp.type ? '' : camp.type }))}
-                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${form.campaign_type === camp.type ? 'bg-[#1A1916] text-white border-[#1A1916]' : 'border-[#EBEAE5] text-[#6B6963] hover:border-[#D4D1CB]'}`}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${form.campaign_type === camp.type ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)] border-[var(--color-brand)]' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]'}`}
                   >
                     <span>{SEASONAL_EMOJI[camp.type] || '📌'}</span>
                     {camp.name}
@@ -172,11 +172,11 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-[#EBEAE5] flex gap-3 justify-end bg-[#FAFAF8] rounded-b-2xl">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-[#6B6963] border border-[#EBEAE5] rounded-lg hover:bg-[#F2F0EB] transition-colors">
+        <div className="px-5 py-4 border-t border-[var(--color-border)] flex gap-3 justify-end bg-[var(--color-bg-alt)] rounded-b-2xl">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
             Cancelar
           </button>
-          <button onClick={save} disabled={saving || !form.title.trim()} className="px-4 py-2 text-sm text-white bg-[#1A1916] rounded-lg disabled:opacity-50 transition-colors">
+          <button onClick={save} disabled={saving || !form.title.trim()} className="px-4 py-2 text-sm text-[var(--color-brand-fg)] bg-[var(--color-brand)] rounded-lg disabled:opacity-50 transition-colors">
             {saving ? 'Salvando...' : 'Salvar post'}
           </button>
         </div>

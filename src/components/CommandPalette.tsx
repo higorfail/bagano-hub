@@ -99,11 +99,11 @@ export default function CommandPalette() {
       {/* Gatilho na topbar */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#EBEAE5] bg-white hover:border-[#D4D1CB] transition-all text-sm text-[#A8A59E] min-w-[200px]"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:border-[var(--color-border-hover)] transition-all text-sm text-[var(--color-text-muted)] min-w-[200px]"
       >
         <Search size={14} />
         <span className="flex-1 text-left">Buscar...</span>
-        <kbd className="text-[10px] bg-[#F2F0EB] px-1.5 py-0.5 rounded font-mono text-[#6B6963]">⌘K</kbd>
+        <kbd className="text-[10px] bg-[var(--color-bg-subtle)] px-1.5 py-0.5 rounded font-mono text-[var(--color-text-secondary)]">⌘K</kbd>
       </button>
 
       {/* Modal */}
@@ -112,31 +112,31 @@ export default function CommandPalette() {
           className="fixed inset-0 bg-black/30 z-[100] flex items-start justify-center pt-[15vh] px-4"
           onClick={e => { if (e.target === e.currentTarget) setOpen(false) }}
         >
-          <div className="bg-white rounded-2xl w-full max-w-xl overflow-hidden border border-[#EBEAE5]">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-[#EBEAE5]">
-              <Search size={18} className="text-[#A8A59E] flex-shrink-0" />
+          <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-xl overflow-hidden border border-[var(--color-border)]">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)]">
+              <Search size={18} className="text-[var(--color-text-muted)] flex-shrink-0" />
               <input
                 ref={inputRef}
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
                 placeholder="Buscar clientes, posts, materiais..."
-                className="flex-1 outline-none text-sm text-[#1A1916] placeholder-[#A8A59E]"
+                className="flex-1 outline-none text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
               />
-              <button onClick={() => setOpen(false)} className="text-[#A8A59E] hover:text-[#1A1916]">
+              <button onClick={() => setOpen(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
                 <X size={16} />
               </button>
             </div>
 
             <div className="max-h-80 overflow-y-auto">
               {!query.trim() ? (
-                <div className="px-4 py-8 text-center text-sm text-[#A8A59E]">
+                <div className="px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">
                   Digite para buscar em todo o sistema
                 </div>
               ) : loading ? (
-                <div className="px-4 py-8 text-center text-sm text-[#A8A59E]">Buscando...</div>
+                <div className="px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">Buscando...</div>
               ) : results.length === 0 ? (
-                <div className="px-4 py-8 text-center text-sm text-[#A8A59E]">Nenhum resultado para "{query}"</div>
+                <div className="px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">Nenhum resultado para "{query}"</div>
               ) : (
                 <div className="py-2">
                   {results.map((r, i) => {
@@ -146,20 +146,20 @@ export default function CommandPalette() {
                         key={`${r.type}-${r.id}`}
                         onClick={() => go(r)}
                         onMouseEnter={() => setSelectedIdx(i)}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${i === selectedIdx ? 'bg-[#F2F0EB]' : ''}`}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${i === selectedIdx ? 'bg-[var(--color-bg-subtle)]' : ''}`}
                       >
                         {r.color ? (
                           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0" style={{ background: r.color }}>
                             {r.title.slice(0, 2).toUpperCase()}
                           </div>
                         ) : (
-                          <div className="w-8 h-8 rounded-lg bg-[#F2F0EB] flex items-center justify-center flex-shrink-0">
-                            <Icon size={15} className="text-[#6B6963]" />
+                          <div className="w-8 h-8 rounded-lg bg-[var(--color-bg-subtle)] flex items-center justify-center flex-shrink-0">
+                            <Icon size={15} className="text-[var(--color-text-secondary)]" />
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[#1A1916] truncate">{r.title}</p>
-                          <p className="text-xs text-[#A8A59E]">{r.subtitle}</p>
+                          <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{r.title}</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">{r.subtitle}</p>
                         </div>
                       </button>
                     )

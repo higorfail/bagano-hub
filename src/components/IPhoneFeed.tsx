@@ -4,10 +4,10 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Play, LayoutGrid, Image, CheckCircle2, Clock,
   AlertCircle, X, ExternalLink, Calendar, FileText,
-  ChevronLeft, ChevronRight, Loader2
+  ChevronLeft, ChevronRight, Loader2, Check, MessageSquare
 } from 'lucide-react'
 
-export type PostType = 'photo' | 'reel' | 'carousel'
+export type PostType = 'photo' | 'reel' | 'carousel' | 'story'
 export type PostStatus = 'approved' | 'pending' | 'changes_requested' | 'draft'
 
 export interface FeedPost {
@@ -16,8 +16,8 @@ export interface FeedPost {
   type: PostType
   status: PostStatus
   thumbnail_url?: string
-  drive_url?: string        // URL de arquivo individual (legado)
-  drive_folder_url?: string // URL da pasta do post (novo)
+  drive_url?: string
+  drive_folder_url?: string
   copy?: string
   scheduled_date?: string
   feed_order?: number
@@ -38,7 +38,7 @@ interface ResolvedMedia {
   folderLink?: string
 }
 
-interface IPhoneFeedProps {
+export interface IPhoneFeedProps {
   posts: FeedPost[]
   clientName?: string
   clientColor?: string
@@ -46,9 +46,14 @@ interface IPhoneFeedProps {
   clientBio?: string
   followersCount?: number
   followingCount?: number
+  instagramUrl?: string
   onPostClick?: (post: FeedPost) => void
   onReorder?: (posts: FeedPost[]) => void
   readonly?: boolean
+  // Approval mode
+  approvalMode?: boolean
+  onStoryApprove?: (post: FeedPost) => Promise<void>
+  onStoryReject?: (post: FeedPost, comment: string) => Promise<void>
 }
 
 const STATUS_CONFIG = {
@@ -58,47 +63,43 @@ const STATUS_CONFIG = {
   draft:             { label: 'Rascunho',  color: '#94a3b8', icon: FileText     },
 }
 
-const TYPE_ICON = { photo: Image, reel: Play, carousel: LayoutGrid }
+// Ring color per status in approval mode
+const STORY_RING: Record<PostStatus, string> = {
+  pending:           'linear-gradient(45deg,#f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)',
+  approved:          '#22c55e',
+  changes_requested: '#ef4444',
+  draft:             '#c7c7c7',
+}
 
-// Extrai o ID de qualquer URL do Google Drive (arquivo ou pasta)
+const TYPE_ICON = { photo: Image, reel: Play, carousel: LayoutGrid, story: Image }
+
 function extractDriveId(url?: string): string | null {
   if (!url) return null
-  // pasta: /folders/ID
   const folder = url.match(/\/folders\/([-\w]{25,})/)
   if (folder) return folder[1]
-  // arquivo: /file/d/ID ou ?id=ID
   const file = url.match(/[-\w]{25,}/)
   return file ? file[0] : null
 }
-
-function driveIdToThumbnail(id: string, size = 400): string {
+function driveIdToThumbnail(id: string, size = 400) {
   return `https://drive.google.com/thumbnail?id=${id}&sz=w${size}`
 }
-
-function driveIdToEmbed(id: string): string {
+function driveIdToEmbed(id: string) {
   return `https://drive.google.com/file/d/${id}/preview`
 }
-
-// Busca arquivos de uma pasta via API pública do Drive
 async function fetchFolderFiles(folderId: string): Promise<DriveFile[]> {
   try {
     const res = await fetch(
       `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents&fields=files(id,name,mimeType,thumbnailLink,webViewLink)&orderBy=name&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
     )
     if (!res.ok) return []
-    const data = await res.json()
-    return data.files || []
-  } catch {
-    return []
-  }
+    return (await res.json()).files || []
+  } catch { return [] }
 }
 
-// Resolve mídia de um post: tenta pasta primeiro, depois arquivo individual
 async function resolveMedia(post: FeedPost): Promise<ResolvedMedia> {
   const folderUrl = post.drive_folder_url
-  const fileUrl = post.drive_url
+  const fileUrl   = post.drive_url
 
-  // Tenta pasta
   if (folderUrl) {
     const folderId = extractDriveId(folderUrl)
     if (folderId) {
@@ -106,100 +107,333 @@ async function resolveMedia(post: FeedPost): Promise<ResolvedMedia> {
       if (files.length > 0) {
         const images = files.filter(f => f.mimeType.startsWith('image/'))
         const videos = files.filter(f => f.mimeType.startsWith('video/'))
-
         if (post.type === 'reel') {
-          // Imagem = thumbnail, vídeo = embed
-          const thumb = images[0] ? driveIdToThumbnail(images[0].id) : undefined
-          const video = videos[0] ? driveIdToEmbed(videos[0].id) : undefined
-          return { thumbnailUrl: thumb, videoEmbedUrl: video, folderLink: folderUrl }
+          return { thumbnailUrl: images[0] ? driveIdToThumbnail(images[0].id) : undefined, videoEmbedUrl: videos[0] ? driveIdToEmbed(videos[0].id) : undefined, folderLink: folderUrl }
         }
-
-        if (post.type === 'carousel') {
-          // Todas as imagens ordenadas alfabeticamente, primeira = capa
+        if (post.type === 'carousel' || post.type === 'story') {
           const sorted = images.sort((a, b) => a.name.localeCompare(b.name))
-          const carouselImages = sorted.map(f => driveIdToThumbnail(f.id, 600))
-          return {
-            thumbnailUrl: carouselImages[0],
-            carouselImages,
-            folderLink: folderUrl,
-          }
+          const urls = sorted.map(f => driveIdToThumbnail(f.id, 600))
+          return { thumbnailUrl: urls[0], carouselImages: urls, folderLink: folderUrl }
         }
-
-        // Photo
-        const thumb = images[0] ? driveIdToThumbnail(images[0].id) : undefined
-        return { thumbnailUrl: thumb, folderLink: folderUrl }
+        return { thumbnailUrl: images[0] ? driveIdToThumbnail(images[0].id) : undefined, folderLink: folderUrl }
       }
     }
   }
-
-  // Fallback: arquivo individual (legado)
   if (fileUrl) {
     const id = extractDriveId(fileUrl)
     if (id) {
-      if (post.type === 'reel') {
-        return { thumbnailUrl: driveIdToThumbnail(id), videoEmbedUrl: driveIdToEmbed(id) }
-      }
+      if (post.type === 'reel') return { thumbnailUrl: driveIdToThumbnail(id), videoEmbedUrl: driveIdToEmbed(id) }
       return { thumbnailUrl: driveIdToThumbnail(id) }
     }
   }
-
   return {}
 }
 
-// Componente de thumbnail com lazy loading
-function PostThumb({ post, onClick, dragging, dragOver }: {
+// ── Story Circle ──────────────────────────────────────────────────────────────
+function StoryCircle({ post, clientColor, clientInitials, avatarUrl, seen, approvalMode, onClick }: {
   post: FeedPost
+  clientColor: string
+  clientInitials: string
+  avatarUrl: string | null
+  seen: boolean
+  approvalMode?: boolean
   onClick: () => void
-  dragging: boolean
-  dragOver: boolean
 }) {
-  const [thumbUrl, setThumbUrl] = useState<string | undefined>(undefined)
+  const [thumbUrl, setThumbUrl] = useState<string | undefined>()
+  useEffect(() => {
+    const url = post.drive_folder_url || post.drive_url
+    const id = extractDriveId(url)
+    if (id) setThumbUrl(driveIdToThumbnail(id, 200))
+  }, [post.drive_folder_url, post.drive_url])
+
+  const ring = approvalMode
+    ? STORY_RING[post.status]
+    : seen ? '#c7c7c7' : STORY_RING.pending
+
+  const isPending = post.status === 'pending'
+
+  return (
+    <div onClick={onClick} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flexShrink: 0, width: 52 }}>
+      <div style={{
+        width: 52, height: 52, borderRadius: '50%',
+        background: ring, padding: 2.5,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        // Pulse only for pending stories in approval mode
+        animation: approvalMode && isPending ? 'storyPulse 2s ease-in-out infinite' : 'none',
+      }}>
+        <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '2.5px solid white', overflow: 'hidden', background: clientColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {avatarUrl
+            ? <img src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+            : thumbUrl
+              ? <img src={thumbUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <span style={{ fontSize: 11, fontWeight: 700, color: 'white' }}>{clientInitials}</span>
+          }
+        </div>
+      </div>
+      <div style={{ width: 5, height: 5, borderRadius: '50%', background: STATUS_CONFIG[post.status].color }} />
+    </div>
+  )
+}
+
+// ── Story Viewer ──────────────────────────────────────────────────────────────
+function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, avatarUrl, onSeen, approvalMode, onApprove, onReject }: {
+  post: FeedPost
+  onClose: () => void
+  clientColor: string
+  clientInitials: string
+  clientName: string
+  avatarUrl: string | null
+  onSeen: (id: string) => void
+  approvalMode?: boolean
+  onApprove?: (post: FeedPost) => Promise<void>
+  onReject?: (post: FeedPost, comment: string) => Promise<void>
+}) {
+  const [media, setMedia]       = useState<ResolvedMedia | null>(null)
+  const [slide, setSlide]       = useState(0)
+  const [progress, setProgress] = useState(0)
+  const [loading, setLoading]   = useState(true)
+  const [paused, setPaused]     = useState(false)
+  const [showReject, setShowReject] = useState(false)
+  const [comment, setComment]   = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const DURATION = 5000
+
+  useEffect(() => {
+    setLoading(true); setSlide(0); setShowReject(false); setComment('')
+    resolveMedia(post).then(m => { setMedia(m); setLoading(false) })
+    onSeen(post.id)
+  }, [post.id])
+
+  const slides = media?.carouselImages || (media?.thumbnailUrl ? [media.thumbnailUrl] : [])
+
+  // Auto-advance — disabled in approval mode
+  useEffect(() => {
+    if (loading || slides.length === 0 || paused || approvalMode) return
+    setProgress(0)
+    const TICK = 50
+    const step = (100 / DURATION) * TICK
+    const iv = setInterval(() => setProgress(p => Math.min(p + step, 100)), TICK)
+    const to = setTimeout(() => {
+      if (slide < slides.length - 1) setSlide(s => s + 1); else onClose()
+    }, DURATION)
+    return () => { clearInterval(iv); clearTimeout(to) }
+  }, [slide, loading, slides.length, paused, approvalMode])
+
+  // In approval mode track progress manually (no auto-close)
+  useEffect(() => {
+    if (!approvalMode || loading || slides.length === 0) return
+    setProgress(0)
+  }, [slide, approvalMode, loading, slides.length])
+
+  const goNext = () => { if (slide < slides.length - 1) setSlide(s => s + 1); else if (!approvalMode) onClose() }
+  const goPrev = () => { if (slide > 0) setSlide(s => s - 1) }
+
+  const handleApprove = async () => {
+    if (!onApprove) return
+    setSubmitting(true)
+    await onApprove(post)
+    setSubmitting(false)
+    onClose()
+  }
+
+  const handleReject = async () => {
+    if (!onReject || !comment.trim()) return
+    setSubmitting(true)
+    await onReject(post, comment)
+    setSubmitting(false)
+    onClose()
+  }
+
+  const StatusIcon = STATUS_CONFIG[post.status].icon
+  const isApproved = post.status === 'approved'
+  const isRejected = post.status === 'changes_requested'
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        style={{ position: 'relative', width: 340, height: Math.round(340 * 16 / 9), maxHeight: '92vh', borderRadius: 22, overflow: 'hidden', background: '#0a0a0a', boxShadow: '0 40px 100px rgba(0,0,0,0.7)' }}
+        onMouseDown={() => setPaused(true)}
+        onMouseUp={() => setPaused(false)}
+        onTouchStart={() => setPaused(true)}
+        onTouchEnd={() => setPaused(false)}
+      >
+        {/* Progress bars */}
+        <div style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', gap: 3, zIndex: 20 }}>
+          {(slides.length > 0 ? slides : [null]).map((_, i) => (
+            <div key={i} style={{ flex: 1, height: 2.5, background: 'rgba(255,255,255,0.3)', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ height: '100%', borderRadius: 2, background: 'white', width: i < slide ? '100%' : i === slide ? (approvalMode ? '100%' : `${progress}%`) : '0%' }} />
+            </div>
+          ))}
+        </div>
+
+        {/* Header */}
+        <div style={{ position: 'absolute', top: 26, left: 12, right: 12, display: 'flex', alignItems: 'center', gap: 8, zIndex: 20 }}>
+          <div style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.8)', background: clientColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'white', overflow: 'hidden', flexShrink: 0 }}>
+            {avatarUrl ? <img src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : clientInitials}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'white' }}>{clientName}</span>
+            {post.scheduled_date && (
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', marginLeft: 6 }}>
+                {new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
+              </span>
+            )}
+          </div>
+          <button onClick={e => { e.stopPropagation(); onClose() }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white', padding: 4, display: 'flex' }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Image */}
+        {loading ? (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Loader2 size={28} color="white" style={{ animation: 'spin 1s linear infinite' }} />
+          </div>
+        ) : slides.length > 0 ? (
+          <img src={slides[slide]} alt={post.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, background: '#1a1a1a' }}>
+            <Image size={40} color="rgba(255,255,255,0.2)" />
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>Sem mídia — cole o link no Drive</span>
+          </div>
+        )}
+
+        {/* Tap zones */}
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', zIndex: 10, pointerEvents: loading ? 'none' : 'auto' }}>
+          <div style={{ flex: 1 }} onClick={e => { e.stopPropagation(); goPrev() }} />
+          <div style={{ flex: 1 }} onClick={e => { e.stopPropagation(); goNext() }} />
+        </div>
+
+        {/* Bottom: info + approval UI */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 20, pointerEvents: 'none' }}>
+          {/* Gradient + info */}
+          <div style={{ padding: approvalMode ? '40px 16px 10px' : '40px 16px 20px', background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)', pointerEvents: 'none' }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'white', margin: '0 0 2px' }}>{post.title}</p>
+            {post.copy && !approvalMode && (
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', margin: '0 0 6px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{post.copy}</p>
+            )}
+            {!approvalMode && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, pointerEvents: 'auto' }}>
+                <StatusIcon size={12} color={STATUS_CONFIG[post.status].color} />
+                <span style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.85)' }}>{STATUS_CONFIG[post.status].label}</span>
+                {slides.length > 1 && <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginLeft: 4 }}>{slide + 1}/{slides.length}</span>}
+                {(media?.folderLink || post.drive_url) && (
+                  <a href={media?.folderLink || post.drive_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                    style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>
+                    <ExternalLink size={11} /> Drive
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Approval actions */}
+          {approvalMode && (
+            <div style={{ padding: '0 12px 16px', pointerEvents: 'auto' }}>
+              {/* Legenda snippet */}
+              {post.copy && (
+                <div style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', borderRadius: 10, padding: '8px 12px', marginBottom: 10 }}>
+                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', margin: '0 0 3px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legenda</p>
+                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const }}>{post.copy}</p>
+                </div>
+              )}
+
+              {showReject ? (
+                /* Rejection form */
+                <div style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', borderRadius: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <textarea
+                    autoFocus
+                    value={comment}
+                    onChange={e => setComment(e.target.value)}
+                    placeholder="O que precisa mudar neste story?"
+                    onClick={e => e.stopPropagation()}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: 'white', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+                    rows={3}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={e => { e.stopPropagation(); setShowReject(false); setComment('') }}
+                      style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: '10px 0', fontSize: 12, color: 'rgba(255,255,255,0.8)', cursor: 'pointer', fontWeight: 500 }}>
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleReject() }}
+                      disabled={!comment.trim() || submitting}
+                      style={{ flex: 2, background: comment.trim() ? '#f59e0b' : 'rgba(245,158,11,0.3)', border: 'none', borderRadius: 10, padding: '10px 0', fontSize: 12, color: 'white', cursor: comment.trim() ? 'pointer' : 'default', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'background 0.2s' }}>
+                      {submitting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <><MessageSquare size={14} /> Solicitar alteração</>}
+                    </button>
+                  </div>
+                </div>
+              ) : isApproved ? (
+                /* Already approved state */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <Check size={16} color="#4ade80" />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#4ade80' }}>Story aprovado</span>
+                  </div>
+                  <button onClick={e => { e.stopPropagation(); setShowReject(true) }}
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 14, padding: '10px 0', fontSize: 12, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontWeight: 500 }}>
+                    Pedir alteração
+                  </button>
+                </div>
+              ) : isRejected ? (
+                /* Changes requested state */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 14, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <AlertCircle size={14} color="#f87171" />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#f87171' }}>Alteração solicitada</span>
+                  </div>
+                  <button onClick={e => { e.stopPropagation(); handleApprove() }} disabled={submitting}
+                    style={{ background: 'rgba(34,197,94,0.85)', border: 'none', borderRadius: 14, padding: '12px 0', fontSize: 13, color: 'white', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    {submitting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <><Check size={16} /> Aprovar assim mesmo</>}
+                  </button>
+                </div>
+              ) : (
+                /* Default: pending */
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={e => { e.stopPropagation(); setShowReject(true) }}
+                    style={{ flex: 1, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 14, padding: '13px 0', fontSize: 12, color: 'rgba(255,255,255,0.85)', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <MessageSquare size={14} /> Pedir alteração
+                  </button>
+                  <button onClick={e => { e.stopPropagation(); handleApprove() }} disabled={submitting}
+                    style={{ flex: 1, background: 'rgba(34,197,94,0.9)', border: 'none', borderRadius: 14, padding: '13px 0', fontSize: 12, color: 'white', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 20px rgba(34,197,94,0.35)' }}>
+                    {submitting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <><Check size={14} /> Aprovar</>}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Post thumbnail (grid) ─────────────────────────────────────────────────────
+function PostThumb({ post, onClick, dragging, dragOver }: {
+  post: FeedPost; onClick: () => void; dragging: boolean; dragOver: boolean
+}) {
+  const [thumbUrl, setThumbUrl] = useState<string | undefined>()
   const [loaded, setLoaded] = useState(false)
   const TypeIcon = TYPE_ICON[post.type]
   const status = STATUS_CONFIG[post.status]
 
   useEffect(() => {
-    // Resolve thumbnail rapidamente sem buscar a pasta inteira
-    const url = post.drive_folder_url || post.drive_url
-    const id = extractDriveId(url)
+    const id = extractDriveId(post.drive_folder_url || post.drive_url)
     if (id) setThumbUrl(driveIdToThumbnail(id, 300))
   }, [post.drive_folder_url, post.drive_url])
 
   return (
-    <div
-      onClick={onClick}
-      draggable
-      style={{
-        aspectRatio: '1/1',
-        position: 'relative',
-        overflow: 'hidden',
-        background: '#e8e8e8',
-        cursor: 'pointer',
-        opacity: dragging ? 0.25 : 1,
-        outline: dragOver ? '2px solid #3b82f6' : 'none',
-        outlineOffset: -2,
-        transition: 'opacity 0.1s',
-      }}
-    >
+    <div onClick={onClick} draggable style={{ aspectRatio: '4/5', position: 'relative', overflow: 'hidden', background: '#e8e8e8', cursor: 'pointer', opacity: dragging ? 0.25 : 1, outline: dragOver ? '2px solid #3b82f6' : 'none', outlineOffset: -2, transition: 'opacity 0.1s' }}>
       {thumbUrl ? (
         <>
-          {!loaded && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8e8e8' }}>
-              <div style={{ width: 16, height: 16, border: '2px solid #ddd', borderTopColor: '#aaa', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-            </div>
-          )}
-          <img
-            src={thumbUrl}
-            alt={post.title}
-            loading="lazy"
-            onLoad={() => setLoaded(true)}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
-          />
+          {!loaded && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8e8e8' }}><div style={{ width: 16, height: 16, border: '2px solid #ddd', borderTopColor: '#aaa', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /></div>}
+          <img src={thumbUrl} alt={post.title} loading="lazy" onLoad={() => setLoaded(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }} />
         </>
       ) : (
-        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <TypeIcon size={14} color="#bbb" />
-        </div>
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TypeIcon size={14} color="#bbb" /></div>
       )}
       <TypeIcon size={11} color="white" style={{ position: 'absolute', top: 5, right: 5, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} />
       <div style={{ position: 'absolute', bottom: 5, left: 5, width: 6, height: 6, borderRadius: '50%', background: status.color, border: '1.5px solid rgba(255,255,255,0.9)' }} />
@@ -207,136 +441,82 @@ function PostThumb({ post, onClick, dragging, dragOver }: {
   )
 }
 
-// Painel lateral do post selecionado
-function PostPanel({ post, onClose, clientColor }: {
-  post: FeedPost
-  onClose: () => void
-  clientColor: string
-}) {
-  const [media, setMedia] = useState<ResolvedMedia | null>(null)
+// ── Post panel (side detail) ──────────────────────────────────────────────────
+function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
+  const [media, setMedia]   = useState<ResolvedMedia | null>(null)
   const [loading, setLoading] = useState(true)
-  const [slide, setSlide] = useState(0)
+  const [slide, setSlide]   = useState(0)
   const StatusIcon = STATUS_CONFIG[post.status].icon
 
   useEffect(() => {
-    setLoading(true)
-    setSlide(0)
-    resolveMedia(post).then(m => {
-      setMedia(m)
-      setLoading(false)
-    })
+    setLoading(true); setSlide(0)
+    resolveMedia(post).then(m => { setMedia(m); setLoading(false) })
   }, [post.id])
 
-  const slides = media?.carouselImages || (media?.thumbnailUrl ? [media.thumbnailUrl] : [])
+  const slides    = media?.carouselImages || (media?.thumbnailUrl ? [media.thumbnailUrl] : [])
   const isCarousel = post.type === 'carousel' && slides.length > 1
-  const isReel = post.type === 'reel'
+  const isReel     = post.type === 'reel'
 
   return (
     <div style={{ width: 300, flexShrink: 0, background: 'white', border: '0.5px solid #e5e7eb', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '0.5px solid #f3f4f6' }}>
         <div>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{post.title}</span>
           <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 8, textTransform: 'capitalize' }}>{post.type}</span>
         </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 2 }}>
-          <X size={15} />
-        </button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 2 }}><X size={15} /></button>
       </div>
 
-      {/* Mídia */}
-      <div style={{ aspectRatio: '4/5', background: '#f3f4f6', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+      <div style={{ aspectRatio: post.type === 'story' ? '9/16' : '4/5', background: '#f3f4f6', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
         {loading ? (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Loader2 size={20} color="#ccc" style={{ animation: 'spin 1s linear infinite' }} />
-          </div>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={20} color="#ccc" style={{ animation: 'spin 1s linear infinite' }} /></div>
         ) : isReel && media?.videoEmbedUrl ? (
-          // Vídeo embed
-          <iframe
-            src={media.videoEmbedUrl}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-            allow="autoplay"
-            allowFullScreen
-          />
+          <iframe src={media.videoEmbedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" allowFullScreen />
         ) : slides.length > 0 ? (
-          // Imagem ou carrossel
           <>
-            <img
-              src={slides[slide]}
-              alt={post.title}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            />
+            <img src={slides[slide]} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             {isCarousel && (
               <>
-                {/* Indicadores */}
                 <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 4 }}>
-                  {slides.map((_, i) => (
-                    <div key={i} onClick={() => setSlide(i)} style={{ width: i === slide ? 16 : 5, height: 5, borderRadius: 3, background: i === slide ? 'white' : 'rgba(255,255,255,0.5)', cursor: 'pointer', transition: 'width 0.2s' }} />
-                  ))}
+                  {slides.map((_, i) => <div key={i} onClick={() => setSlide(i)} style={{ width: i === slide ? 16 : 5, height: 5, borderRadius: 3, background: i === slide ? 'white' : 'rgba(255,255,255,0.5)', cursor: 'pointer', transition: 'width 0.2s' }} />)}
                 </div>
-                {/* Setas */}
-                {slide > 0 && (
-                  <button onClick={() => setSlide(s => s - 1)} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                    <ChevronLeft size={16} color="white" />
-                  </button>
-                )}
-                {slide < slides.length - 1 && (
-                  <button onClick={() => setSlide(s => s + 1)} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                    <ChevronRight size={16} color="white" />
-                  </button>
-                )}
-                <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.45)', borderRadius: 12, padding: '2px 8px', fontSize: 11, color: 'white' }}>
-                  {slide + 1}/{slides.length}
-                </div>
+                {slide > 0 && <button onClick={() => setSlide(s => s - 1)} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><ChevronLeft size={16} color="white" /></button>}
+                {slide < slides.length - 1 && <button onClick={() => setSlide(s => s + 1)} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><ChevronRight size={16} color="white" /></button>}
+                <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.45)', borderRadius: 12, padding: '2px 8px', fontSize: 11, color: 'white' }}>{slide + 1}/{slides.length}</div>
               </>
             )}
-            {/* Ícone play overlay no reel sem vídeo ainda */}
             {isReel && !media?.videoEmbedUrl && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
-                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Play size={20} color="white" fill="white" style={{ marginLeft: 2 }} />
-                </div>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Play size={20} color="white" fill="white" style={{ marginLeft: 2 }} /></div>
               </div>
             )}
           </>
         ) : (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Image size={24} color="#ccc" />
-          </div>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Image size={24} color="#ccc" /></div>
         )}
       </div>
 
-      {/* Infos */}
       <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, background: STATUS_CONFIG[post.status].color, color: 'white', fontSize: 11, fontWeight: 500 }}>
             <StatusIcon size={11} />{STATUS_CONFIG[post.status].label}
           </div>
         </div>
-
         {post.scheduled_date && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b7280' }}>
             <Calendar size={13} color="#9ca3af" />
-            {new Date(post.scheduled_date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}
+            {new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}
           </div>
         )}
-
         {post.copy && (
           <div style={{ background: '#f9fafb', borderRadius: 10, padding: '10px 12px' }}>
             <p style={{ fontSize: 10, color: '#9ca3af', fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legenda</p>
             <p style={{ fontSize: 12, color: '#374151', lineHeight: 1.6, margin: 0 }}>{post.copy}</p>
           </div>
         )}
-
         {(media?.folderLink || post.drive_url) && (
-          <a
-            href={media?.folderLink || post.drive_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}
-          >
-            <ExternalLink size={13} />
-            Abrir pasta no Drive
+          <a href={media?.folderLink || post.drive_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
+            <ExternalLink size={13} />Abrir pasta no Drive
           </a>
         )}
       </div>
@@ -344,6 +524,7 @@ function PostPanel({ post, onClose, clientColor }: {
   )
 }
 
+// ── Main IPhoneFeed ───────────────────────────────────────────────────────────
 export default function IPhoneFeed({
   posts: initialPosts,
   clientName = 'Cliente',
@@ -352,62 +533,75 @@ export default function IPhoneFeed({
   clientBio,
   followersCount,
   followingCount,
+  instagramUrl,
   onPostClick,
   onReorder,
   readonly = false,
+  approvalMode = false,
+  onStoryApprove,
+  onStoryReject,
 }: IPhoneFeedProps) {
-  const [posts, setPosts] = useState<FeedPost[]>(
-    [...initialPosts].sort((a, b) => (a.feed_order ?? 999) - (b.feed_order ?? 999))
-  )
+  const igUsername = instagramUrl
+    ? instagramUrl.replace(/https?:\/\/(www\.)?instagram\.com\/?/, '').replace(/\/$/, '')
+    : null
+  const avatarUrl = igUsername ? `https://unavatar.io/instagram/${igUsername}` : null
+
+  const [posts, setPosts]             = useState<FeedPost[]>([...initialPosts].sort((a, b) => (a.feed_order ?? 999) - (b.feed_order ?? 999)))
   const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null)
-  const [dragging, setDragging] = useState<string | null>(null)
-  const [dragOver, setDragOver] = useState<string | null>(null)
+  const [activeStory, setActiveStory]   = useState<FeedPost | null>(null)
+  const [seenStories, setSeenStories]   = useState<Set<string>>(new Set())
+  const [dragging, setDragging]         = useState<string | null>(null)
+  const [dragOver, setDragOver]         = useState<string | null>(null)
   const dragSrcId = useRef<string | null>(null)
 
-  // Sincroniza se posts externos mudam
   useEffect(() => {
     setPosts([...initialPosts].sort((a, b) => (a.feed_order ?? 999) - (b.feed_order ?? 999)))
   }, [initialPosts])
-
-  const handleDragStart = useCallback((id: string) => {
-    if (readonly) return
-    dragSrcId.current = id
-    setDragging(id)
-  }, [readonly])
 
   const handleDrop = useCallback((targetId: string) => {
     const srcId = dragSrcId.current
     if (!srcId || srcId === targetId) return
     setPosts(prev => {
-      const newPosts = [...prev]
-      const srcIdx = newPosts.findIndex(p => p.id === srcId)
-      const tgtIdx = newPosts.findIndex(p => p.id === targetId)
-      const [moved] = newPosts.splice(srcIdx, 1)
-      newPosts.splice(tgtIdx, 0, moved)
-      const reordered = newPosts.map((p, i) => ({ ...p, feed_order: i }))
+      const arr = [...prev]
+      const si = arr.findIndex(p => p.id === srcId)
+      const ti = arr.findIndex(p => p.id === targetId)
+      const [moved] = arr.splice(si, 1)
+      arr.splice(ti, 0, moved)
+      const reordered = arr.map((p, i) => ({ ...p, feed_order: i }))
       onReorder?.(reordered)
       return reordered
     })
-    setDragging(null)
-    setDragOver(null)
+    setDragging(null); setDragOver(null)
   }, [onReorder])
+
+  const storyPosts = posts.filter(p => p.type === 'story')
+  const gridPosts  = posts.filter(p => p.type !== 'story')
+  const markSeen   = (id: string) => setSeenStories(s => new Set(s).add(id))
+
+  const handleStoryApprove = async (post: FeedPost) => {
+    await onStoryApprove?.(post)
+    setPosts(prev => prev.map(p => p.id === post.id ? { ...p, status: 'approved' } : p))
+  }
+  const handleStoryReject = async (post: FeedPost, comment: string) => {
+    await onStoryReject?.(post, comment)
+    setPosts(prev => prev.map(p => p.id === post.id ? { ...p, status: 'changes_requested' } : p))
+  }
 
   return (
     <>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes storyPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(220,39,67,0.5); }
+          50% { box-shadow: 0 0 0 6px rgba(220,39,67,0); }
+        }
+      `}</style>
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+
         {/* iPhone */}
         <div style={{ flexShrink: 0 }}>
-          <div style={{
-            width: 290,
-            border: '1.5px solid #EBEAE5',
-            borderRadius: 46,
-            overflow: 'hidden',
-            background: '#fff',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 0 0 6px #f5f5f3, 0 0 0 7px #e8e8e4',
-          }}>
+          <div style={{ width: 290, border: '1.5px solid #EBEAE5', borderRadius: 46, overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column', boxShadow: '0 0 0 6px #f5f5f3, 0 0 0 7px #e8e8e4' }}>
+
             {/* Notch */}
             <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2 }}>
               <div style={{ width: 80, height: 20, background: '#111', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
@@ -416,9 +610,12 @@ export default function IPhoneFeed({
               </div>
             </div>
 
-            {/* Instagram header */}
+            {/* IG header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px 6px' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{clientName.toLowerCase().replace(/\s+/g, '.')}</span>
+              {instagramUrl
+                ? <a href={instagramUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: '#111', textDecoration: 'none' }}>{igUsername}</a>
+                : <span style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{clientName.toLowerCase().replace(/\s+/g, '.')}</span>
+              }
               <div style={{ display: 'flex', gap: 12 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -428,46 +625,67 @@ export default function IPhoneFeed({
             {/* Profile */}
             <div style={{ padding: '0 16px 12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-                <div style={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0, background: clientColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: 'white' }}>{clientInitials}</div>
+                {instagramUrl ? (
+                  <a href={instagramUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, borderRadius: '50%', overflow: 'hidden', width: 48, height: 48, display: 'block', background: clientColor }}>
+                    {avatarUrl && <img src={avatarUrl} alt={igUsername || clientName} width={48} height={48} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      onError={e => {
+                        const el = e.currentTarget; el.style.display = 'none'
+                        const p = el.parentElement
+                        if (p) { p.style.display = 'flex'; p.style.alignItems = 'center'; p.style.justifyContent = 'center'; p.innerHTML = `<span style="font-size:13px;font-weight:600;color:white">${clientInitials}</span>` }
+                      }} />}
+                  </a>
+                ) : (
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0, background: clientColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: 'white' }}>{clientInitials}</div>
+                )}
                 <div style={{ display: 'flex', flex: 1 }}>
-                  {[{ num: posts.length, label: 'posts' }, { num: followersCount ?? '—', label: 'seguid.' }, { num: followingCount ?? '—', label: 'seguindo' }].map(({ num, label }) => (
+                  {[{ num: gridPosts.length, label: 'posts' }, { num: followersCount ?? '—', label: 'seguid.' }, { num: followingCount ?? '—', label: 'seguindo' }].map(({ num, label }) => (
                     <div key={label} style={{ flex: 1, textAlign: 'center' }}>
-                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#111' }}>{num}</span>
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#111' }}>{typeof num === 'number' ? num.toLocaleString('pt-BR') : num}</span>
                       <span style={{ display: 'block', fontSize: 9, color: '#888' }}>{label}</span>
                     </div>
                   ))}
                 </div>
               </div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#111', marginBottom: 1 }}>{clientName}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#111', marginBottom: 1 }}>{igUsername ? `@${igUsername}` : clientName}</div>
               {clientBio && <div style={{ fontSize: 9, color: '#555', lineHeight: 1.4 }}>{clientBio}</div>}
-
-              {/* Botão seguir */}
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                <div style={{ flex: 1, background: clientColor, borderRadius: 6, padding: '4px 0', textAlign: 'center', fontSize: 10, fontWeight: 600, color: 'white' }}>Seguir</div>
+                {instagramUrl
+                  ? <a href={instagramUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, background: clientColor, borderRadius: 6, padding: '4px 0', textAlign: 'center', fontSize: 10, fontWeight: 600, color: 'white', textDecoration: 'none', display: 'block' }}>Seguir</a>
+                  : <div style={{ flex: 1, background: clientColor, borderRadius: 6, padding: '4px 0', textAlign: 'center', fontSize: 10, fontWeight: 600, color: 'white' }}>Seguir</div>
+                }
                 <div style={{ flex: 1, background: '#f0f0f0', borderRadius: 6, padding: '4px 0', textAlign: 'center', fontSize: 10, fontWeight: 500, color: '#111' }}>Mensagem</div>
               </div>
             </div>
 
+            {/* Stories tray */}
+            {storyPosts.length > 0 && (
+              <>
+                <div style={{ height: '0.5px', background: '#efefef' }} />
+                <div style={{ display: 'flex', gap: 10, padding: '10px 12px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+                  {storyPosts.map(post => (
+                    <StoryCircle key={post.id} post={post} clientColor={clientColor} clientInitials={clientInitials} avatarUrl={avatarUrl}
+                      seen={seenStories.has(post.id)} approvalMode={approvalMode} onClick={() => setActiveStory(post)} />
+                  ))}
+                </div>
+              </>
+            )}
+
             <div style={{ height: '0.5px', background: '#efefef', flexShrink: 0 }} />
 
-            {/* Grid de posts */}
+            {/* Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, background: '#e0e0e0' }}>
-              {posts.map(post => (
-                <PostThumb
-                  key={post.id}
-                  post={post}
+              {gridPosts.map(post => (
+                <PostThumb key={post.id} post={post}
                   onClick={() => { setSelectedPost(post); onPostClick?.(post) }}
                   dragging={dragging === post.id}
                   dragOver={dragOver === post.id && dragging !== post.id}
                 />
               ))}
-              {/* Células vazias para completar 12 */}
-              {Array.from({ length: Math.max(0, 12 - posts.length) }).map((_, i) => (
-                <div key={`empty-${i}`} style={{ aspectRatio: '1/1', background: '#f5f5f5' }} />
+              {Array.from({ length: Math.max(0, 12 - gridPosts.length) }).map((_, i) => (
+                <div key={`empty-${i}`} style={{ aspectRatio: '4/5', background: '#f5f5f5' }} />
               ))}
             </div>
 
-            {/* Home indicator */}
             <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 8px' }}>
               <div style={{ width: 80, height: 4, background: '#111', borderRadius: 2, opacity: 0.2 }} />
             </div>
@@ -475,15 +693,27 @@ export default function IPhoneFeed({
           {!readonly && <p style={{ fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 8 }}>arraste para reordenar</p>}
         </div>
 
-        {/* Painel do post selecionado */}
-        {selectedPost && (
-          <PostPanel
-            post={selectedPost}
-            onClose={() => setSelectedPost(null)}
-            clientColor={clientColor}
-          />
+        {/* Post side panel */}
+        {selectedPost && !activeStory && (
+          <PostPanel post={selectedPost} onClose={() => setSelectedPost(null)} />
         )}
       </div>
+
+      {/* Story viewer */}
+      {activeStory && (
+        <StoryViewer
+          post={activeStory}
+          onClose={() => setActiveStory(null)}
+          clientColor={clientColor}
+          clientInitials={clientInitials}
+          clientName={clientName}
+          avatarUrl={avatarUrl}
+          onSeen={markSeen}
+          approvalMode={approvalMode}
+          onApprove={handleStoryApprove}
+          onReject={handleStoryReject}
+        />
+      )}
     </>
   )
 }

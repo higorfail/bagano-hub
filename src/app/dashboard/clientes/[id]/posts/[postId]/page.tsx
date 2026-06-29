@@ -48,7 +48,7 @@ export default function PostPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b border-[#EBEAE5] px-6 py-4 flex items-center gap-3 bg-white">
+      <div className="border-b border-[var(--color-border)] px-6 py-4 flex items-center gap-3 bg-[var(--color-bg-card)]">
         <a href="/dashboard/clientes/1" className="text-[var(--color-text-muted)] text-sm hover:text-[var(--color-text-primary)]">← Big Poke</a>
         <span className="text-[var(--color-border)]">/</span>
         <span className="text-sm text-[var(--color-text-primary)] font-medium">Post #{mockPost.number}</span>
@@ -59,7 +59,7 @@ export default function PostPage() {
 
       <div className="flex-1 overflow-auto">
         <div className="grid grid-cols-2 gap-0 h-full">
-          <div className="p-6 border-r border-[#EBEAE5] flex flex-col gap-5">
+          <div className="p-6 border-r border-[var(--color-border)] flex flex-col gap-5">
             <div>
               <div className="text-xs font-medium text-[var(--color-text-muted)] mb-1">TIPO</div>
               <span className="text-[10px] font-medium px-2 py-1 rounded bg-[#E6F1FB] text-[#0C447C]">🎬 Reel</span>
@@ -150,7 +150,7 @@ export default function PostPage() {
                 onChange={e => setComment(e.target.value)}
                 placeholder="Adicionar comentário interno..."
                 rows={3}
-                className="w-full border border-[#EBEAE5] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[#1A1916] transition-colors bg-white resize-none"
+                className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)] transition-colors bg-[var(--color-bg-card)] resize-none"
               />
               <button onClick={addComment}
                 className="self-end bg-[var(--color-text-primary)] text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-[#2d2d2a] transition-colors">
