@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
+import { logActivity } from '@/lib/activity'
+import ActivityLog from '@/components/ActivityLog'
 import {
   X, Plus, Calendar, Tag, CheckSquare, Paperclip,
   Trash2, Link2, MessageSquare, User, AlignLeft, Check,
@@ -64,6 +66,9 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [loading, setLoading] = useState(!!extraId)
   const [saving,  setSaving]  = useState(false)
   const [id,      setId]      = useState<string | undefined>(extraId)
+  const originalStatusRef = useRef<ExtraStatus>(initialStatus ?? 'backlog')
+  const [sideTab,     setSideTab]     = useState<'comments' | 'history'>('comments')
+  const [activityKey, setActivityKey] = useState(0)
 
   // Track manual overrides so auto-detect doesn't fight the user
   const [typeManuallySet,   setTypeManuallySet]   = useState(!!extraId)
@@ -149,6 +154,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         setTitle(data.title || '')
         setType(data.type || 'todo')
         setStatus(data.status || 'backlog')
+        originalStatusRef.current = data.status || 'backlog'
         setPriority(data.priority || 'normal')
         setClientId(data.client_id || '')
         setDescription(data.description || '')
@@ -192,8 +198,22 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     if (!id) {
       const { data } = await supabase.from('extras').insert(payload)
         .select('*, clients(name, color_hex), team_members(name)').single()
-      if (data) { setId(data.id); savedData = data }
+      if (data) {
+        setId(data.id)
+        savedData = data
+        originalStatusRef.current = status
+        await logActivity({ tableName: 'extras', recordId: data.id, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
+        setActivityKey(k => k + 1)
+      }
     } else {
+      const statusLabels: Record<string,string> = { backlog: 'A fazer', doing: 'Em andamento', done: 'Concluído' }
+      if (status !== originalStatusRef.current) {
+        const oldLabel = statusLabels[originalStatusRef.current] || originalStatusRef.current
+        const newLabel = statusLabels[status] || status
+        await logActivity({ tableName: 'extras', recordId: id, action: 'status_changed', actorName: currentMember?.name, field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
+        originalStatusRef.current = status as ExtraStatus
+        setActivityKey(k => k + 1)
+      }
       const { data } = await supabase.from('extras').update(payload).eq('id', id)
         .select('*, clients(name, color_hex), team_members(name)').single()
       savedData = data
@@ -204,6 +224,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
 
   async function handleDelete() {
     if (!id) { onClose(); return }
+    await logActivity({ tableName: 'extras', recordId: id, action: 'deleted', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
     await supabase.from('extras').delete().eq('id', id)
     if (onDeleted) onDeleted(id)
     onClose()
@@ -228,8 +249,12 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     if (!newComment.trim()) return
     const eid = await ensureId(); if (!eid) return
     const authorName = currentMember?.name || 'Você'
-    const { data } = await supabase.from('extra_comments').insert({ extra_id: eid, body: newComment, author_name: authorName }).select().single()
-    if (data) setComments(c => [...c, data]); setNewComment('')
+    const body = newComment
+    const { data } = await supabase.from('extra_comments').insert({ extra_id: eid, body, author_name: authorName }).select().single()
+    if (data) setComments(c => [...c, data])
+    setNewComment('')
+    await logActivity({ tableName: 'extras', recordId: eid, action: 'commented', actorName: authorName, description: `${authorName} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
+    setActivityKey(k => k + 1)
   }
 
   async function addAttachment() {
@@ -550,15 +575,24 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
             </div>
           </div>
 
-          {/* RIGHT — comments */}
+          {/* RIGHT — comentários / histórico */}
           <div className="w-80 flex-shrink-0 flex flex-col bg-[var(--color-bg-card)]">
-            <div className="px-5 py-4 border-b border-[var(--color-border)]">
-              <div className="flex items-center gap-2">
-                <MessageSquare size={13} className="text-[var(--color-text-muted)]" />
-                <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Comentários</span>
-                {comments.length > 0 && <span className="text-[10px] text-[var(--color-text-faint)]">{comments.length}</span>}
+            <div className="px-5 py-3.5 border-b border-[var(--color-border)]">
+              <div className="flex rounded-lg bg-[var(--color-bg-subtle)] p-0.5">
+                <button onClick={() => setSideTab('comments')} className={`flex-1 text-xs font-medium py-1 rounded-md transition-all ${sideTab === 'comments' ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'}`}>
+                  Comentários {comments.length > 0 ? `(${comments.length})` : ''}
+                </button>
+                <button onClick={() => setSideTab('history')} className={`flex-1 text-xs font-medium py-1 rounded-md transition-all ${sideTab === 'history' ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'}`}>
+                  Histórico
+                </button>
               </div>
             </div>
+
+            {sideTab === 'history' ? (
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <ActivityLog tableName="extras" recordId={id || extraId || ''} refreshKey={activityKey} />
+              </div>
+            ) : (
             <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
               {comments.length === 0 && (
                 <p className="text-xs text-[var(--color-text-faint)] text-center py-6">Nenhum comentário.</p>
@@ -580,8 +614,9 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 </div>
               ))}
             </div>
-            {/* Comment input */}
-            <div className="px-5 py-4 border-t border-[var(--color-border)]">
+            )}
+            {/* Comment input — só quando na aba comentários */}
+            {sideTab === 'comments' && <div className="px-5 py-4 border-t border-[var(--color-border)]">
               <div className="flex gap-2.5">
                 <div className="w-6 h-6 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[8px] font-bold flex-shrink-0 mt-0.5">
                   {currentMember ? initials(currentMember.name) : 'VO'}
@@ -602,7 +637,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   )}
                 </div>
               </div>
-            </div>
+            </div>}
           </div>
         </div>
 

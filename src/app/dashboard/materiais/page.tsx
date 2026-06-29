@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import MaterialCard from '@/components/MaterialCard'
 import MaterialCardMini from '@/components/MaterialCardMini'
+import { logActivity } from '@/lib/activity'
 
 type Material = {
   id: string
@@ -84,9 +85,14 @@ export default function MateriaisPage() {
   }
 
   async function moveStatus(id: string, newStatus: string) {
+    const labels: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', finalizado: 'Finalizado' }
+    const mat = materials.find(m => m.id === id)
+    const oldLabel = labels[mat?.status || 'producao'] || mat?.status || ''
+    const newLabel = labels[newStatus] || newStatus
     setMaterials(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m))
     const supabase = createClient()
     await supabase.from('materials').update({ status: newStatus }).eq('id', id)
+    await logActivity({ tableName: 'materials', recordId: id, action: 'status_changed', actorName: currentMember?.name, field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
   }
 
   function handleDeleted(id: string) {

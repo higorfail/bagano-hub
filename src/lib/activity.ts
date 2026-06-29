@@ -1,0 +1,28 @@
+import { createClient } from './supabase'
+
+export async function logActivity(params: {
+  tableName: string
+  recordId: string
+  action: string
+  actorName?: string | null
+  field?: string | null
+  oldValue?: string | null
+  newValue?: string | null
+  description: string
+}) {
+  try {
+    const supabase = createClient()
+    await supabase.from('activity_log').insert({
+      table_name: params.tableName,
+      record_id: params.recordId,
+      action: params.action,
+      actor_name: params.actorName || null,
+      field: params.field || null,
+      old_value: params.oldValue || null,
+      new_value: params.newValue || null,
+      description: params.description,
+    })
+  } catch {
+    // never block the UI for logging
+  }
+}

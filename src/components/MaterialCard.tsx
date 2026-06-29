@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
+import { logActivity } from '@/lib/activity'
+import ActivityLog from '@/components/ActivityLog'
 import {
   X, Plus, Calendar, Tag, CheckSquare, Paperclip,
   Trash2, Link2, MessageSquare, User, Briefcase,
@@ -46,9 +48,12 @@ type Props = {
 }
 
 export default function MaterialCard({ materialId, fixedClientId, clients = [], onClose, onSaved, onDeleted }: Props) {
-  const { members } = useUser()
+  const { members, currentMember } = useUser()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const originalStatusRef = useRef('')
+  const [sideTab,      setSideTab]      = useState<'comments' | 'history'>('comments')
+  const [activityKey,  setActivityKey]  = useState(0)
 
   const [loading,       setLoading]       = useState(!!materialId)
   const [saving,        setSaving]        = useState(false)
@@ -120,6 +125,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         setTitle(data.title || '')
         setType(data.type || 'Arte avulsa')
         setStatus(data.status || 'producao')
+        originalStatusRef.current = data.status || 'producao'
         setClientId(data.client_id || '')
         setExtraClient(data.extra_client || '')
         setDescription(data.description || '')
@@ -199,8 +205,21 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     }
     if (!id) {
       const { data } = await supabase.from('materials').insert(payload).select().single()
-      if (data) setId(data.id)
+      if (data) {
+        setId(data.id)
+        originalStatusRef.current = status
+        await logActivity({ tableName: 'materials', recordId: data.id, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
+        setActivityKey(k => k + 1)
+      }
     } else {
+      const statusLabels: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', finalizado: 'Finalizado' }
+      if (status !== originalStatusRef.current) {
+        const oldLabel = statusLabels[originalStatusRef.current] || originalStatusRef.current
+        const newLabel = statusLabels[status] || status
+        await logActivity({ tableName: 'materials', recordId: id, action: 'status_changed', actorName: currentMember?.name, field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
+        originalStatusRef.current = status
+        setActivityKey(k => k + 1)
+      }
       await supabase.from('materials').update(payload).eq('id', id)
     }
     setSaving(false)
@@ -243,11 +262,14 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     if (!newComment.trim()) return
     const mid = await ensureId()
     if (!mid) return
+    const author = currentMember?.name || 'Você'
     const { data } = await supabase.from('material_comments').insert({
-      material_id: mid, body: newComment, author_name: 'Você',
+      material_id: mid, body: newComment, author_name: author,
     }).select().single()
     if (data) setComments(c => [...c, data])
     setNewComment('')
+    await logActivity({ tableName: 'materials', recordId: mid, action: 'commented', actorName: author, description: `${author} comentou: "${newComment.slice(0, 80)}${newComment.length > 80 ? '…' : ''}"` })
+    setActivityKey(k => k + 1)
   }
 
   // Anexos (links)
@@ -669,51 +691,66 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
             </div>
           </div>
 
-          {/* DIREITA — comentários */}
+          {/* DIREITA — comentários / histórico */}
           <div className="w-72 flex-shrink-0">
             <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 sticky top-4">
-              <SectionTitle icon={MessageSquare}>Comentários</SectionTitle>
-              <div className="flex gap-2.5 mb-3">
-                <div className="w-7 h-7 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[9px] font-bold flex-shrink-0 mt-0.5">
-                  VO
-                </div>
-                <div className="flex-1">
-                  <textarea
-                    value={newComment}
-                    onChange={e => setNewComment(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
-                    rows={2}
-                    placeholder="Escrever um comentário… (⌘Enter)"
-                    className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] resize-none"
-                  />
-                  {newComment.trim() && (
-                    <button onClick={addComment} className="mt-1.5 w-full text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">
-                      Comentar
-                    </button>
-                  )}
-                </div>
+              {/* Tab toggle */}
+              <div className="flex rounded-lg bg-[var(--color-bg-subtle)] p-0.5 mb-4">
+                <button onClick={() => setSideTab('comments')} className={`flex-1 text-xs font-medium py-1 rounded-md transition-all ${sideTab === 'comments' ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'}`}>
+                  Comentários
+                </button>
+                <button onClick={() => setSideTab('history')} className={`flex-1 text-xs font-medium py-1 rounded-md transition-all ${sideTab === 'history' ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'}`}>
+                  Histórico
+                </button>
               </div>
-              <div className="flex flex-col gap-4">
-                {comments.length === 0 && (
-                  <p className="text-xs text-[var(--color-text-faint)] text-center py-4">Nenhum comentário ainda.</p>
-                )}
-                {[...comments].reverse().map(c => (
-                  <div key={c.id} className="flex gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[9px] font-bold flex-shrink-0 flex-shrink-0">
-                      {initials(c.author_name)}
+
+              {sideTab === 'comments' ? (
+                <>
+                  <div className="flex gap-2.5 mb-3">
+                    <div className="w-7 h-7 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[9px] font-bold flex-shrink-0 mt-0.5">
+                      {currentMember ? initials(currentMember.name) : 'VO'}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs mb-1">
-                        <span className="font-semibold text-[var(--color-text-primary)]">{c.author_name}</span>{' '}
-                        <span className="text-[var(--color-text-muted)]">
-                          {new Date(c.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </p>
-                      <p className="text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 whitespace-pre-wrap">{c.body}</p>
+                    <div className="flex-1">
+                      <textarea
+                        value={newComment}
+                        onChange={e => setNewComment(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
+                        rows={2}
+                        placeholder="Escrever um comentário… (⌘Enter)"
+                        className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] resize-none"
+                      />
+                      {newComment.trim() && (
+                        <button onClick={addComment} className="mt-1.5 w-full text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">
+                          Comentar
+                        </button>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex flex-col gap-4 max-h-72 overflow-y-auto">
+                    {comments.length === 0 && (
+                      <p className="text-xs text-[var(--color-text-faint)] text-center py-4">Nenhum comentário ainda.</p>
+                    )}
+                    {[...comments].reverse().map(c => (
+                      <div key={c.id} className="flex gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[9px] font-bold flex-shrink-0">
+                          {initials(c.author_name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs mb-1">
+                            <span className="font-semibold text-[var(--color-text-primary)]">{c.author_name}</span>{' '}
+                            <span className="text-[var(--color-text-muted)]">
+                              {new Date(c.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </p>
+                          <p className="text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 whitespace-pre-wrap">{c.body}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <ActivityLog tableName="materials" recordId={id || materialId || ''} refreshKey={activityKey} />
+              )}
             </div>
           </div>
         </div>
@@ -732,6 +769,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               <span className="text-xs text-red-600 font-medium">Confirmar exclusão?</span>
               <button onClick={() => setConfirmDelete(false)} className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
               <button onClick={async () => {
+                await logActivity({ tableName: 'materials', recordId: materialId, action: 'deleted', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
                 await Promise.all([
                   supabase.from('material_checklist').delete().eq('material_id', materialId),
                   supabase.from('material_comments').delete().eq('material_id', materialId),

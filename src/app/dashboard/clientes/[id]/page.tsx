@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
 import MaterialCard from '@/components/MaterialCard'
+import { logActivity } from '@/lib/activity'
 import CampaignsTab from '@/components/CampaignsTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
 import PostFormModal from '@/components/PostFormModal'
@@ -28,8 +29,6 @@ const typeColor: Record<string,string> = { 'reels':'bg-red-100 text-red-700','ca
 const statusColor: Record<string,string> = { 'publicado':'bg-green-50 text-green-600','aprovado':'bg-blue-50 text-blue-600','agendado':'bg-teal-50 text-teal-600','aguardando_aprovacao':'bg-pink-50 text-pink-600','revisao_interna':'bg-purple-50 text-purple-600','producao':'bg-yellow-50 text-yellow-700','pendente':'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]' }
 const STATUS_LABEL: Record<string,string> = { producao:'Produção', revisao_interna:'Revisão', aguardando_aprovacao:'Aguardando aprovação', aprovado:'Aprovado', agendado:'Agendado', publicado:'Publicado' }
 const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'Carrossel/Stories' }
-const MAT_TYPE_LABEL: Record<string,string> = { menu:'Menu', cardapio:'Cardápio', arte_avulsa:'Arte avulsa', logo:'Logo', manual:'Manual', outro:'Outro' }
-const MAT_TYPE_COLOR: Record<string,string> = { menu:'bg-orange-100 text-orange-700', cardapio:'bg-amber-100 text-amber-700', arte_avulsa:'bg-purple-100 text-purple-700', logo:'bg-blue-100 text-blue-700', manual:'bg-green-100 text-green-700', outro:'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]' }
 const approvalColor: Record<string,string> = { 'aprovado':'bg-green-50 text-green-600','não aprovado':'bg-red-50 text-red-500' }
 const FUNCAO_LABEL: Record<string,string> = { videos:'Editor', posts:'Designer', estrategia:'Estratégia', social:'Social Media', acompanha:'Acompanha', outro:'Outro' }
 function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }
@@ -65,13 +64,9 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [showNewPost, setShowNewPost] = useState(false)
   const [materials,    setMaterials]    = useState<any[]>([])
   const [matCounts,    setMatCounts]    = useState<Record<string,any>>({})
-  const [showNewMaterial, setShowNewMaterial] = useState(false)
   const [cardOpen,     setCardOpen]     = useState<string | 'new' | null>(null)
   const [matDragging,  setMatDragging]  = useState<string | null>(null)
   const [matDragOver,  setMatDragOver]  = useState<string | null>(null)
-  const [editingMaterial, setEditingMaterial] = useState<any>(null)
-  const [matForm, setMatForm] = useState({ title: '', type: 'arte_avulsa', drive_url: '', notes: '' })
-  const [savingMat, setSavingMat] = useState(false)
   const [newMemberId, setNewMemberId] = useState('')
   const [newFuncao, setNewFuncao] = useState('posts')
   const [showEditClient, setShowEditClient] = useState(false)
@@ -192,34 +187,16 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
     setCardOpen('new')
   }
 
-  function openEditMaterial(m: any) {
-    setCardOpen(m.id)
-  }
-
-  async function saveMaterial() {
-    if (!matForm.title.trim()) return
-    setSavingMat(true)
-    const supabase = createClient()
-    if (editingMaterial) {
-      await supabase.from('materials').update(matForm).eq('id', editingMaterial.id)
-    } else {
-      await supabase.from('materials').insert({ ...matForm, client_id: id })
-    }
-    setSavingMat(false)
-    setShowNewMaterial(false)
-    reloadMaterials()
-  }
-
-  async function deleteMaterial(matId: string) {
-    const supabase = createClient()
-    await supabase.from('materials').delete().eq('id', matId)
-    setMaterials(ms => ms.filter(m => m.id !== matId))
-  }
 
   async function moveMatStatus(matId: string, newStatus: string) {
+    const labels: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', finalizado: 'Finalizado' }
+    const mat = materials.find(m => m.id === matId)
+    const oldLabel = labels[mat?.status || 'producao'] || mat?.status || ''
+    const newLabel = labels[newStatus] || newStatus
     setMaterials(prev => prev.map(m => m.id === matId ? { ...m, status: newStatus } : m))
     const supabase = createClient()
     await supabase.from('materials').update({ status: newStatus }).eq('id', matId)
+    await logActivity({ tableName: 'materials', recordId: matId, action: 'status_changed', field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
   }
 
   function handleMatDeleted(matId: string) {
@@ -553,23 +530,6 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   onSaved={reloadMaterials}
                   onDeleted={handleMatDeleted}
                 />
-              )}
-              {false && (
-                <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setShowNewMaterial(false) }}>
-                  <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-md p-6">
-                    <p className="font-semibold text-[var(--color-text-primary)] mb-4">{editingMaterial ? 'Editar material' : 'Novo material'}</p>
-                    <div className="flex flex-col gap-3">
-                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={matForm.title} onChange={e => setMatForm(f => ({...f, title: e.target.value}))} placeholder="Ex: Menu de inverno 2026" className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]" /></div>
-                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={matForm.type} onChange={e => setMatForm(f => ({...f, type: e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">{Object.entries(MAT_TYPE_LABEL).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></div>
-                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link do Drive</label><input value={matForm.drive_url} onChange={e => setMatForm(f => ({...f, drive_url: e.target.value}))} placeholder="https://drive.google.com/..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]" /></div>
-                      <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Observações</label><textarea value={matForm.notes} onChange={e => setMatForm(f => ({...f, notes: e.target.value}))} rows={2} placeholder="Notas, contexto..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] resize-none" /></div>
-                      <div className="flex gap-2 mt-2">
-                        <button onClick={() => setShowNewMaterial(false)} className="flex-1 py-2 text-sm border border-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)]">Cancelar</button>
-                        <button onClick={saveMaterial} disabled={savingMat || !matForm.title.trim()} className="flex-1 py-2 text-sm bg-[var(--color-text-primary)] text-white rounded-lg disabled:opacity-50">{savingMat ? 'Salvando...' : 'Salvar'}</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               )}
             </div>
           )}
