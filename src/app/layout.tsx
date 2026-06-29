@@ -60,6 +60,9 @@ export default function RootLayout({
   --color-amber-600:#fbbf24;--color-amber-700:#fde68a;
   /* Tailwind yellow */
   --color-yellow-50:#422006;--color-yellow-100:#713f12;--color-yellow-700:#fef08a;
+  /* Tailwind orange */
+  --color-orange-50:#431407;--color-orange-100:#7c2d12;--color-orange-200:#9a3412;
+  --color-orange-500:#fb923c;--color-orange-600:#fdba74;--color-orange-700:#fed7aa;
   /* Tailwind purple */
   --color-purple-50:#2e1065;--color-purple-100:#4a044e;--color-purple-600:#c084fc;--color-purple-700:#d8b4fe;
   /* Tailwind indigo */
@@ -79,6 +82,7 @@ export default function RootLayout({
     --color-red-50:#450a0a;--color-red-100:#7f1d1d;--color-red-500:#f87171;--color-red-600:#fca5a5;
     --color-amber-50:#431407;--color-amber-100:#78350f;--color-amber-600:#fbbf24;--color-amber-700:#fde68a;
     --color-yellow-50:#422006;--color-yellow-100:#713f12;--color-yellow-700:#fef08a;
+    --color-orange-50:#431407;--color-orange-100:#7c2d12;--color-orange-500:#fb923c;--color-orange-600:#fdba74;--color-orange-700:#fed7aa;
     --color-purple-50:#2e1065;--color-purple-100:#4a044e;--color-purple-600:#c084fc;--color-purple-700:#d8b4fe;
     --color-indigo-50:#1e1b4b;--color-indigo-100:#312e81;--color-indigo-600:#818cf8;
     --color-gray-50:#1f2937;--color-gray-100:#374151;--color-gray-200:#4b5563;
@@ -97,6 +101,7 @@ export default function RootLayout({
   --color-red-50:#450a0a;--color-red-100:#7f1d1d;--color-red-500:#f87171;--color-red-600:#fca5a5;
   --color-amber-50:#431407;--color-amber-100:#78350f;--color-amber-600:#fbbf24;--color-amber-700:#fde68a;
   --color-yellow-50:#422006;--color-yellow-100:#713f12;--color-yellow-700:#fef08a;
+  --color-orange-50:#431407;--color-orange-100:#7c2d12;--color-orange-500:#fb923c;--color-orange-600:#fdba74;--color-orange-700:#fed7aa;
   --color-purple-50:#2e1065;--color-purple-100:#4a044e;--color-purple-600:#c084fc;--color-purple-700:#d8b4fe;
   --color-indigo-50:#1e1b4b;--color-indigo-100:#312e81;--color-indigo-600:#818cf8;
   --color-gray-50:#1f2937;--color-gray-100:#374151;--color-gray-200:#4b5563;

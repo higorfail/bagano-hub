@@ -196,7 +196,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                     <div
                       key={extra.id}
                       onClick={() => setOpenExtraId(extra.id)}
-                      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 cursor-pointer hover:shadow-sm hover:border-[var(--color-border-hover)] transition-all relative"
+                      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 cursor-pointer hover:shadow-md hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 relative"
                       style={{ borderLeft: `3px solid ${PRIORITY_BORDER[extra.priority]}` }}
                     >
                       {/* Labels strip */}

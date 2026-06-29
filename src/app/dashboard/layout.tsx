@@ -178,7 +178,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   function NavItem({ href, icon: Icon, label, external }: { href: string; icon: any; label: string; external?: boolean }) {
     const active = pathname === href
-    const cls = `flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${active ? 'text-[var(--color-text-primary)] font-bold' : 'text-[var(--color-text-muted)] font-normal hover:text-[var(--color-text-primary)]'}`
+    const cls = `flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${active ? 'bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] font-semibold' : 'text-[var(--color-text-muted)] font-normal hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)]'}`
     if (external) return (
       <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>
         <Icon size={16} strokeWidth={1.75} />
@@ -389,7 +389,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </div>{/* flex items-center gap-1 */}
         </div>
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto page-content">
           {children}
         </main>
       </div>

@@ -1,3 +1,29 @@
 @import "tailwindcss";
 
 /* Theme variables are injected via <style> in layout.tsx to survive Tailwind v4/Turbopack processing */
+
+/* ── Animations ─────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up   { animation: fadeUp  0.18s ease-out both; }
+.animate-fade-in   { animation: fadeIn  0.15s ease-out both; }
+.animate-scale-in  { animation: scaleIn 0.16s ease-out both; }
+.animate-slide-in  { animation: slideIn 0.2s  ease-out both; }
+
+/* Page-level content fade */
+.page-content { animation: fadeUp 0.2s ease-out both; }
