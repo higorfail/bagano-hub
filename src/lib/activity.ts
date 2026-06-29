@@ -3,6 +3,7 @@ import { createClient } from './supabase'
 export async function logActivity(params: {
   tableName: string
   recordId: string
+  clientId?: string | null
   action: string
   actorName?: string | null
   field?: string | null
@@ -15,6 +16,7 @@ export async function logActivity(params: {
     await supabase.from('activity_log').insert({
       table_name: params.tableName,
       record_id: params.recordId,
+      client_id: params.clientId || null,
       action: params.action,
       actor_name: params.actorName || null,
       field: params.field || null,

@@ -31,24 +31,35 @@ const ACTION_DOT: Record<string, string> = {
   updated:        'bg-yellow-500',
 }
 
-type Props = { tableName: string; recordId: string; refreshKey?: number }
+type Props =
+  | { clientId: string; tableName?: never; recordId?: never; refreshKey?: number }
+  | { tableName: string; recordId: string; clientId?: never; refreshKey?: number }
 
-export default function ActivityLog({ tableName, recordId, refreshKey }: Props) {
+export default function ActivityLog(props: Props) {
+  const { refreshKey } = props
   const [entries, setEntries] = useState<Entry[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!recordId) { setLoading(false); return }
     setLoading(true)
     const supabase = createClient()
-    supabase.from('activity_log')
+    let q = supabase
+      .from('activity_log')
       .select('id, action, actor_name, description, created_at')
-      .eq('table_name', tableName)
-      .eq('record_id', recordId)
       .order('created_at', { ascending: false })
-      .limit(30)
-      .then(({ data }) => { setEntries(data || []); setLoading(false) })
-  }, [tableName, recordId, refreshKey])
+      .limit(50)
+
+    if ('clientId' in props && props.clientId) {
+      q = q.eq('client_id', props.clientId)
+    } else if ('recordId' in props && props.recordId) {
+      q = q.eq('table_name', props.tableName!).eq('record_id', props.recordId)
+    } else {
+      setLoading(false)
+      return
+    }
+
+    q.then(({ data }) => { setEntries(data || []); setLoading(false) })
+  }, ['clientId' in props ? props.clientId : props.recordId, refreshKey])
 
   if (loading) return <p className="text-xs text-[var(--color-text-faint)] py-4 text-center">Carregando...</p>
 

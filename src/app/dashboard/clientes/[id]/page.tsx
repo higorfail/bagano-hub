@@ -10,6 +10,7 @@ import CampaignsTab from '@/components/CampaignsTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
 import PostFormModal from '@/components/PostFormModal'
 import ExtrasKanban from '@/components/ExtrasKanban'
+import ActivityLog from '@/components/ActivityLog'
 
 type Client = {
   id: string; name: string; color_hex: string; logo_url: string
@@ -116,9 +117,13 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 
   async function quickStatus(postId: string, newStatus: string) {
     const supabase = createClient()
+    const post = posts.find(p => p.id === postId)
+    const oldLabel = STATUS_LABEL[post?.status || ''] || post?.status || ''
+    const newLabel = STATUS_LABEL[newStatus] || newStatus
     await supabase.from('schedules').update({ status: newStatus }).eq('id', postId)
     setPosts(ps => ps.map(p => p.id === postId ? { ...p, status: newStatus } : p))
     setStatusOpen(null)
+    await logActivity({ tableName: 'schedules', recordId: postId, clientId: id, action: 'status_changed', field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Post "${post?.title || 'sem título'}": ${oldLabel} → ${newLabel}` })
   }
 
   async function quickDelete(postId: string) {
@@ -196,7 +201,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
     setMaterials(prev => prev.map(m => m.id === matId ? { ...m, status: newStatus } : m))
     const supabase = createClient()
     await supabase.from('materials').update({ status: newStatus }).eq('id', matId)
-    await logActivity({ tableName: 'materials', recordId: matId, action: 'status_changed', field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
+    await logActivity({ tableName: 'materials', recordId: matId, clientId: id, action: 'status_changed', field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
   }
 
   function handleMatDeleted(matId: string) {
@@ -301,7 +306,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           </div>
 
           <div className="flex items-center gap-1 mt-5">
-            {[{key:'cronograma',label:'📅 Cronograma'},{key:'feed',label:'🖼 Feed'},{key:'materiais',label:'📦 Materiais'},{key:'campanhas',label:'📣 Campanhas'},{key:'time',label:'👥 Time'},{key:'extras',label:'📋 Extras'}].map(t => (
+            {[{key:'cronograma',label:'📅 Cronograma'},{key:'feed',label:'🖼 Feed'},{key:'materiais',label:'📦 Materiais'},{key:'campanhas',label:'📣 Campanhas'},{key:'time',label:'👥 Time'},{key:'extras',label:'📋 Extras'},{key:'historico',label:'🕓 Histórico'}].map(t => (
               <button key={t.key} onClick={() => setTab(t.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab===t.key?'bg-[var(--color-text-primary)] text-white':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
             ))}
           </div>
@@ -614,6 +619,16 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Tarefas, notas e lembretes específicos deste cliente</p>
               </div>
               <ExtrasKanban clientId={client.id} members={allMembers} />
+            </div>
+          )}
+
+          {tab === 'historico' && (
+            <div className="max-w-xl">
+              <div className="mb-5">
+                <p className="text-sm font-medium text-[var(--color-text-primary)]">Histórico de {client.name}</p>
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Atividades recentes: posts, materiais e extras</p>
+              </div>
+              <ActivityLog clientId={client.id} />
             </div>
           )}
         </div>

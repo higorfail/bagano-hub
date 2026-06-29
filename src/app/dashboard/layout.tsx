@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check } from 'lucide-react'
-import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList } from 'lucide-react'
+import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider } from '@/lib/ToastContext'
@@ -17,12 +17,13 @@ const navItems = [
   { href: '/dashboard/clientes', icon: Users,         label: 'Clientes' },
 ]
 const productionItems = [
-  { href: '/dashboard/cronograma', icon: Calendar,    label: 'Cronograma' },
-  { href: '/dashboard/kanban',     icon: Kanban,      label: 'Kanban' },
-  { href: '/dashboard/feed',       icon: Smartphone,  label: 'Feed Visual' },
-  { href: '/dashboard/materiais',  icon: Package,     label: 'Materiais' },
-  { href: '/dashboard/campanhas',  icon: Megaphone,   label: 'Campanhas' },
-  { href: '/dashboard/extras',     icon: LayoutList,  label: 'Extras' },
+  { href: '/dashboard/cronograma', icon: Calendar,       label: 'Cronograma' },
+  { href: '/dashboard/kanban',     icon: Kanban,         label: 'Kanban' },
+  { href: '/dashboard/aprovacao',  icon: ClipboardCheck, label: 'Aprovações' },
+  { href: '/dashboard/feed',       icon: Smartphone,     label: 'Feed Visual' },
+  { href: '/dashboard/materiais',  icon: Package,        label: 'Materiais' },
+  { href: '/dashboard/campanhas',  icon: Megaphone,      label: 'Campanhas' },
+  { href: '/dashboard/extras',     icon: LayoutList,     label: 'Extras' },
 ]
 const contentItems = [
   { href: '/dashboard/calendario',                 icon: Calendar,      label: 'Calendário' },
