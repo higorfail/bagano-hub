@@ -63,10 +63,12 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [allMembers, setAllMembers] = useState<any[]>([])
   const [showAddMember, setShowAddMember] = useState(false)
   const [showNewPost, setShowNewPost] = useState(false)
-  const [materials, setMaterials] = useState<any[]>([])
-  const [matCounts, setMatCounts] = useState<Record<string,any>>({})
+  const [materials,    setMaterials]    = useState<any[]>([])
+  const [matCounts,    setMatCounts]    = useState<Record<string,any>>({})
   const [showNewMaterial, setShowNewMaterial] = useState(false)
-  const [cardOpen, setCardOpen] = useState<string | 'new' | null>(null)
+  const [cardOpen,     setCardOpen]     = useState<string | 'new' | null>(null)
+  const [matDragging,  setMatDragging]  = useState<string | null>(null)
+  const [matDragOver,  setMatDragOver]  = useState<string | null>(null)
   const [editingMaterial, setEditingMaterial] = useState<any>(null)
   const [matForm, setMatForm] = useState({ title: '', type: 'arte_avulsa', drive_url: '', notes: '' })
   const [savingMat, setSavingMat] = useState(false)
@@ -214,6 +216,17 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
     setMaterials(ms => ms.filter(m => m.id !== matId))
   }
 
+  async function moveMatStatus(matId: string, newStatus: string) {
+    setMaterials(prev => prev.map(m => m.id === matId ? { ...m, status: newStatus } : m))
+    const supabase = createClient()
+    await supabase.from('materials').update({ status: newStatus }).eq('id', matId)
+  }
+
+  function handleMatDeleted(matId: string) {
+    setMaterials(prev => prev.filter(m => m.id !== matId))
+    setCardOpen(null)
+  }
+
   async function reloadPosts() {
     const supabase = createClient()
     const { data } = await supabase.from('schedules').select('*').eq('client_id', id).eq('month', selectedMonth).eq('year', selectedYear).order('post_number')
@@ -335,7 +348,21 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 </div>
               </div>
               {posts.length === 0 ? (
-                <div className="flex items-center justify-center h-48"><p className="text-[var(--color-text-muted)] text-sm">Nenhum post em {MONTHS[selectedMonth-1]}.</p></div>
+                <div className="flex flex-col items-center justify-center min-h-[360px] text-center gap-6">
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center text-4xl shadow-sm">📅</div>
+                    <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-md" style={{ background: client?.color_hex || 'var(--color-brand)' }}>+</div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[var(--color-text-primary)] font-semibold text-lg">Nenhum post em {MONTHS[selectedMonth-1]}</p>
+                    <p className="text-[var(--color-text-muted)] text-sm max-w-xs">Adicione o primeiro post do mês para montar o cronograma.</p>
+                  </div>
+                  <button onClick={() => setShowNewPost(true)}
+                    className="flex items-center gap-2 font-semibold px-6 py-3 rounded-xl text-sm transition-opacity hover:opacity-90 shadow-sm text-white"
+                    style={{ background: client?.color_hex || 'var(--color-brand)' }}>
+                    ✏️ Criar primeiro post
+                  </button>
+                </div>
               ) : viewMode === 'list' ? (
                 <div className="flex flex-col gap-2">
                   {posts.map(post => (
@@ -448,23 +475,74 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 <button onClick={openNewMaterial} className="bg-[var(--color-text-primary)] text-white rounded-lg px-3 py-1.5 text-sm font-medium">+ Novo material</button>
               </div>
 
-              {materials.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-40 text-center border border-dashed border-[var(--color-border)] rounded-2xl">
-                  <p className="text-2xl mb-2">📦</p>
-                  <p className="text-sm text-[var(--color-text-muted)]">Nenhum material ainda.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {materials.map(m => (
-                    <MaterialCardMini
-                      key={m.id}
-                      material={{ ...m, _checkTotal: (matCounts[m.id]||{}).checklist||0, _checkDone: (matCounts[m.id]||{}).checkDone||0, _comments: (matCounts[m.id]||{}).comments||0, _attachments: (matCounts[m.id]||{}).attachments||0 }}
-                      members={allMembers}
-                      onClick={() => setCardOpen(m.id)}
-                    />
-                  ))}
-                </div>
-              )}
+              {/* Kanban 3 colunas */}
+              {(() => {
+                const MAT_COLS = [
+                  { key: 'producao',             label: 'A fazer',      color: '#F59E0B' },
+                  { key: 'aguardando_aprovacao',  label: 'Em aprovação', color: '#EC4899' },
+                  { key: 'finalizado',            label: 'Finalizado',   color: '#22C55E' },
+                ]
+                function colItems(colKey: string) {
+                  return materials.filter(m => {
+                    const s = m.status || 'producao'
+                    if (colKey === 'producao') return s === 'producao' || (!['aguardando_aprovacao','finalizado'].includes(s))
+                    return s === colKey
+                  })
+                }
+                return (
+                  <div className="flex gap-4 overflow-x-auto">
+                    {MAT_COLS.map((col, ci) => {
+                      const items      = colItems(col.key)
+                      const isDragOver = matDragOver === col.key
+                      const prevCol    = MAT_COLS[ci - 1]
+                      const nextCol    = MAT_COLS[ci + 1]
+                      return (
+                        <div key={col.key} className="flex-1 min-w-[220px] flex flex-col"
+                          onDragOver={e => { e.preventDefault(); setMatDragOver(col.key) }}
+                          onDragLeave={() => setMatDragOver(null)}
+                          onDrop={e => { e.preventDefault(); if (matDragging) moveMatStatus(matDragging, col.key); setMatDragging(null); setMatDragOver(null) }}>
+                          <div className="flex items-center gap-2 mb-2 px-1">
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
+                            <span className="text-xs font-semibold text-[var(--color-text-primary)]">{col.label}</span>
+                            <span className="text-xs text-[var(--color-text-muted)]">{items.length}</span>
+                          </div>
+                          <div className={`flex flex-col gap-2 flex-1 rounded-xl transition-colors p-1 ${isDragOver ? 'ring-2 ring-dashed ring-[var(--color-brand)] bg-[var(--color-bg-subtle)]' : ''}`}>
+                            {items.map(m => {
+                              const ct = matCounts[m.id] || {}
+                              return (
+                                <MaterialCardMini key={m.id}
+                                  material={{ ...m, _checkTotal: ct.checklist||0, _checkDone: ct.checkDone||0, _comments: ct.comments||0, _attachments: ct.attachments||0 }}
+                                  members={allMembers}
+                                  onClick={() => setCardOpen(m.id)}
+                                  draggable={true}
+                                  onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setMatDragging(m.id) }}
+                                  onMovePrev={prevCol ? () => moveMatStatus(m.id, prevCol.key) : undefined}
+                                  onMoveNext={nextCol ? () => moveMatStatus(m.id, nextCol.key) : undefined}
+                                />
+                              )
+                            })}
+                            {items.length === 0 && (
+                              isDragOver ? (
+                                <div className="rounded-xl border-2 border-dashed border-[var(--color-brand)] py-8 text-center text-sm text-[var(--color-brand)] font-medium bg-[var(--color-bg-subtle)]">
+                                  Soltar aqui
+                                </div>
+                              ) : (
+                                <button onClick={() => setCardOpen('new')}
+                                  className="group w-full rounded-xl border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-brand)] py-8 flex flex-col items-center gap-2 transition-all hover:bg-[var(--color-bg-subtle)]">
+                                  <div className="w-8 h-8 rounded-full border-2 border-dashed border-[var(--color-border)] group-hover:border-[var(--color-brand)] group-hover:bg-[var(--color-brand)] flex items-center justify-center transition-all">
+                                    <span className="text-base text-[var(--color-text-muted)] group-hover:text-white leading-none">+</span>
+                                  </div>
+                                  <span className="text-xs text-[var(--color-text-muted)] group-hover:text-[var(--color-brand)] transition-colors font-medium">Adicionar</span>
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
 
               {cardOpen && (
                 <MaterialCard
@@ -473,6 +551,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   clients={[client].filter(Boolean)}
                   onClose={() => setCardOpen(null)}
                   onSaved={reloadMaterials}
+                  onDeleted={handleMatDeleted}
                 />
               )}
               {false && (

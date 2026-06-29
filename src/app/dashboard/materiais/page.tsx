@@ -34,7 +34,9 @@ export default function MateriaisPage() {
   const [loading, setLoading] = useState(true)
   const [filterClient, setFilterClient] = useState('')
   const [counts, setCounts] = useState<Record<string, {checklist:number, checkDone:number, comments:number, attachments:number}>>({})
-  const [cardOpen, setCardOpen] = useState<string | 'new' | null>(null)
+  const [cardOpen,    setCardOpen]    = useState<string | 'new' | null>(null)
+  const [draggingId,  setDraggingId]  = useState<string | null>(null)
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -81,6 +83,17 @@ export default function MateriaisPage() {
     setMaterials(data || [])
   }
 
+  async function moveStatus(id: string, newStatus: string) {
+    setMaterials(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m))
+    const supabase = createClient()
+    await supabase.from('materials').update({ status: newStatus }).eq('id', id)
+  }
+
+  function handleDeleted(id: string) {
+    setMaterials(prev => prev.filter(m => m.id !== id))
+    setCardOpen(null)
+  }
+
   if (loading) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Carregando materiais...</div>
 
   return (
@@ -100,16 +113,26 @@ export default function MateriaisPage() {
       </div>
 
       <div className="flex gap-4 flex-1 overflow-x-auto">
-        {COLUMNS.map(col => {
-          const items = colMaterials(col.key)
+        {COLUMNS.map((col, colIdx) => {
+          const items      = colMaterials(col.key)
+          const isDragOver = dragOverCol === col.key
+          const prevCol    = COLUMNS[colIdx - 1]
+          const nextCol    = COLUMNS[colIdx + 1]
           return (
-            <div key={col.key} className="flex-1 min-w-[300px] flex flex-col">
+            <div key={col.key} className="flex-1 min-w-[300px] flex flex-col"
+              onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
+              onDragLeave={() => setDragOverCol(null)}
+              onDrop={e => {
+                e.preventDefault()
+                if (draggingId) moveStatus(draggingId, col.key)
+                setDraggingId(null); setDragOverCol(null)
+              }}>
               <div className="flex items-center gap-2 mb-3 px-1">
                 <span className="w-2 h-2 rounded-full" style={{ background: col.color }} />
                 <span className="text-sm font-semibold text-[var(--color-text-primary)]">{col.label}</span>
                 <span className="text-xs text-[var(--color-text-muted)]">{items.length}</span>
               </div>
-              <div className="flex flex-col gap-2.5">
+              <div className={`flex flex-col gap-2.5 flex-1 rounded-xl transition-colors ${isDragOver ? 'bg-[var(--color-brand)]10 ring-2 ring-[var(--color-brand)] ring-dashed' : ''}`}>
                 {items.map(m => {
                   const ct = counts[m.id] || { checklist: 0, checkDone: 0, comments: 0, attachments: 0 }
                   return (
@@ -118,10 +141,28 @@ export default function MateriaisPage() {
                       material={{ ...m, _checkTotal: ct.checklist, _checkDone: ct.checkDone, _comments: ct.comments, _attachments: ct.attachments }}
                       members={members}
                       onClick={() => setCardOpen(m.id)}
+                      draggable={true}
+                      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingId(m.id) }}
+                      onMovePrev={prevCol ? () => moveStatus(m.id, prevCol.key) : undefined}
+                      onMoveNext={nextCol ? () => moveStatus(m.id, nextCol.key) : undefined}
                     />
                   )
                 })}
-                {items.length === 0 && <p className="text-xs text-[var(--color-text-faint)] px-1 py-4 text-center">Vazio</p>}
+                {items.length === 0 && (
+                  isDragOver ? (
+                    <div className="rounded-xl border-2 border-dashed border-[var(--color-brand)] py-10 text-center text-sm text-[var(--color-brand)] font-medium bg-[var(--color-bg-subtle)]">
+                      Soltar aqui
+                    </div>
+                  ) : (
+                    <button onClick={() => setCardOpen('new')}
+                      className="group w-full rounded-xl border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-brand)] py-10 flex flex-col items-center gap-2.5 transition-all hover:bg-[var(--color-bg-subtle)]">
+                      <div className="w-9 h-9 rounded-full border-2 border-dashed border-[var(--color-border)] group-hover:border-[var(--color-brand)] group-hover:bg-[var(--color-brand)] flex items-center justify-center transition-all">
+                        <span className="text-lg text-[var(--color-text-muted)] group-hover:text-white leading-none">+</span>
+                      </div>
+                      <span className="text-xs text-[var(--color-text-muted)] group-hover:text-[var(--color-brand)] transition-colors font-medium">Adicionar material</span>
+                    </button>
+                  )
+                )}
               </div>
             </div>
           )
@@ -134,6 +175,7 @@ export default function MateriaisPage() {
           clients={clients}
           onClose={() => setCardOpen(null)}
           onSaved={reload}
+          onDeleted={handleDeleted}
         />
       )}
     </div>

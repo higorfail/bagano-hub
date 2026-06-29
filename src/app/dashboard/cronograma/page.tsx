@@ -179,9 +179,19 @@ function CronogramaPageInner() {
 
         <div className="flex-1 overflow-y-auto p-6">
           {posts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-center">
-              <p className="text-[var(--color-text-muted)] text-sm">Nenhum post em {MONTHS[selectedMonth-1]}.</p>
-              <p className="text-[var(--color-text-faint)] text-xs mt-1">Clique em "+ Novo post" para começar.</p>
+            <div className="flex flex-col items-center justify-center h-full min-h-[420px] text-center gap-6">
+              <div className="relative">
+                <div className="w-20 h-20 rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center text-4xl shadow-sm">📅</div>
+                <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-white text-sm font-bold shadow-md">+</div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[var(--color-text-primary)] font-semibold text-lg">Nenhum post em {MONTHS[selectedMonth-1]}</p>
+                <p className="text-[var(--color-text-muted)] text-sm max-w-xs">Adicione o primeiro post do mês para montar o cronograma do cliente.</p>
+              </div>
+              <button onClick={() => setShowPostCard(true)}
+                className="flex items-center gap-2 bg-[var(--color-brand)] hover:opacity-90 text-[var(--color-brand-fg)] font-semibold px-6 py-3 rounded-xl text-sm transition-opacity shadow-sm">
+                ✏️ Criar primeiro post
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-4">

@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check } from 'lucide-react'
-import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, CheckCircle, XCircle, Package, Sun, Moon, Monitor, LayoutList } from 'lucide-react'
+import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 
@@ -23,11 +23,34 @@ const productionItems = [
   { href: '/dashboard/extras',     icon: LayoutList,  label: 'Extras' },
 ]
 const contentItems = [
+  { href: '/dashboard/calendario',                 icon: Calendar,      label: 'Calendário' },
   { href: 'https://sous-chef-bagano.netlify.app/', icon: BookOpen,      label: 'Manuais', external: true },
   { href: '/dashboard/datas-especiais',            icon: CalendarHeart, label: 'Datas especiais' },
 ]
 
-type Notification = { id: string; post_title: string; client_name: string; approval_status: string; approval_comment: string }
+type Notification = {
+  id: string
+  type: 'approval' | 'rejection' | 'comment'
+  title: string
+  subtitle: string
+  body?: string
+  client_name?: string
+  client_color?: string
+  created_at: string
+  link: string
+}
+
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'agora'
+  if (mins < 60) return `${mins}min`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d`
+  return `${Math.floor(days / 7)}sem`
+}
 
 function DashboardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -39,6 +62,28 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const notifRef = useRef<HTMLDivElement>(null)
   const { mode, setMode } = useTheme()
 
+  const [readIds, setReadIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try { return new Set(JSON.parse(localStorage.getItem('notif-read') || '[]')) }
+    catch { return new Set() }
+  })
+
+  function markRead(id: string) {
+    setReadIds(prev => {
+      const next = new Set(prev); next.add(id)
+      localStorage.setItem('notif-read', JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  function markAllRead() {
+    setReadIds(prev => {
+      const next = new Set([...prev, ...notifications.map(n => n.id)])
+      localStorage.setItem('notif-read', JSON.stringify([...next]))
+      return next
+    })
+  }
+
   useEffect(() => {
     loadNotifications()
     const interval = setInterval(loadNotifications, 30000)
@@ -47,17 +92,69 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   async function loadNotifications() {
     const supabase = createClient()
-    const { data } = await supabase
-      .from('schedules')
-      .select('id, title, approval_status, approval_comment, clients(name)')
-      .in('approval_status', ['aprovado', 'não aprovado'])
-      .order('post_number')
-    if (data) {
-      setNotifications(data.map((d: any) => ({
-        id: d.id, post_title: d.title, client_name: d.clients?.name || '',
-        approval_status: d.approval_status, approval_comment: d.approval_comment || '',
-      })))
-    }
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    const [approvalsRes, extraCmtsRes, matCmtsRes] = await Promise.all([
+      supabase.from('schedules')
+        .select('id, title, approval_status, approval_comment, clients(name, color_hex)')
+        .in('approval_status', ['aprovado', 'não aprovado'])
+        .limit(30),
+      supabase.from('extra_comments')
+        .select('id, body, author_name, created_at, extras(title)')
+        .gte('created_at', sevenDaysAgo)
+        .order('created_at', { ascending: false })
+        .limit(15),
+      supabase.from('material_comments')
+        .select('id, body, author_name, created_at, materials(title)')
+        .gte('created_at', sevenDaysAgo)
+        .order('created_at', { ascending: false })
+        .limit(15),
+    ])
+
+    const result: Notification[] = []
+
+    ;(approvalsRes.data || []).forEach((d: any) => {
+      result.push({
+        id: `approval-${d.id}`,
+        type: d.approval_status === 'aprovado' ? 'approval' : 'rejection',
+        title: d.approval_status === 'aprovado' ? 'Post aprovado pelo cliente' : 'Alterações solicitadas',
+        subtitle: d.title || 'Post sem título',
+        body: d.approval_comment || '',
+        client_name: d.clients?.name || '',
+        client_color: d.clients?.color_hex || '',
+        created_at: new Date(0).toISOString(),
+        link: '/dashboard/cronograma',
+      })
+    })
+
+    ;(extraCmtsRes.data || []).forEach((d: any) => {
+      result.push({
+        id: `extra-cmt-${d.id}`,
+        type: 'comment',
+        title: 'Comentário em extra',
+        subtitle: (d.extras as any)?.title || 'Extra',
+        body: d.body || '',
+        client_name: d.author_name || '',
+        created_at: d.created_at,
+        link: '/dashboard/extras',
+      })
+    })
+
+    ;(matCmtsRes.data || []).forEach((d: any) => {
+      result.push({
+        id: `mat-cmt-${d.id}`,
+        type: 'comment',
+        title: 'Comentário em material',
+        subtitle: (d.materials as any)?.title || 'Material',
+        body: d.body || '',
+        client_name: d.author_name || '',
+        created_at: d.created_at,
+        link: '/dashboard/materiais',
+      })
+    })
+
+    result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    setNotifications(result)
   }
 
   useEffect(() => {
@@ -76,7 +173,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  const unread = notifications.filter(n => n.approval_status === 'não aprovado').length
+  const unread = notifications.filter(n => !readIds.has(n.id)).length
 
   function NavItem({ href, icon: Icon, label, external }: { href: string; icon: any; label: string; external?: boolean }) {
     const active = pathname === href
@@ -216,29 +313,73 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
           <div ref={notifRef}>
           <div className="relative">
-            <button onClick={() => setShowNotifications(v => !v)} className="relative w-9 h-9 rounded-xl hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-all">
+            <button onClick={() => { setShowNotifications(v => !v) }}
+              className="relative w-9 h-9 rounded-xl hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-all">
               <Bell size={18} strokeWidth={1.75} className="text-[var(--color-text-secondary)]" />
-              {unread > 0 && <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-red-500 rounded-full text-white text-[8px] font-bold flex items-center justify-center">{unread}</span>}
+              {unread > 0 && (
+                <span className="absolute top-1 right-1 min-w-[14px] h-3.5 bg-red-500 rounded-full text-white text-[8px] font-bold flex items-center justify-center px-0.5">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
             </button>
             {showNotifications && (
-              <div className="absolute right-0 top-11 w-80 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden z-50">
-                <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
-                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Aprovações</p>
-                  <span className="text-xs text-[var(--color-text-muted)]">{notifications.length} posts</span>
+              <div className="absolute right-0 top-11 w-96 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] shadow-xl overflow-hidden z-50 flex flex-col" style={{ maxHeight: '520px' }}>
+                {/* Header */}
+                <div className="px-4 py-3.5 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-[var(--color-text-primary)]">Notificações</p>
+                    {unread > 0 && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500 text-white">{unread} nova{unread !== 1 ? 's' : ''}</span>
+                    )}
+                  </div>
+                  {unread > 0 && (
+                    <button onClick={markAllRead} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-brand)] transition-colors">
+                      Marcar tudo como lido
+                    </button>
+                  )}
                 </div>
-                <div className="max-h-80 overflow-y-auto">
+
+                {/* List */}
+                <div className="overflow-y-auto flex-1">
                   {notifications.length === 0 ? (
-                    <div className="px-5 py-8 text-center"><p className="text-sm text-[var(--color-text-muted)]">Nenhuma resposta ainda</p></div>
-                  ) : notifications.map(n => (
-                    <div key={n.id} className={`px-5 py-3.5 border-b border-[var(--color-border)] flex items-start gap-3 ${n.approval_status === 'não aprovado' ? 'bg-red-50' : ''}`}>
-                      {n.approval_status === 'aprovado' ? <CheckCircle size={16} className="text-green-500 flex-shrink-0 mt-0.5" /> : <XCircle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{n.post_title}</p>
-                        <p className="text-xs text-[var(--color-text-muted)]">{n.client_name}</p>
-                        {n.approval_comment && <p className="text-xs text-[var(--color-text-secondary)] mt-1 italic">"{n.approval_comment}"</p>}
-                      </div>
+                    <div className="px-5 py-12 text-center flex flex-col items-center gap-2">
+                      <Bell size={28} strokeWidth={1.5} className="text-[var(--color-text-faint)]" />
+                      <p className="text-sm text-[var(--color-text-muted)]">Nenhuma notificação</p>
+                      <p className="text-xs text-[var(--color-text-faint)]">Aprovações e comentários aparecerão aqui</p>
                     </div>
-                  ))}
+                  ) : notifications.map(n => {
+                    const isRead = readIds.has(n.id)
+                    const isApproval = n.type === 'approval'
+                    const isRejection = n.type === 'rejection'
+                    return (
+                      <Link key={n.id} href={n.link}
+                        onClick={() => { markRead(n.id); setShowNotifications(false) }}
+                        className={`flex items-start gap-3 px-4 py-3.5 border-b border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors cursor-pointer ${!isRead ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
+                        {/* Icon */}
+                        <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm mt-0.5 ${isApproval ? 'bg-green-100 text-green-600' : isRejection ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                          {isApproval ? '✅' : isRejection ? '❌' : '💬'}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className={`text-xs font-semibold leading-snug ${isApproval ? 'text-green-700' : isRejection ? 'text-red-700' : 'text-[var(--color-text-primary)]'}`}>
+                              {n.title}
+                            </p>
+                            {n.created_at !== new Date(0).toISOString() && (
+                              <span className="text-[10px] text-[var(--color-text-faint)] flex-shrink-0">{timeAgo(n.created_at)}</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-[var(--color-text-primary)] font-medium truncate mt-0.5">{n.subtitle}</p>
+                          {n.client_name && <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">{n.client_name}</p>}
+                          {n.body && <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 italic line-clamp-2">"{n.body}"</p>}
+                        </div>
+
+                        {/* Unread dot */}
+                        {!isRead && <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2" />}
+                      </Link>
+                    )
+                  })}
                 </div>
               </div>
             )}

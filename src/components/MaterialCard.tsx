@@ -42,15 +42,17 @@ type Props = {
   clients?: any[]
   onClose: () => void
   onSaved: () => void
+  onDeleted?: (id: string) => void
 }
 
-export default function MaterialCard({ materialId, fixedClientId, clients = [], onClose, onSaved }: Props) {
+export default function MaterialCard({ materialId, fixedClientId, clients = [], onClose, onSaved, onDeleted }: Props) {
   const { members } = useUser()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [loading,  setLoading]  = useState(!!materialId)
-  const [saving,   setSaving]   = useState(false)
+  const [loading,       setLoading]       = useState(!!materialId)
+  const [saving,        setSaving]        = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [id,       setId]       = useState<string | undefined>(materialId)
 
   // Campos principais
@@ -717,7 +719,33 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         </div>
 
         {/* FOOTER */}
-        <div className="px-6 py-4 border-t border-[var(--color-border)] flex justify-end gap-3 bg-[var(--color-bg-card)]">
+        <div className="px-6 py-4 border-t border-[var(--color-border)] flex items-center justify-between gap-3 bg-[var(--color-bg-card)]">
+          {/* Delete */}
+          {materialId && !confirmDelete && (
+            <button onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-red-500 transition-colors">
+              <Trash2 size={13} /> Excluir
+            </button>
+          )}
+          {materialId && confirmDelete && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-red-600 font-medium">Confirmar exclusão?</span>
+              <button onClick={() => setConfirmDelete(false)} className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
+              <button onClick={async () => {
+                await Promise.all([
+                  supabase.from('material_checklist').delete().eq('material_id', materialId),
+                  supabase.from('material_comments').delete().eq('material_id', materialId),
+                  supabase.from('material_attachments').delete().eq('material_id', materialId),
+                ])
+                await supabase.from('materials').delete().eq('id', materialId)
+                onDeleted?.(materialId)
+                onClose()
+              }} className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-500 text-white">
+                Excluir
+              </button>
+            </div>
+          )}
+          {!materialId && <div />}
           <button
             onClick={() => { handleSaveMain(); onClose() }}
             disabled={saving}

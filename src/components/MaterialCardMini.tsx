@@ -13,6 +13,10 @@ interface MaterialCardMiniProps {
   material: any
   members: Member[]
   onClick: () => void
+  onMovePrev?: () => void
+  onMoveNext?: () => void
+  draggable?: boolean
+  onDragStart?: (e: React.DragEvent) => void
 }
 
 const MAT_TYPE_LABEL: Record<string, string> = {
@@ -47,7 +51,7 @@ function initials(name: string) {
   return (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
-export default function MaterialCardMini({ material: m, members, onClick }: MaterialCardMiniProps) {
+export default function MaterialCardMini({ material: m, members, onClick, onMovePrev, onMoveNext, draggable, onDragStart }: MaterialCardMiniProps) {
   const due = m.due_date ? new Date(m.due_date + 'T23:59:59') : null
   const now = new Date()
   const diff = due ? Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
@@ -71,8 +75,24 @@ export default function MaterialCardMini({ material: m, members, onClick }: Mate
   return (
     <div
       onClick={onClick}
-      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 flex flex-col gap-2 hover:shadow-md hover:border-[var(--color-border-hover)] transition-all cursor-pointer"
+      draggable={draggable}
+      onDragStart={onDragStart}
+      className="group relative bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 flex flex-col gap-2 hover:shadow-md hover:border-[var(--color-border-hover)] transition-all cursor-pointer"
     >
+      {/* Move arrows — aparecem no hover */}
+      {(onMovePrev || onMoveNext) && (
+        <div className="absolute top-2 right-2 hidden group-hover:flex items-center gap-1 z-10"
+          onClick={e => e.stopPropagation()}>
+          {onMovePrev && (
+            <button onClick={onMovePrev}
+              className="w-5 h-5 rounded bg-[var(--color-bg-subtle)] hover:bg-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-[10px] transition-colors">←</button>
+          )}
+          {onMoveNext && (
+            <button onClick={onMoveNext}
+              className="w-5 h-5 rounded bg-[var(--color-bg-subtle)] hover:bg-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-[10px] transition-colors">→</button>
+          )}
+        </div>
+      )}
       {/* Etiquetas coloridas */}
       {labels.length > 0 && (
         <div className="flex flex-wrap gap-1">
