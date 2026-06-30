@@ -28,6 +28,10 @@
 /* Page-level content fade */
 .page-content { animation: fadeUp 0.2s ease-out both; }
 
+/* ── Elevation utilities ─────────────────────────────────────────────────── */
+.shadow-card { box-shadow: var(--shadow-card); }
+.shadow-pop  { box-shadow: var(--shadow-pop); }
+
 /* ── Date/time input icon color follows theme ────────────────────────────── */
 [data-theme="dark"] input[type="date"],
 [data-theme="dark"] input[type="time"],

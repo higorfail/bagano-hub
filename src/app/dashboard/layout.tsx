@@ -64,6 +64,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [showMemberPicker, setShowMemberPicker] = useState(false)
   const memberRef = useRef<HTMLDivElement>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [approvalsCount, setApprovalsCount] = useState(0)
   const [showNotifications, setShowNotifications] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
   const { mode, setMode } = useTheme()
@@ -103,7 +104,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     const today = new Date().toISOString().slice(0, 10)
     const threeDaysAgoDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-    const [approvalsRes, extraCmtsRes, matCmtsRes, captacoesRes, pendingPostsRes] = await Promise.all([
+    const [approvalsRes, extraCmtsRes, matCmtsRes, captacoesRes, pendingPostsRes, pendingCountRes, rejectedCountRes] = await Promise.all([
       supabase.from('schedules')
         .select('id, title, approval_status, approval_comment, clients(name, color_hex)')
         .in('approval_status', ['aprovado', 'não aprovado'])
@@ -130,7 +131,15 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         .eq('status', 'aguardando_aprovacao')
         .lte('scheduled_date', threeDaysAgoDate)
         .limit(10),
+      supabase.from('schedules')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'aguardando_aprovacao'),
+      supabase.from('schedules')
+        .select('id', { count: 'exact', head: true })
+        .eq('approval_status', 'não aprovado'),
     ])
+
+    setApprovalsCount((pendingCountRes.count || 0) + (rejectedCountRes.count || 0))
 
     const result: Notification[] = []
 
@@ -225,17 +234,23 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   const unread = notifications.filter(n => !readIds.has(n.id)).length
 
-  function NavItem({ href, icon: Icon, label, external }: { href: string; icon: any; label: string; external?: boolean }) {
+  function NavItem({ href, icon: Icon, label, external, badge }: { href: string; icon: any; label: string; external?: boolean; badge?: number }) {
     const active = pathname === href
     const cls = `relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
       active
-        ? 'bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] font-semibold'
+        ? 'text-[var(--color-accent)] font-semibold'
         : 'text-[var(--color-text-muted)] font-normal hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-secondary)]'
     }`
     const content = <>
-      <Icon size={15} strokeWidth={active ? 2.25 : 1.75} className="flex-shrink-0" />
-      <span className="truncate">{label}</span>
-      {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[var(--color-text-primary)] rounded-r-full" />}
+      {active && <span className="absolute inset-0 rounded-xl -z-0" style={{ background: 'var(--color-accent-bg)' }} />}
+      <Icon size={15} strokeWidth={active ? 2.25 : 1.75} className="flex-shrink-0 relative z-10" />
+      <span className="truncate relative z-10">{label}</span>
+      {!!badge && badge > 0 && (
+        <span className="ml-auto relative z-10 min-w-[18px] h-[18px] rounded-full text-white text-[10px] font-bold flex items-center justify-center px-1" style={{ background: 'var(--color-accent)' }}>
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
+      {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r-full z-10" style={{ background: 'var(--color-accent)' }} />}
     </>
     if (external) return <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>{content}</a>
     return <Link href={href} className={cls}>{content}</Link>
@@ -256,7 +271,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
         <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Produção</p>
         <nav className="flex flex-col gap-0.5 mb-6">
-          {productionItems.map(item => <NavItem key={item.href} {...item} />)}
+          {productionItems.map(item => <NavItem key={item.href} {...item} badge={item.href === '/dashboard/aprovacao' ? approvalsCount : undefined} />)}
         </nav>
 
         <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Conteúdo</p>

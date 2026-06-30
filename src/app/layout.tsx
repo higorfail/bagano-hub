@@ -54,6 +54,14 @@ export default function RootLayout({
   --color-brand:#1A1916;
   --color-brand-fg:#FFFFFF;
   --color-logo:#7c0006;
+  /* Accent (Bagano red) */
+  --color-accent:#E5384A;
+  --color-accent-hover:#C82333;
+  --color-accent-bg:#FDECEC;
+  --color-accent-fg:#FFFFFF;
+  /* Elevation */
+  --shadow-card:0 1px 2px rgba(26,25,22,0.04),0 4px 16px rgba(26,25,22,0.05);
+  --shadow-pop:0 8px 28px rgba(26,25,22,0.12);
 
   /* ── Semantic alert tokens ──────────────────────────────────────────── */
   /* Error / danger */
@@ -96,6 +104,8 @@ export default function RootLayout({
   --color-text-primary:#E8E4DC;--color-text-secondary:#9B9891;--color-text-muted:#8A8780;--color-text-faint:#5A5854;
   --color-border:#333028;--color-border-hover:#3D3A36;--color-border-strong:#484440;
   --color-brand:#E8E4DC;--color-brand-fg:#1A1916;--color-logo:#d44040;
+  --color-accent:#F2555F;--color-accent-hover:#F87171;--color-accent-bg:#2A1517;--color-accent-fg:#FFFFFF;
+  --shadow-card:0 1px 2px rgba(0,0,0,0.25),0 4px 16px rgba(0,0,0,0.3);--shadow-pop:0 8px 28px rgba(0,0,0,0.45);
   --ds-error-bg:#1f0a0a;--ds-error-border:#7f1d1d;--ds-error-text:#fca5a5;--ds-error-accent:#f87171;--ds-error-muted:#fca5a5;
   --ds-warn-bg:#1c0f08;--ds-warn-border:#7c2d12;--ds-warn-text:#fdba74;--ds-warn-accent:#fb923c;--ds-warn-muted:#fdba74;
   --ds-caution-bg:#1c1005;--ds-caution-border:#78350f;--ds-caution-text:#fde68a;--ds-caution-accent:#fbbf24;
@@ -109,6 +119,8 @@ export default function RootLayout({
   --color-text-primary:#E8E4DC;--color-text-secondary:#9B9891;--color-text-muted:#8A8780;--color-text-faint:#5A5854;
   --color-border:#333028;--color-border-hover:#3D3A36;--color-border-strong:#484440;
   --color-brand:#E8E4DC;--color-brand-fg:#1A1916;--color-logo:#d44040;
+  --color-accent:#F2555F;--color-accent-hover:#F87171;--color-accent-bg:#2A1517;--color-accent-fg:#FFFFFF;
+  --shadow-card:0 1px 2px rgba(0,0,0,0.25),0 4px 16px rgba(0,0,0,0.3);--shadow-pop:0 8px 28px rgba(0,0,0,0.45);
   --ds-error-bg:#1f0a0a;--ds-error-border:#7f1d1d;--ds-error-text:#fca5a5;--ds-error-accent:#f87171;--ds-error-muted:#fca5a5;
   --ds-warn-bg:#1c0f08;--ds-warn-border:#7c2d12;--ds-warn-text:#fdba74;--ds-warn-accent:#fb923c;--ds-warn-muted:#fdba74;
   --ds-caution-bg:#1c1005;--ds-caution-border:#78350f;--ds-caution-text:#fde68a;--ds-caution-accent:#fbbf24;
@@ -122,6 +134,8 @@ export default function RootLayout({
   --color-text-primary:#1A1916;--color-text-secondary:#6B6963;--color-text-muted:#A8A59E;--color-text-faint:#C8C5BE;
   --color-border:#EBEAE5;--color-border-hover:#D4D1CB;--color-border-strong:#D4D0C8;
   --color-brand:#1A1916;--color-brand-fg:#FFFFFF;
+  --color-accent:#E5384A;--color-accent-hover:#C82333;--color-accent-bg:#FDECEC;--color-accent-fg:#FFFFFF;
+  --shadow-card:0 1px 2px rgba(26,25,22,0.04),0 4px 16px rgba(26,25,22,0.05);--shadow-pop:0 8px 28px rgba(26,25,22,0.12);
   --ds-error-bg:#fff1f2;--ds-error-border:#fecdd3;--ds-error-text:#9f1239;--ds-error-accent:#e11d48;--ds-error-muted:#be123c;
   --ds-warn-bg:#fff7ed;--ds-warn-border:#fed7aa;--ds-warn-text:#9a3412;--ds-warn-accent:#ea580c;--ds-warn-muted:#c2410c;
   --ds-caution-bg:#fffbeb;--ds-caution-border:#fde68a;--ds-caution-text:#92400e;--ds-caution-accent:#d97706;
