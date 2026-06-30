@@ -220,7 +220,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                       }}
                       onDragEnd={() => { setDraggingId(null); setDragOverCol(null) }}
                       onClick={() => { if (!draggingId) setOpenExtraId(extra.id) }}
-                      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 relative"
+                      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 cursor-grab active:cursor-grabbing shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 relative"
                       style={{
                         borderLeft: `3px solid ${PRIORITY_BORDER[extra.priority]}`,
                         opacity: isDragging ? 0.4 : 1,

@@ -188,7 +188,7 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
         const doneExtras = extras.filter((e: any) => e.done).length
 
         return (
-          <div key={s.type} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-hidden" style={isExpanded ? { borderColor: isDark ? s.theme.darkBorder : s.theme.border } : {}}>
+          <div key={s.type} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-card" style={isExpanded ? { borderColor: isDark ? s.theme.darkBorder : s.theme.border } : {}}>
             {/* Header — dois elementos separados: área clicável + botão ativar */}
             <div className="flex items-center" style={isExpanded ? { background: isDark ? s.theme.darkBg : s.theme.bg } : {}}>
               {/* Área clicável para expand */}
@@ -327,7 +327,7 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
         const doneExtras = extras.filter((e: any) => e.done).length
 
         return (
-          <div key={camp.id} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+          <div key={camp.id} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-card">
             <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--color-bg-alt)]" onClick={() => setExpanded(isExpanded ? null : camp.id)}>
               <span className="text-xl">📌</span>
               <div className="flex-1 min-w-0">
