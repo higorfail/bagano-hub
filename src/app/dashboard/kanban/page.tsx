@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import PostCard from '@/components/PostCard'
+import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 type Post = {
@@ -36,6 +38,7 @@ const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julh
 
 
 export default function KanbanPage() {
+  const { toast } = useToast()
   const [posts, setPosts] = useState<Post[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,8 +78,10 @@ export default function KanbanPage() {
 
   async function movePost(postId: string, toColKey: string) {
     const dbStatus = toColKey === 'crono_feito' ? 'producao' : toColKey
-    await createClient().from('schedules').update({ status: dbStatus }).eq('id', postId)
+    const prev = posts
     setPosts(p => p.map(post => post.id === postId ? { ...post, status: dbStatus } : post))
+    const { error } = await createClient().from('schedules').update({ status: dbStatus }).eq('id', postId)
+    if (error) { setPosts(prev); dbError(error, toast, 'mover post') }
   }
 
   // Move todos os posts de um cliente (que estão na coluna de origem) para a coluna destino
@@ -85,8 +90,10 @@ export default function KanbanPage() {
     const dbStatus = toCol === 'crono_feito' ? 'producao' : toCol
     const ids = getColPosts(fromCol).filter(p => p.client_id === clientId).map(p => p.id)
     if (ids.length === 0) return
+    const prev = posts
     setPosts(p => p.map(post => ids.includes(post.id) ? { ...post, status: dbStatus } : post))
-    await createClient().from('schedules').update({ status: dbStatus }).in('id', ids)
+    const { error } = await createClient().from('schedules').update({ status: dbStatus }).in('id', ids)
+    if (error) { setPosts(prev); dbError(error, toast, 'mover cliente') }
   }
 
   function getColPosts(colKey: string): Post[] {

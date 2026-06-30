@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
+import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
 
 const TYPE_OPTIONS = ['Menu', 'Cardápio', 'Arte avulsa', 'Logo', 'Manual', 'Placa', 'Cartão', 'Sacola', 'Sousplat', 'Story', 'Capas destaque', 'Fundos', 'Outro']
 const LABEL_PRESETS = [
@@ -28,6 +30,7 @@ type Props = {
 
 export default function MaterialFormModal({ fixedClientId, clients = [], editingMaterial, onClose, onSaved }: Props) {
   const { members } = useUser()
+  const { toast } = useToast()
   const [saving, setSaving] = useState(false)
   const [clientManual, setClientManual] = useState(false)
   const [typeManual, setTypeManual] = useState(false)
@@ -81,16 +84,15 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
 
   async function save() {
     if (!form.title.trim()) return
-    if (!form.client_id) { alert('Escolha um cliente'); return }
+    if (!form.client_id) { toast('Escolha um cliente'); return }
     setSaving(true)
     const supabase = createClient()
     const payload = { ...form, due_date: form.due_date || null, assigned_to: form.assigned_to || null }
-    if (editingMaterial) {
-      await supabase.from('materials').update(payload).eq('id', editingMaterial.id)
-    } else {
-      await supabase.from('materials').insert(payload)
-    }
+    const { error } = editingMaterial
+      ? await supabase.from('materials').update(payload).eq('id', editingMaterial.id)
+      : await supabase.from('materials').insert(payload)
     setSaving(false)
+    if (dbError(error, toast, 'salvar material')) return
     onSaved()
     onClose()
   }

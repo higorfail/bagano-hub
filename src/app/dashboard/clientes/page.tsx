@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
+import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
 import Button from '@/components/ui/Button'
 
 type Client = {
@@ -31,6 +33,7 @@ function getInitials(name: string) {
 
 export default function ClientesPage() {
   const { currentMember, showOnlyMine } = useUser()
+  const { toast } = useToast()
   const [clients, setClients] = useState<Client[]>([])
   const [archivedClients, setArchivedClients] = useState<Client[]>([])
   const [myClientIds, setMyClientIds] = useState<string[]>([])
@@ -82,11 +85,10 @@ export default function ClientesPage() {
       instagram_followers: form.instagram_followers ? parseInt(form.instagram_followers) : null,
       instagram_following: form.instagram_following ? parseInt(form.instagram_following) : null,
     }
-    if (editingClient) {
-      await supabase.from('clients').update(payload).eq('id', editingClient.id)
-    } else {
-      await supabase.from('clients').insert({ ...payload, status: 'active' })
-    }
+    const { error } = editingClient
+      ? await supabase.from('clients').update(payload).eq('id', editingClient.id)
+      : await supabase.from('clients').insert({ ...payload, status: 'active' })
+    if (dbError(error, toast, 'salvar cliente')) { setSaving(false); return }
     await load()
     setShowModal(false)
     setSaving(false)
@@ -95,7 +97,8 @@ export default function ClientesPage() {
   async function deactivate() {
     if (!editingClient) return
     setSaving(true)
-    await createClient().from('clients').update({ status: 'inactive' }).eq('id', editingClient.id)
+    const { error } = await createClient().from('clients').update({ status: 'inactive' }).eq('id', editingClient.id)
+    if (dbError(error, toast, 'desativar cliente')) { setSaving(false); return }
     await load()
     setShowModal(false)
     setSaving(false)
@@ -104,7 +107,8 @@ export default function ClientesPage() {
   async function reactivate() {
     if (!editingClient) return
     setSaving(true)
-    await createClient().from('clients').update({ status: 'active' }).eq('id', editingClient.id)
+    const { error } = await createClient().from('clients').update({ status: 'active' }).eq('id', editingClient.id)
+    if (dbError(error, toast, 'reativar cliente')) { setSaving(false); return }
     await load()
     setShowModal(false)
     setSaving(false)

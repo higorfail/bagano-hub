@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
 import { X } from 'lucide-react'
 
 const POST_TYPES = [
@@ -43,6 +45,7 @@ type Props = {
 }
 
 export default function PostFormModal({ clientId, clientName, month, year, nextPostNumber, onClose, onSaved }: Props) {
+  const { toast } = useToast()
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [campaigns, setCampaigns] = useState<any[]>([])
@@ -60,13 +63,14 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
     if (!form.title.trim()) return
     setSaving(true)
     const supabase = createClient()
-    await supabase.from('schedules').insert({
+    const { error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year, post_number: nextPostNumber,
       ...form,
       scheduled_date: form.scheduled_date || null,
       campaign_type: form.campaign_type || null,
     })
     setSaving(false)
+    if (dbError(error, toast, 'criar post')) return
     onSaved()
     onClose()
   }
