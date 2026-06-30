@@ -40,6 +40,7 @@ export default function KanbanPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [dragging, setDragging] = useState<string | null>(null)
+  const [draggingGroup, setDraggingGroup] = useState<{ clientId: string; fromCol: string } | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear] = useState(new Date().getFullYear())
@@ -76,6 +77,16 @@ export default function KanbanPage() {
     const dbStatus = toColKey === 'crono_feito' ? 'producao' : toColKey
     await createClient().from('schedules').update({ status: dbStatus }).eq('id', postId)
     setPosts(p => p.map(post => post.id === postId ? { ...post, status: dbStatus } : post))
+  }
+
+  // Move todos os posts de um cliente (que estão na coluna de origem) para a coluna destino
+  async function moveClientGroup(clientId: string, fromCol: string, toCol: string) {
+    if (fromCol === toCol) return
+    const dbStatus = toCol === 'crono_feito' ? 'producao' : toCol
+    const ids = getColPosts(fromCol).filter(p => p.client_id === clientId).map(p => p.id)
+    if (ids.length === 0) return
+    setPosts(p => p.map(post => ids.includes(post.id) ? { ...post, status: dbStatus } : post))
+    await createClient().from('schedules').update({ status: dbStatus }).in('id', ids)
   }
 
   function getColPosts(colKey: string): Post[] {
@@ -183,9 +194,10 @@ export default function KanbanPage() {
                 }}
                 onDragOver={e => e.preventDefault()}
                 onDrop={() => {
-                  if (dragging) movePost(dragging, col.key)
+                  if (draggingGroup) moveClientGroup(draggingGroup.clientId, draggingGroup.fromCol, col.key)
+                  else if (dragging) movePost(dragging, col.key)
                   dragCounters.current[col.key] = 0
-                  setDragging(null); setDragOver(null)
+                  setDragging(null); setDragOver(null); setDraggingGroup(null)
                 }}
               >
                 {/* Column header */}
@@ -214,17 +226,22 @@ export default function KanbanPage() {
                     const client = getClient(clientId)
                     const groupKey = `${col.key}:${clientId}`
                     const isCollapsed = !expanded.has(groupKey)
+                    const isGroupDragging = draggingGroup?.clientId === clientId && draggingGroup?.fromCol === col.key
                     const byType = clientPosts.reduce((acc, p) => {
                       const t = TYPE_LABEL[p.post_type] || p.post_type
                       acc[t] = (acc[t] || 0) + 1
                       return acc
                     }, {} as Record<string, number>)
                     return (
-                      <div key={clientId} className="flex flex-col gap-1">
-                        {/* Client group header */}
+                      <div key={clientId} className="flex flex-col gap-1 transition-opacity" style={{ opacity: isGroupDragging ? 0.4 : 1 }}>
+                        {/* Client group header — arraste para mover o cliente inteiro */}
                         <button
+                          draggable
+                          onDragStart={e => { setDraggingGroup({ clientId, fromCol: col.key }); e.dataTransfer.effectAllowed = 'move'; e.stopPropagation() }}
+                          onDragEnd={() => { setDraggingGroup(null); setDragOver(null); dragCounters.current = {} }}
                           onClick={() => toggleCollapse(groupKey)}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-[var(--color-bg-card)] transition-colors w-full text-left group"
+                          title="Arraste para mover o cliente inteiro de coluna"
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-[var(--color-bg-card)] transition-colors w-full text-left group cursor-grab active:cursor-grabbing"
                         >
                           <div className="w-4 h-4 rounded-md flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ background: client?.color_hex || '#A8A59E' }}>
                             {client?.name?.slice(0, 1)}
