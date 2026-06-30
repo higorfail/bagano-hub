@@ -164,7 +164,7 @@ export default function CampanhasPage() {
               const isExp = expanded === camp.id
 
               return (
-                <div key={client.id} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden">
+                <div key={client.id} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden shadow-card">
                   {/* Client header */}
                   <div
                     className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--color-bg-alt)] transition-colors"

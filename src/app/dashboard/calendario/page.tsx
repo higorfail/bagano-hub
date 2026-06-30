@@ -125,7 +125,7 @@ export default function CalendarioPage() {
       )}
 
       {/* Calendar grid */}
-      <div className="flex-1 flex flex-col bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden">
+      <div className="flex-1 flex flex-col bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden shadow-card">
         {/* Weekday headers */}
         <div className="grid grid-cols-7 border-b border-[var(--color-border)]">
           {WEEKDAYS.map(d => (
@@ -189,7 +189,7 @@ export default function CalendarioPage() {
 
       {/* Posts sem data */}
       {postsWithoutDate.length > 0 && (
-        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4">
+        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 shadow-card">
           <p className="text-xs font-semibold text-[var(--color-text-muted)] mb-3 uppercase tracking-wide">Sem data agendada</p>
           <div className="flex flex-wrap gap-2">
             {postsWithoutDate.map(p => (

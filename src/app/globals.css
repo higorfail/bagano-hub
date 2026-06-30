@@ -32,6 +32,14 @@
 .shadow-card { box-shadow: var(--shadow-card); }
 .shadow-pop  { box-shadow: var(--shadow-pop); }
 
+/* ── Foco unificado dos campos (vermelho acento) em todo o hub ────────────── */
+.page-content input:not([type="color"]):not([type="checkbox"]):not([type="radio"]):focus,
+.page-content textarea:focus,
+.page-content select:focus {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
 /* ── Date/time input icon color follows theme ────────────────────────────── */
 [data-theme="dark"] input[type="date"],
 [data-theme="dark"] input[type="time"],

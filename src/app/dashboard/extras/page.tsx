@@ -40,7 +40,7 @@ export default function ExtrasPage() {
           { label: 'Concluídos', value: stats.done,    icon: CheckSquare, color: '#22c55e' },
           { label: 'Em atraso',  value: stats.overdue, icon: AlertCircle, color: stats.overdue > 0 ? '#ef4444' : 'var(--color-text-faint)' },
         ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl px-5 py-4 flex items-center gap-4">
+          <div key={label} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl px-5 py-4 flex items-center gap-4 shadow-card">
             <Icon size={18} style={{ color, flexShrink: 0 }} strokeWidth={1.75} />
             <div>
               <p className="text-xl font-bold" style={{ color }}>{value}</p>

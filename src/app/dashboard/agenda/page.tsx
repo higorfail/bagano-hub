@@ -348,7 +348,7 @@ export default function AgendaPage() {
           <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-4">Captações</h2>
 
           {upcomingCaptacoes.length === 0 && pastCaptacoes.length === 0 ? (
-            <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-10 text-center">
+            <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-10 text-center shadow-card">
               <Camera size={28} className="mx-auto text-[var(--color-text-faint)] mb-3" />
               <p className="text-sm text-[var(--color-text-muted)]">Nenhuma captação agendada</p>
             </div>

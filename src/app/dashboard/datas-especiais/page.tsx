@@ -123,7 +123,7 @@ export default function DatasEspeciaisPage() {
 
         {/* Form nova data */}
         {showForm && (
-          <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6 flex items-end gap-4">
+          <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6 flex items-end gap-4 shadow-card">
             <div className="flex-1">
               <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Nome da data</label>
               <input
@@ -160,7 +160,7 @@ export default function DatasEspeciaisPage() {
 
         {/* Próximas datas — radar */}
         {upcoming.length > 0 && (
-          <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6">
+          <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6 shadow-card">
             <div className="flex items-center gap-2 mb-5">
               <Clock size={14} className="text-[var(--color-text-muted)]" />
               <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Radar — próximas datas</p>
@@ -208,7 +208,7 @@ export default function DatasEspeciaisPage() {
             const monthDates = byMonth[mi]
             if (!monthDates?.length) return null
             return (
-              <div key={mi} className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden">
+              <div key={mi} className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden shadow-card">
                 {/* Header do mês */}
                 <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
                   <div className="flex items-center gap-3">

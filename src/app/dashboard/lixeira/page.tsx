@@ -155,7 +155,7 @@ export default function LixeiraPage() {
             )}
 
             {/* Items */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden divide-y divide-[var(--color-border)]">
+            <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden divide-y divide-[var(--color-border)] shadow-card">
               {filtered.map(item => {
                 const meta = TYPE_META[item.item_type] || TYPE_META.post
                 const { Icon } = meta

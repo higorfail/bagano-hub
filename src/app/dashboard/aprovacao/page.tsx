@@ -135,7 +135,7 @@ export default function AprovacaoPage() {
 
         {/* Vazio */}
         {Object.keys(byClient).length === 0 && (
-          <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-12 text-center">
+          <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-12 text-center shadow-card">
             <CheckCircle2 size={32} className="mx-auto mb-3" style={{ color: 'var(--ds-success-accent)' }} />
             <p className="font-semibold text-[var(--color-text-primary)]">Tudo certo!</p>
             <p className="text-sm text-[var(--color-text-muted)] mt-1">Nenhum post pendente de aprovação ou revisão.</p>
@@ -150,7 +150,7 @@ export default function AprovacaoPage() {
           const revisoes  = clientPosts.filter(p => p.approval_status === 'não aprovado').length
 
           return (
-            <div key={clientId} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden">
+            <div key={clientId} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden shadow-card">
               {/* Header do cliente */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
                 <div className="flex items-center gap-3">

@@ -123,7 +123,7 @@ export default function EquipePage() {
             {members.map(m => (
               <div
                 key={m.id}
-                className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden group relative"
+                className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden group relative shadow-card"
               >
                 {/* Color bar */}
                 <div className="h-1 w-full" style={{ background: m.color }} />
@@ -245,7 +245,7 @@ export default function EquipePage() {
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setShowForm(false)} />
-          <div className="relative bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] w-full max-w-sm p-6 space-y-5 animate-scale-in">
+          <div className="relative bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] w-full max-w-sm p-6 space-y-5 animate-scale-in shadow-pop">
 
             <div className="flex items-center justify-between">
               <p className="font-semibold text-[var(--color-text-primary)]">Novo colaborador</p>
