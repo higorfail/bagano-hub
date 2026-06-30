@@ -15,11 +15,11 @@ function daysBetween(from: Date, to: Date) {
 }
 
 function urgencyStyle(days: number): { pill: string; badge: string } {
-  if (days < 0)   return { pill: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]',          badge: 'text-[var(--color-text-muted)]' }
-  if (days <= 7)  return { pill: 'bg-red-50 border border-red-100',       badge: 'text-red-500 font-bold' }
-  if (days <= 14) return { pill: 'bg-orange-50 border border-orange-100', badge: 'text-orange-500 font-bold' }
-  if (days <= 30) return { pill: 'bg-amber-50 border border-amber-100',   badge: 'text-amber-600 font-semibold' }
-  if (days <= 60) return { pill: 'bg-blue-50 border border-blue-100',     badge: 'text-blue-500' }
+  if (days < 0)   return { pill: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]',                                    badge: 'text-[var(--color-text-muted)]' }
+  if (days <= 7)  return { pill: 'bg-[var(--ds-error-bg)] border border-[var(--ds-error-border)]',                                badge: 'text-[var(--ds-error-text)] font-bold' }
+  if (days <= 14) return { pill: 'bg-[var(--ds-warn-bg)] border border-[var(--ds-warn-border)]',                                  badge: 'text-[var(--ds-warn-text)] font-bold' }
+  if (days <= 30) return { pill: 'bg-[var(--ds-caution-bg)] border border-[var(--ds-caution-border)]',                            badge: 'text-[var(--ds-caution-text)] font-semibold' }
+  if (days <= 60) return { pill: 'bg-[var(--ds-info-bg)] border border-[var(--ds-info-border)]',                                  badge: 'text-[var(--ds-info-text)]' }
   return { pill: 'bg-[var(--color-bg-card)] border border-[var(--color-border)]', badge: 'text-[var(--color-text-muted)]' }
 }
 
@@ -252,7 +252,7 @@ export default function DatasEspeciaisPage() {
                         <button
                           onClick={() => remove(d.id)}
                           disabled={deleting === d.id}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-faint)] hover:text-red-400 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-faint)] opacity-0 group-hover:opacity-100 transition-all flex-shrink-0" style={{}} onMouseEnter={e => { e.currentTarget.style.background = 'var(--ds-error-bg)'; e.currentTarget.style.color = 'var(--ds-error-text)' }} onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = '' }}
                         >
                           <Trash2 size={13} />
                         </button>

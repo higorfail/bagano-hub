@@ -14,14 +14,14 @@ const ICONS: Record<ToastType, string> = {
   info:    'ℹ',
 }
 const STYLES: Record<ToastType, string> = {
-  success: 'bg-[#1a1a1a] border-green-500/40 text-white',
-  error:   'bg-[#1a1a1a] border-red-500/40 text-white',
-  info:    'bg-[#1a1a1a] border-blue-500/40 text-white',
+  success: 'bg-[#1a1a1a] text-white border-[var(--ds-success-accent)]/40',
+  error:   'bg-[#1a1a1a] text-white border-[var(--ds-error-accent)]/40',
+  info:    'bg-[#1a1a1a] text-white border-[var(--ds-info-accent)]/40',
 }
 const DOT: Record<ToastType, string> = {
-  success: 'bg-green-500',
-  error:   'bg-red-500',
-  info:    'bg-blue-500',
+  success: 'bg-[var(--ds-success-accent)]',
+  error:   'bg-[var(--ds-error-accent)]',
+  info:    'bg-[var(--ds-info-accent)]',
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {

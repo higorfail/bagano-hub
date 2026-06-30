@@ -7,6 +7,7 @@ export type Member = {
   id: string
   name: string
   role: string
+  color: string
 }
 
 type UserContextType = {
@@ -32,7 +33,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('team_members').select('id, name, role').order('name')
+    supabase.from('team_members').select('id, name, role, color').order('name')
       .then(({ data }) => {
         if (data) setMembers(data)
         // Restaura seleção salva

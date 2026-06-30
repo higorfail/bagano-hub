@@ -87,6 +87,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [labels,          setLabels]          = useState<{ text: string; color: string }[]>([])
   const [assignedMembers, setAssignedMembers] = useState<string[]>([])
 
+  const [needsClientApproval, setNeedsClientApproval] = useState(false)
+
   const [checklist,      setChecklist]      = useState<any[]>([])
   const [newCheckText,   setNewCheckText]   = useState('')
   const [comments,       setComments]       = useState<any[]>([])
@@ -163,6 +165,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         setDueDate(data.due_date || '')
         setDueTime(data.due_time || '')
         setLabels(Array.isArray(data.labels) ? data.labels : [])
+        setNeedsClientApproval(data.needs_client_approval || false)
         const am = Array.isArray(data.assigned_members) && data.assigned_members.length > 0
           ? data.assigned_members : data.assigned_member_id ? [data.assigned_member_id] : []
         setAssignedMembers(am)
@@ -182,7 +185,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       description, due_date: dueDate || null, due_time: dueTime || null,
       assigned_members: assignedMembers, assigned_member_id: assignedMembers[0] || null, labels,
     }
-    const { data } = await supabase.from('extras').insert(payload).select().single()
+    const { data, error } = await supabase.from('extras').insert(payload).select('*').single()
+    if (error) console.error('ensureId error:', error)
     if (data) { setId(data.id); return data.id }
     return undefined
   }
@@ -190,23 +194,37 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   async function handleSaveMain() {
     if (!title.trim()) return
     setSaving(true)
-    const payload = {
+    const payload: any = {
       title, type, status, priority,
       client_id: fixedClientId || clientId || null,
       description, due_date: dueDate || null, due_time: dueTime || null,
       assigned_members: assignedMembers, assigned_member_id: assignedMembers[0] || null, labels,
     }
+    // Build client/member info locally to avoid depending on PostgREST joins
+    const resolvedClientId = fixedClientId || clientId || null
+    const clientInfo = resolvedClientId ? clients.find(c => c.id === resolvedClientId) : null
+    function withRelations(raw: any) {
+      return {
+        ...raw,
+        clients: clientInfo ? { name: clientInfo.name, color_hex: clientInfo.color_hex } : null,
+        team_members: null,
+      }
+    }
+
     let savedData: any
     if (!id) {
-      const { data } = await supabase.from('extras').insert(payload)
-        .select('*, clients(name, color_hex), team_members(name)').single()
-      if (data) {
-        setId(data.id)
-        savedData = data
-        originalStatusRef.current = status
-        await logActivity({ tableName: 'extras', recordId: data.id, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
-        setActivityKey(k => k + 1)
+      const { data, error } = await supabase.from('extras').insert(payload).select('*').single()
+      if (error || !data) {
+        console.error('Extra save error:', error)
+        toast(`Erro ao salvar: ${error?.message ?? 'resposta vazia'}`)
+        setSaving(false)
+        return
       }
+      setId(data.id)
+      savedData = withRelations(data)
+      originalStatusRef.current = status
+      await logActivity({ tableName: 'extras', recordId: data.id, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
+      setActivityKey(k => k + 1)
     } else {
       const statusLabels: Record<string,string> = { backlog: 'A fazer', doing: 'Em andamento', done: 'Concluído' }
       if (status !== originalStatusRef.current) {
@@ -216,9 +234,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         originalStatusRef.current = status as ExtraStatus
         setActivityKey(k => k + 1)
       }
-      const { data } = await supabase.from('extras').update(payload).eq('id', id)
-        .select('*, clients(name, color_hex), team_members(name)').single()
-      savedData = data
+      const { data } = await supabase.from('extras').update(payload).eq('id', id).select('*').single()
+      savedData = data ? withRelations(data) : null
     }
     setSaving(false)
     if (savedData) { toast('Extra salvo!'); onSaved(savedData) }
@@ -421,7 +438,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                         </div>
                         <span className="text-xs text-[var(--color-text-primary)] font-medium">{m.name.split(' ')[0]}</span>
                         <button onClick={e => { e.stopPropagation(); setAssignedMembers(prev => prev.filter(x => x !== m.id)) }}
-                          className="text-[var(--color-text-muted)] hover:text-red-500 ml-0.5 leading-none"><X size={10} /></button>
+                          className="text-[var(--color-text-muted)] ml-0.5 leading-none transition-colors" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}><X size={10} /></button>
                       </div>
                     ))}
                     {selectedMembersData.length > 0 && (
@@ -468,6 +485,23 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   </select>
                 </div>
               )}
+
+              {/* Aprovação do cliente */}
+              <div className="flex items-center gap-3 py-2">
+                <div className="flex items-center gap-2 w-36 flex-shrink-0">
+                  <span className="text-[13px] text-[var(--color-text-muted)]">✅</span>
+                  <span className="text-xs text-[var(--color-text-muted)]">Aprovação</span>
+                </div>
+                <button
+                  onClick={() => setNeedsClientApproval(v => !v)}
+                  className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                  style={needsClientApproval
+                    ? { background: '#3b82f620', color: '#3b82f6' }
+                    : { color: 'var(--color-text-muted)' }}
+                >
+                  {needsClientApproval ? '✓ Cliente precisa aprovar' : 'Não precisa de aprovação'}
+                </button>
+              </div>
 
               {/* Etiquetas */}
               <div className="flex items-start gap-3 py-2">
@@ -527,7 +561,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                       {item.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>}
                     </button>
                     <span className={`text-sm flex-1 ${item.done ? 'line-through text-[var(--color-text-muted)]' : 'text-[var(--color-text-primary)]'}`}>{item.text}</span>
-                    <button onClick={() => removeCheck(item.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] hover:text-red-500 transition-opacity"><Trash2 size={13} /></button>
+                    <button onClick={() => removeCheck(item.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-opacity" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}><Trash2 size={13} /></button>
                   </div>
                 ))}
               </div>
@@ -551,8 +585,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                     <div key={a.id} className="group flex items-center gap-3 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl px-3 py-2">
                       <Link2 size={13} className="text-[var(--color-text-muted)] flex-shrink-0" />
                       <a href={a.url} target="_blank" rel="noopener noreferrer"
-                        className="flex-1 text-sm text-blue-600 hover:underline truncate">{a.title}</a>
-                      <button onClick={() => removeAttachment(a.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] hover:text-red-500 transition-opacity"><Trash2 size={13} /></button>
+                        className="flex-1 text-sm hover:underline truncate" style={{ color: 'var(--ds-info-text)' }}>{a.title}</a>
+                      <button onClick={() => removeAttachment(a.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-opacity" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}><Trash2 size={13} /></button>
                     </div>
                   ))}
                 </div>
@@ -645,7 +679,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
 
         {/* FOOTER */}
         <div className="px-7 py-3.5 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-card)]">
-          <button onClick={handleDelete} className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-red-500 transition-colors">
+          <button onClick={handleDelete} className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
             <Trash2 size={13} /> Excluir
           </button>
           <div className="flex items-center gap-2">
@@ -680,7 +714,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                       </div>
                       <div className="flex gap-1.5">
                         <button onClick={() => updateGlobalLabel(gl.id, editingLabel.text, editingLabel.color)} className="flex-1 py-1.5 text-xs font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Salvar</button>
-                        <button onClick={() => deleteGlobalLabel(gl.id)} className="px-3 py-1.5 text-xs font-medium border border-red-200 text-red-500 rounded-lg">Excluir</button>
+                        <button onClick={() => deleteGlobalLabel(gl.id)} className="px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors" style={{ borderColor: 'var(--ds-error-border)', color: 'var(--ds-error-text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--ds-error-bg)')} onMouseLeave={e => (e.currentTarget.style.background = '')}>Excluir</button>
                         <button onClick={() => setEditingLabel(null)} className="px-3 py-1.5 text-xs border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">×</button>
                       </div>
                     </div>

@@ -27,18 +27,18 @@ const MAT_TYPE_LABEL: Record<string, string> = {
 }
 
 const MAT_TYPE_COLOR: Record<string, string> = {
-  menu: 'bg-orange-100 text-orange-700',
-  cardapio: 'bg-amber-100 text-amber-700',
-  arte_avulsa: 'bg-purple-100 text-purple-700',
-  logo: 'bg-blue-100 text-blue-700',
-  manual: 'bg-green-100 text-green-700',
+  menu: 'bg-[var(--ds-warn-bg)] text-[var(--ds-warn-text)]',
+  cardapio: 'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]',
+  arte_avulsa: 'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
+  logo: 'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]',
+  manual: 'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]',
   outro: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  producao: 'bg-amber-50 text-amber-700',
-  aguardando_aprovacao: 'bg-pink-50 text-pink-700',
-  finalizado: 'bg-green-50 text-green-700',
+  producao: 'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]',
+  aguardando_aprovacao: 'bg-[var(--ds-warn-bg)] text-[var(--ds-warn-text)]',
+  finalizado: 'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]',
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -55,7 +55,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
   const due = m.due_date ? new Date(m.due_date + 'T23:59:59') : null
   const now = new Date()
   const diff = due ? Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
-  const dueColor = diff === null ? '' : diff < 0 ? 'text-red-600 bg-red-50' : diff <= 2 ? 'text-amber-700 bg-amber-50' : 'text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)]'
+  const dueColor = diff === null ? '' : diff < 0 ? 'text-[var(--ds-error-text)] bg-[var(--ds-error-bg)]' : diff <= 2 ? 'text-[var(--ds-caution-text)] bg-[var(--ds-caution-bg)]' : 'text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)]'
   const dueLabel = diff === null ? '' : diff < 0 ? ' · atrasado' : diff === 0 ? ' · hoje' : diff === 1 ? ' · amanhã' : ''
 
   const assignedArr: string[] = Array.isArray(m.assigned_members) && m.assigned_members.length > 0
@@ -136,7 +136,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
 
           {/* Checklist */}
           {checkTotal > 0 && (
-            <span className={`flex items-center gap-1 ${checkDone === checkTotal ? 'text-green-600' : ''}`}>
+            <span className={`flex items-center gap-1`} style={checkDone === checkTotal ? { color: 'var(--ds-success-text)' } : {}}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="9 11 12 14 22 4"/>
                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>

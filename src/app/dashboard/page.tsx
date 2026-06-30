@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
-import { ArrowRight, AlertTriangle, Clock, Calendar, ChevronRight, Zap, CheckCircle2, Camera } from 'lucide-react'
+import { ArrowRight, AlertTriangle, Clock, Calendar, CalendarHeart, ChevronRight, ChevronDown, Zap, CheckCircle2, Camera, CheckSquare } from 'lucide-react'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
 const CFG = {
@@ -46,8 +46,11 @@ const STATUS_COLOR: Record<string, string> = {
   publicado:           'bg-green-50 text-green-700',
 }
 
-const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
-const DAYS   = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
+const MONTHS    = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+const DAYS      = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
+const TYPE_SHORT: Record<string, string> = {
+  reels: 'Reel', carrossel: 'Carrossel', post: 'Post', story: 'Story', carrossel_stories: 'Crsl/Story',
+}
 
 const PRODUCTION_LEAD_DAYS = 14
 
@@ -60,6 +63,13 @@ type Schedule = {
 }
 type SpecialDate = { id: string; name: string; date: string }
 type Captacao    = { id: string; client_id: string; scheduled_date: string; status: string; months_covered: number }
+type ClientTeamRow = { client_id: string; member_id: string; funcao: string }
+
+// Quais tipos de post cada função cobre. null = cobre todos os tipos do cliente.
+const FUNCAO_POST_TYPES: Record<string, string[] | null> = {
+  videos: ['reels'],
+  posts:  ['carrossel', 'story', 'carrossel_stories', 'post'],
+}
 
 function getInitials(name: string) {
   return name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
@@ -81,11 +91,22 @@ export default function DashboardPage() {
   const supabase  = createClient()
   const { currentMember } = useUser()
 
-  const [clients,      setClients]      = useState<Client[]>([])
-  const [schedules,    setSchedules]    = useState<Schedule[]>([])
-  const [specialDates, setSpecialDates] = useState<SpecialDate[]>([])
-  const [captacoes,    setCaptacoes]    = useState<Captacao[]>([])
-  const [loading,      setLoading]      = useState(true)
+  const [clients,        setClients]        = useState<Client[]>([])
+  const [schedules,      setSchedules]      = useState<Schedule[]>([])
+  const [specialDates,   setSpecialDates]   = useState<SpecialDate[]>([])
+  const [captacoes,      setCaptacoes]      = useState<Captacao[]>([])
+  const [clientTeam,     setClientTeam]     = useState<ClientTeamRow[]>([])
+  const [myExtras,       setMyExtras]       = useState<any[]>([])
+  const [loading,        setLoading]        = useState(true)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+
+  function toggleGroup(key: string) {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
 
   const now      = new Date()
   const month    = now.getMonth() + 1
@@ -98,7 +119,7 @@ export default function DashboardPage() {
     async function load() {
       const in90Str = new Date(now.getTime() + 90 * 86400000).toISOString().split('T')[0]
       const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
-      const [{ data: cls }, { data: sch }, { data: sd }, { data: cap }] = await Promise.all([
+      const [{ data: cls }, { data: sch }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
         supabase.from(CFG.t.clients)
           .select('id, name, color_hex')
           .eq('status', 'active')
@@ -117,15 +138,29 @@ export default function DashboardPage() {
           .gte('scheduled_date', ago45Str)
           .lte('scheduled_date', in90Str)
           .order('scheduled_date'),
+        supabase.from('client_team')
+          .select('client_id, member_id, funcao'),
       ])
       setClients(cls || [])
       setSchedules(sch || [])
       setSpecialDates(sd || [])
       setCaptacoes(cap || [])
+      setClientTeam(ct || [])
       setLoading(false)
     }
     load()
   }, [])
+
+  useEffect(() => {
+    if (!currentMember?.id) return
+    supabase
+      .from('extras')
+      .select('id, title, type, status, priority, client_id, due_date')
+      .neq('status', 'done')
+      .contains('assigned_members', [currentMember.id])
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .then(({ data }) => { if (data) setMyExtras(data) })
+  }, [currentMember?.id])
 
   // ── Computed ─────────────────────────────────────────────────────────────
   const clientMap = useMemo(() => {
@@ -167,7 +202,21 @@ export default function DashboardPage() {
       .sort((a, b) => (a.scheduled_date || '').localeCompare(b.scheduled_date || '')),
   [schedules, todayStr, in7Str])
 
-  // Viés por função
+  // Atribuições do membro atual: em quais clientes e funções ele atua
+  const myAssignments = useMemo(() =>
+    clientTeam.filter(t => t.member_id === currentMember?.id),
+  [clientTeam, currentMember])
+  const hasAssignments = myAssignments.length > 0
+
+  function isMine(s: Schedule) {
+    return myAssignments.some(a => {
+      if (a.client_id !== s.client_id) return false
+      const types = FUNCAO_POST_TYPES[a.funcao]
+      return types ? types.includes(s.post_type) : true
+    })
+  }
+
+  // Viés por função (fallback para quem ainda não tem atribuição em client_team)
   const roleStr = (currentMember?.role || '').toLowerCase()
   const isProducer   = ['video', 'post', 'foto', 'editor', 'design'].some(r => roleStr.includes(r))
   const isStrategist = ['estrategia', 'social'].some(r => roleStr.includes(r))
@@ -188,6 +237,11 @@ export default function DashboardPage() {
     schedules.filter(s => s.status === CFG.S.aguardandoAprovacao),
   [schedules])
 
+  // ── Minhas tarefas — filtradas por atribuição em client_team ────────────
+  const myRejected = useMemo(() => hasAssignments ? rejected.filter(isMine) : [], [rejected, myAssignments, hasAssignments])
+  const myProductionQueue = useMemo(() => hasAssignments ? productionQueue.filter(isMine) : [], [productionQueue, myAssignments, hasAssignments])
+  const myPendingApproval = useMemo(() => hasAssignments ? pendingApproval.filter(isMine) : [], [pendingApproval, myAssignments, hasAssignments])
+
   // Métricas
   const total      = schedules.length
   const published  = schedules.filter(s => s.status === CFG.S.publicado).length
@@ -197,7 +251,7 @@ export default function DashboardPage() {
   const notOk      = rejected.length
 
   const metrics = [
-    { label: 'Posts no mês',    value: total,      color: '#1A1916' },
+    { label: 'Posts no mês',    value: total,      color: 'var(--color-text-primary)' },
     { label: 'Publicados',      value: published,  color: '#16a34a' },
     { label: 'Aprovados',       value: approved,   color: '#2563eb' },
     { label: 'Em produção',     value: inProd,     color: '#d97706' },
@@ -278,293 +332,355 @@ export default function DashboardPage() {
     )
   }
 
+  function PostRow({ s, rank }: { s: Schedule; rank?: number }) {
+    const client = clientMap[s.client_id]
+    return (
+      <button
+        onClick={() => navigateToPost(s)}
+        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--color-bg-page)] transition-colors text-left group"
+      >
+        {rank !== undefined && <span className="text-xs font-bold text-[var(--color-text-faint)] w-4 tabular-nums flex-shrink-0">{rank}</span>}
+        <ClientAvatar clientId={s.client_id} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{s.title || 'Sem título'}</p>
+          <p className="text-xs text-[var(--color-text-muted)] truncate">
+            {client?.name}{s.scheduled_date ? ` · ${new Date(s.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}` : ''}
+          </p>
+        </div>
+        <span className={`text-[10px] font-semibold px-2 py-1 rounded-lg flex-shrink-0 ${STATUS_COLOR[s.status] || 'bg-[var(--color-bg-page)] text-[var(--color-text-secondary)]'}`}>
+          {STATUS_LABEL[s.status] || s.status}
+        </span>
+        <ChevronRight size={12} className="text-[var(--color-text-faint)] group-hover:text-[var(--color-text-muted)] flex-shrink-0" />
+      </button>
+    )
+  }
+
+  function renderClientGroup(clientId: string, posts: Schedule[], sectionKey: string) {
+    const groupKey = `${sectionKey}:${clientId}`
+    const isExpanded = expandedGroups.has(groupKey)
+    const client = clientMap[clientId]
+    const byType = posts.reduce((acc, p) => {
+      const t = TYPE_SHORT[p.post_type] || p.post_type
+      acc[t] = (acc[t] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+    const summary = Object.entries(byType).map(([t, n]) => `${n}× ${t}`).join(', ')
+    return (
+      <div key={groupKey}>
+        <button
+          onClick={() => toggleGroup(groupKey)}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--color-bg-page)] transition-colors text-left group"
+        >
+          <ClientAvatar clientId={clientId} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{client?.name}</p>
+            <p className="text-xs text-[var(--color-text-muted)] truncate">{summary}</p>
+          </div>
+          <span className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-[var(--color-bg-page)] text-[var(--color-text-secondary)] flex-shrink-0">
+            {posts.length} post{posts.length !== 1 ? 's' : ''}
+          </span>
+          {isExpanded
+            ? <ChevronDown size={12} className="text-[var(--color-text-muted)] flex-shrink-0" />
+            : <ChevronRight size={12} className="text-[var(--color-text-faint)] group-hover:text-[var(--color-text-muted)] flex-shrink-0" />
+          }
+        </button>
+        {isExpanded && (
+          <div className="ml-9 pl-3 border-l border-[var(--color-border)] flex flex-col mb-1">
+            {posts.map((s, i) => <PostRow key={s.id} s={s} rank={i + 1} />)}
+            <button
+              onClick={() => router.push(`/dashboard/clientes/${clientId}`)}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-brand)] px-3 py-1.5 transition-colors text-left"
+            >
+              Abrir cliente →
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function renderSmartList(posts: Schedule[], sectionKey: string, threshold = 3) {
+    if (posts.length <= threshold) {
+      return posts.map((s, i) => <PostRow key={s.id} s={s} rank={i + 1} />)
+    }
+    const groups: Record<string, Schedule[]> = {}
+    for (const s of posts) {
+      if (!groups[s.client_id]) groups[s.client_id] = []
+      groups[s.client_id].push(s)
+    }
+    return Object.entries(groups).map(([cid, cp]) => renderClientGroup(cid, cp, sectionKey))
+  }
+
+  const semAgendadaOnly = captacaoAlerts.semAgendada.filter(cl => !captacaoAlerts.vencida.some(v => v.id === cl.id))
+
   return (
     <div className="min-h-screen bg-[var(--color-bg-page)]">
-      <div className="max-w-7xl mx-auto px-8 py-10 space-y-8">
+      <div className="max-w-7xl mx-auto px-8 py-8 space-y-6">
 
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div>
-          <p className="text-sm text-[var(--color-text-muted)] mb-1.5">
-            {DAYS[now.getDay()]}, {now.getDate()} de {MONTHS[now.getMonth()]} {year}
-          </p>
-          <h1 className="text-4xl font-bold text-[var(--color-text-primary)] tracking-tight">
-            {getDayGreeting()}{currentMember ? `, ${currentMember.name.split(' ')[0]}` : ''} 👋
-          </h1>
+        {/* ── Header + Métricas ──────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-5">
+          <div>
+            <p className="text-xs text-[var(--color-text-muted)] mb-1">
+              {DAYS[now.getDay()]}, {now.getDate()} de {MONTHS[now.getMonth()]} {year}
+            </p>
+            <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">
+              {getDayGreeting()}{currentMember ? `, ${currentMember.name.split(' ')[0]}` : ''} 👋
+            </h1>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            {metrics.map(m => (
+              <div key={m.label} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl px-4 py-2.5 text-center min-w-[72px]">
+                <p className="text-2xl font-bold leading-none" style={{ color: m.color }}>{m.value}</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mt-1 leading-tight">{m.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* ── Alertas inteligentes ────────────────────────────────────────── */}
-        {hasAlerts && (
-          <div className="space-y-2">
+        {/* ── Grid dinâmico (masonry 2 colunas) ─────────────────────────── */}
+        <div className="columns-2 gap-5">
 
-            {/* Posts com data vencida */}
-            {delayed.length > 0 && (
-              <div className="bg-red-50 border border-red-100 rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Clock size={14} className="text-red-500" />
-                  <p className="text-sm font-semibold text-red-700">
-                    {delayed.length} post{delayed.length !== 1 ? 's' : ''} com data vencida
-                  </p>
+            {/* Para você */}
+            {currentMember && (hasAssignments || myExtras.length > 0) && (myRejected.length > 0 || myProductionQueue.length > 0 || myPendingApproval.length > 0 || myExtras.length > 0) && (
+              <div className="break-inside-avoid mb-5 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden">
+                <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-[var(--color-brand)]" />
+                  <p className="text-xs font-bold text-[var(--color-text-primary)] uppercase tracking-wider">Para você, {currentMember.name.split(' ')[0]}</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {delayed.slice(0, 7).map(s => (
-                    <PostPill key={s.id} s={s} accent="border-red-100 hover:border-red-300" />
-                  ))}
-                  {delayed.length > 7 && (
-                    <button
-                      onClick={() => router.push('/dashboard/cronograma')}
-                      className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium px-2"
-                    >
-                      +{delayed.length - 7} mais <ArrowRight size={10} />
+
+                {myRejected.length > 0 && (
+                  <div className="px-5 py-3 border-b border-[var(--color-border)]">
+                    <p className="text-[10px] font-semibold text-orange-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <AlertTriangle size={10} /> {myRejected.length} precisam de ajuste
+                    </p>
+                    <div className="space-y-0.5">
+                      {renderSmartList(myRejected, 'rejected')}
+                    </div>
+                  </div>
+                )}
+
+                {myProductionQueue.length > 0 && (
+                  <div className="px-5 py-3 border-b border-[var(--color-border)]">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5" style={{ color: 'var(--ds-caution-accent)' }}>
+                      <Zap size={10} /> {myProductionQueue.length} em produção
+                    </p>
+                    <div className="space-y-0.5">
+                      {renderSmartList(myProductionQueue, 'my-prod')}
+                    </div>
+                  </div>
+                )}
+
+                {myPendingApproval.length > 0 && (
+                  <div className={`px-5 py-3 ${myExtras.length > 0 ? 'border-b border-[var(--color-border)]' : ''}`}>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5" style={{ color: 'var(--ds-info-accent)' }}>
+                      <CheckCircle2 size={10} /> {myPendingApproval.length} com cliente
+                    </p>
+                    <div className="space-y-0.5">
+                      {renderSmartList(myPendingApproval, 'my-approval')}
+                    </div>
+                  </div>
+                )}
+
+                {myExtras.length > 0 && (
+                  <div className="px-5 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5" style={{ color: 'var(--ds-purple-accent)' }}>
+                      <CheckSquare size={10} /> {myExtras.length} tarefa{myExtras.length !== 1 ? 's' : ''} pendente{myExtras.length !== 1 ? 's' : ''}
+                    </p>
+                    <div className="space-y-0.5">
+                      {myExtras.map(e => {
+                        const clientInfo = clientMap[e.client_id]
+                        const overdue = e.due_date && new Date(e.due_date + 'T23:59:59') < now
+                        return (
+                          <button
+                            key={e.id}
+                            onClick={() => e.client_id ? router.push(`/dashboard/clientes/${e.client_id}?tab=extras`) : router.push('/dashboard/kanban?tab=extras')}
+                            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[var(--color-bg-page)] transition-colors text-left group"
+                          >
+                            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: e.priority === 'high' ? '#ef4444' : e.priority === 'low' ? '#94a3b8' : '#6b7280' }} />
+                            <span className="flex-1 text-sm text-[var(--color-text-primary)] truncate">{e.title}</span>
+                            {clientInfo && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white flex-shrink-0" style={{ background: clientInfo.color_hex }}>{clientInfo.name}</span>
+                            )}
+                            {e.due_date && (
+                              <span className="text-[10px] flex-shrink-0" style={{ color: overdue ? 'var(--ds-error-text)' : 'var(--color-text-muted)' }}>
+                                {overdue ? '⚠ ' : ''}{new Date(e.due_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Fallback fila de produção */}
+            {!hasAssignments && isProducer && productionQueue.length > 0 && (
+              <div className="break-inside-avoid mb-5 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden">
+                <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center gap-2">
+                  <Zap size={13} style={{ color: 'var(--ds-caution-accent)' }} />
+                  <p className="text-xs font-bold text-[var(--color-text-primary)] uppercase tracking-wider">Fila de produção</p>
+                  <span className="ml-auto text-xs text-[var(--color-text-muted)]">{productionQueue.length} posts</span>
+                </div>
+                <div className="p-2 space-y-0.5">
+                  {renderSmartList(productionQueue, 'prod')}
+                </div>
+              </div>
+            )}
+
+            {/* Fallback aguardando aprovação */}
+            {!hasAssignments && isStrategist && pendingApproval.length > 0 && (
+              <div className="break-inside-avoid mb-5 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden">
+                <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center gap-2">
+                  <CheckCircle2 size={13} style={{ color: 'var(--ds-info-accent)' }} />
+                  <p className="text-xs font-bold text-[var(--color-text-primary)] uppercase tracking-wider">Aguardando aprovação</p>
+                  <span className="ml-auto text-xs text-[var(--color-text-muted)]">{pendingApproval.length} posts</span>
+                </div>
+                <div className="p-2 space-y-0.5">
+                  {renderSmartList(pendingApproval, 'approval')}
+                </div>
+              </div>
+            )}
+
+            {/* Alertas compactos */}
+            {hasAlerts && (
+              <div className="break-inside-avoid mb-5 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden">
+                <div className="px-4 py-3.5 border-b border-[var(--color-border)]">
+                  <p className="text-xs font-bold text-[var(--color-text-primary)] uppercase tracking-wider">Atenção</p>
+                </div>
+                <div className="divide-y divide-[var(--color-border)]">
+                  {delayed.length > 0 && (
+                    <button onClick={() => router.push('/dashboard/cronograma')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-bg-subtle)] transition-colors text-left">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--ds-error-bg)' }}><Clock size={13} style={{ color: 'var(--ds-error-accent)' }} /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-[var(--color-text-primary)]">{delayed.length} post{delayed.length !== 1 ? 's' : ''} vencido{delayed.length !== 1 ? 's' : ''}</p>
+                        <p className="text-[10px] text-[var(--color-text-muted)]">Data passou, não publicado</p>
+                      </div>
+                      <ChevronRight size={11} className="text-[var(--color-text-faint)] flex-shrink-0" />
+                    </button>
+                  )}
+                  {rejected.length > 0 && (
+                    <button onClick={() => router.push('/dashboard/aprovacao')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-bg-subtle)] transition-colors text-left">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--ds-warn-bg)' }}><AlertTriangle size={13} style={{ color: 'var(--ds-warn-accent)' }} /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-[var(--color-text-primary)]">{rejected.length} alteraç{rejected.length !== 1 ? 'ões' : 'ão'} solicitada{rejected.length !== 1 ? 's' : ''}</p>
+                        <p className="text-[10px] text-[var(--color-text-muted)]">Cliente pediu revisão</p>
+                      </div>
+                      <ChevronRight size={11} className="text-[var(--color-text-faint)] flex-shrink-0" />
+                    </button>
+                  )}
+                  {captacaoAlerts.vencida.length > 0 && (
+                    <button onClick={() => router.push('/dashboard/agenda')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-bg-subtle)] transition-colors text-left">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--ds-error-bg)' }}><Camera size={13} style={{ color: 'var(--ds-error-accent)' }} /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-[var(--color-text-primary)]">{captacaoAlerts.vencida.length} sem captação</p>
+                        <p className="text-[10px] text-[var(--color-text-muted)]">Sem captação recente ou futura</p>
+                      </div>
+                      <ChevronRight size={11} className="text-[var(--color-text-faint)] flex-shrink-0" />
+                    </button>
+                  )}
+                  {semAgendadaOnly.length > 0 && (
+                    <button onClick={() => router.push('/dashboard/agenda')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-bg-subtle)] transition-colors text-left">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--ds-purple-bg)' }}><Camera size={13} style={{ color: 'var(--ds-purple-accent)' }} /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-[var(--color-text-primary)]">{semAgendadaOnly.length} sem captação futura</p>
+                        <p className="text-[10px] text-[var(--color-text-muted)]">Nenhuma captação agendada</p>
+                      </div>
+                      <ChevronRight size={11} className="text-[var(--color-text-faint)] flex-shrink-0" />
+                    </button>
+                  )}
+                  {captacaoAlerts.postsAcabando.length > 0 && (
+                    <button onClick={() => router.push('/dashboard/cronograma')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-bg-subtle)] transition-colors text-left">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--ds-caution-bg)' }}><Zap size={13} style={{ color: 'var(--ds-caution-accent)' }} /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-[var(--color-text-primary)]">{captacaoAlerts.postsAcabando.length} com poucos posts</p>
+                        <p className="text-[10px] text-[var(--color-text-muted)]">Menos de 3 em produção</p>
+                      </div>
+                      <ChevronRight size={11} className="text-[var(--color-text-faint)] flex-shrink-0" />
                     </button>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Alterações solicitadas */}
-            {rejected.length > 0 && (
-              <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <AlertTriangle size={14} className="text-orange-500" />
-                  <p className="text-sm font-semibold text-orange-700">
-                    {rejected.length} post{rejected.length !== 1 ? 's' : ''} com alteração solicitada
-                  </p>
+            {/* Datas comemorativas */}
+            {specialDates.length > 0 && (
+              <div className="break-inside-avoid mb-5 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden">
+                <div className="px-4 py-3.5 border-b border-[var(--color-border)] flex items-center gap-2">
+                  <CalendarHeart size={13} className="text-[var(--color-text-muted)]" />
+                  <p className="text-xs font-bold text-[var(--color-text-primary)] uppercase tracking-wider">Datas próximas</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {rejected.slice(0, 7).map(s => (
-                    <PostPill key={s.id} s={s} accent="border-orange-100 hover:border-orange-300" />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Datas comemorativas urgentes */}
-            {urgentDates.length > 0 && (
-              <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Calendar size={14} className="text-amber-600" />
-                  <p className="text-sm font-semibold text-amber-700">
-                    Datas comemorativas chegando — hora de produzir
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {urgentDates.map(sd => {
+                <div className="divide-y divide-[var(--color-border)]">
+                  {specialDates.slice(0, 6).map(sd => {
                     const d    = new Date(sd.date + 'T12:00:00')
                     const diff = daysBetween(now, d)
                     const hot  = diff <= 7
                     return (
-                      <div
-                        key={sd.id}
-                        className={`flex items-center gap-2 bg-[var(--color-bg-card)] border rounded-xl px-3 py-2 ${hot ? 'border-red-200' : 'border-amber-100'}`}
-                      >
-                        <span className={`text-xs font-bold tabular-nums ${hot ? 'text-red-500' : 'text-amber-600'}`}>{diff}d</span>
-                        <span className="text-xs font-medium text-[var(--color-text-primary)]">{sd.name}</span>
-                        <span className="text-[10px] text-[var(--color-text-muted)]">
-                          {d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                        </span>
+                      <div key={sd.id} className="flex items-center gap-3 px-4 py-3">
+                        <div className="w-9 h-9 rounded-lg flex flex-col items-center justify-center flex-shrink-0" style={{ background: hot ? 'var(--ds-error-bg)' : 'var(--color-bg-page)' }}>
+                          <span className="text-sm font-bold leading-none" style={{ color: hot ? 'var(--ds-error-accent)' : 'var(--color-text-primary)' }}>{d.getDate()}</span>
+                          <span className="text-[9px] text-[var(--color-text-muted)] leading-none mt-0.5">{MONTHS[d.getMonth()].slice(0, 3)}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-[var(--color-text-primary)] truncate">{sd.name}</p>
+                          <p className="text-[10px] font-medium" style={{ color: hot ? 'var(--ds-error-accent)' : 'var(--color-text-muted)' }}>{diff === 0 ? 'hoje' : `em ${diff}d`}</p>
+                        </div>
                       </div>
                     )
                   })}
                 </div>
-              </div>
-            )}
-
-            {/* Captação vencida */}
-            {captacaoAlerts.vencida.length > 0 && (
-              <div className="bg-red-50 border border-red-100 rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Camera size={14} className="text-red-500" />
-                  <p className="text-sm font-semibold text-red-700">
-                    {captacaoAlerts.vencida.length} cliente{captacaoAlerts.vencida.length !== 1 ? 's' : ''} sem captação recente ou agendada
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {captacaoAlerts.vencida.map(cl => (
-                    <button key={cl.id} onClick={() => router.push(`/dashboard/clientes/${cl.id}`)}
-                      className="flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-red-100 hover:border-red-300 rounded-xl px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] transition-all">
-                      <span className="w-4 h-4 rounded flex items-center justify-center text-white text-[8px] font-bold" style={{ background: cl.color_hex }}>
-                        {getInitials(cl.name)}
-                      </span>
-                      {cl.name}
+                {specialDates.length > 6 && (
+                  <div className="px-4 py-3 border-t border-[var(--color-border)]">
+                    <button onClick={() => router.push('/dashboard/datas-especiais')} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-brand)] transition-colors">
+                      Ver todas →
                     </button>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Sem captação agendada (mas tem recente) */}
-            {captacaoAlerts.semAgendada.filter(cl => !captacaoAlerts.vencida.some(v => v.id === cl.id)).length > 0 && (
-              <div className="bg-purple-50 border border-purple-100 rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Camera size={14} className="text-purple-500" />
-                  <p className="text-sm font-semibold text-purple-700">
-                    Clientes sem captação futura agendada
-                  </p>
+            {/* Timeline próximos 7 dias */}
+            {upcoming7.length > 0 && (
+              <div className="break-inside-avoid mb-5 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden">
+                <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center gap-2">
+                  <Calendar size={13} className="text-[var(--color-text-muted)]" />
+                  <p className="text-xs font-bold text-[var(--color-text-primary)] uppercase tracking-wider">Próximos 7 dias</p>
+                  <span className="ml-auto text-xs text-[var(--color-text-muted)]">{upcoming7.length} posts</span>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {captacaoAlerts.semAgendada
-                    .filter(cl => !captacaoAlerts.vencida.some(v => v.id === cl.id))
-                    .map(cl => (
-                      <button key={cl.id} onClick={() => router.push(`/dashboard/agenda`)}
-                        className="flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-purple-100 hover:border-purple-300 rounded-xl px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] transition-all">
-                        <span className="w-4 h-4 rounded flex items-center justify-center text-white text-[8px] font-bold" style={{ background: cl.color_hex }}>
-                          {getInitials(cl.name)}
-                        </span>
-                        {cl.name}
-                      </button>
-                    ))}
-                </div>
-              </div>
-            )}
-
-            {/* Posts acabando */}
-            {captacaoAlerts.postsAcabando.length > 0 && (
-              <div className="bg-yellow-50 border border-yellow-100 rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Zap size={14} className="text-yellow-600" />
-                  <p className="text-sm font-semibold text-yellow-700">
-                    {captacaoAlerts.postsAcabando.length} cliente{captacaoAlerts.postsAcabando.length !== 1 ? 's' : ''} com poucos posts em produção
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {captacaoAlerts.postsAcabando.map(cl => (
-                    <button key={cl.id} onClick={() => router.push(`/dashboard/clientes/${cl.id}`)}
-                      className="flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-yellow-100 hover:border-yellow-300 rounded-xl px-3 py-2 text-xs font-medium text-[var(--color-text-primary)] transition-all">
-                      <span className="w-4 h-4 rounded flex items-center justify-center text-white text-[8px] font-bold" style={{ background: cl.color_hex }}>
-                        {getInitials(cl.name)}
-                      </span>
-                      {cl.name}
-                    </button>
-                  ))}
+                <div className="p-2 space-y-0.5">
+                  {upcoming7.length <= 3
+                    ? upcoming7.map(s => {
+                        const d = s.scheduled_date ? new Date(s.scheduled_date + 'T12:00:00') : null
+                        const isToday = s.scheduled_date === todayStr
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => navigateToPost(s)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--color-bg-page)] transition-colors text-left group"
+                          >
+                            <div className={`w-9 h-9 rounded-lg flex flex-col items-center justify-center flex-shrink-0 ${isToday ? 'bg-[var(--color-brand)]' : 'bg-[var(--color-bg-page)] border border-[var(--color-border)]'}`}>
+                              {d ? <>
+                                <span className={`text-xs font-bold leading-none ${isToday ? 'text-white' : 'text-[var(--color-text-primary)]'}`}>{d.getDate()}</span>
+                                <span className={`text-[9px] leading-none mt-0.5 ${isToday ? 'text-white/70' : 'text-[var(--color-text-muted)]'}`}>{MONTHS[d.getMonth()].slice(0, 3)}</span>
+                              </> : <span className="text-[10px] text-[var(--color-text-muted)]">—</span>}
+                            </div>
+                            <ClientAvatar clientId={s.client_id} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{s.title || 'Sem título'}</p>
+                              <p className="text-xs text-[var(--color-text-muted)]">{clientMap[s.client_id]?.name} · {s.post_type}</p>
+                            </div>
+                            <span className={`text-[10px] font-semibold px-2 py-1 rounded-lg flex-shrink-0 ${STATUS_COLOR[s.status] || ''}`}>{STATUS_LABEL[s.status] || s.status}</span>
+                            <ChevronRight size={12} className="text-[var(--color-text-faint)] group-hover:text-[var(--color-text-muted)] flex-shrink-0" />
+                          </button>
+                        )
+                      })
+                    : renderSmartList(upcoming7, 'upcoming')
+                  }
                 </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* ── Métricas ────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-6 gap-4">
-          {metrics.map(m => (
-            <div key={m.label} className="bg-[var(--color-bg-card)] rounded-2xl p-5 border border-[var(--color-border)]">
-              <p className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-3">{m.label}</p>
-              <p className="text-4xl font-bold tracking-tight" style={{ color: m.color }}>{m.value}</p>
-            </div>
-          ))}
         </div>
-
-        {/* ── Timeline — próximos 7 dias ──────────────────────────────────── */}
-        {upcoming7.length > 0 && (
-          <div className="bg-[var(--color-bg-card)] rounded-2xl p-6 border border-[var(--color-border)]">
-            <div className="flex items-center justify-between mb-5">
-              <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Próximos 7 dias</p>
-              <span className="text-xs text-[var(--color-text-muted)]">
-                {upcoming7.length} post{upcoming7.length !== 1 ? 's' : ''} agendado{upcoming7.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-            <div className="space-y-1">
-              {upcoming7.map(s => {
-                const client  = clientMap[s.client_id]
-                const d       = s.scheduled_date ? new Date(s.scheduled_date + 'T12:00:00') : null
-                const isToday = s.scheduled_date === todayStr
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => navigateToPost(s)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--color-bg-page)] transition-colors text-left group"
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center flex-shrink-0 ${isToday ? 'bg-[var(--color-brand)]' : 'bg-[var(--color-bg-page)] border border-[var(--color-border)]'}`}>
-                      {d ? (
-                        <>
-                          <span className={`text-sm font-bold leading-none ${isToday ? 'text-white' : 'text-[var(--color-text-primary)]'}`}>{d.getDate()}</span>
-                          <span className={`text-[9px] leading-none mt-0.5 ${isToday ? 'text-white/60' : 'text-[var(--color-text-muted)]'}`}>{MONTHS[d.getMonth()].slice(0, 3)}</span>
-                        </>
-                      ) : <span className="text-[10px] text-[var(--color-text-muted)]">—</span>}
-                    </div>
-                    <ClientAvatar clientId={s.client_id} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{s.title || 'Sem título'}</p>
-                      <p className="text-xs text-[var(--color-text-muted)]">{client?.name} · {s.post_type}</p>
-                    </div>
-                    <span className={`text-[10px] font-semibold px-2 py-1 rounded-lg ${STATUS_COLOR[s.status] || 'bg-[var(--color-bg-page)] text-[var(--color-text-secondary)]'}`}>
-                      {STATUS_LABEL[s.status] || s.status}
-                    </span>
-                    <ChevronRight size={14} className="text-[#EBEAE5] group-hover:text-[var(--color-text-muted)] transition-colors flex-shrink-0" />
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ── Fila de produção (designers/editores/fotógrafos) ─────────────── */}
-        {isProducer && productionQueue.length > 0 && (
-          <div className="bg-[var(--color-bg-card)] rounded-2xl p-6 border border-[var(--color-border)]">
-            <div className="flex items-center gap-2 mb-5">
-              <Zap size={14} className="text-amber-500" />
-              <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Sua fila de produção</p>
-              <span className="ml-auto text-xs text-[var(--color-text-muted)]">{productionQueue.length} posts</span>
-            </div>
-            <div className="space-y-1">
-              {productionQueue.slice(0, 10).map((s, i) => {
-                const client = clientMap[s.client_id]
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => navigateToPost(s)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--color-bg-page)] transition-colors text-left group"
-                  >
-                    <span className="text-xs font-bold text-[var(--color-text-faint)] w-5 text-center tabular-nums">{i + 1}</span>
-                    <ClientAvatar clientId={s.client_id} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{s.title || 'Sem título'}</p>
-                      <p className="text-xs text-[var(--color-text-muted)]">
-                        {client?.name}
-                        {s.scheduled_date ? ` · ${new Date(s.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}` : ''}
-                      </p>
-                    </div>
-                    <span className={`text-[10px] font-semibold px-2 py-1 rounded-lg ${STATUS_COLOR[s.status] || 'bg-[var(--color-bg-page)] text-[var(--color-text-secondary)]'}`}>
-                      {STATUS_LABEL[s.status]}
-                    </span>
-                    <ChevronRight size={14} className="text-[#EBEAE5] group-hover:text-[var(--color-text-muted)] flex-shrink-0" />
-                  </button>
-                )
-              })}
-              {productionQueue.length > 10 && (
-                <p className="text-xs text-[var(--color-text-muted)] px-3 pt-1">+{productionQueue.length - 10} posts na fila</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Aguardando aprovação (estrategistas/social) ──────────────────── */}
-        {isStrategist && pendingApproval.length > 0 && (
-          <div className="bg-[var(--color-bg-card)] rounded-2xl p-6 border border-[var(--color-border)]">
-            <div className="flex items-center gap-2 mb-5">
-              <CheckCircle2 size={14} className="text-blue-500" />
-              <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Aguardando aprovação dos clientes</p>
-              <span className="ml-auto text-xs text-[var(--color-text-muted)]">{pendingApproval.length} posts</span>
-            </div>
-            <div className="space-y-1">
-              {pendingApproval.map(s => {
-                const client = clientMap[s.client_id]
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => navigateToPost(s)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--color-bg-page)] transition-colors text-left group"
-                  >
-                    <ClientAvatar clientId={s.client_id} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{s.title || 'Sem título'}</p>
-                      <p className="text-xs text-[var(--color-text-muted)]">{client?.name}</p>
-                    </div>
-                    <ChevronRight size={14} className="text-[#EBEAE5] group-hover:text-[var(--color-text-muted)] flex-shrink-0" />
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
 
         {/* ── Grid de clientes ─────────────────────────────────────────────── */}
         <div>
@@ -625,24 +741,24 @@ export default function DashboardPage() {
                     <span className="text-xs text-[var(--color-text-muted)]">{cpPub}/{cpTotal} publicados</span>
                     <div className="flex items-center gap-1 flex-wrap justify-end">
                       {cpDelayed > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-red-50 text-red-500 font-semibold">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
                           {cpDelayed} atrasado{cpDelayed !== 1 ? 's' : ''}
                         </span>
                       )}
                       {cpRej > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-orange-50 text-orange-500 font-semibold">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>
                           {cpRej} ajuste{cpRej !== 1 ? 's' : ''}
                         </span>
                       )}
                       {noReels && !hasIssue && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-500 font-medium">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium" style={{ background: 'var(--ds-purple-bg)', color: 'var(--ds-purple-text)' }}>
                           sem reel
                         </span>
                       )}
                       {cpTotal === 0 ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--color-bg-page)] text-[var(--color-text-muted)]">sem posts</span>
                       ) : allDone ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-green-50 text-green-600 font-semibold">✓ ok</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ ok</span>
                       ) : !hasIssue && !noReels ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--color-bg-page)] text-[var(--color-text-secondary)]">em andamento</span>
                       ) : null}

@@ -80,21 +80,26 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   // Client filter (global mode)
   const [filterClient, setFilterClient] = useState<string>('all')
 
+  // Drag and drop
+  const [draggingId,   setDraggingId]   = useState<string | null>(null)
+  const [dragOverCol,  setDragOverCol]  = useState<ExtraStatus | null>(null)
+
   async function load() {
     setLoading(true)
     let q = supabase
       .from('extras')
-      .select('*, clients(name, color_hex), team_members(name)')
+      .select('*')
       .order('created_at', { ascending: true })
     if (clientId) q = q.eq('client_id', clientId)
 
-    const { data } = await q
+    const { data, error } = await q
+    if (error) console.error('ExtrasKanban load error:', error)
     if (data) setExtras(data as Extra[])
 
-    if (globalMode) {
-      const { data: cl } = await supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name')
-      if (cl) setClients(cl)
-    }
+    // Always load clients for name lookup (even in non-global mode)
+    const { data: cl } = await supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name')
+    if (cl) setClients(cl)
+
     setLoading(false)
   }
 
@@ -102,7 +107,8 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
 
   async function moveStatus(id: string, status: ExtraStatus) {
     setExtras(prev => prev.map(e => e.id === id ? { ...e, status } : e))
-    await supabase.from('extras').update({ status }).eq('id', id)
+    const { error } = await supabase.from('extras').update({ status }).eq('id', id)
+    if (error) console.error('moveStatus error:', error)
   }
 
   function handleSaved(extra: Extra) {
@@ -119,6 +125,8 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
     setOpenExtraId(null)
     setNewStatus(null)
   }
+
+  const clientMap = Object.fromEntries(clients.map(c => [c.id, c]))
 
   const filtered = extras.filter(e => {
     if (!globalMode) return true
@@ -160,11 +168,20 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
       <div className="grid grid-cols-3 gap-5">
         {COLUMNS.map(col => {
           const colExtras = filtered.filter(e => e.status === col.key)
-          const nextCol   = COLUMNS[COLUMNS.findIndex(c => c.key === col.key) + 1]
-          const prevCol   = COLUMNS[COLUMNS.findIndex(c => c.key === col.key) - 1]
+          const isDragTarget = dragOverCol === col.key && draggingId !== null
 
           return (
-            <div key={col.key} className="flex flex-col gap-2">
+            <div key={col.key} className="flex flex-col gap-2"
+              onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null) }}
+              onDrop={e => {
+                e.preventDefault()
+                const id = e.dataTransfer.getData('extraId')
+                if (id && col.key !== extras.find(x => x.id === id)?.status) moveStatus(id, col.key)
+                setDraggingId(null)
+                setDragOverCol(null)
+              }}
+            >
               {/* Column header */}
               <div className="flex items-center justify-between py-1">
                 <div className="flex items-center gap-2">
@@ -184,20 +201,30 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
               </div>
 
               {/* Cards */}
-              <div className="flex flex-col gap-2 min-h-[80px]">
+              <div className={`flex flex-col gap-2 min-h-[80px] rounded-xl transition-colors ${isDragTarget ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
                 {colExtras.map(extra => {
                   const TypeIcon = TYPE_CONFIG[extra.type].icon
                   const overdue  = isOverdue(extra.due_date, extra.status)
                   const memberNames = extra.assigned_members
                     ? members.filter(m => extra.assigned_members!.includes(m.id)).map(m => m.name.split(' ')[0])
                     : []
+                  const isDragging = draggingId === extra.id
 
                   return (
                     <div
                       key={extra.id}
-                      onClick={() => setOpenExtraId(extra.id)}
-                      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 cursor-pointer hover:shadow-md hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 relative"
-                      style={{ borderLeft: `3px solid ${PRIORITY_BORDER[extra.priority]}` }}
+                      draggable
+                      onDragStart={e => {
+                        e.dataTransfer.setData('extraId', extra.id)
+                        setDraggingId(extra.id)
+                      }}
+                      onDragEnd={() => { setDraggingId(null); setDragOverCol(null) }}
+                      onClick={() => { if (!draggingId) setOpenExtraId(extra.id) }}
+                      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 relative"
+                      style={{
+                        borderLeft: `3px solid ${PRIORITY_BORDER[extra.priority]}`,
+                        opacity: isDragging ? 0.4 : 1,
+                      }}
                     >
                       {/* Labels strip */}
                       {extra.labels && extra.labels.length > 0 && (
@@ -233,7 +260,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                       {/* Meta row */}
                       <div className="flex flex-wrap items-center gap-2 mt-2 ml-5">
                         {extra.due_date && (
-                          <span className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${overdue ? 'bg-red-50 text-red-500' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>
+                          <span className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${overdue ? '' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`} style={overdue ? { background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' } : {}}>
                             {overdue && <AlertCircle size={9} />}
                             <Calendar size={9} />
                             {formatDue(extra.due_date)}
@@ -245,27 +272,14 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                             {memberNames.join(', ')}
                           </span>
                         )}
-                        {globalMode && extra.clients && (
+                        {globalMode && extra.client_id && clientMap[extra.client_id] && (
                           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white"
-                            style={{ background: extra.clients.color_hex }}>
-                            {extra.clients.name}
+                            style={{ background: clientMap[extra.client_id].color_hex }}>
+                            {clientMap[extra.client_id].name}
                           </span>
                         )}
                         {globalMode && !extra.client_id && (
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]">Global</span>
-                        )}
-                      </div>
-
-                      {/* Quick move arrows — visible on hover */}
-                      <div className="absolute top-2 right-2 hidden group-hover:flex items-center gap-1"
-                        onClick={e => e.stopPropagation()}>
-                        {prevCol && (
-                          <button onClick={() => moveStatus(extra.id, prevCol.key)}
-                            className="w-5 h-5 rounded bg-[var(--color-bg-subtle)] hover:bg-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] transition-colors text-[10px]">←</button>
-                        )}
-                        {nextCol && (
-                          <button onClick={() => moveStatus(extra.id, nextCol.key)}
-                            className="w-5 h-5 rounded bg-[var(--color-bg-subtle)] hover:bg-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] transition-colors text-[10px]">→</button>
                         )}
                       </div>
                     </div>
@@ -273,7 +287,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                 })}
 
                 {/* Empty state per column */}
-                {colExtras.length === 0 && (
+                {colExtras.length === 0 && !isDragTarget && (
                   <button
                     onClick={() => setNewStatus(col.key)}
                     className="flex items-center justify-center gap-1.5 text-xs text-[var(--color-text-faint)] hover:text-[var(--color-text-muted)] py-6 border border-dashed border-[var(--color-border)] rounded-xl hover:border-[var(--color-border-hover)] transition-colors w-full"

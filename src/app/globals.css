@@ -27,3 +27,16 @@
 
 /* Page-level content fade */
 .page-content { animation: fadeUp 0.2s ease-out both; }
+
+/* ── Date/time input icon color follows theme ────────────────────────────── */
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="time"],
+[data-theme="dark"] input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+/* ── Border-radius scale ─────────────────────────────────────────────────── */
+.rounded-lg   { border-radius: 0.625rem; }  /* 10px  (era 8px)  */
+.rounded-xl   { border-radius: 0.875rem; }  /* 14px  (era 12px) */
+.rounded-2xl  { border-radius: 1.25rem;  }  /* 20px  (era 16px) */
+.rounded-3xl  { border-radius: 1.75rem;  }  /* 28px  (era 24px) */

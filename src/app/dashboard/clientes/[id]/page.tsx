@@ -9,8 +9,10 @@ import { logActivity } from '@/lib/activity'
 import CampaignsTab from '@/components/CampaignsTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
 import PostFormModal from '@/components/PostFormModal'
+import PostCard from '@/components/PostCard'
 import ExtrasKanban from '@/components/ExtrasKanban'
 import ActivityLog from '@/components/ActivityLog'
+import OnboardingTab from '@/components/OnboardingTab'
 
 type Client = {
   id: string; name: string; color_hex: string; logo_url: string
@@ -22,15 +24,15 @@ type Post = {
   id: string; post_number: number; title: string; copy: string
   post_type: string; scheduled_date: string; status: string
   approval_status: string; approval_comment: string
-  drive_url: string; reference_notes: string
+  drive_url: string; reference_notes: string; funil: string; campaign_type: string
 }
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
-const typeColor: Record<string,string> = { 'reels':'bg-red-100 text-red-700','carrossel':'bg-blue-100 text-blue-700','story':'bg-purple-100 text-purple-700','carrossel_stories':'bg-indigo-100 text-indigo-700','post':'bg-amber-100 text-amber-700' }
-const statusColor: Record<string,string> = { 'publicado':'bg-green-50 text-green-600','aprovado':'bg-blue-50 text-blue-600','agendado':'bg-teal-50 text-teal-600','aguardando_aprovacao':'bg-pink-50 text-pink-600','revisao_interna':'bg-purple-50 text-purple-600','producao':'bg-yellow-50 text-yellow-700','pendente':'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]' }
+const typeColor: Record<string,string> = { 'reels':'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]','carrossel':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','story':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','carrossel_stories':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','post':'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]' }
+const statusColor: Record<string,string> = { 'publicado':'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]','aprovado':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','agendado':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','aguardando_aprovacao':'bg-[var(--ds-warn-bg)] text-[var(--ds-warn-text)]','revisao_interna':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','producao':'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]','pendente':'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]' }
 const STATUS_LABEL: Record<string,string> = { producao:'Produção', revisao_interna:'Revisão', aguardando_aprovacao:'Aguardando aprovação', aprovado:'Aprovado', agendado:'Agendado', publicado:'Publicado' }
 const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'Carrossel/Stories' }
-const approvalColor: Record<string,string> = { 'aprovado':'bg-green-50 text-green-600','não aprovado':'bg-red-50 text-red-500' }
+const approvalColor: Record<string,string> = { 'aprovado':'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]','não aprovado':'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]' }
 const FUNCAO_LABEL: Record<string,string> = { videos:'Editor', posts:'Designer', estrategia:'Estratégia', social:'Social Media', acompanha:'Acompanha', outro:'Outro' }
 function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }
 
@@ -50,19 +52,14 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   }
   const [selectedYear] = useState(new Date().getFullYear())
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<Post | null>(null)
   const [viewMode, setViewMode] = useState<'list'|'grid'>('list')
-  const [editing, setEditing] = useState(false)
-  const [editForm, setEditForm] = useState<any>({})
-  const [saving, setSaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [menuOpen, setMenuOpen] = useState<string | null>(null)
-  const [statusOpen, setStatusOpen] = useState<string | null>(null)
   const [team, setTeam] = useState<any[]>([])
   const [allMembers, setAllMembers] = useState<any[]>([])
   const [showAddMember, setShowAddMember] = useState(false)
   const [showNewPost, setShowNewPost] = useState(false)
+  const [showPostCard, setShowPostCard] = useState(false)
+  const [editingPostId, setEditingPostId] = useState<string | null>(null)
+  const [campaigns, setCampaigns] = useState<{ id: string; name: string; type: string }[]>([])
   const [materials,    setMaterials]    = useState<any[]>([])
   const [matCounts,    setMatCounts]    = useState<Record<string,any>>({})
   const [cardOpen,     setCardOpen]     = useState<string | 'new' | null>(null)
@@ -86,7 +83,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
       const postParam = searchParams.get('post')
       if (postParam && postData) {
         const found = postData.find((p: any) => p.id === postParam)
-        if (found) setSelected(found)
+        if (found) { setEditingPostId(found.id); setShowPostCard(true) }
       }
       const { data: membersData } = await supabase.from('team_members').select('id, name, role').order('name')
       const { data: teamData } = await supabase.from('client_team').select('id, funcao, member_id').eq('client_id', id)
@@ -97,6 +94,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
       }))
       setTeam(enriched)
       setAllMembers(membersData || [])
+      const { data: campaignsData } = await supabase.from('campaigns').select('id, name, type').eq('client_id', id)
+      setCampaigns(campaignsData || [])
       const { data: matData } = await supabase.from('materials').select('*').eq('client_id', id).order('created_at', { ascending: false })
       setMaterials(matData || [])
       const [{ data: chk }, { data: cms }, { data: atts }] = await Promise.all([
@@ -115,72 +114,13 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
     load()
   }, [id, selectedMonth, selectedYear])
 
-  async function quickStatus(postId: string, newStatus: string) {
-    const supabase = createClient()
-    const post = posts.find(p => p.id === postId)
-    const oldLabel = STATUS_LABEL[post?.status || ''] || post?.status || ''
-    const newLabel = STATUS_LABEL[newStatus] || newStatus
-    await supabase.from('schedules').update({ status: newStatus }).eq('id', postId)
-    setPosts(ps => ps.map(p => p.id === postId ? { ...p, status: newStatus } : p))
-    setStatusOpen(null)
-    await logActivity({ tableName: 'schedules', recordId: postId, clientId: id, action: 'status_changed', field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Post "${post?.title || 'sem título'}": ${oldLabel} → ${newLabel}` })
-  }
-
-  async function quickDelete(postId: string) {
-    const supabase = createClient()
-    await supabase.from('schedules').delete().eq('id', postId)
-    setPosts(ps => ps.filter(p => p.id !== postId))
-    if (selected?.id === postId) setSelected(null)
-    setMenuOpen(null)
-  }
-
   async function quickDuplicate(post: any) {
     const supabase = createClient()
     const { id: _, ...rest } = post
     await supabase.from('schedules').insert({ ...rest, post_number: posts.length + 1, title: post.title + ' (cópia)', approval_status: 'pendente' })
     reloadPosts()
-    setMenuOpen(null)
   }
 
-  function quickEdit(post: any) {
-    setSelected(post)
-    setMenuOpen(null)
-    setTimeout(() => startEdit(post), 50)
-  }
-
-  function startEdit(post?: any) {
-    const p = post || selected
-    if (!p) return
-    setEditForm({
-      title: p.title || '', copy: p.copy || '', post_type: p.post_type || 'reels',
-      status: p.status || 'producao', scheduled_date: p.scheduled_date || '',
-      drive_url: p.drive_url || '', reference_notes: p.reference_notes || '',
-      funil: p.funil || '',
-    })
-    setEditing(true)
-  }
-
-  async function saveEdit() {
-    if (!selected || !editForm.title?.trim()) return
-    setSaving(true)
-    const supabase = createClient()
-    await supabase.from('schedules').update({ ...editForm, scheduled_date: editForm.scheduled_date || null }).eq('id', selected.id)
-    setSaving(false)
-    setEditing(false)
-    setSelected((prev: any) => prev ? { ...prev, ...editForm } : null)
-    reloadPosts()
-  }
-
-  async function deletePost() {
-    if (!selected) return
-    setDeleting(true)
-    const supabase = createClient()
-    await supabase.from('schedules').delete().eq('id', selected.id)
-    setDeleting(false)
-    setConfirmDelete(false)
-    setSelected(null)
-    reloadPosts()
-  }
 
   async function reloadMaterials() {
     const supabase = createClient()
@@ -290,24 +230,24 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 <h1 className="text-[var(--color-text-primary)] font-semibold text-xl">{client.name}</h1>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-xs text-[var(--color-text-muted)]">{posts.length} posts · {MONTHS[selectedMonth-1]} {selectedYear}</span>
-                  {notApproved > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">✗ {notApproved} não aprovado{notApproved>1?'s':''}</span>}
-                  {approved > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600">✓ {approved} aprovado{approved>1?'s':''}</span>}
+                  {notApproved > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>✗ {notApproved} não aprovado{notApproved>1?'s':''}</span>}
+                  {approved > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ {approved} aprovado{approved>1?'s':''}</span>}
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]">{published}/{posts.length} publicados</span>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">📸 Instagram</a>}
-              {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">📚 Manual</a>}
-              {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">📁 Drive</a>}
-              <button onClick={openEditClient} className="border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">✏️ Editar</button>
-              <button onClick={() => setShowNewPost(true)} className="bg-[var(--color-text-primary)] text-white rounded-lg px-4 py-2 text-sm font-medium">+ Novo post</button>
+              {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Instagram</a>}
+              {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Manual</a>}
+              {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Drive</a>}
+              <button onClick={openEditClient} className="border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Editar</button>
+              <button onClick={() => setShowNewPost(true)} className="bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-xl px-4 py-2 text-sm font-medium">+ Novo post</button>
             </div>
           </div>
 
           <div className="flex items-center gap-1 mt-5">
-            {[{key:'cronograma',label:'📅 Cronograma'},{key:'feed',label:'🖼 Feed'},{key:'materiais',label:'📦 Materiais'},{key:'campanhas',label:'📣 Campanhas'},{key:'time',label:'👥 Time'},{key:'extras',label:'📋 Extras'},{key:'drive',label:'📁 Drive'},{key:'historico',label:'🕓 Histórico'}].map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab===t.key?'bg-[var(--color-text-primary)] text-white':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
+            {[{key:'cronograma',label:'Cronograma'},{key:'feed',label:'Feed'},{key:'materiais',label:'Materiais'},{key:'campanhas',label:'Campanhas'},{key:'time',label:'Time'},{key:'extras',label:'Extras'},{key:'onboarding',label:'Onboarding'},{key:'drive',label:'Drive'},{key:'historico',label:'Histórico'}].map(t => (
+              <button key={t.key} onClick={() => setTab(t.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab===t.key?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
             ))}
           </div>
         </div>
@@ -319,8 +259,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 <p className="text-sm text-[var(--color-text-secondary)]">{posts.length} posts em {MONTHS[selectedMonth-1]}</p>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
-                    <button onClick={() => setViewMode('list')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-white':'text-[var(--color-text-muted)]'}`}>Lista</button>
-                    <button onClick={() => setViewMode('grid')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-white':'text-[var(--color-text-muted)]'}`}>Cards</button>
+                    <button onClick={() => setViewMode('list')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
+                    <button onClick={() => setViewMode('grid')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
                   </div>
                   <div className="flex items-center gap-1">
                     <button onClick={() => setSelectedMonth(m => m===1?12:m-1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
@@ -342,73 +282,89 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   <button onClick={() => setShowNewPost(true)}
                     className="flex items-center gap-2 font-semibold px-6 py-3 rounded-xl text-sm transition-opacity hover:opacity-90 shadow-sm text-white"
                     style={{ background: client?.color_hex || 'var(--color-brand)' }}>
-                    ✏️ Criar primeiro post
+                    Criar primeiro post
                   </button>
                 </div>
               ) : viewMode === 'list' ? (
                 <div className="flex flex-col gap-2">
-                  {posts.map(post => (
-                    <button key={post.id} onClick={() => setSelected(selected?.id===post.id?null:post)}
-                      className={`w-full text-left bg-[var(--color-bg-card)] border rounded-xl px-4 py-3 flex items-center gap-4 hover:shadow-sm transition-all ${selected?.id===post.id?'border-[var(--color-text-primary)]':'border-[var(--color-border)]'}`}
-                      style={{borderLeftWidth:3,borderLeftColor:selected?.id===post.id?client.color_hex:'transparent'}}>
-                      <span className="text-xs font-bold text-[var(--color-text-muted)] w-8">#{post.post_number}</span>
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full w-28 text-center flex-shrink-0 ${typeColor[post.post_type]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{TYPE_LABEL[post.post_type]||post.post_type||'—'}</span>
-                      <span className="text-sm font-medium text-[var(--color-text-primary)] flex-1 truncate">{post.title}</span>
-                      <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0">{post.scheduled_date?new Date(post.scheduled_date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}):'—'}</span>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {post.approval_status&&post.approval_status!=='pendente'&&<span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${approvalColor[post.approval_status]||''}`}>{post.approval_status==='aprovado'?'✓':'✗'}</span>}
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{STATUS_LABEL[post.status]||post.status}</span>
-                      </div>
-                    </button>
-                  ))}
+                  {posts.map(post => {
+                    const campaign = campaigns.find(c => c.type === post.campaign_type)
+                    return (
+                      <button key={post.id} onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
+                        className="w-full text-left bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl px-4 py-3 flex items-center gap-4 hover:border-[var(--color-border-hover)] transition-all"
+                        style={{ borderLeftWidth: 3, borderLeftColor: client.color_hex }}>
+                        <span className="text-xs font-bold text-[var(--color-text-muted)] w-8">#{post.post_number}</span>
+                        <span className={`text-xs font-semibold px-2 py-1 rounded-full w-28 text-center flex-shrink-0 ${typeColor[post.post_type]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{TYPE_LABEL[post.post_type]||post.post_type||'—'}</span>
+                        <span className="text-sm font-medium text-[var(--color-text-primary)] flex-1 truncate">{post.title}</span>
+                        {campaign && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
+                        <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0">{post.scheduled_date?new Date(post.scheduled_date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}):'—'}</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {post.approval_status==='não aprovado'&&<span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>✗</span>}
+                          {post.approval_status==='aprovado'&&<span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓</span>}
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{STATUS_LABEL[post.status]||post.status}</span>
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-4">
-                  {posts.map(post => (
-                    <button key={post.id} onClick={() => setSelected(selected?.id===post.id?null:post)}
-                      className={`group text-left bg-[var(--color-bg-card)] border rounded-2xl p-5 flex flex-col gap-3 hover:shadow-md transition-all ${selected?.id===post.id?'border-transparent':'border-[var(--color-border)]'}`}
-                      style={selected?.id===post.id?{boxShadow:`0 0 0 2px ${client.color_hex}`}:{}}>
-                      <div className="flex items-center justify-between relative">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-[var(--color-text-faint)]">#{post.post_number}</span>
-                          <span className={`text-sm font-bold px-3 py-1 rounded-lg ${typeColor[post.post_type]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{TYPE_LABEL[post.post_type]||post.post_type||'—'}</span>
-                        </div>
-                        <span onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen===post.id?null:post.id) }} className="w-6 h-6 rounded-md hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity" title="Ações">⋯</span>
-                        {menuOpen===post.id && (
-                          <>
-                            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setMenuOpen(null) }} />
-                            <div className="absolute right-0 top-8 z-50 bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] py-1 w-36" onClick={e => e.stopPropagation()}>
-                              <button onClick={() => quickEdit(post)} className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] flex items-center gap-2">✏️ Editar</button>
-                              <button onClick={() => quickDuplicate(post)} className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] flex items-center gap-2">📋 Duplicar</button>
-                              <button onClick={() => quickDelete(post.id)} className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 flex items-center gap-2">🗑️ Excluir</button>
+                <div className="grid grid-cols-2 gap-4">
+                  {posts.map(post => {
+                    const typeLabel = TYPE_LABEL[post.post_type] || post.post_type
+                    const accent = { reels:'#ef4444', carrossel:'#3b82f6', post:'#f59e0b', story:'#8b5cf6', carrossel_stories:'#6366f1' }[post.post_type] || 'var(--color-border)'
+                    const isRejected = post.approval_status === 'não aprovado'
+                    const isApproved = post.approval_status === 'aprovado'
+                    const campaign = campaigns.find(c => c.type === post.campaign_type)
+                    return (
+                      <div key={post.id}
+                        className={`group text-left bg-[var(--color-bg-card)] border rounded-2xl flex flex-col cursor-pointer transition-all overflow-hidden
+                          ${isRejected ? 'border-[var(--ds-error-border)]' : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'}`}
+                        onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}>
+                        <div className="h-[3px] w-full flex-shrink-0" style={{ background: accent }} />
+                        <div className="p-5 flex flex-col gap-4 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-[var(--color-text-faint)]">#{post.post_number}</span>
+                              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${typeColor[typeLabel]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{typeLabel}</span>
+                              {post.funil && <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">{post.funil}</span>}
+                              {campaign && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
                             </div>
-                          </>
-                        )}
-                      </div>
-                      <p className="text-[var(--color-text-primary)] font-semibold text-base leading-snug line-clamp-2">{post.title}</p>
-                      {post.copy && <p className="text-[var(--color-text-muted)] text-xs leading-relaxed line-clamp-3">{post.copy}</p>}
-                      {(post as any).funil && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] w-fit">{(post as any).funil}</span>}
-                      {post.drive_url && <a href={post.drive_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-[11px] text-blue-600 hover:underline truncate"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span className="truncate">Link do Drive</span></a>}
-                      {post.reference_notes && <p className="text-[10px] text-[var(--color-text-faint)] leading-relaxed line-clamp-2 italic">Ref: {post.reference_notes}</p>}
-                      <div className="flex items-center justify-between mt-auto pt-2 border-t border-[var(--color-bg-subtle)]">
-                        <span className="text-xs text-[var(--color-text-muted)]">{post.scheduled_date?new Date(post.scheduled_date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}):'Sem data'}</span>
-                        <div className="flex items-center gap-1.5 relative">
-                          {post.approval_status&&post.approval_status!=='pendente'&&<span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${approvalColor[post.approval_status]||''}`}>{post.approval_status==='aprovado'?'✓':'✗'}</span>}
-                          <span onClick={(e) => { e.stopPropagation(); setStatusOpen(statusOpen===post.id?null:post.id) }} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full cursor-pointer hover:ring-1 hover:ring-[var(--color-border-strong)] ${statusColor[post.status]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{STATUS_LABEL[post.status]||post.status}</span>
-                          {statusOpen===post.id && (
-                            <>
-                              <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setStatusOpen(null) }} />
-                              <div className="absolute right-0 bottom-7 z-50 bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] py-1 w-44" onClick={e => e.stopPropagation()}>
-                                {Object.entries(STATUS_LABEL).map(([v,l]) => (
-                                  <button key={v} onClick={() => quickStatus(post.id, v)} className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--color-bg-subtle)] ${post.status===v?'font-semibold text-[var(--color-text-primary)]':'text-[var(--color-text-secondary)]'}`}>{l}</button>
-                                ))}
-                              </div>
-                            </>
+                            <button onClick={e => { e.stopPropagation(); quickDuplicate(post) }} title="Duplicar"
+                              className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-xl bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] flex items-center justify-center transition-all text-[var(--color-text-muted)] flex-shrink-0 text-xs">
+                              ⧉
+                            </button>
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-bold text-[var(--color-text-primary)] text-[15px] leading-snug line-clamp-2">{post.title || 'Sem título'}</p>
+                            {post.copy && <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-2 line-clamp-3">{post.copy}</p>}
+                          </div>
+                          {isRejected && post.approval_comment && (
+                            <div className="rounded-xl px-3 py-2 text-xs italic leading-snug" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+                              "{post.approval_comment}"
+                            </div>
                           )}
+                          <div className="flex items-center justify-between pt-3 border-t border-[var(--color-border)] gap-2 mt-auto">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-[var(--color-text-muted)]">
+                                {post.scheduled_date ? new Date(post.scheduled_date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) : 'Sem data'}
+                              </span>
+                              {post.drive_url && (
+                                <a href={post.drive_url} onClick={e => e.stopPropagation()} target="_blank" rel="noopener noreferrer"
+                                  className="text-xs flex items-center gap-1 transition-colors" style={{ color: 'var(--ds-info-text)' }}>
+                                  Drive
+                                </a>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              {isRejected && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>Não aprovado</span>}
+                              {isApproved && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado</span>}
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{STATUS_LABEL[post.status]||post.status}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </button>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -454,7 +410,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">Materiais extras</p>
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Menus, cardápios, artes avulsas, logos.</p>
                 </div>
-                <button onClick={openNewMaterial} className="bg-[var(--color-text-primary)] text-white rounded-lg px-3 py-1.5 text-sm font-medium">+ Novo material</button>
+                <button onClick={openNewMaterial} className="bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-xl px-3 py-1.5 text-sm font-medium">+ Novo material</button>
               </div>
 
               {/* Kanban 3 colunas */}
@@ -551,7 +507,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             <div className="flex flex-col gap-4 max-w-2xl">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-[var(--color-text-primary)]">Time deste cliente</p>
-                <button onClick={() => setShowAddMember(true)} className="bg-[var(--color-text-primary)] text-white rounded-lg px-3 py-1.5 text-sm font-medium">+ Atribuir pessoa</button>
+                <button onClick={() => setShowAddMember(true)} className="bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-xl px-3 py-1.5 text-sm font-medium">+ Atribuir pessoa</button>
               </div>
 
               {team.length === 0 ? (
@@ -563,7 +519,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 <div className="flex flex-col gap-2">
                   {team.map(m => (
                     <div key={m.id} className="flex items-center gap-3 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl px-4 py-3">
-                      <div className="w-9 h-9 rounded-full bg-[var(--color-text-primary)] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                      <div className="w-9 h-9 rounded-full bg-[var(--color-text-primary)] flex items-center justify-center text-[var(--color-bg-page)] text-xs font-semibold flex-shrink-0">
                         {getInitials(m.team_members?.name || '?')}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -571,7 +527,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                         <p className="text-xs text-[var(--color-text-muted)] capitalize">{m.team_members?.role?.replace('_',' ')}</p>
                       </div>
                       <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]">{FUNCAO_LABEL[m.funcao] || m.funcao}</span>
-                      <button onClick={() => removeMember(m.id)} className="text-[var(--color-text-muted)] hover:text-red-500 transition-colors text-lg leading-none">×</button>
+                      <button onClick={() => removeMember(m.id)} className="text-[var(--color-text-muted)] transition-colors text-lg leading-none" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>×</button>
                     </div>
                   ))}
                 </div>
@@ -584,7 +540,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                     <div className="flex flex-col gap-3">
                       <div>
                         <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Pessoa</label>
-                        <select value={newMemberId} onChange={e => setNewMemberId(e.target.value)} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">
+                        <select value={newMemberId} onChange={e => setNewMemberId(e.target.value)} className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">
                           <option value="">Selecione...</option>
                           {allMembers.filter(am => !team.some(t => t.member_id === am.id)).map(am => (
                             <option key={am.id} value={am.id}>{am.name}</option>
@@ -593,7 +549,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                       </div>
                       <div>
                         <label className="text-xs text-[var(--color-text-muted)] mb-1 block">Função neste cliente</label>
-                        <select value={newFuncao} onChange={e => setNewFuncao(e.target.value)} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">
+                        <select value={newFuncao} onChange={e => setNewFuncao(e.target.value)} className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">
                           <option value="videos">Editor (vídeos)</option>
                           <option value="posts">Designer (posts)</option>
                           <option value="estrategia">Estratégia / Cronograma</option>
@@ -602,8 +558,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                         </select>
                       </div>
                       <div className="flex gap-2 mt-2">
-                        <button onClick={() => setShowAddMember(false)} className="flex-1 py-2 text-sm border border-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)]">Cancelar</button>
-                        <button onClick={addMember} disabled={!newMemberId} className="flex-1 py-2 text-sm bg-[var(--color-text-primary)] text-white rounded-lg disabled:opacity-50">Adicionar</button>
+                        <button onClick={() => setShowAddMember(false)} className="flex-1 py-2 text-sm border border-[var(--color-border)] rounded-xl text-[var(--color-text-secondary)]">Cancelar</button>
+                        <button onClick={addMember} disabled={!newMemberId} className="flex-1 py-2 text-sm bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-xl disabled:opacity-50">Adicionar</button>
                       </div>
                     </div>
                   </div>
@@ -620,6 +576,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
               </div>
               <ExtrasKanban clientId={client.id} members={allMembers} />
             </div>
+          )}
+
+          {tab === 'onboarding' && (
+            <OnboardingTab clientId={client.id} />
           )}
 
           {tab === 'drive' && (
@@ -642,15 +602,15 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   <div className="flex flex-col items-center justify-center py-20 gap-3">
                     <p className="text-sm text-[var(--color-text-muted)]">Não foi possível interpretar o link do Drive.</p>
                     <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer"
-                      className="text-sm text-blue-600 underline">Abrir no Drive →</a>
+                      className="text-sm underline" style={{ color: 'var(--ds-info-text)' }}>Abrir no Drive →</a>
                   </div>
                 )
               })() : (
                 <div className="flex flex-col items-center justify-center py-20 gap-3">
                   <p className="text-[var(--color-text-muted)] text-sm">Nenhuma pasta do Drive configurada.</p>
                   <button onClick={openEditClient}
-                    className="text-sm border border-[var(--color-border)] rounded-lg px-4 py-2 text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
-                    ✏️ Editar cliente para adicionar
+                    className="text-sm border border-[var(--color-border)] rounded-xl px-4 py-2 text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                    Editar cliente para adicionar
                   </button>
                 </div>
               )}
@@ -669,77 +629,18 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
         </div>
       </div>
 
-      {selected && (
-        <div className="w-96 border-l border-[var(--color-border)] flex flex-col overflow-hidden bg-[var(--color-bg-card)]">
-          <div className="p-5 border-b border-[var(--color-border)] flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-bold text-[var(--color-text-muted)]">#{selected.post_number}</span>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${typeColor[selected.post_type]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{TYPE_LABEL[selected.post_type]||selected.post_type}</span>
-              </div>
-              <p className="text-base font-semibold text-[var(--color-text-primary)] leading-snug">{selected.title}</p>
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {!editing && (
-                <>
-                  <button onClick={startEdit} className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]" title="Editar">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  </button>
-                  <button onClick={() => setConfirmDelete(true)} className="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-[var(--color-text-secondary)] hover:text-red-500" title="Excluir">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                  </button>
-                </>
-              )}
-              <button onClick={() => { setSelected(null); setEditing(false); setConfirmDelete(false) }} className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] text-lg leading-none">×</button>
-            </div>
-          </div>
-
-          {confirmDelete && (
-            <div className="p-4 bg-red-50 border-b border-red-100 flex items-center justify-between gap-3">
-              <p className="text-sm text-red-700 font-medium">Excluir este post?</p>
-              <div className="flex gap-2">
-                <button onClick={() => setConfirmDelete(false)} className="px-3 py-1.5 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-card)] text-[var(--color-text-secondary)]">Cancelar</button>
-                <button onClick={deletePost} disabled={deleting} className="px-3 py-1.5 text-xs bg-red-500 text-white rounded-lg disabled:opacity-50">{deleting?'Excluindo...':'Excluir'}</button>
-              </div>
-            </div>
-          )}
-          {editing ? (
-            <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Título *</label><input value={editForm.title} onChange={e => setEditForm((f:any)=>({...f,title:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]" /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Tipo</label><select value={editForm.post_type} onChange={e => setEditForm((f:any)=>({...f,post_type:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">{Object.entries(TYPE_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
-                <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Status</label><select value={editForm.status} onChange={e => setEditForm((f:any)=>({...f,status:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none">{Object.entries(STATUS_LABEL).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
-              </div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Funil</label><input list="funil-edit-cliente" value={editForm.funil} onChange={e => setEditForm((f:any)=>({...f,funil:e.target.value}))} placeholder="Escolha ou escreva..." className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-bg-card)] outline-none focus:border-[var(--color-brand)]" /><datalist id="funil-edit-cliente">{['Topo de funil','Meio de funil','Fundo de funil','Institucional','Promocional','Engajamento','Venda'].map(o=><option key={o} value={o} />)}</datalist></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Data estimada</label><input type="date" value={editForm.scheduled_date} onChange={e => setEditForm((f:any)=>({...f,scheduled_date:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Copy / Briefing</label><textarea value={editForm.copy} onChange={e => setEditForm((f:any)=>({...f,copy:e.target.value}))} rows={4} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] resize-none" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Link Drive</label><input value={editForm.drive_url} onChange={e => setEditForm((f:any)=>({...f,drive_url:e.target.value}))} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)]" /></div>
-              <div><label className="text-xs text-[var(--color-text-muted)] mb-1 block">Referências</label><textarea value={editForm.reference_notes} onChange={e => setEditForm((f:any)=>({...f,reference_notes:e.target.value}))} rows={2} className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] resize-none" /></div>
-              <div className="flex gap-2 mt-2">
-                <button onClick={() => setEditing(false)} className="flex-1 py-2 text-sm border border-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)]">Cancelar</button>
-                <button onClick={saveEdit} disabled={saving||!editForm.title?.trim()} className="flex-1 py-2 text-sm bg-[var(--color-text-primary)] text-white rounded-lg disabled:opacity-50">{saving?'Salvando...':'Salvar'}</button>
-              </div>
-            </div>
-          ) : (
-          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
-            <div className="flex gap-4">
-              <div className="flex-1"><p className="text-xs text-[var(--color-text-muted)] mb-1">Data estimada</p><p className="text-sm font-medium text-[var(--color-text-primary)]">{selected.scheduled_date?new Date(selected.scheduled_date+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</p></div>
-              <div className="flex-1"><p className="text-xs text-[var(--color-text-muted)] mb-1">Status</p><span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusColor[selected.status]||''}`}>{STATUS_LABEL[selected.status]||selected.status}</span></div>
-            </div>
-            {(selected as any).funil&&<div><p className="text-xs text-[var(--color-text-muted)] mb-1">Funil</p><span className="text-xs font-medium px-2.5 py-1 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]">{(selected as any).funil}</span></div>}
-            {selected.approval_status&&selected.approval_status!=='pendente'&&(
-              <div>
-                <p className="text-xs text-[var(--color-text-muted)] mb-2">Aprovação do cliente</p>
-                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${approvalColor[selected.approval_status]||''}`}>{selected.approval_status}</span>
-                {selected.approval_comment&&<p className="text-sm text-[var(--color-text-secondary)] mt-2 italic">"{selected.approval_comment}"</p>}
-              </div>
-            )}
-            {selected.copy&&<div><p className="text-xs text-[var(--color-text-muted)] mb-2">Copy / Briefing</p><p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed">{selected.copy}</p></div>}
-            {selected.drive_url&&<div><p className="text-xs text-[var(--color-text-muted)] mb-1">Link Drive</p><a href={selected.drive_url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline break-all">{selected.drive_url}</a></div>}
-            {selected.reference_notes&&<div><p className="text-xs text-[var(--color-text-muted)] mb-1">Referências</p><p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap">{selected.reference_notes}</p></div>}
-          </div>
-          )}
-        </div>
+      {showPostCard && editingPostId && client && (
+        <PostCard
+          postId={editingPostId}
+          clientId={id}
+          clientName={client.name}
+          clientColor={client.color_hex}
+          month={selectedMonth}
+          year={selectedYear}
+          onClose={() => { setShowPostCard(false); setEditingPostId(null) }}
+          onSaved={reloadPosts}
+          onDeleted={reloadPosts}
+        />
       )}
 
       {showNewPost && client && (

@@ -252,7 +252,7 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: (isDark ? TYPE_BG_D : TYPE_BG_L)[p.post_type]||'var(--color-bg-subtle)', color: (isDark ? TYPE_TX_D : TYPE_TX_L)[p.post_type]||'var(--color-text-secondary)' }}>{TYPE_LABEL[p.post_type]||p.post_type}</span>
                           <span className="text-xs text-[var(--color-text-primary)] flex-1 truncate">{p.title}</span>
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: (isDark ? STATUS_BG_D : STATUS_BG_L)[p.status]||'var(--color-bg-subtle)', color: (isDark ? STATUS_TX_D : STATUS_TX_L)[p.status]||'var(--color-text-secondary)' }}>{STATUS_LB[p.status]||p.status}</span>
-                          <button onClick={() => unlinkPost(p.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] hover:text-red-500 transition-all flex-shrink-0"><Trash2 size={11} /></button>
+                          <button onClick={() => unlinkPost(p.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-all flex-shrink-0" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}><Trash2 size={11} /></button>
                         </div>
                       ))}
                     </div>
@@ -284,7 +284,7 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
                           {e.done && <Check size={10} color="white" />}
                         </button>
                         <span className={`text-xs flex-1 ${e.done ? 'line-through text-[var(--color-text-muted)]' : 'text-[var(--color-text-primary)]'}`}>{e.title}</span>
-                        <button onClick={() => deleteExtra(camp.id, e.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] hover:text-red-500 transition-all"><Trash2 size={11} /></button>
+                        <button onClick={() => deleteExtra(camp.id, e.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-all" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}><Trash2 size={11} /></button>
                       </div>
                     ))}
                   </div>
@@ -334,7 +334,7 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
                 <p className="text-sm font-semibold text-[var(--color-text-primary)]">{camp.name}</p>
                 <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{campPosts.length} posts · {extras.length} extras</p>
               </div>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#F0FDF4] text-[#166534]">personalizada</span>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>personalizada</span>
               {isExpanded ? <ChevronUp size={14} className="text-[var(--color-text-muted)]" /> : <ChevronDown size={14} className="text-[var(--color-text-muted)]" />}
             </div>
             {isExpanded && (
@@ -348,7 +348,7 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
                           {e.done && <Check size={10} color="white" />}
                         </button>
                         <span className={`text-xs flex-1 ${e.done ? 'line-through text-[var(--color-text-muted)]' : 'text-[var(--color-text-primary)]'}`}>{e.title}</span>
-                        <button onClick={() => deleteExtra(camp.id, e.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] hover:text-red-500"><Trash2 size={11} /></button>
+                        <button onClick={() => deleteExtra(camp.id, e.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-colors" onMouseEnter={ev => (ev.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={ev => (ev.currentTarget.style.color = '')}><Trash2 size={11} /></button>
                       </div>
                     ))}
                   </div>

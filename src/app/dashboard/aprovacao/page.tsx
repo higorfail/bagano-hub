@@ -136,7 +136,7 @@ export default function AprovacaoPage() {
         {/* Vazio */}
         {Object.keys(byClient).length === 0 && (
           <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-12 text-center">
-            <CheckCircle2 size={32} className="mx-auto text-green-400 mb-3" />
+            <CheckCircle2 size={32} className="mx-auto mb-3" style={{ color: 'var(--ds-success-accent)' }} />
             <p className="font-semibold text-[var(--color-text-primary)]">Tudo certo!</p>
             <p className="text-sm text-[var(--color-text-muted)] mt-1">Nenhum post pendente de aprovação ou revisão.</p>
           </div>
@@ -162,12 +162,12 @@ export default function AprovacaoPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {pendentes > 0 && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
+                    <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)' }}>
                       <Clock size={10} /> {pendentes} aguardando
                     </span>
                   )}
                   {revisoes > 0 && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full">
+                    <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>
                       <AlertTriangle size={10} /> {revisoes} revisão
                     </span>
                   )}
@@ -186,7 +186,7 @@ export default function AprovacaoPage() {
                       className="w-full flex items-center gap-4 px-6 py-4 hover:bg-[var(--color-bg-page)] transition-colors text-left group"
                     >
                       {/* Indicador */}
-                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${needsRevision ? 'bg-orange-400' : 'bg-blue-400'}`} />
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: needsRevision ? 'var(--ds-warn-accent)' : 'var(--ds-info-accent)' }} />
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
@@ -203,18 +203,18 @@ export default function AprovacaoPage() {
                           )}
                         </div>
                         {needsRevision && p.approval_comment && (
-                          <p className="text-xs text-orange-600 mt-1 italic truncate">"{p.approval_comment}"</p>
+                          <p className="text-xs mt-1 italic truncate" style={{ color: 'var(--ds-warn-text)' }}>"{p.approval_comment}"</p>
                         )}
                       </div>
 
                       {/* Status badge */}
                       <div className="flex-shrink-0">
                         {needsRevision ? (
-                          <span className="text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-100 px-2.5 py-1 rounded-full">
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full border" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)', borderColor: 'var(--ds-warn-border)' }}>
                             Revisão solicitada
                           </span>
                         ) : waiting ? (
-                          <span className="text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-full">
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full border" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)', borderColor: 'var(--ds-info-border)' }}>
                             Aguardando cliente
                           </span>
                         ) : null}

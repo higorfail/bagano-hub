@@ -24,11 +24,11 @@ function timeAgo(iso: string) {
 }
 
 const ACTION_DOT: Record<string, string> = {
-  created:        'bg-green-500',
-  deleted:        'bg-red-500',
-  status_changed: 'bg-blue-500',
-  commented:      'bg-purple-500',
-  updated:        'bg-yellow-500',
+  created:        'bg-[var(--ds-success-accent)]',
+  deleted:        'bg-[var(--ds-error-accent)]',
+  status_changed: 'bg-[var(--ds-info-accent)]',
+  commented:      'bg-[var(--ds-purple-accent)]',
+  updated:        'bg-[var(--ds-caution-accent)]',
 }
 
 type Props =

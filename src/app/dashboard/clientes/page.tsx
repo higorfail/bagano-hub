@@ -31,8 +31,10 @@ function getInitials(name: string) {
 export default function ClientesPage() {
   const { currentMember, showOnlyMine } = useUser()
   const [clients, setClients] = useState<Client[]>([])
+  const [archivedClients, setArchivedClients] = useState<Client[]>([])
   const [myClientIds, setMyClientIds] = useState<string[]>([])
   const [search, setSearch] = useState('')
+  const [showArchive, setShowArchive] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -47,6 +49,8 @@ export default function ClientesPage() {
     const supabase = createClient()
     const { data } = await supabase.from('clients').select('*').eq('status', 'active').order('name')
     setClients(data || [])
+    const { data: archived } = await supabase.from('clients').select('*').eq('status', 'inactive').order('name')
+    setArchivedClients(archived || [])
     const { data: teamData } = await supabase.from('client_team').select('client_id, member_id')
     if (currentMember && teamData) {
       setMyClientIds(teamData.filter(t => t.member_id === currentMember.id).map(t => t.client_id))
@@ -90,8 +94,16 @@ export default function ClientesPage() {
   async function deactivate() {
     if (!editingClient) return
     setSaving(true)
-    const supabase = createClient()
-    await supabase.from('clients').update({ status: 'inactive' }).eq('id', editingClient.id)
+    await createClient().from('clients').update({ status: 'inactive' }).eq('id', editingClient.id)
+    await load()
+    setShowModal(false)
+    setSaving(false)
+  }
+
+  async function reactivate() {
+    if (!editingClient) return
+    setSaving(true)
+    await createClient().from('clients').update({ status: 'active' }).eq('id', editingClient.id)
     await load()
     setShowModal(false)
     setSaving(false)
@@ -117,7 +129,7 @@ export default function ClientesPage() {
         </div>
         <button
           onClick={openCreate}
-          className="bg-[var(--color-text-primary)] text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+          className="bg-[var(--color-text-primary)] text-white rounded-xl px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
         >
           + Novo cliente
         </button>
@@ -128,7 +140,7 @@ export default function ClientesPage() {
         placeholder="Buscar cliente..."
         value={search}
         onChange={e => setSearch(e.target.value)}
-        className="w-full max-w-xs border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]"
+        className="w-full max-w-xs border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]"
       />
 
       <div className="grid grid-cols-4 gap-4">
@@ -136,7 +148,7 @@ export default function ClientesPage() {
           <a
             key={client.id}
             href={'/dashboard/clientes/' + client.id}
-            className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 block hover:shadow-sm transition-all group relative"
+            className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 block hover:border-[var(--color-border-hover)] transition-all group relative"
             style={{ borderLeftWidth: 3, borderLeftColor: client.color_hex }}
           >
             <button
@@ -144,7 +156,7 @@ export default function ClientesPage() {
               className="absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] opacity-0 group-hover:opacity-100 transition-all text-xs"
               title="Editar cliente"
             >
-              ✏️
+              ✎
             </button>
             <div className="flex items-center gap-3 mb-4">
               <div
@@ -160,6 +172,51 @@ export default function ClientesPage() {
           </a>
         ))}
       </div>
+
+      {/* Arquivo — clientes inativos */}
+      {archivedClients.length > 0 && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowArchive(v => !v)}
+            className="flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-4"
+          >
+            <span>{showArchive ? '▾' : '▸'}</span>
+            Arquivo ({archivedClients.length} cliente{archivedClients.length !== 1 ? 's' : ''} inativo{archivedClients.length !== 1 ? 's' : ''})
+          </button>
+          {showArchive && (
+            <div className="grid grid-cols-4 gap-4 opacity-60">
+              {archivedClients.map(client => (
+                <a
+                  key={client.id}
+                  href={'/dashboard/clientes/' + client.id}
+                  className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 block hover:border-[var(--color-border-hover)] transition-all group relative grayscale"
+                  style={{ borderLeftWidth: 3, borderLeftColor: client.color_hex }}
+                >
+                  <button
+                    onClick={e => openEdit(client, e)}
+                    className="absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] opacity-0 group-hover:opacity-100 transition-all text-xs"
+                    title="Editar cliente"
+                  >
+                    ✏️
+                  </button>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold text-white flex-shrink-0"
+                      style={{ background: client.color_hex }}
+                    >
+                      {getInitials(client.name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{client.name}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">Inativo</p>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal criar / editar */}
       {showModal && (
@@ -280,13 +337,28 @@ export default function ClientesPage() {
             </div>
 
             <div className="flex items-center gap-2 pt-1">
-              {editingClient && (
+              {editingClient && editingClient.status === 'active' && (
                 <button
                   onClick={deactivate}
                   disabled={saving}
-                  className="text-xs text-red-500 hover:text-red-700 font-medium px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"
+                  className="text-xs font-medium px-3 py-2 rounded-xl transition-colors"
+                  style={{ color: 'var(--ds-error-text)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--ds-error-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}
                 >
-                  Desativar cliente
+                  Desativar
+                </button>
+              )}
+              {editingClient && editingClient.status === 'inactive' && (
+                <button
+                  onClick={reactivate}
+                  disabled={saving}
+                  className="text-xs font-medium px-3 py-2 rounded-xl transition-colors"
+                  style={{ color: 'var(--ds-success-text)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--ds-success-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}
+                >
+                  Reativar cliente
                 </button>
               )}
               <div className="flex-1" />

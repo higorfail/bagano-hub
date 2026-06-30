@@ -125,7 +125,7 @@ export default function CampanhasPage() {
               <span>{s.emoji}</span>
               <span>{s.name}</span>
               {activeCnt > 0 && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: selected === s.type ? s.theme.accent : 'var(--color-bg-subtle)', color: selected === s.type ? 'white' : 'var(--color-text-secondary)' }}>{activeCnt}</span>}
-              {isUrgent && <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />}
+              {isUrgent && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--ds-error-accent)' }} />}
             </button>
           )
         })}
@@ -246,7 +246,7 @@ export default function CampanhasPage() {
                         </div>
                       )}
 
-                      <a href={`/dashboard/clientes/${client.id}?tab=campanhas`} className="text-xs text-blue-600 hover:underline">Abrir página do cliente →</a>
+                      <a href={`/dashboard/clientes/${client.id}?tab=campanhas`} className="text-xs hover:underline" style={{ color: 'var(--ds-info-text)' }}>Abrir página do cliente →</a>
                     </div>
                   )}
                 </div>

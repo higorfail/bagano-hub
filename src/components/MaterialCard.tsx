@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import ActivityLog from '@/components/ActivityLog'
 import { useToast } from '@/lib/ToastContext'
+import { moveToTrash } from '@/lib/trash'
 import {
   X, Plus, Calendar, Tag, CheckSquare, Paperclip,
   Trash2, Link2, MessageSquare, User, Briefcase,
@@ -462,7 +463,9 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                         <span className="text-xs text-[var(--color-text-primary)] font-medium">{m.name.split(' ')[0]}</span>
                         <button
                           onClick={e => { e.stopPropagation(); setAssignedMembers(prev => prev.filter(x => x !== m.id)) }}
-                          className="text-[var(--color-text-muted)] hover:text-red-500 ml-0.5"
+                          className="text-[var(--color-text-muted)] ml-0.5 transition-colors"
+                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')}
+                          onMouseLeave={e => (e.currentTarget.style.color = '')}
                         >
                           <X size={10} />
                         </button>
@@ -515,7 +518,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                       const due = new Date(dueDate + 'T23:59:59')
                       const now = new Date()
                       const diff = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-                      const color = diff < 0 ? '#EF4444' : diff <= 2 ? '#F59E0B' : '#6B6963'
+                      const color = diff < 0 ? '#EF4444' : diff <= 2 ? '#F59E0B' : 'var(--color-text-secondary)'
                       return (
                         <>
                           <Calendar size={13} style={{ color }} />
@@ -590,7 +593,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                       {item.done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>}
                     </button>
                     <span className={`text-sm flex-1 ${item.done ? 'line-through text-[var(--color-text-muted)]' : 'text-[var(--color-text-primary)]'}`}>{item.text}</span>
-                    <button onClick={() => removeCheck(item.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] hover:text-red-500 transition-opacity">
+                    <button onClick={() => removeCheck(item.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-opacity" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -621,7 +624,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                         <File size={15} className="text-[var(--color-text-secondary)]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <a href={u.file_url} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-text-primary)] hover:text-blue-600 truncate block font-medium">
+                        <a href={u.file_url} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-text-primary)] truncate block font-medium hover:underline" style={{ color: undefined }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-info-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
                           {u.filename}
                         </a>
                         {u.file_size && <p className="text-[10px] text-[var(--color-text-muted)]">{formatBytes(u.file_size)}</p>}
@@ -630,7 +633,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                         <a href={u.file_url} target="_blank" rel="noopener noreferrer" className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]">
                           <ExternalLink size={13} />
                         </a>
-                        <button onClick={() => removeUpload(u.id, u.file_url)} className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-[var(--color-text-muted)] hover:text-red-500">
+                        <button onClick={() => removeUpload(u.id, u.file_url)} className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] transition-colors" onMouseEnter={e => { e.currentTarget.style.background = 'var(--ds-error-bg)'; e.currentTarget.style.color = 'var(--ds-error-text)' }} onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = '' }}>
                           <Trash2 size={13} />
                         </button>
                       </div>
@@ -647,8 +650,8 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                       <div className="w-8 h-8 rounded bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0">
                         <Link2 size={15} className="text-[var(--color-text-secondary)]" />
                       </div>
-                      <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 text-sm text-blue-600 hover:underline truncate">{a.title}</a>
-                      <button onClick={() => removeAttachment(a.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] hover:text-red-500 transition-opacity">
+                      <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 text-sm hover:underline truncate" style={{ color: 'var(--ds-info-text)' }}>{a.title}</a>
+                      <button onClick={() => removeAttachment(a.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-opacity" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -763,15 +766,18 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
           {/* Delete */}
           {materialId && !confirmDelete && (
             <button onClick={() => setConfirmDelete(true)}
-              className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-red-500 transition-colors">
+              className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors"
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')}
+              onMouseLeave={e => (e.currentTarget.style.color = '')}>
               <Trash2 size={13} /> Excluir
             </button>
           )}
           {materialId && confirmDelete && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-red-600 font-medium">Confirmar exclusão?</span>
+              <span className="text-xs font-medium" style={{ color: 'var(--ds-error-text)' }}>Confirmar exclusão?</span>
               <button onClick={() => setConfirmDelete(false)} className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
               <button onClick={async () => {
+                try { await moveToTrash('material', materialId, title || 'Material sem título', currentMember?.name) } catch { /* trash table missing */ }
                 await logActivity({ tableName: 'materials', recordId: materialId, action: 'deleted', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
                 await Promise.all([
                   supabase.from('material_checklist').delete().eq('material_id', materialId),
@@ -781,7 +787,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 await supabase.from('materials').delete().eq('id', materialId)
                 onDeleted?.(materialId)
                 onClose()
-              }} className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-500 text-white">
+              }} className="text-xs font-semibold px-2.5 py-1 rounded-xl text-white" style={{ background: 'var(--ds-error-accent)' }}>
                 Excluir
               </button>
             </div>
@@ -824,7 +830,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                           </div>
                           <div className="flex gap-1.5">
                             <button onClick={() => updateGlobalLabel(gl.id, editingLabel.text, editingLabel.color)} className="flex-1 py-1.5 text-xs font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Salvar</button>
-                            <button onClick={() => deleteGlobalLabel(gl.id)} className="px-3 py-1.5 text-xs font-medium border border-red-200 text-red-500 rounded-lg hover:bg-red-50">Excluir</button>
+                            <button onClick={() => deleteGlobalLabel(gl.id)} className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors" style={{ borderColor: 'var(--ds-error-border)', color: 'var(--ds-error-text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--ds-error-bg)')} onMouseLeave={e => (e.currentTarget.style.background = '')}>Excluir</button>
                             <button onClick={() => setEditingLabel(null)} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">×</button>
                           </div>
                         </div>

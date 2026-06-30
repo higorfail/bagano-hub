@@ -458,16 +458,16 @@ function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
   const isReel     = post.type === 'reel'
 
   return (
-    <div style={{ width: 300, flexShrink: 0, background: 'white', border: '0.5px solid #e5e7eb', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '0.5px solid #f3f4f6' }}>
+    <div style={{ width: 300, flexShrink: 0, background: 'var(--color-bg-card)', border: '0.5px solid var(--color-border)', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '0.5px solid var(--color-border)' }}>
         <div>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{post.title}</span>
-          <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 8, textTransform: 'capitalize' }}>{post.type}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{post.title}</span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 8, textTransform: 'capitalize' }}>{post.type}</span>
         </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 2 }}><X size={15} /></button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 2 }}><X size={15} /></button>
       </div>
 
-      <div style={{ aspectRatio: post.type === 'story' ? '9/16' : '4/5', background: '#f3f4f6', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+      <div style={{ aspectRatio: post.type === 'story' ? '9/16' : '4/5', background: 'var(--color-bg-subtle)', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
         {loading ? (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={20} color="#ccc" style={{ animation: 'spin 1s linear infinite' }} /></div>
         ) : isReel && media?.videoEmbedUrl ? (
@@ -503,19 +503,19 @@ function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
           </div>
         </div>
         {post.scheduled_date && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b7280' }}>
-            <Calendar size={13} color="#9ca3af" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+            <Calendar size={13} color="var(--color-text-muted)" />
             {new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}
           </div>
         )}
         {post.copy && (
-          <div style={{ background: '#f9fafb', borderRadius: 10, padding: '10px 12px' }}>
-            <p style={{ fontSize: 10, color: '#9ca3af', fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legenda</p>
-            <p style={{ fontSize: 12, color: '#374151', lineHeight: 1.6, margin: 0 }}>{post.copy}</p>
+          <div style={{ background: 'var(--color-bg-subtle)', borderRadius: 10, padding: '10px 12px' }}>
+            <p style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legenda</p>
+            <p style={{ fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.6, margin: 0 }}>{post.copy}</p>
           </div>
         )}
         {(media?.folderLink || post.drive_url) && (
-          <a href={media?.folderLink || post.drive_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
+          <a href={media?.folderLink || post.drive_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ds-info-text)', textDecoration: 'none' }}>
             <ExternalLink size={13} />Abrir pasta no Drive
           </a>
         )}
@@ -600,25 +600,25 @@ export default function IPhoneFeed({
 
         {/* iPhone */}
         <div style={{ flexShrink: 0 }}>
-          <div style={{ width: 290, border: '1.5px solid #EBEAE5', borderRadius: 46, overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column', boxShadow: '0 0 0 6px #f5f5f3, 0 0 0 7px #e8e8e4' }}>
+          <div style={{ width: 290, border: '1.5px solid var(--color-border)', borderRadius: 46, overflow: 'hidden', background: 'var(--color-bg-card)', display: 'flex', flexDirection: 'column', boxShadow: '0 0 0 6px var(--color-bg-subtle), 0 0 0 7px var(--color-border)' }}>
 
             {/* Notch */}
             <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2 }}>
-              <div style={{ width: 80, height: 20, background: '#111', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#222' }} />
-                <div style={{ width: 20, height: 8, borderRadius: 4, background: '#222' }} />
+              <div style={{ width: 80, height: 20, background: 'var(--color-text-primary)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, opacity: 0.9 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-bg-card)' }} />
+                <div style={{ width: 20, height: 8, borderRadius: 4, background: 'var(--color-bg-card)' }} />
               </div>
             </div>
 
             {/* IG header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px 6px' }}>
               {instagramUrl
-                ? <a href={instagramUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: '#111', textDecoration: 'none' }}>{igUsername}</a>
-                : <span style={{ fontSize: 12, fontWeight: 700, color: '#111' }}>{clientName.toLowerCase().replace(/\s+/g, '.')}</span>
+                ? <a href={instagramUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)', textDecoration: 'none' }}>{igUsername}</a>
+                : <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}>{clientName.toLowerCase().replace(/\s+/g, '.')}</span>
               }
               <div style={{ display: 'flex', gap: 12 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-primary)" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-primary)" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
               </div>
             </div>
 
@@ -640,27 +640,27 @@ export default function IPhoneFeed({
                 <div style={{ display: 'flex', flex: 1 }}>
                   {[{ num: gridPosts.length, label: 'posts' }, { num: followersCount ?? '—', label: 'seguid.' }, { num: followingCount ?? '—', label: 'seguindo' }].map(({ num, label }) => (
                     <div key={label} style={{ flex: 1, textAlign: 'center' }}>
-                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#111' }}>{typeof num === 'number' ? num.toLocaleString('pt-BR') : num}</span>
-                      <span style={{ display: 'block', fontSize: 9, color: '#888' }}>{label}</span>
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary)' }}>{typeof num === 'number' ? num.toLocaleString('pt-BR') : num}</span>
+                      <span style={{ display: 'block', fontSize: 9, color: 'var(--color-text-muted)' }}>{label}</span>
                     </div>
                   ))}
                 </div>
               </div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#111', marginBottom: 1 }}>{igUsername ? `@${igUsername}` : clientName}</div>
-              {clientBio && <div style={{ fontSize: 9, color: '#555', lineHeight: 1.4 }}>{clientBio}</div>}
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 1 }}>{igUsername ? `@${igUsername}` : clientName}</div>
+              {clientBio && <div style={{ fontSize: 9, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>{clientBio}</div>}
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                 {instagramUrl
                   ? <a href={instagramUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, background: clientColor, borderRadius: 6, padding: '4px 0', textAlign: 'center', fontSize: 10, fontWeight: 600, color: 'white', textDecoration: 'none', display: 'block' }}>Seguir</a>
                   : <div style={{ flex: 1, background: clientColor, borderRadius: 6, padding: '4px 0', textAlign: 'center', fontSize: 10, fontWeight: 600, color: 'white' }}>Seguir</div>
                 }
-                <div style={{ flex: 1, background: '#f0f0f0', borderRadius: 6, padding: '4px 0', textAlign: 'center', fontSize: 10, fontWeight: 500, color: '#111' }}>Mensagem</div>
+                <div style={{ flex: 1, background: 'var(--color-bg-subtle)', borderRadius: 6, padding: '4px 0', textAlign: 'center', fontSize: 10, fontWeight: 500, color: 'var(--color-text-primary)' }}>Mensagem</div>
               </div>
             </div>
 
             {/* Stories tray */}
             {storyPosts.length > 0 && (
               <>
-                <div style={{ height: '0.5px', background: '#efefef' }} />
+                <div style={{ height: '0.5px', background: 'var(--color-border)' }} />
                 <div style={{ display: 'flex', gap: 10, padding: '10px 12px', overflowX: 'auto', scrollbarWidth: 'none' }}>
                   {storyPosts.map(post => (
                     <StoryCircle key={post.id} post={post} clientColor={clientColor} clientInitials={clientInitials} avatarUrl={avatarUrl}
@@ -670,10 +670,10 @@ export default function IPhoneFeed({
               </>
             )}
 
-            <div style={{ height: '0.5px', background: '#efefef', flexShrink: 0 }} />
+            <div style={{ height: '0.5px', background: 'var(--color-border)', flexShrink: 0 }} />
 
             {/* Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, background: '#e0e0e0' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, background: 'var(--color-border)' }}>
               {gridPosts.map(post => (
                 <PostThumb key={post.id} post={post}
                   onClick={() => { setSelectedPost(post); onPostClick?.(post) }}
@@ -682,15 +682,15 @@ export default function IPhoneFeed({
                 />
               ))}
               {Array.from({ length: Math.max(0, 12 - gridPosts.length) }).map((_, i) => (
-                <div key={`empty-${i}`} style={{ aspectRatio: '4/5', background: '#f5f5f5' }} />
+                <div key={`empty-${i}`} style={{ aspectRatio: '4/5', background: 'var(--color-bg-subtle)' }} />
               ))}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 8px' }}>
-              <div style={{ width: 80, height: 4, background: '#111', borderRadius: 2, opacity: 0.2 }} />
+              <div style={{ width: 80, height: 4, background: 'var(--color-text-primary)', borderRadius: 2, opacity: 0.2 }} />
             </div>
           </div>
-          {!readonly && <p style={{ fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 8 }}>arraste para reordenar</p>}
+          {!readonly && <p style={{ fontSize: 11, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 8 }}>arraste para reordenar</p>}
         </div>
 
         {/* Post side panel */}

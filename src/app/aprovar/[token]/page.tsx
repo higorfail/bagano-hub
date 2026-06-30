@@ -46,11 +46,15 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
   const [tokenData,    setTokenData]    = useState<any>(null)
   const [client,       setClient]       = useState<any>(null)
   const [posts,        setPosts]        = useState<Post[]>([])
-  const [submitting,   setSubmitting]   = useState<string | null>(null)
+  const [extras,       setExtras]       = useState<any[]>([])
+  const [submitting,       setSubmitting]       = useState<string | null>(null)
+  const [extraSubmitting,  setExtraSubmitting]  = useState<string | null>(null)
   const [toast,        setToast]        = useState<{ msg: string; ok: boolean } | null>(null)
   const [expanded,     setExpanded]     = useState<Set<string>>(new Set())
   const [commenting,   setCommenting]   = useState<Set<string>>(new Set())
   const [comments,     setComments]     = useState<Record<string, string>>({})
+  const [extraComments,    setExtraComments]    = useState<Record<string, string>>({})
+  const [extraCommenting,  setExtraCommenting]  = useState<Set<string>>(new Set())
   const [approvingAll, setApprovingAll] = useState(false)
   const [tab,          setTab]          = useState<'feed' | 'posts'>('feed')
 
@@ -72,14 +76,22 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
       .from('clients').select('id, name, color_hex, logo_url, instagram_url').eq('id', tk.client_id).single()
     if (!cl) { setError('Cliente não encontrado.'); setLoading(false); return }
     setClient(cl)
-    const { data: sc } = await supabase
-      .from('schedules')
-      .select('id, title, post_type, status, drive_url, drive_folder_url, copy, scheduled_date, feed_order, post_number, approval_comment, approval_status')
-      .eq('client_id', tk.client_id)
-      .eq('month', tk.month)
-      .eq('year',  tk.year)
-      .order('post_number', { ascending: true })
+    const [{ data: sc }, { data: ex }] = await Promise.all([
+      supabase.from('schedules')
+        .select('id, title, post_type, status, drive_url, drive_folder_url, copy, scheduled_date, feed_order, post_number, approval_comment, approval_status')
+        .eq('client_id', tk.client_id)
+        .eq('month', tk.month)
+        .eq('year',  tk.year)
+        .order('post_number', { ascending: true }),
+      supabase.from('extras')
+        .select('id, title, type, description, due_date, needs_client_approval, client_approval_status, client_approval_comment')
+        .eq('client_id', tk.client_id)
+        .eq('needs_client_approval', true)
+        .not('client_approval_status', 'in', '("aprovado","recusado")')
+        .order('created_at', { ascending: true }),
+    ])
     setPosts(sc || [])
+    setExtras(ex || [])
     setLoading(false)
   }
 
@@ -134,6 +146,25 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     ))
     showToast(`${pending.length} posts aprovados! 🎉`)
     setApprovingAll(false)
+  }
+
+  async function approveExtra(extraId: string) {
+    setExtraSubmitting(extraId)
+    await supabase.from('extras').update({ client_approval_status: 'aprovado', client_approval_comment: null }).eq('id', extraId)
+    setExtras(prev => prev.filter(e => e.id !== extraId))
+    showToast('Extra aprovado! ✓')
+    setExtraSubmitting(null)
+  }
+
+  async function rejectExtra(extraId: string, comment: string) {
+    const c = comment.trim(); if (!c) return
+    setExtraSubmitting(extraId)
+    await supabase.from('extras').update({ client_approval_status: 'recusado', client_approval_comment: c }).eq('id', extraId)
+    setExtras(prev => prev.filter(e => e.id !== extraId))
+    setExtraCommenting(s => { const n = new Set(s); n.delete(extraId); return n })
+    setExtraComments(cc => { const n = { ...cc }; delete n[extraId]; return n })
+    showToast('Recusa enviada.', false)
+    setExtraSubmitting(null)
   }
 
   // Story callbacks for IPhoneFeed
@@ -452,6 +483,81 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   )
                 })}
               </div>
+
+              {/* Extras pendentes de aprovação */}
+              {extras.length > 0 && (
+                <div style={{ marginTop: 28 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <div style={{ flex: 1, height: 1, background: '#ebebeb' }} />
+                    <p style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase', margin: 0, whiteSpace: 'nowrap' }}>
+                      📋 {extras.length} extra{extras.length !== 1 ? 's' : ''} para aprovar
+                    </p>
+                    <div style={{ flex: 1, height: 1, background: '#ebebeb' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {extras.map(extra => {
+                      const isCommenting = extraCommenting.has(extra.id)
+                      const comment = extraComments[extra.id] || ''
+                      const isLoading = extraSubmitting === extra.id
+                      const TYPE_EXTRA: Record<string, string> = { todo: '✅ Tarefa', note: '📝 Nota', reminder: '🔔 Lembrete' }
+                      return (
+                        <div key={extra.id} style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #ebebeb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                          <div style={{ padding: '14px 18px' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                              <div>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', background: '#f3f4f6', padding: '2px 8px', borderRadius: 100 }}>{TYPE_EXTRA[extra.type] || extra.type}</span>
+                              </div>
+                              {extra.due_date && (
+                                <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>
+                                  {new Date(extra.due_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                                </span>
+                              )}
+                            </div>
+                            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.3 }}>{extra.title}</h3>
+                            {extra.description && (
+                              <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px', lineHeight: 1.6 }}>{extra.description}</p>
+                            )}
+                            {isCommenting && (
+                              <div style={{ marginBottom: 12 }}>
+                                <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 6px', fontWeight: 600 }}>Por que está recusando?</p>
+                                <textarea autoFocus value={comment}
+                                  onChange={e => setExtraComments(c => ({ ...c, [extra.id]: e.target.value }))}
+                                  placeholder="Descreva o motivo..."
+                                  rows={2}
+                                  style={{ width: '100%', background: '#fff', border: `2px solid ${cc}`, borderRadius: 12, padding: '10px 14px', fontSize: 14, color: '#111', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5, fontFamily: 'inherit' }}
+                                />
+                              </div>
+                            )}
+                            {isCommenting ? (
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => { setExtraCommenting(s => { const n = new Set(s); n.delete(extra.id); return n }); setExtraComments(c => { const n = { ...c }; delete n[extra.id]; return n }) }}
+                                  style={{ padding: '12px 16px', borderRadius: 14, background: '#f3f4f6', border: 'none', fontSize: 13, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>
+                                  Cancelar
+                                </button>
+                                <button onClick={() => rejectExtra(extra.id, comment)} disabled={!comment.trim() || !!isLoading}
+                                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 0', borderRadius: 14, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 13, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
+                                  <MessageSquare size={13} /> Recusar
+                                </button>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => setExtraCommenting(s => { const n = new Set(s); n.add(extra.id); return n })}
+                                  style={{ padding: '12px 16px', borderRadius: 14, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                  ✗ Recusar
+                                </button>
+                                <button onClick={() => approveExtra(extra.id)} disabled={!!isLoading}
+                                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 0', borderRadius: 14, background: cc, border: 'none', fontSize: 14, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 4px 16px ${cc}44`, letterSpacing: '-0.01em' }}>
+                                  {isLoading ? '…' : <><CheckCircle size={15} strokeWidth={2.5} /> Aprovar</>}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               <p style={{ textAlign: 'center', fontSize: 11, color: '#d1d5db', marginTop: 28 }}>Powered by Bagano Hub</p>
             </>

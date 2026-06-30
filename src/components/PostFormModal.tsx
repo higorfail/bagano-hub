@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase'
 import { X } from 'lucide-react'
 
 const POST_TYPES = [
-  { value: 'reels',            label: 'Reels' },
   { value: 'carrossel',        label: 'Carrossel' },
+  { value: 'reels',            label: 'Reels' },
   { value: 'post',             label: 'Post' },
   { value: 'story',            label: 'Story' },
   { value: 'carrossel_stories',label: 'Carrossel/Stories' },
@@ -27,7 +27,7 @@ const SEASONAL_EMOJI: Record<string, string> = {
 }
 
 const EMPTY = {
-  title: '', copy: '', post_type: 'reels', scheduled_date: '',
+  title: '', copy: '', post_type: 'carrossel', scheduled_date: '',
   status: 'producao', drive_url: '', reference_notes: '',
   funil: '', campaign_type: '',
 }

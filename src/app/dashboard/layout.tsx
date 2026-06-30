@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check } from 'lucide-react'
-import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays } from 'lucide-react'
+import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, CheckCircle2, XCircle, Camera, Clock, MessageCircle, Trash2 } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider } from '@/lib/ToastContext'
@@ -15,6 +15,7 @@ import LogoIcon from '@/components/logos/LogoIcon'
 const navItems = [
   { href: '/dashboard',          icon: Home,          label: 'Início' },
   { href: '/dashboard/clientes', icon: Users,         label: 'Clientes' },
+  { href: '/dashboard/equipe',   icon: UserCircle2,   label: 'Equipe' },
 ]
 const productionItems = [
   { href: '/dashboard/agenda',     icon: CalendarDays,   label: 'Agenda' },
@@ -30,11 +31,12 @@ const contentItems = [
   { href: '/dashboard/calendario',                 icon: Calendar,      label: 'Calendário' },
   { href: 'https://sous-chef-bagano.netlify.app/', icon: BookOpen,      label: 'Manuais', external: true },
   { href: '/dashboard/datas-especiais',            icon: CalendarHeart, label: 'Datas especiais' },
+  { href: '/dashboard/lixeira',                    icon: Trash2,        label: 'Lixeira' },
 ]
 
 type Notification = {
   id: string
-  type: 'approval' | 'rejection' | 'comment'
+  type: 'approval' | 'rejection' | 'comment' | 'captacao' | 'deadline'
   title: string
   subtitle: string
   body?: string
@@ -97,8 +99,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   async function loadNotifications() {
     const supabase = createClient()
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const today = new Date().toISOString().slice(0, 10)
+    const threeDaysAgoDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-    const [approvalsRes, extraCmtsRes, matCmtsRes] = await Promise.all([
+    const [approvalsRes, extraCmtsRes, matCmtsRes, captacoesRes, pendingPostsRes] = await Promise.all([
       supabase.from('schedules')
         .select('id, title, approval_status, approval_comment, clients(name, color_hex)')
         .in('approval_status', ['aprovado', 'não aprovado'])
@@ -113,6 +118,18 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         .gte('created_at', sevenDaysAgo)
         .order('created_at', { ascending: false })
         .limit(15),
+      supabase.from('captacoes')
+        .select('id, scheduled_date, clients(name, color_hex)')
+        .gte('scheduled_date', today)
+        .lte('scheduled_date', threeDaysFromNow)
+        .eq('status', 'agendada')
+        .order('scheduled_date')
+        .limit(10),
+      supabase.from('schedules')
+        .select('id, title, clients(name, color_hex)')
+        .eq('status', 'aguardando_aprovacao')
+        .lte('scheduled_date', threeDaysAgoDate)
+        .limit(10),
     ])
 
     const result: Notification[] = []
@@ -128,6 +145,35 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         client_color: d.clients?.color_hex || '',
         created_at: new Date(0).toISOString(),
         link: '/dashboard/cronograma',
+      })
+    })
+
+    ;(captacoesRes.data || []).forEach((d: any) => {
+      const date = new Date(d.scheduled_date + 'T12:00:00')
+      const diffDays = Math.ceil((date.getTime() - Date.now()) / 86400000)
+      const when = diffDays === 0 ? 'hoje' : diffDays === 1 ? 'amanhã' : `em ${diffDays} dias`
+      result.push({
+        id: `capt-${d.id}`,
+        type: 'captacao',
+        title: `Captação ${when}`,
+        subtitle: d.clients?.name || 'Cliente',
+        client_name: date.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }),
+        client_color: d.clients?.color_hex || '',
+        created_at: new Date(0).toISOString(),
+        link: '/dashboard/agenda',
+      })
+    })
+
+    ;(pendingPostsRes.data || []).forEach((d: any) => {
+      result.push({
+        id: `pending-${d.id}`,
+        type: 'deadline',
+        title: 'Aguardando aprovação há 3+ dias',
+        subtitle: d.title || 'Post sem título',
+        client_name: d.clients?.name || '',
+        client_color: d.clients?.color_hex || '',
+        created_at: new Date(0).toISOString(),
+        link: '/dashboard/aprovacao',
       })
     })
 
@@ -181,24 +227,23 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   function NavItem({ href, icon: Icon, label, external }: { href: string; icon: any; label: string; external?: boolean }) {
     const active = pathname === href
-    const cls = `flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${active ? 'bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] font-semibold' : 'text-[var(--color-text-muted)] font-normal hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)]'}`
-    if (external) return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>
-        <Icon size={16} strokeWidth={1.75} />
-        <span>{label}</span>
-      </a>
-    )
-    return (
-      <Link href={href} className={cls}>
-        <Icon size={16} strokeWidth={active ? 2.5 : 1.75} />
-        <span>{label}</span>
-      </Link>
-    )
+    const cls = `relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
+      active
+        ? 'bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] font-semibold'
+        : 'text-[var(--color-text-muted)] font-normal hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-secondary)]'
+    }`
+    const content = <>
+      <Icon size={15} strokeWidth={active ? 2.25 : 1.75} className="flex-shrink-0" />
+      <span className="truncate">{label}</span>
+      {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[var(--color-text-primary)] rounded-r-full" />}
+    </>
+    if (external) return <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>{content}</a>
+    return <Link href={href} className={cls}>{content}</Link>
   }
 
   return (
     <div className="flex h-screen bg-[var(--color-bg-page)] overflow-hidden">
-      <aside className="w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col py-6 px-4">
+      <aside className="w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col py-6 px-4 relative">
         <div className="flex items-center gap-2.5 px-2 mb-8">
           <LogoIcon size={34} className="text-[var(--color-logo)] flex-shrink-0" />
           <span className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight">Bagano Hub</span>
@@ -219,82 +264,70 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           {contentItems.map(item => <NavItem key={item.href} {...item} />)}
         </nav>
 
-        {currentMember && (
-          <div className="mt-auto pt-4 border-t border-[var(--color-border)]">
-            <div className="flex items-center gap-3 px-2">
-              <div className="w-8 h-8 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-xs font-semibold flex-shrink-0">
-                {currentMember.name.slice(0, 2).toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{currentMember.name}</p>
-                <p className="text-xs text-[var(--color-text-muted)] capitalize">{currentMember.role.replace('_', ' ')}</p>
-              </div>
+        <div className="mt-auto pt-4 border-t border-[var(--color-border)]" ref={memberRef}>
+          <button
+            onClick={() => setShowMemberPicker(v => !v)}
+            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-[var(--color-bg-subtle)] transition-colors text-left group"
+          >
+            {currentMember ? (
+              <>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: currentMember.color || 'var(--color-brand)' }}>
+                  {currentMember.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate leading-tight">{currentMember.name.split(' ')[0]}</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] capitalize truncate">{currentMember.role.replace('_', ' ')}</p>
+                </div>
+                <ChevronDown size={13} className="text-[var(--color-text-faint)] group-hover:text-[var(--color-text-muted)] flex-shrink-0 transition-colors" />
+              </>
+            ) : (
+              <span className="text-sm text-[var(--color-text-muted)] px-1">Quem é você?</span>
+            )}
+          </button>
+
+          {currentMember && (
+            <div className="flex items-center mt-2 bg-[var(--color-bg-subtle)] rounded-lg p-0.5">
+              <button
+                onClick={() => setShowOnlyMine(true)}
+                className={`flex-1 py-1 rounded-md text-[11px] font-medium transition-all ${showOnlyMine ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}
+              >
+                Meus
+              </button>
+              <button
+                onClick={() => setShowOnlyMine(false)}
+                className={`flex-1 py-1 rounded-md text-[11px] font-medium transition-all ${!showOnlyMine ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}
+              >
+                Todos
+              </button>
             </div>
-          </div>
-        )}
+          )}
+
+          {showMemberPicker && (
+            <div className="absolute bottom-16 left-3 right-3 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] shadow-xl overflow-hidden z-50 max-h-72 overflow-y-auto">
+              {members.map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => { setCurrentMember(m); setShowMemberPicker(false) }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-[var(--color-bg-subtle)] transition-colors text-left"
+                >
+                  <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style={{ background: m.color || 'var(--color-brand)' }}>
+                    {m.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{m.name}</p>
+                    <p className="text-[10px] text-[var(--color-text-muted)] capitalize">{m.role.replace('_', ' ')}</p>
+                  </div>
+                  {currentMember?.id === m.id && <Check size={14} className="text-[var(--color-text-primary)]" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="h-14 border-b border-[var(--color-border)] bg-[var(--color-bg-page)] flex items-center justify-between px-8">
-          {/* Seletor de pessoa + filtro */}
           <div className="flex items-center gap-3">
-            <div className="relative" ref={memberRef}>
-              <button
-                onClick={() => setShowMemberPicker(v => !v)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:border-[var(--color-border-hover)] transition-all text-sm"
-              >
-                {currentMember ? (
-                  <>
-                    <div className="w-5 h-5 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[9px] font-semibold">
-                      {currentMember.name.slice(0,2).toUpperCase()}
-                    </div>
-                    <span className="font-medium text-[var(--color-text-primary)]">{currentMember.name}</span>
-                  </>
-                ) : (
-                  <span className="text-[var(--color-text-muted)]">Quem é você?</span>
-                )}
-                <ChevronDown size={14} className="text-[var(--color-text-muted)]" />
-              </button>
-
-              {showMemberPicker && (
-                <div className="absolute left-0 top-11 w-56 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] overflow-hidden z-50 max-h-80 overflow-y-auto">
-                  {members.map(m => (
-                    <button
-                      key={m.id}
-                      onClick={() => { setCurrentMember(m); setShowMemberPicker(false) }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-[var(--color-bg-subtle)] transition-colors text-left"
-                    >
-                      <div className="w-6 h-6 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[10px] font-semibold flex-shrink-0">
-                        {m.name.slice(0,2).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{m.name}</p>
-                        <p className="text-[10px] text-[var(--color-text-muted)] capitalize">{m.role.replace('_',' ')}</p>
-                      </div>
-                      {currentMember?.id === m.id && <Check size={14} className="text-[var(--color-text-primary)]" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Toggle meus / todos */}
-            {currentMember && (
-              <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-0.5">
-                <button
-                  onClick={() => setShowOnlyMine(true)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${showOnlyMine ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)]' : 'text-[var(--color-text-muted)]'}`}
-                >
-                  Meus
-                </button>
-                <button
-                  onClick={() => setShowOnlyMine(false)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${!showOnlyMine ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)]' : 'text-[var(--color-text-muted)]'}`}
-                >
-                  Todos
-                </button>
-              </div>
-            )}
             <CommandPalette />
           </div>
 
@@ -319,7 +352,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               className="relative w-9 h-9 rounded-xl hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-all">
               <Bell size={18} strokeWidth={1.75} className="text-[var(--color-text-secondary)]" />
               {unread > 0 && (
-                <span className="absolute top-1 right-1 min-w-[14px] h-3.5 bg-red-500 rounded-full text-white text-[8px] font-bold flex items-center justify-center px-0.5">
+                <span className="absolute top-1 right-1 min-w-[14px] h-3.5 rounded-full text-white text-[8px] font-bold flex items-center justify-center px-0.5" style={{ background: 'var(--ds-error-accent)' }}>
                   {unread > 9 ? '9+' : unread}
                 </span>
               )}
@@ -331,7 +364,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-bold text-[var(--color-text-primary)]">Notificações</p>
                     {unread > 0 && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500 text-white">{unread} nova{unread !== 1 ? 's' : ''}</span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white" style={{ background: 'var(--ds-error-accent)' }}>{unread} nova{unread !== 1 ? 's' : ''}</span>
                     )}
                   </div>
                   {unread > 0 && (
@@ -358,14 +391,21 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                         onClick={() => { markRead(n.id); setShowNotifications(false) }}
                         className={`flex items-start gap-3 px-4 py-3.5 border-b border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors cursor-pointer ${!isRead ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
                         {/* Icon */}
-                        <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm mt-0.5 ${isApproval ? 'bg-green-100 text-green-600' : isRejection ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                          {isApproval ? '✅' : isRejection ? '❌' : '💬'}
+                        <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5`} style={{
+                          background: isApproval ? 'var(--ds-success-bg)' : isRejection ? 'var(--ds-error-bg)' : n.type === 'captacao' ? 'var(--ds-purple-bg)' : n.type === 'deadline' ? 'var(--ds-warn-bg)' : 'var(--ds-info-bg)',
+                          color: isApproval ? 'var(--ds-success-accent)' : isRejection ? 'var(--ds-error-accent)' : n.type === 'captacao' ? 'var(--ds-purple-accent)' : n.type === 'deadline' ? 'var(--ds-warn-accent)' : 'var(--ds-info-accent)',
+                        }}>
+                          {isApproval    ? <CheckCircle2 size={15} strokeWidth={2} /> :
+                           isRejection   ? <XCircle      size={15} strokeWidth={2} /> :
+                           n.type === 'captacao' ? <Camera size={15} strokeWidth={2} /> :
+                           n.type === 'deadline' ? <Clock  size={15} strokeWidth={2} /> :
+                           <MessageCircle size={15} strokeWidth={2} />}
                         </div>
 
                         {/* Content */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
-                            <p className={`text-xs font-semibold leading-snug ${isApproval ? 'text-green-700' : isRejection ? 'text-red-700' : 'text-[var(--color-text-primary)]'}`}>
+                            <p className="text-xs font-semibold leading-snug" style={{ color: isApproval ? 'var(--ds-success-text)' : isRejection ? 'var(--ds-error-text)' : 'var(--color-text-primary)' }}>
                               {n.title}
                             </p>
                             {n.created_at !== new Date(0).toISOString() && (
@@ -378,7 +418,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                         </div>
 
                         {/* Unread dot */}
-                        {!isRead && <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2" />}
+                        {!isRead && <div className="w-2 h-2 rounded-full flex-shrink-0 mt-2" style={{ background: 'var(--ds-info-accent)' }} />}
                       </Link>
                     )
                   })}

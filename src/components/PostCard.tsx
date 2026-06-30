@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, ChevronRight, Trash2, Link2, AlignLeft, ImagePlus, XCircle } from 'lucide-react'
+import { X, Calendar, ChevronRight, Trash2, Link2, AlignLeft, ImagePlus, XCircle, Target, Megaphone } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
+import { moveToTrash } from '@/lib/trash'
 
 const POST_TYPES = [
-  { value: 'reels',             label: 'Reels',             color: '#ef4444' },
   { value: 'carrossel',         label: 'Carrossel',         color: '#3b82f6' },
+  { value: 'reels',             label: 'Reels',             color: '#ef4444' },
   { value: 'post',              label: 'Post',              color: '#f59e0b' },
   { value: 'story',             label: 'Story',             color: '#8b5cf6' },
   { value: 'carrossel_stories', label: 'Carrossel/Stories', color: '#6366f1' },
@@ -28,9 +29,9 @@ const DIAS  = ['dom','seg','ter','qua','qui','sex','sáb']
 type PostForm = {
   title: string; copy: string; post_type: string; scheduled_date: string
   status: string; drive_url: string; reference_notes: string; funil: string
-  reference_images: string[]
+  campaign_type: string; reference_images: string[]
 }
-const EMPTY: PostForm = { title:'', copy:'', post_type:'reels', scheduled_date:'', status:'producao', drive_url:'', reference_notes:'', funil:'', reference_images:[] }
+const EMPTY: PostForm = { title:'', copy:'', post_type:'carrossel', scheduled_date:'', status:'producao', drive_url:'', reference_notes:'', funil:'', campaign_type:'', reference_images:[] }
 
 type Props = {
   postId?: string
@@ -54,6 +55,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [confirmDelete,setConfirmDelete]= useState(false)
   const [uploadingRef, setUploadingRef] = useState(false)
   const [currentId,    setCurrentId]    = useState<string | undefined>(postId)
+  const [campaigns,    setCampaigns]    = useState<{ id: string; name: string; type: string }[]>([])
   const refInputRef = useRef<HTMLInputElement>(null)
 
   const [form,     setForm]     = useState<PostForm>(EMPTY)
@@ -63,14 +65,20 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const isNew = !postId
 
   useEffect(() => {
+    supabase.from('campaigns').select('id, name, type').eq('client_id', clientId).then(({ data }) => {
+      setCampaigns(data || [])
+    })
+  }, [clientId])
+
+  useEffect(() => {
     if (!postId) return
     async function load() {
       const { data } = await supabase.from('schedules').select('*').eq('id', postId).single()
       if (data) setForm({
-        title: data.title || '', copy: data.copy || '', post_type: data.post_type || 'reels',
+        title: data.title || '', copy: data.copy || '', post_type: data.post_type || 'carrossel',
         scheduled_date: data.scheduled_date || '', status: data.status || 'producao',
         drive_url: data.drive_url || '', reference_notes: data.reference_notes || '',
-        funil: data.funil || '',
+        funil: data.funil || '', campaign_type: data.campaign_type || '',
         reference_images: Array.isArray(data.reference_images) ? data.reference_images : [],
       })
       setLoading(false)
@@ -133,6 +141,13 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   async function handleDelete() {
     if (!postId) return
     setDeleting(true)
+    try {
+      await moveToTrash('post', postId, form.title || 'Post sem título')
+    } catch (err) {
+      toast('Erro na lixeira: ' + (err instanceof Error ? err.message : String(err)))
+      setDeleting(false)
+      return
+    }
     await supabase.from('schedules').delete().eq('id', postId)
     setDeleting(false)
     if (onDeleted) onDeleted()
@@ -293,7 +308,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
               {/* Funil */}
               <div className="flex items-start gap-3 py-2.5 border-b border-[var(--color-border)]">
-                <span className="text-[13px] text-[var(--color-text-muted)] flex-shrink-0 mt-0.5">🎯</span>
+                <Target size={13} className="text-[var(--color-text-muted)] flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Funil</p>
                   <div className="flex flex-wrap gap-1">
@@ -310,6 +325,35 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 </div>
               </div>
 
+              {/* Campanha */}
+              {campaigns.length > 0 && (
+                <div className="flex items-start gap-3 py-2.5 border-b border-[var(--color-border)]">
+                  <Megaphone size={13} className="text-[var(--color-text-muted)] flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Campanha</p>
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        onClick={() => setForm(f => ({ ...f, campaign_type: '' }))}
+                        className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-all border"
+                        style={!form.campaign_type
+                          ? { background: 'var(--color-text-primary)', color: 'var(--color-bg-card)', borderColor: 'transparent' }
+                          : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                        Nenhuma
+                      </button>
+                      {campaigns.map(c => (
+                        <button key={c.type} onClick={() => setForm(f => ({ ...f, campaign_type: f.campaign_type === c.type ? '' : c.type }))}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-all border"
+                          style={form.campaign_type === c.type
+                            ? { background: clientColor || 'var(--color-brand)', color: 'white', borderColor: 'transparent' }
+                            : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Drive link */}
               <div className="flex items-start gap-3 py-2.5">
                 <Link2 size={13} className="text-[var(--color-text-muted)] flex-shrink-0 mt-0.5" />
@@ -323,7 +367,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                   />
                   {form.drive_url && (
                     <a href={form.drive_url} target="_blank" rel="noopener noreferrer"
-                      className="text-[10px] text-blue-500 hover:underline mt-0.5 block">Abrir →</a>
+                      className="text-[10px] hover:underline mt-0.5 block" style={{ color: 'var(--ds-info-text)' }}>Abrir →</a>
                   )}
                 </div>
               </div>
@@ -336,14 +380,14 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           {!isNew ? (
             confirmDelete ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-red-600 font-medium">Confirmar exclusão?</span>
+                <span className="text-xs font-medium" style={{ color: 'var(--ds-error-text)' }}>Confirmar exclusão?</span>
                 <button onClick={() => setConfirmDelete(false)} className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
-                <button onClick={handleDelete} disabled={deleting} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-500 text-white disabled:opacity-50">
+                <button onClick={handleDelete} disabled={deleting} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white disabled:opacity-50" style={{ background: 'var(--ds-error-accent)' }}>
                   {deleting ? 'Excluindo…' : 'Excluir'}
                 </button>
               </div>
             ) : (
-              <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-red-500 transition-colors">
+              <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
                 <Trash2 size={13} /> Excluir post
               </button>
             )

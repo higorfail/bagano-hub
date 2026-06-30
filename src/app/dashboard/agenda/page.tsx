@@ -17,9 +17,9 @@ const DAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta']
 const DAYS_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex']
 const STATUS_LABEL: Record<string, string> = { agendada: 'Agendada', realizada: 'Realizada', cancelada: 'Cancelada' }
 const STATUS_COLOR: Record<string, string> = {
-  agendada:  'bg-blue-50 text-blue-600 border-blue-100',
-  realizada: 'bg-green-50 text-green-600 border-green-100',
-  cancelada: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] border-[var(--color-border)]',
+  agendada:  'border bg-[var(--ds-info-bg)] text-[var(--ds-info-text)] border-[var(--ds-info-border)]',
+  realizada: 'border bg-[var(--ds-success-bg)] text-[var(--ds-success-text)] border-[var(--ds-success-border)]',
+  cancelada: 'border bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] border-[var(--color-border)]',
 }
 
 function getMonday(d: Date) {
@@ -236,7 +236,7 @@ export default function AgendaPage() {
           </div>
           <div className="flex items-center gap-3">
             {calendarOk === false && (
-              <span className="text-xs text-amber-600 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-xl">
+              <span className="text-xs px-3 py-1.5 rounded-xl border" style={{ color: 'var(--ds-caution-text)', background: 'var(--ds-caution-bg)', borderColor: 'var(--ds-caution-border)' }}>
                 Google Calendar não configurado
               </span>
             )}
@@ -255,7 +255,7 @@ export default function AgendaPage() {
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Agenda de criação</h2>
             <div className="flex items-center gap-2">
               <button onClick={() => setWeekStart(d => getMonday(addDays(d, -7)))}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors">
                 <ChevronLeft size={14} />
               </button>
               <span className="text-sm font-medium text-[var(--color-text-primary)] tabular-nums w-40 text-center">
@@ -263,11 +263,11 @@ export default function AgendaPage() {
                 {weekEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
               </span>
               <button onClick={() => setWeekStart(d => getMonday(addDays(d, 7)))}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors">
                 <ChevronRight size={14} />
               </button>
               <button onClick={() => setWeekStart(getMonday(new Date()))}
-                className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                className="text-xs px-3 py-1.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)] transition-colors">
                 Hoje
               </button>
             </div>
@@ -323,7 +323,7 @@ export default function AgendaPage() {
                         </div>
                         <button
                           onClick={() => removeEntry(entry.id)}
-                          className="absolute top-1 right-1 w-4 h-4 rounded flex items-center justify-center text-[var(--color-text-faint)] hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+                          className="absolute top-1 right-1 w-4 h-4 rounded flex items-center justify-center text-[var(--color-text-faint)] opacity-0 group-hover:opacity-100 transition-all" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
                           <X size={10} />
                         </button>
                       </div>
@@ -545,7 +545,7 @@ function CaptacaoRow({ c, clientMap, memberMap, syncing, calendarOk, onSync, onD
       <div className="ml-auto flex items-center gap-2 flex-shrink-0">
         {/* Months covered */}
         {c.months_covered > 1 && (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 font-semibold border border-purple-100">
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold border" style={{ background: 'var(--ds-purple-bg)', color: 'var(--ds-purple-text)', borderColor: 'var(--ds-purple-border)' }}>
             {c.months_covered} meses
           </span>
         )}
@@ -573,14 +573,14 @@ function CaptacaoRow({ c, clientMap, memberMap, syncing, calendarOk, onSync, onD
         {/* Google Calendar sync */}
         {calendarOk && c.status !== 'cancelada' && (
           <button onClick={onSync} disabled={syncing || !!c.google_calendar_event_id} title={c.google_calendar_event_id ? 'Sincronizado' : 'Adicionar ao Google Calendar'}
-            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${c.google_calendar_event_id ? 'text-green-500 bg-green-50' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)]'}`}>
+            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${c.google_calendar_event_id ? 'bg-[var(--ds-success-bg)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)]'}`} style={c.google_calendar_event_id ? { color: 'var(--ds-success-text)' } : {}}>
             {syncing ? <Loader2 size={14} className="animate-spin" /> : c.google_calendar_event_id ? <Check size={14} /> : <CalendarPlus size={14} />}
           </button>
         )}
 
         {/* Delete */}
         <button onClick={onDelete}
-          className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--color-text-faint)] hover:text-red-400 hover:bg-red-50 transition-all">
+          className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--color-text-faint)] transition-all" onMouseEnter={e => { e.currentTarget.style.color = 'var(--ds-error-text)'; e.currentTarget.style.background = 'var(--ds-error-bg)' }} onMouseLeave={e => { e.currentTarget.style.color = ''; e.currentTarget.style.background = '' }}>
           <X size={14} />
         </button>
       </div>
