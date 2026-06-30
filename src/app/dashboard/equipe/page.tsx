@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Plus, Trash2, Pencil, Check, X, Users } from 'lucide-react'
 import { moveToTrash } from '@/lib/trash'
+import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
 
 type Member = { id: string; name: string; role: string; color: string }
 
@@ -29,6 +31,7 @@ function initials(name: string) {
 const emptyForm = { name: '', role: 'posts', color: '#6366f1' }
 
 export default function EquipePage() {
+  const { toast } = useToast()
   const [members,  setMembers]  = useState<Member[]>([])
   const [loading,  setLoading]  = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -50,7 +53,8 @@ export default function EquipePage() {
   async function save() {
     if (!form.name.trim()) return
     setSaving(true)
-    await createClient().from('team_members').insert({ name: form.name.trim(), role: form.role, color: form.color })
+    const { error } = await createClient().from('team_members').insert({ name: form.name.trim(), role: form.role, color: form.color })
+    if (dbError(error, toast, 'adicionar pessoa')) { setSaving(false); return }
     await load()
     setForm(emptyForm)
     setShowForm(false)
@@ -59,7 +63,8 @@ export default function EquipePage() {
 
   async function saveEdit(id: string) {
     if (!editForm.name.trim()) return
-    await createClient().from('team_members').update({ name: editForm.name.trim(), role: editForm.role, color: editForm.color }).eq('id', id)
+    const { error } = await createClient().from('team_members').update({ name: editForm.name.trim(), role: editForm.role, color: editForm.color }).eq('id', id)
+    if (dbError(error, toast, 'salvar pessoa')) return
     await load()
     setEditing(null)
   }
@@ -70,7 +75,8 @@ export default function EquipePage() {
     if (member) {
       try { await moveToTrash('member', id, member.name) } catch { /* trash table missing */ }
     }
-    await createClient().from('team_members').delete().eq('id', id)
+    const { error } = await createClient().from('team_members').delete().eq('id', id)
+    if (error) { dbError(error, toast, 'remover pessoa'); setDeleting(null); return }
     setMembers(m => m.filter(x => x.id !== id))
     setDeleting(null)
     setConfirmDelete(null)

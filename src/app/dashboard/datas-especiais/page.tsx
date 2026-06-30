@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Plus, Trash2, CalendarHeart, Clock } from 'lucide-react'
+import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
 
 type SpecialDate = { id: string; name: string; date: string }
 
@@ -24,6 +26,7 @@ function urgencyStyle(days: number): { pill: string; badge: string } {
 }
 
 export default function DatasEspeciaisPage() {
+  const { toast } = useToast()
   const [dates, setDates]       = useState<SpecialDate[]>([])
   const [loading, setLoading]   = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -54,7 +57,8 @@ export default function DatasEspeciaisPage() {
     if (!form.name.trim() || !form.date) return
     setSaving(true)
     const supabase = createClient()
-    await supabase.from('special_dates').insert({ name: form.name.trim(), date: form.date })
+    const { error } = await supabase.from('special_dates').insert({ name: form.name.trim(), date: form.date })
+    if (dbError(error, toast, 'salvar data')) { setSaving(false); return }
     await load()
     setForm({ name: '', date: '' })
     setShowForm(false)
@@ -64,7 +68,8 @@ export default function DatasEspeciaisPage() {
   async function remove(id: string) {
     setDeleting(id)
     const supabase = createClient()
-    await supabase.from('special_dates').delete().eq('id', id)
+    const { error } = await supabase.from('special_dates').delete().eq('id', id)
+    if (error) { dbError(error, toast, 'remover data'); setDeleting(null); return }
     setDates(d => d.filter(x => x.id !== id))
     setDeleting(null)
   }
@@ -98,7 +103,7 @@ export default function DatasEspeciaisPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
-      <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[#1A1916] rounded-full animate-spin" />
+      <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[var(--color-text-muted)] rounded-full animate-spin" />
     </div>
   )
 
