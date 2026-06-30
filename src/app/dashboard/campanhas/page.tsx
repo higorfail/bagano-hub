@@ -102,8 +102,8 @@ export default function CampanhasPage() {
     <div className="p-6 flex flex-col gap-6 h-full overflow-y-auto">
       {/* Header */}
       <div>
-        <h1 className="text-[var(--color-text-primary)] font-semibold text-lg">Campanhas</h1>
-        <p className="text-[var(--color-text-secondary)] text-sm mt-0.5">Visão global · todos os clientes por campanha</p>
+        <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Campanhas</h1>
+        <p className="text-[var(--color-text-muted)] text-sm mt-0.5">Visão global · todos os clientes por campanha</p>
       </div>
 
       {/* Seletor de campanha */}

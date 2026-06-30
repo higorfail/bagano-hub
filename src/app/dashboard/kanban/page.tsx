@@ -140,7 +140,7 @@ export default function KanbanPage() {
       <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           <div>
-            <h1 className="text-[var(--color-text-primary)] font-semibold text-lg">Kanban</h1>
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Kanban</h1>
             <p className="text-[var(--color-text-muted)] text-xs mt-0.5">{publishedPosts}/{totalPosts} publicados · {MONTHS_FULL[selectedMonth - 1]}</p>
           </div>
           {cronoFeitoCount > 0 && (

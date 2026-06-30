@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import MaterialCard from '@/components/MaterialCard'
 import MaterialCardMini from '@/components/MaterialCardMini'
+import Button from '@/components/ui/Button'
 import { logActivity } from '@/lib/activity'
 
 type Material = {
@@ -106,15 +107,15 @@ export default function MateriaisPage() {
     <div className="p-6 flex flex-col gap-5 h-full">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[var(--color-text-primary)] font-semibold text-lg">Materiais</h1>
-          <p className="text-[var(--color-text-secondary)] text-sm mt-0.5">{visible.length} materiais · menus, cardápios, artes</p>
+          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Materiais</h1>
+          <p className="text-[var(--color-text-muted)] text-sm mt-0.5">{visible.length} materiais · menus, cardápios, artes</p>
         </div>
         <div className="flex items-center gap-3">
           <select value={filterClient} onChange={e => setFilterClient(e.target.value)} className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)]">
             <option value="">Todos os clientes</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <button onClick={() => setCardOpen('new')} className="bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg px-4 py-1.5 text-sm font-medium">+ Novo material</button>
+          <Button variant="dark" onClick={() => setCardOpen('new')}>+ Novo material</Button>
         </div>
       </div>
 

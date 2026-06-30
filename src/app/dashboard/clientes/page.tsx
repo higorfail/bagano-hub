@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
+import Button from '@/components/ui/Button'
 
 type Client = {
   id: string
@@ -124,15 +125,10 @@ export default function ClientesPage() {
     <div className="p-6 flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[var(--color-text-primary)] font-semibold text-lg">Clientes</h1>
-          <p className="text-[var(--color-text-secondary)] text-sm mt-0.5">{clients.length} clientes ativos</p>
+          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Clientes</h1>
+          <p className="text-[var(--color-text-muted)] text-sm mt-0.5">{clients.length} clientes ativos</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="bg-[var(--color-text-primary)] text-white rounded-xl px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          + Novo cliente
-        </button>
+        <Button variant="dark" onClick={openCreate}>+ Novo cliente</Button>
       </div>
 
       <input
@@ -148,7 +144,7 @@ export default function ClientesPage() {
           <a
             key={client.id}
             href={'/dashboard/clientes/' + client.id}
-            className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 block hover:border-[var(--color-border-hover)] transition-all group relative"
+            className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 block shadow-card hover:shadow-pop hover:-translate-y-0.5 hover:border-[var(--color-border-hover)] transition-all group relative"
             style={{ borderLeftWidth: 3, borderLeftColor: client.color_hex }}
           >
             <button
@@ -222,7 +218,7 @@ export default function ClientesPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/30" onClick={() => setShowModal(false)} />
-          <div className="relative bg-[var(--color-bg-card)] rounded-2xl shadow-xl w-full max-w-md p-6 flex flex-col gap-5">
+          <div className="relative bg-[var(--color-bg-card)] rounded-2xl shadow-pop w-full max-w-md p-6 flex flex-col gap-5">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
                 {editingClient ? 'Editar cliente' : 'Novo cliente'}
@@ -362,19 +358,10 @@ export default function ClientesPage() {
                 </button>
               )}
               <div className="flex-1" />
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={save}
-                disabled={saving || !form.name.trim()}
-                className="px-5 py-2 rounded-xl text-sm font-semibold bg-[var(--color-brand)] text-[var(--color-brand-fg)] hover:opacity-90 disabled:opacity-40 transition-opacity"
-              >
+              <Button variant="ghost" onClick={() => setShowModal(false)}>Cancelar</Button>
+              <Button variant="dark" onClick={save} disabled={saving || !form.name.trim()}>
                 {saving ? 'Salvando...' : editingClient ? 'Salvar' : 'Criar cliente'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

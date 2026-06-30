@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Button from '@/components/ui/Button'
 
 const statusConfig: Record<string, { label: string; bg: string; color: string }> = {
   approved: { label: '✓ Aprovado', bg: '#EAF3DE', color: '#27500A' },
@@ -152,10 +153,7 @@ export default function PostPage() {
                 rows={3}
                 className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)] transition-colors bg-[var(--color-bg-card)] resize-none"
               />
-              <button onClick={addComment}
-                className="self-end bg-[var(--color-text-primary)] text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-[#2d2d2a] transition-colors">
-                Comentar
-              </button>
+              <Button variant="dark" onClick={addComment} className="self-end">Comentar</Button>
             </div>
           </div>
         </div>

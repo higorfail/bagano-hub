@@ -96,8 +96,8 @@ export default function CalendarioPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[var(--color-text-primary)] font-semibold text-lg">Calendário</h1>
-          <p className="text-[var(--color-text-secondary)] text-sm mt-0.5">{posts.length} posts em {MONTHS[month-1]} {year}</p>
+          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Calendário</h1>
+          <p className="text-[var(--color-text-muted)] text-sm mt-0.5">{posts.length} posts em {MONTHS[month-1]} {year}</p>
         </div>
         <div className="flex items-center gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1">
           <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">

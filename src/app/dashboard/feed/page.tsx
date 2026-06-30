@@ -90,7 +90,7 @@ export default function FeedPage() {
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-medium" style={{ background: selected.color_hex }}>{initials(selected.name)}</div>
                 <div>
-                  <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">{selected.name}</h1>
+                  <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">{selected.name}</h1>
                   <p className="text-xs text-[var(--color-text-muted)]">Feed do Instagram</p>
                 </div>
               </div>

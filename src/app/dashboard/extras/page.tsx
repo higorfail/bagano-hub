@@ -29,8 +29,8 @@ export default function ExtrasPage() {
     <div className="p-8 flex flex-col gap-6">
       {/* Header */}
       <div>
-        <h1 className="text-lg font-semibold text-[var(--color-text-primary)]">Extras</h1>
-        <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">Tarefas, notas e lembretes · todos os clientes</p>
+        <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Extras</h1>
+        <p className="text-sm text-[var(--color-text-muted)] mt-0.5">Tarefas, notas e lembretes · todos os clientes</p>
       </div>
 
       {/* Stats */}

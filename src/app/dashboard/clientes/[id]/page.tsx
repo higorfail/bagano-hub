@@ -227,7 +227,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
               <div>
-                <h1 className="text-[var(--color-text-primary)] font-semibold text-xl">{client.name}</h1>
+                <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">{client.name}</h1>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-xs text-[var(--color-text-muted)]">{posts.length} posts · {MONTHS[selectedMonth-1]} {selectedYear}</span>
                   {notApproved > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>✗ {notApproved} não aprovado{notApproved>1?'s':''}</span>}

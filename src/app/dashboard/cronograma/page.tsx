@@ -5,6 +5,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import PostCard from '@/components/PostCard'
+import Button from '@/components/ui/Button'
 import { useToast } from '@/lib/ToastContext'
 import { Check, Copy, Calendar, Link2 } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
@@ -212,8 +213,8 @@ function CronogramaPageInner() {
         <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <div>
-              <h1 className="text-[var(--color-text-primary)] font-semibold text-lg">Cronograma</h1>
-              <p className="text-[var(--color-text-secondary)] text-sm mt-0.5">{posts.length} posts · {MONTHS[selectedMonth-1]} {selectedYear}</p>
+              <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Cronograma</h1>
+              <p className="text-[var(--color-text-muted)] text-sm mt-0.5">{posts.length} posts · {MONTHS[selectedMonth-1]} {selectedYear}</p>
             </div>
             {/* Finalizado badge */}
             {cronoStatus?.status === 'finalizado' && (
@@ -271,7 +272,7 @@ function CronogramaPageInner() {
               </button>
             )}
             {posts.length > 0 && <button onClick={openApprovalModal} className="border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-xl px-4 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)] hover:border-[var(--color-text-primary)] hover:text-[var(--color-text-primary)] transition-all">Enviar para aprovação</button>}
-            <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }} className="bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-xl px-4 py-2 text-sm font-semibold hover:opacity-90 transition-opacity">+ Novo post</button>
+            <Button variant="dark" onClick={() => { setEditingPostId(null); setShowPostCard(true) }}>+ Novo post</Button>
           </div>
         </div>
 
@@ -286,10 +287,7 @@ function CronogramaPageInner() {
                 <p className="text-[var(--color-text-primary)] font-semibold text-lg">Nenhum post em {MONTHS[selectedMonth-1]}</p>
                 <p className="text-[var(--color-text-muted)] text-sm max-w-xs">Adicione o primeiro post do mês para montar o cronograma do cliente.</p>
               </div>
-              <button onClick={() => setShowPostCard(true)}
-                className="flex items-center gap-2 bg-[var(--color-brand)] hover:opacity-90 text-[var(--color-brand-fg)] font-semibold px-6 py-3 rounded-xl text-sm transition-opacity shadow-sm">
-                Criar primeiro post
-              </button>
+              <Button variant="dark" size="lg" onClick={() => setShowPostCard(true)}>Criar primeiro post</Button>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
