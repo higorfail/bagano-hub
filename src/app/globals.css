@@ -28,6 +28,12 @@
 /* Page-level content fade */
 .page-content { animation: fadeUp 0.2s ease-out both; }
 
+/* ── Markdown leve (briefing/copy/legenda) ───────────────────────────────── */
+.md-content ul { list-style: disc; padding-left: 1.25rem; margin: 0.25rem 0; }
+.md-content li { margin: 0.1rem 0; }
+.md-content strong { font-weight: 700; }
+.md-content em { font-style: italic; }
+
 /* ── Elevation utilities ─────────────────────────────────────────────────── */
 .shadow-card { box-shadow: var(--shadow-card); }
 .shadow-pop  { box-shadow: var(--shadow-pop); }

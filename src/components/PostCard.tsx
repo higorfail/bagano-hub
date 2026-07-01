@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
@@ -64,13 +64,23 @@ function relTime(iso: string) {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 function hostOf(url: string) { try { return new URL(url).hostname.replace('www.', '') } catch { return url } }
-// markdown leve: **negrito** e *itálico* (escapa HTML antes; quebras via CSS pre-line)
+// markdown leve: **negrito**, *itálico* e "- " bullets (escapa HTML antes)
 function renderMd(text: string) {
   const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return esc
-    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+  const inline = (s: string) => s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>').replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+  const blocks: string[] = []
+  let buf: string[] = [], items: string[] = []
+  const flush = () => { if (buf.length) { blocks.push('<div>' + buf.join('<br/>') + '</div>'); buf = [] } }
+  const flushList = () => { if (items.length) { blocks.push('<ul>' + items.join('') + '</ul>'); items = [] } }
+  for (const line of esc.split('\n')) {
+    const m = line.match(/^\s*[-•]\s+(.*)$/)
+    if (m) { flush(); items.push('<li>' + inline(m[1]) + '</li>') }
+    else { flushList(); buf.push(inline(line)) }
+  }
+  flush(); flushList()
+  return blocks.join('')
 }
+const EMOJIS = ['😀','😍','🔥','✨','🎉','👏','💪','🙌','❤️','👍','📸','🎬','🎥','🍕','🍔','🍟','🌮','🥗','🍰','🍫','☕','🍺','🥂','🍾','🎂','🌿','⭐','📌','📣','🚀','💯','🙏','😋','🤤','🧀']
 
 export default function PostCard({ postId, clientId, clientName, clientColor, month, year, postNumber, onClose, onSaved, onDeleted }: Props) {
   const supabase = createClient()
@@ -89,6 +99,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [newComment,   setNewComment]   = useState('')
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
   const [showDetails,  setShowDetails]  = useState(false)
+  const [emojiOpen,    setEmojiOpen]    = useState<TextField | null>(null)
   const refInputRef = useRef<HTMLInputElement>(null)
 
   const [form,     setForm]     = useState<PostForm>(EMPTY)
@@ -115,6 +126,29 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       ta.focus()
       ta.setSelectionRange(start + marker.length, start + marker.length + sel.length)
     })
+  }
+
+  // Prefixa a linha atual com "- " (bullet)
+  function toggleBullet(field: TextField) {
+    const ta = editTextareaRef.current
+    if (!ta) return
+    const val = String(formRef.current[field] || '')
+    const pos = ta.selectionStart
+    const lineStart = val.lastIndexOf('\n', pos - 1) + 1
+    const next = val.slice(0, lineStart) + '- ' + val.slice(lineStart)
+    setForm(f => ({ ...f, [field]: next }))
+    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(pos + 2, pos + 2) })
+  }
+
+  // Insere emoji na posição do cursor
+  function insertEmoji(field: TextField, emoji: string) {
+    const ta = editTextareaRef.current
+    if (!ta) return
+    const start = ta.selectionStart, end = ta.selectionEnd
+    const val = String(formRef.current[field] || '')
+    const next = val.slice(0, start) + emoji + val.slice(end)
+    setForm(f => ({ ...f, [field]: next }))
+    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(start + emoji.length, start + emoji.length) })
   }
 
   useEffect(() => {
@@ -291,6 +325,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   const fieldEditCls = 'w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none resize-none leading-relaxed'
   const fieldViewCls = 'cursor-text text-sm text-[var(--color-text-primary)] leading-relaxed whitespace-pre-line rounded-lg hover:bg-[var(--color-bg-subtle)] -mx-2 px-2 py-1.5 transition-colors'
+  const mdViewCls   = 'cursor-text text-sm text-[var(--color-text-primary)] leading-relaxed rounded-lg hover:bg-[var(--color-bg-subtle)] -mx-2 px-2 py-1.5 transition-colors md-content'
 
   // Campo de texto editável (click-to-edit + autosave)
   function textField(field: TextField, label: string, hint: string, placeholder: string, minH = 60) {
@@ -302,12 +337,24 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         </div>
         {editingField === field ? (
           <div>
-            <div className="flex items-center gap-1 mb-1.5">
+            <div className="flex items-center gap-1 mb-1.5 relative">
               <button onMouseDown={e => { e.preventDefault(); wrapSelection(field, '**') }} title="Negrito"
                 className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"><Bold size={13} /></button>
               <button onMouseDown={e => { e.preventDefault(); wrapSelection(field, '*') }} title="Itálico"
                 className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"><Italic size={13} /></button>
-              <span className="text-[10px] text-[var(--color-text-faint)] ml-1">**negrito** · *itálico*</span>
+              <button onMouseDown={e => { e.preventDefault(); toggleBullet(field) }} title="Lista (bullet)"
+                className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"><List size={14} /></button>
+              <button onMouseDown={e => { e.preventDefault(); setEmojiOpen(o => o === field ? null : field) }} title="Emoji"
+                className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"><Smile size={14} /></button>
+              <span className="text-[10px] text-[var(--color-text-faint)] ml-1">**negrito** · *itálico* · Ctrl+⌘+Espaço p/ emoji do Mac</span>
+              {emojiOpen === field && (
+                <div className="absolute top-7 left-0 z-[85] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-pop p-2 grid grid-cols-8 gap-0.5 w-[268px]">
+                  {EMOJIS.map(em => (
+                    <button key={em} onMouseDown={e => { e.preventDefault(); insertEmoji(field, em) }}
+                      className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-lg transition-colors">{em}</button>
+                  ))}
+                </div>
+              )}
             </div>
             <textarea ref={editTextareaRef} autoFocus value={form[field] as string} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
               onBlur={() => blurCommit(field)} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discardEdit(field) } }}
@@ -321,9 +368,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             </div>
           </div>
         ) : (
-          <div onClick={() => startEdit(field)} className={fieldViewCls} style={{ minHeight: minH }}>
+          <div onClick={() => startEdit(field)} className={mdViewCls} style={{ minHeight: minH }}>
             {(form[field] as string)
-              ? <span dangerouslySetInnerHTML={{ __html: renderMd(form[field] as string) }} />
+              ? <div dangerouslySetInnerHTML={{ __html: renderMd(form[field] as string) }} />
               : <span className="text-[var(--color-text-faint)]">{placeholder}</span>}
           </div>
         )}
