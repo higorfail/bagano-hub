@@ -149,7 +149,7 @@ export default function KanbanPage() {
 
   const totalPosts = posts.length
   const publishedPosts = posts.filter(p => p.status === 'publicado').length
-  const pendingApproval = posts.filter(p => p.approval_status === 'não aprovado').length
+  const pendingApproval = posts.filter(p => p.approval_status === 'não aprovado' && !['aprovado', 'agendado', 'publicado'].includes(p.status)).length
   const cronoFeitoCount = getColPosts('crono_feito').length
 
   return (
@@ -275,7 +275,7 @@ export default function KanbanPage() {
                         {/* Individual cards */}
                         {!isCollapsed && clientPosts.map(post => {
                           const isBeingDragged = dragging === post.id
-                          const isRejected = post.approval_status === 'não aprovado'
+                          const isRejected = post.approval_status === 'não aprovado' && !['aprovado', 'agendado', 'publicado'].includes(post.status)
                           const isApproved = post.approval_status === 'aprovado'
                           const typeAccent = TYPE_ACCENT[post.post_type] || 'var(--color-border)'
                           return (
