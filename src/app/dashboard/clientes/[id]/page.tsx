@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
 import MaterialCard from '@/components/MaterialCard'
 import { logActivity } from '@/lib/activity'
+import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
 import CampaignsTab from '@/components/CampaignsTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
 import PostFormModal from '@/components/PostFormModal'
@@ -40,6 +42,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { toast } = useToast()
   const [client, setClient] = useState<Client | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [tab, setTab] = useState('cronograma')
@@ -117,7 +120,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   async function quickDuplicate(post: any) {
     const supabase = createClient()
     const { id: _, ...rest } = post
-    await supabase.from('schedules').insert({ ...rest, post_number: posts.length + 1, title: post.title + ' (cópia)', approval_status: 'pendente' })
+    const { error } = await supabase.from('schedules').insert({ ...rest, post_number: posts.length + 1, title: post.title + ' (cópia)', approval_status: 'pendente' })
+    if (dbError(error, toast, 'duplicar post')) return
     reloadPosts()
   }
 
@@ -138,9 +142,11 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
     const mat = materials.find(m => m.id === matId)
     const oldLabel = labels[mat?.status || 'producao'] || mat?.status || ''
     const newLabel = labels[newStatus] || newStatus
+    const prevMats = materials
     setMaterials(prev => prev.map(m => m.id === matId ? { ...m, status: newStatus } : m))
     const supabase = createClient()
-    await supabase.from('materials').update({ status: newStatus }).eq('id', matId)
+    const { error } = await supabase.from('materials').update({ status: newStatus }).eq('id', matId)
+    if (error) { setMaterials(prevMats); dbError(error, toast, 'mover material'); return }
     await logActivity({ tableName: 'materials', recordId: matId, clientId: id, action: 'status_changed', field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
   }
 
@@ -158,7 +164,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   async function addMember() {
     if (!newMemberId) return
     const supabase = createClient()
-    await supabase.from('client_team').insert({ client_id: id, member_id: newMemberId, funcao: newFuncao })
+    const { error } = await supabase.from('client_team').insert({ client_id: id, member_id: newMemberId, funcao: newFuncao })
+    if (dbError(error, toast, 'atribuir pessoa')) return
     const { data } = await supabase.from('client_team').select('id, funcao, member_id').eq('client_id', id)
     const enriched = (data || []).map(t => ({ ...t, team_members: allMembers.find(m => m.id === t.member_id) }))
     setTeam(enriched)
@@ -169,7 +176,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 
   async function removeMember(teamId: string) {
     const supabase = createClient()
-    await supabase.from('client_team').delete().eq('id', teamId)
+    const { error } = await supabase.from('client_team').delete().eq('id', teamId)
+    if (dbError(error, toast, 'remover pessoa')) return
     setTeam(t => t.filter(m => m.id !== teamId))
   }
 
@@ -196,7 +204,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
       instagram_followers: editClientForm.instagram_followers ? parseInt(editClientForm.instagram_followers) : null,
       instagram_following: editClientForm.instagram_following ? parseInt(editClientForm.instagram_following) : null,
     }
-    await supabase.from('clients').update(payload).eq('id', client.id)
+    const { error } = await supabase.from('clients').update(payload).eq('id', client.id)
+    if (dbError(error, toast, 'salvar cliente')) { setSavingClient(false); return }
     setClient((c: any) => ({ ...c, ...payload }))
     setShowEditClient(false)
     setSavingClient(false)

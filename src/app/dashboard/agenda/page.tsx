@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
 import { Plus, ChevronLeft, ChevronRight, Calendar, Camera, X, Check, Loader2, CalendarPlus } from 'lucide-react'
 
 type Client       = { id: string; name: string; color_hex: string }
@@ -53,6 +55,7 @@ const BLANK_CAPTACAO = {
 
 export default function AgendaPage() {
   const supabase = createClient()
+  const { toast } = useToast()
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
   const [clients,      setClients]      = useState<Client[]>([])
   const [members,      setMembers]      = useState<Member[]>([])
@@ -122,12 +125,13 @@ export default function AgendaPage() {
     if (!entryClient) return
     setSavingEntry(true)
     const dayIndex = entryModal!.dayIndex
-    const { data } = await supabase.from('agenda_criacao').insert({
+    const { data, error } = await supabase.from('agenda_criacao').insert({
       week_start: weekKey, day_of_week: dayIndex + 1,
       client_id: entryClient,
       member_ids: entryMembers.length > 0 ? entryMembers : null,
       notes: entryNotes || null,
     }).select().single()
+    if (dbError(error, toast, 'adicionar à agenda')) { setSavingEntry(false); return }
     if (data) setEntries(prev => [...prev, data])
     setEntryModal(null)
     setEntryClient('')
@@ -137,7 +141,8 @@ export default function AgendaPage() {
   }
 
   async function removeEntry(id: string) {
-    await supabase.from('agenda_criacao').delete().eq('id', id)
+    const { error } = await supabase.from('agenda_criacao').delete().eq('id', id)
+    if (dbError(error, toast, 'remover da agenda')) return
     setEntries(prev => prev.filter(e => e.id !== id))
   }
 
@@ -145,7 +150,7 @@ export default function AgendaPage() {
   async function saveCapt() {
     if (!captForm.client_id || !captForm.scheduled_date) return
     setSavingCapt(true)
-    const { data } = await supabase.from('captacoes').insert({
+    const { data, error } = await supabase.from('captacoes').insert({
       client_id: captForm.client_id,
       scheduled_date: captForm.scheduled_date,
       scheduled_time: captForm.scheduled_time || null,
@@ -155,6 +160,7 @@ export default function AgendaPage() {
       team_member_ids: captForm.team_member_ids.length > 0 ? captForm.team_member_ids : null,
       months_covered: captForm.months_covered,
     }).select().single()
+    if (dbError(error, toast, 'salvar captação')) { setSavingCapt(false); return }
     if (data) setCaptacoes(prev => [...prev, data].sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)))
     setCaptModal(false)
     setCaptForm({ ...BLANK_CAPTACAO })
@@ -170,7 +176,8 @@ export default function AgendaPage() {
         body: JSON.stringify({ eventId: capt.google_calendar_event_id }),
       })
     }
-    await supabase.from('captacoes').delete().eq('id', id)
+    const { error } = await supabase.from('captacoes').delete().eq('id', id)
+    if (dbError(error, toast, 'excluir captação')) return
     setCaptacoes(prev => prev.filter(c => c.id !== id))
   }
 
@@ -207,8 +214,10 @@ export default function AgendaPage() {
   }
 
   async function updateStatus(id: string, status: string) {
-    await supabase.from('captacoes').update({ status }).eq('id', id)
-    setCaptacoes(prev => prev.map(c => c.id === id ? { ...c, status } : c))
+    const prev = captacoes
+    setCaptacoes(p => p.map(c => c.id === id ? { ...c, status } : c))
+    const { error } = await supabase.from('captacoes').update({ status }).eq('id', id)
+    if (error) { setCaptacoes(prev); dbError(error, toast, 'mudar status') }
   }
 
   // ── Rendering helpers ──────────────────────────────────────────────
