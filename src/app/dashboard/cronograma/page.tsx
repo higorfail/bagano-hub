@@ -8,6 +8,7 @@ import PostCard from '@/components/PostCard'
 import PostMiniCard from '@/components/PostMiniCard'
 import Button from '@/components/ui/Button'
 import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
 import { Check, Copy, Calendar, Link2 } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 
@@ -94,6 +95,8 @@ function CronogramaPageInner() {
   const [loading, setLoading] = useState(true)
   const [showPostCard,  setShowPostCard]  = useState(false)
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
+  const [dragId,     setDragId]     = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [approvalLink, setApprovalLink] = useState('')
   const [generatingLink, setGeneratingLink] = useState(false)
@@ -174,6 +177,25 @@ function CronogramaPageInner() {
     })
     await loadPosts()
     toast('Post duplicado!')
+  }
+
+  // Reordena arrastando + renumera os posts (#1, #2, …) e persiste
+  async function reorderPosts(targetId: string) {
+    const from = posts.findIndex(p => p.id === dragId)
+    const to   = posts.findIndex(p => p.id === targetId)
+    setDragId(null); setDragOverId(null)
+    if (from < 0 || to < 0 || from === to) return
+    const arr = [...posts]
+    const [moved] = arr.splice(from, 1)
+    arr.splice(to, 0, moved)
+    const renumbered = arr.map((p, i) => ({ ...p, post_number: i + 1 }))
+    const prev = posts
+    setPosts(renumbered)
+    const supabase = createClient()
+    const changed = renumbered.filter(p => prev.find(o => o.id === p.id)?.post_number !== p.post_number)
+    const results = await Promise.all(changed.map(p => supabase.from('schedules').update({ post_number: p.post_number }).eq('id', p.id)))
+    const err = results.find(r => r.error)?.error
+    if (err) { setPosts(prev); dbError(err, toast, 'reordenar') }
   }
 
   async function generateApprovalLink() {
@@ -301,6 +323,13 @@ function CronogramaPageInner() {
                   selected={selected?.id === post.id}
                   onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
                   onDuplicate={() => duplicatePost(post)}
+                  draggable
+                  dragging={dragId === post.id}
+                  dragOver={dragOverId === post.id && dragId !== post.id}
+                  onDragStart={() => setDragId(post.id)}
+                  onDragEnd={() => { setDragId(null); setDragOverId(null) }}
+                  onDragOver={e => { e.preventDefault(); if (dragOverId !== post.id) setDragOverId(post.id) }}
+                  onDrop={() => reorderPosts(post.id)}
                 />
               ))}
             </div>

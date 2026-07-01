@@ -41,9 +41,16 @@ type Props = {
   selected?: boolean
   onClick: () => void
   onDuplicate?: () => void
+  draggable?: boolean
+  dragging?: boolean
+  dragOver?: boolean
+  onDragStart?: () => void
+  onDragEnd?: () => void
+  onDragOver?: (e: React.DragEvent) => void
+  onDrop?: () => void
 }
 
-export default function PostMiniCard({ post, clientColor, campaignName, selected, onClick, onDuplicate }: Props) {
+export default function PostMiniCard({ post, clientColor, campaignName, selected, onClick, onDuplicate, draggable, dragging, dragOver, onDragStart, onDragEnd, onDragOver, onDrop }: Props) {
   const type   = TYPE[post.post_type] || { label: post.post_type || '—', color: 'var(--color-border)' }
   const status = STATUS[post.status]  || { label: post.status, color: '#6b7280' }
   const isRejected = post.approval_status === 'não aprovado'
@@ -54,7 +61,15 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
   return (
     <div
       onClick={onClick}
-      className={`group text-left bg-[var(--color-bg-card)] border rounded-2xl flex flex-col cursor-pointer transition-all overflow-hidden shadow-card hover:shadow-pop
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      className={`group text-left bg-[var(--color-bg-card)] border rounded-2xl flex flex-col transition-all overflow-hidden shadow-card hover:shadow-pop
+        ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
+        ${dragging ? 'opacity-40' : ''}
+        ${dragOver ? 'ring-2 ring-[var(--color-accent)]' : ''}
         ${selected ? 'border-transparent' : isRejected ? 'border-[var(--ds-error-border)]' : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'}`}
       style={selected ? { boxShadow: `0 0 0 2px ${clientColor || 'var(--color-accent)'}` } : {}}
     >
