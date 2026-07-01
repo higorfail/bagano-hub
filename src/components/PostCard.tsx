@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
@@ -102,6 +102,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [activityKey,  setActivityKey]  = useState(0)
   const [comments,     setComments]     = useState<Comment[]>([])
   const [newComment,   setNewComment]   = useState('')
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [editCommentText,  setEditCommentText]  = useState('')
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
   const [showDetails,  setShowDetails]  = useState(false)
   const [emojiOpen,    setEmojiOpen]    = useState<TextField | null>(null)
@@ -268,6 +270,22 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     setActivityKey(k => k + 1)
   }
 
+  async function saveEditComment(cid: string) {
+    const body = editCommentText.trim()
+    if (!body) { setEditingCommentId(null); return }
+    const { error } = await supabase.from('schedule_comments').update({ body }).eq('id', cid)
+    if (dbError(error, toast, 'editar comentário')) return
+    setComments(c => c.map(x => x.id === cid ? { ...x, body } : x))
+    setEditingCommentId(null)
+  }
+
+  async function deleteComment(cid: string) {
+    const prev = comments
+    setComments(c => c.filter(x => x.id !== cid))
+    const { error } = await supabase.from('schedule_comments').delete().eq('id', cid)
+    if (error) { setComments(prev); dbError(error, toast, 'excluir comentário') }
+  }
+
   async function uploadImageFile(file: File) {
     setUploadingRef(true)
     const pid = await ensurePostId()
@@ -349,10 +367,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   // Feed unificado (comentários + atividade), como no Trello
   type FeedItem =
-    | { kind: 'comment'; id: string; at: string; author: string | null; body: string }
+    | { kind: 'comment'; id: string; cid: string; at: string; author: string | null; body: string }
     | { kind: 'activity'; id: string; at: string; action: string; author: string | null; body: string }
   const feed: FeedItem[] = [
-    ...comments.map(c => ({ kind: 'comment' as const, id: 'c' + c.id, at: c.created_at, author: c.author_name, body: c.body })),
+    ...comments.map(c => ({ kind: 'comment' as const, id: 'c' + c.id, cid: c.id, at: c.created_at, author: c.author_name, body: c.body })),
     ...activities.map(a => ({ kind: 'activity' as const, id: 'a' + a.id, at: a.created_at, action: a.action, author: a.actor_name, body: a.description })),
   ].sort((x, y) => new Date(y.at).getTime() - new Date(x.at).getTime())
   const visibleFeed = showDetails ? feed : feed.filter(f => f.kind === 'comment')
@@ -704,12 +722,32 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                   {currentId ? 'Nada ainda. Comente mudanças, dúvidas, ajustes…' : 'Comentários e atividade aparecem após salvar o post.'}
                 </p>
               ) : visibleFeed.map(item => item.kind === 'comment' ? (
-                <div key={item.id} className="flex flex-col">
+                <div key={item.id} className="flex flex-col group">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{item.author || 'Alguém'}</span>
                     <span className="text-[10px] text-[var(--color-text-faint)]">{relTime(item.at)}</span>
+                    {editingCommentId !== item.cid && (
+                      <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => { setEditingCommentId(item.cid); setEditCommentText(item.body) }} title="Editar"
+                          className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-page)] transition-colors"><Pencil size={11} /></button>
+                        <button onClick={() => deleteComment(item.cid)} title="Excluir"
+                          className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--ds-error-text)] hover:bg-[var(--color-bg-page)] transition-colors"><Trash2 size={11} /></button>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{item.body}</div>
+                  {editingCommentId === item.cid ? (
+                    <div>
+                      <textarea autoFocus value={editCommentText} onChange={e => setEditCommentText(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditComment(item.cid) } else if (e.key === 'Escape') { setEditingCommentId(null) } }}
+                        rows={2} className="w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none" />
+                      <div className="flex items-center gap-2 mt-1">
+                        <button onClick={() => saveEditComment(item.cid)} className="text-[11px] font-semibold px-2.5 py-1 rounded-md text-white" style={{ background: 'var(--color-accent)' }}>Salvar</button>
+                        <button onClick={() => setEditingCommentId(null)} className="text-[11px] px-2.5 py-1 rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{item.body}</div>
+                  )}
                 </div>
               ) : (
                 <div key={item.id} className="flex items-start gap-2 py-0.5">
