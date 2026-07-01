@@ -333,7 +333,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-6 px-4"
       onClick={e => { if (e.target === e.currentTarget) { handleSaveMain(); onClose() } }}
     >
-      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[920px] max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scale-in">
+      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[920px] max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
 
         {/* Colored accent bar */}
         <div className="h-[3px] flex-shrink-0 rounded-t-2xl" style={{ background: typeObj.color }} />

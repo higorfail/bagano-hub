@@ -99,7 +99,7 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh]">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh] shadow-pop">
         <div className="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">{editingMaterial ? 'Editar material' : 'Novo material'}</h2>
           <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-lg leading-none">×</button>

@@ -86,7 +86,7 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh] shadow-2xl">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh] shadow-pop">
 
         {/* Header */}
         <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between">

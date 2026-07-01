@@ -174,7 +174,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-6 px-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[860px] max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scale-in">
+      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[860px] max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
 
         {/* Colored accent bar */}
         <div className="h-[3px] flex-shrink-0 rounded-t-2xl" style={{ background: clientColor || typeObj.color }} />
