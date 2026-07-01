@@ -8,7 +8,6 @@ import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
-import ActivityLog from '@/components/ActivityLog'
 
 const POST_TYPES = [
   { value: 'carrossel',         label: 'Carrossel',         color: '#3b82f6' },
@@ -27,6 +26,10 @@ const STATUSES = [
 ]
 const FUNIL_OPTIONS = ['Topo de funil','Meio de funil','Fundo de funil','Institucional','Promocional','Engajamento','Venda']
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(STATUSES.map(s => [s.value, s.label]))
+const ACTION_DOT: Record<string, string> = {
+  created: 'var(--ds-success-accent)', deleted: 'var(--ds-error-accent)',
+  status_changed: 'var(--ds-info-accent)', commented: 'var(--ds-purple-accent)', updated: 'var(--ds-caution-accent)',
+}
 
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
 const DIAS  = ['dom','seg','ter','qua','qui','sex','sáb']
@@ -75,9 +78,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [editingField, setEditingField] = useState<TextField | null>(null)
   const [justSaved,    setJustSaved]    = useState(false)
   const [activityKey,  setActivityKey]  = useState(0)
-  const [sideTab,      setSideTab]      = useState<'comentarios' | 'historico'>('comentarios')
   const [comments,     setComments]     = useState<Comment[]>([])
   const [newComment,   setNewComment]   = useState('')
+  const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
+  const [showDetails,  setShowDetails]  = useState(false)
   const refInputRef = useRef<HTMLInputElement>(null)
 
   const [form,     setForm]     = useState<PostForm>(EMPTY)
@@ -87,6 +91,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   const isNew = !postId
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const discardRef = useRef(false)
+  const editOriginal = useRef('')
 
   useEffect(() => {
     supabase.from('campaigns').select('id, name, type').eq('client_id', clientId).then(({ data }) => setCampaigns(data || []))
@@ -113,6 +119,13 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     supabase.from('schedule_comments').select('id, author_name, body, created_at').eq('schedule_id', currentId).order('created_at', { ascending: true })
       .then(({ data }) => { if (data) setComments(data) })
   }, [currentId])
+
+  useEffect(() => {
+    if (!currentId) { setActivities([]); return }
+    supabase.from('activity_log').select('id, action, actor_name, description, created_at')
+      .eq('table_name', 'schedules').eq('record_id', currentId).order('created_at', { ascending: false })
+      .then(({ data }) => setActivities(data || []))
+  }, [currentId, activityKey])
 
   useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
 
@@ -161,6 +174,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   }
 
   function commitText(field: TextField) { setEditingField(null); persist({ [field]: formRef.current[field] }) }
+  function startEdit(field: TextField) { editOriginal.current = String(formRef.current[field] || ''); setEditingField(field) }
+  function discardEdit(field: TextField) { discardRef.current = true; setForm(f => ({ ...f, [field]: editOriginal.current })); setEditingField(null) }
+  function blurCommit(field: TextField) { if (discardRef.current) { discardRef.current = false; return } commitText(field) }
   function changeType(v: string) { setForm(f => ({ ...f, post_type: v })); persist({ post_type: v }) }
   function changeStatus(v: string) {
     const old = STATUS_LABEL[formRef.current.status] || formRef.current.status
@@ -226,6 +242,16 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const statusObj = STATUSES.find(s => s.value === form.status) || STATUSES[0]
   const refLinks  = form.reference_notes.match(/https?:\/\/[^\s]+/g) || []
 
+  // Feed unificado (comentários + atividade), como no Trello
+  type FeedItem =
+    | { kind: 'comment'; id: string; at: string; author: string | null; body: string }
+    | { kind: 'activity'; id: string; at: string; action: string; author: string | null; body: string }
+  const feed: FeedItem[] = [
+    ...comments.map(c => ({ kind: 'comment' as const, id: 'c' + c.id, at: c.created_at, author: c.author_name, body: c.body })),
+    ...activities.map(a => ({ kind: 'activity' as const, id: 'a' + a.id, at: a.created_at, action: a.action, author: a.actor_name, body: a.description })),
+  ].sort((x, y) => new Date(y.at).getTime() - new Date(x.at).getTime())
+  const visibleFeed = showDetails ? feed : feed.filter(f => f.kind === 'comment')
+
   const dueDateLabel = (() => {
     if (!form.scheduled_date) return null
     const diff = Math.ceil((new Date(form.scheduled_date + 'T23:59:59').getTime() - Date.now()) / 86400000)
@@ -252,11 +278,20 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           <span className="text-[10px] text-[var(--color-text-faint)]">{hint}</span>
         </div>
         {editingField === field ? (
-          <textarea autoFocus value={form[field] as string} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-            onBlur={() => commitText(field)} placeholder={placeholder}
-            className={fieldEditCls} style={{ minHeight: minH }} />
+          <div>
+            <textarea autoFocus value={form[field] as string} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
+              onBlur={() => blurCommit(field)} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discardEdit(field) } }}
+              placeholder={placeholder} className={fieldEditCls} style={{ minHeight: minH }} />
+            <div className="flex items-center gap-2 mt-1.5">
+              <button onMouseDown={e => { e.preventDefault(); commitText(field) }}
+                className="text-xs font-semibold px-3 py-1 rounded-lg text-white" style={{ background: 'var(--color-accent)' }}>Salvar</button>
+              <button onMouseDown={e => { e.preventDefault(); discardEdit(field) }}
+                className="text-xs px-3 py-1 rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">Descartar</button>
+              <span className="text-[10px] text-[var(--color-text-faint)]">salva ao sair · Esc descarta</span>
+            </div>
+          </div>
         ) : (
-          <div onClick={() => setEditingField(field)} className={fieldViewCls} style={{ minHeight: minH }}>
+          <div onClick={() => startEdit(field)} className={fieldViewCls} style={{ minHeight: minH }}>
             {(form[field] as string) || <span className="text-[var(--color-text-faint)]">{placeholder}</span>}
           </div>
         )}
@@ -267,7 +302,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-4 px-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }} onPaste={handlePaste}>
-      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[1040px] h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
+      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[1040px] max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
 
         <div className="h-[3px] flex-shrink-0 rounded-t-2xl" style={{ background: clientColor || typeObj.color }} />
 
@@ -277,11 +312,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             {postNumber && <span className="text-[11px] font-black text-[var(--color-border-strong)]">#{postNumber}</span>}
             {editingField === 'title' ? (
               <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                onBlur={() => commitText('title')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                onBlur={() => blurCommit('title')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { e.preventDefault(); discardEdit('title') } }}
                 placeholder="Título do post…"
                 className="w-full text-2xl font-bold text-[var(--color-text-primary)] bg-transparent outline-none placeholder:text-[var(--color-text-faint)] leading-tight" />
             ) : (
-              <div onClick={() => setEditingField('title')} className="cursor-text text-2xl font-bold text-[var(--color-text-primary)] leading-tight hover:opacity-80 transition-opacity">
+              <div onClick={() => startEdit('title')} className="cursor-text text-2xl font-bold text-[var(--color-text-primary)] leading-tight hover:opacity-80 transition-opacity">
                 {form.title || <span className="text-[var(--color-text-faint)]">Título do post…</span>}
               </div>
             )}
@@ -329,13 +364,56 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             </div>
           </div>
           {/* Data */}
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 relative">
             <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Data</span>
-            <button onClick={() => setShowCal(true)}
+            <button onClick={() => setShowCal(v => !v)}
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors"
               style={{ color: dueDateLabel ? dueDateLabel.color : 'var(--color-text-muted)' }}>
               <Calendar size={12} /> {dueDateLabel ? dueDateLabel.text : 'Definir'}
             </button>
+            {showCal && (() => {
+              const startWeekday = new Date(calMonth.y, calMonth.m, 1).getDay()
+              const daysInMonth  = new Date(calMonth.y, calMonth.m + 1, 0).getDate()
+              const cells: (number|null)[] = [...Array(startWeekday).fill(null), ...Array.from({length:daysInMonth},(_,i)=>i+1)]
+              function pick(d: number) {
+                const mm = String(calMonth.m+1).padStart(2,'0'), dd = String(d).padStart(2,'0')
+                const s = `${calMonth.y}-${mm}-${dd}`
+                setForm(f => ({ ...f, scheduled_date: s })); persist({ scheduled_date: s }); setShowCal(false)
+              }
+              return (
+                <>
+                  <div className="fixed inset-0 z-[79]" onClick={() => setShowCal(false)} />
+                  <div className="absolute top-full left-0 mt-2 z-[80] bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-4 w-72 shadow-pop">
+                    <div className="flex items-center justify-between mb-3">
+                      <button onClick={() => setCalMonth(c => c.m===0?{y:c.y-1,m:11}:{y:c.y,m:c.m-1})} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]">‹</button>
+                      <span className="text-sm font-semibold text-[var(--color-text-primary)] capitalize">{MESES[calMonth.m]} {calMonth.y}</span>
+                      <button onClick={() => setCalMonth(c => c.m===11?{y:c.y+1,m:0}:{y:c.y,m:c.m+1})} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]">›</button>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1 mb-1">
+                      {DIAS.map(d => <div key={d} className="text-center text-[10px] font-semibold text-[var(--color-text-muted)] py-1">{d}</div>)}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1 mb-3">
+                      {cells.map((d, i) => {
+                        if (!d) return <div key={i} />
+                        const mm=String(calMonth.m+1).padStart(2,'0'), dd=String(d).padStart(2,'0')
+                        const s = `${calMonth.y}-${mm}-${dd}`
+                        const isSel = form.scheduled_date === s
+                        const today = new Date()
+                        const isToday = today.getFullYear()===calMonth.y&&today.getMonth()===calMonth.m&&today.getDate()===d
+                        return <button key={i} onClick={() => pick(d)}
+                          className={`h-8 rounded-lg text-sm transition-colors ${isSel ? 'text-white font-semibold' : isToday ? 'ring-1 font-bold text-[var(--color-text-primary)]' : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)]'}`}
+                          style={isSel ? { background: clientColor || 'var(--color-brand)' } : {}}>{d}</button>
+                      })}
+                    </div>
+                    {form.scheduled_date && (
+                      <button onClick={() => { setForm(f=>({...f,scheduled_date:''})); persist({ scheduled_date: '' }); setShowCal(false) }} className="w-full py-1.5 text-xs text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">
+                        Remover data
+                      </button>
+                    )}
+                  </div>
+                </>
+              )
+            })()}
           </div>
           {/* Funil */}
           <div className="flex flex-col gap-1">
@@ -380,7 +458,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               </div>
               {editingField === 'drive_url' ? (
                 <input autoFocus value={form.drive_url} onChange={e => setForm(f => ({ ...f, drive_url: e.target.value }))}
-                  onBlur={() => commitText('drive_url')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                  onBlur={() => blurCommit('drive_url')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { e.preventDefault(); discardEdit('drive_url') } }}
                   placeholder="https://drive.google.com/…"
                   className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-info-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
               ) : form.drive_url ? (
@@ -389,10 +467,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                     className="flex-1 flex items-center gap-2 bg-[var(--color-bg-card)] rounded-lg px-3 py-2 text-sm font-medium truncate hover:opacity-90 transition-opacity" style={{ color: 'var(--ds-info-text)' }}>
                     <ExternalLink size={13} className="flex-shrink-0" /> <span className="truncate">Abrir conteúdo no Drive</span>
                   </a>
-                  <button onClick={() => setEditingField('drive_url')} className="text-[11px] text-[var(--ds-info-text)] hover:underline flex-shrink-0">editar</button>
+                  <button onClick={() => startEdit('drive_url')} className="text-[11px] text-[var(--ds-info-text)] hover:underline flex-shrink-0">editar</button>
                 </div>
               ) : (
-                <button onClick={() => setEditingField('drive_url')}
+                <button onClick={() => startEdit('drive_url')}
                   className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border-2 border-dashed transition-colors"
                   style={{ borderColor: 'var(--ds-info-border)', color: 'var(--ds-info-text)' }}>
                   <Link2 size={14} /> + Colar link do Drive
@@ -419,10 +497,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               </div>
               {editingField === 'reference_notes' ? (
                 <textarea autoFocus value={form.reference_notes} onChange={e => setForm(f => ({ ...f, reference_notes: e.target.value }))}
-                  onBlur={() => commitText('reference_notes')} placeholder="Cole links de referência, observações…"
+                  onBlur={() => blurCommit('reference_notes')} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discardEdit('reference_notes') } }}
+                  placeholder="Cole links de referência, observações…"
                   className={fieldEditCls} style={{ minHeight: 60 }} />
               ) : (
-                <div onClick={() => setEditingField('reference_notes')} className={fieldViewCls} style={{ minHeight: 40 }}>
+                <div onClick={() => startEdit('reference_notes')} className={fieldViewCls} style={{ minHeight: 40 }}>
                   {form.reference_notes || <span className="text-[var(--color-text-faint)]">Clique para adicionar links/observações…</span>}
                 </div>
               )}
@@ -458,50 +537,51 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             </div>
           </div>
 
-          {/* RIGHT — comentários (visível) + histórico */}
+          {/* RIGHT — comentários + atividade (feed único, tipo Trello) */}
           <div className="w-[340px] flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
-            <div className="flex items-center gap-0.5 px-4 border-b border-[var(--color-border)]">
-              {([['comentarios','Comentários'],['historico','Histórico']] as const).map(([k, lbl]) => (
-                <button key={k} onClick={() => setSideTab(k)}
-                  className={`px-3 py-3 text-xs font-semibold border-b-2 transition-colors ${sideTab === k ? 'text-[var(--color-text-primary)] border-[var(--color-accent)]' : 'text-[var(--color-text-muted)] border-transparent hover:text-[var(--color-text-secondary)]'}`}>
-                  {lbl}{k === 'comentarios' && comments.length > 0 ? ` ${comments.length}` : ''}
-                </button>
-              ))}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
+              <span className="text-xs font-bold text-[var(--color-text-primary)]">Comentários e atividade</span>
+              <button onClick={() => setShowDetails(v => !v)} className="text-[11px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
+                {showDetails ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+              </button>
             </div>
 
-            {sideTab === 'comentarios' ? (
-              <div className="flex flex-col flex-1 overflow-hidden">
-                <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
-                  {comments.length === 0 ? (
-                    <p className="text-xs text-[var(--color-text-faint)] text-center py-8">Nenhum comentário ainda.<br />Fale de mudanças, dúvidas, ajustes…</p>
-                  ) : comments.map(c => (
-                    <div key={c.id} className="flex flex-col">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{c.author_name || 'Alguém'}</span>
-                        <span className="text-[10px] text-[var(--color-text-faint)]">{relTime(c.created_at)}</span>
-                      </div>
-                      <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{c.body}</div>
-                    </div>
-                  ))}
+            {/* Campo de comentário */}
+            <div className="px-3 py-3 border-b border-[var(--color-border)] flex items-end gap-2">
+              <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment() } }}
+                placeholder="Comentar…  (⌘/Ctrl+Enter envia)" rows={2}
+                className="flex-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)]" />
+              <button onClick={addComment} disabled={!newComment.trim()}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 flex-shrink-0" style={{ background: 'var(--color-accent)' }}>
+                <Send size={14} />
+              </button>
+            </div>
+
+            {/* Feed */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+              {visibleFeed.length === 0 ? (
+                <p className="text-xs text-[var(--color-text-faint)] text-center py-8">
+                  {currentId ? 'Nada ainda. Comente mudanças, dúvidas, ajustes…' : 'Comentários e atividade aparecem após salvar o post.'}
+                </p>
+              ) : visibleFeed.map(item => item.kind === 'comment' ? (
+                <div key={item.id} className="flex flex-col">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{item.author || 'Alguém'}</span>
+                    <span className="text-[10px] text-[var(--color-text-faint)]">{relTime(item.at)}</span>
+                  </div>
+                  <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{item.body}</div>
                 </div>
-                <div className="px-3 py-3 border-t border-[var(--color-border)] flex items-end gap-2">
-                  <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment() } }}
-                    placeholder="Comentar…  (⌘/Ctrl+Enter envia)" rows={2}
-                    className="flex-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)]" />
-                  <button onClick={addComment} disabled={!newComment.trim()}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 flex-shrink-0" style={{ background: 'var(--color-accent)' }}>
-                    <Send size={14} />
-                  </button>
+              ) : (
+                <div key={item.id} className="flex items-start gap-2 py-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ background: ACTION_DOT[item.action] || 'var(--color-text-faint)' }} />
+                  <p className="text-[11px] text-[var(--color-text-muted)] leading-snug flex-1">
+                    {item.body}
+                    <span className="text-[var(--color-text-faint)]"> · {relTime(item.at)}</span>
+                  </p>
                 </div>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto px-4 py-3">
-                {currentId
-                  ? <ActivityLog tableName="schedules" recordId={currentId} refreshKey={activityKey} />
-                  : <p className="text-xs text-[var(--color-text-faint)] py-6 text-center">O histórico aparece após salvar o post.</p>}
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         </div>
 
@@ -527,49 +607,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           </div>
         </div>
 
-        {/* CALENDAR PICKER */}
-        {showCal && (() => {
-          const startWeekday = new Date(calMonth.y, calMonth.m, 1).getDay()
-          const daysInMonth  = new Date(calMonth.y, calMonth.m + 1, 0).getDate()
-          const cells: (number|null)[] = [...Array(startWeekday).fill(null), ...Array.from({length:daysInMonth},(_,i)=>i+1)]
-          function pick(d: number) {
-            const mm = String(calMonth.m+1).padStart(2,'0'), dd = String(d).padStart(2,'0')
-            const s = `${calMonth.y}-${mm}-${dd}`
-            setForm(f => ({ ...f, scheduled_date: s })); persist({ scheduled_date: s })
-          }
-          return (
-            <div className="fixed inset-0 z-[80] flex items-center justify-center" onClick={() => setShowCal(false)}>
-              <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-5 w-72 shadow-pop" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-3">
-                  <button onClick={() => setCalMonth(c => c.m===0?{y:c.y-1,m:11}:{y:c.y,m:c.m-1})} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]">‹</button>
-                  <span className="text-sm font-semibold text-[var(--color-text-primary)] capitalize">{MESES[calMonth.m]} {calMonth.y}</span>
-                  <button onClick={() => setCalMonth(c => c.m===11?{y:c.y+1,m:0}:{y:c.y,m:c.m+1})} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]">›</button>
-                </div>
-                <div className="grid grid-cols-7 gap-1 mb-1">
-                  {DIAS.map(d => <div key={d} className="text-center text-[10px] font-semibold text-[var(--color-text-muted)] py-1">{d}</div>)}
-                </div>
-                <div className="grid grid-cols-7 gap-1 mb-4">
-                  {cells.map((d, i) => {
-                    if (!d) return <div key={i} />
-                    const mm=String(calMonth.m+1).padStart(2,'0'), dd=String(d).padStart(2,'0')
-                    const s = `${calMonth.y}-${mm}-${dd}`
-                    const isSel = form.scheduled_date === s
-                    const today = new Date()
-                    const isToday = today.getFullYear()===calMonth.y&&today.getMonth()===calMonth.m&&today.getDate()===d
-                    return <button key={i} onClick={() => { pick(d); setShowCal(false) }}
-                      className={`h-8 rounded-lg text-sm transition-colors ${isSel ? 'text-white font-semibold' : isToday ? 'ring-1 font-bold text-[var(--color-text-primary)]' : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)]'}`}
-                      style={isSel ? { background: clientColor || 'var(--color-brand)' } : {}}>{d}</button>
-                  })}
-                </div>
-                {form.scheduled_date && (
-                  <button onClick={() => { setForm(f=>({...f,scheduled_date:''})); persist({ scheduled_date: '' }); setShowCal(false) }} className="w-full py-1.5 text-xs text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">
-                    Remover data
-                  </button>
-                )}
-              </div>
-            </div>
-          )
-        })()}
       </div>
     </div>
   )
