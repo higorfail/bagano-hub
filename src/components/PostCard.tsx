@@ -80,7 +80,6 @@ function renderMd(text: string) {
   flush(); flushList()
   return blocks.join('')
 }
-const EMOJIS = ['😀','😍','🔥','✨','🎉','👏','💪','🙌','❤️','👍','📸','🎬','🎥','🍕','🍔','🍟','🌮','🥗','🍰','🍫','☕','🍺','🥂','🍾','🎂','🌿','⭐','📌','📣','🚀','💯','🙏','😋','🤤','🧀']
 
 export default function PostCard({ postId, clientId, clientName, clientColor, month, year, postNumber, onClose, onSaved, onDeleted }: Props) {
   const supabase = createClient()
@@ -99,7 +98,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [newComment,   setNewComment]   = useState('')
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
   const [showDetails,  setShowDetails]  = useState(false)
-  const [emojiOpen,    setEmojiOpen]    = useState<TextField | null>(null)
   const [clientList,   setClientList]   = useState<{ id: string; name: string; color_hex: string }[]>([])
   const [moveOpen,     setMoveOpen]     = useState(false)
   const [moveMonth,    setMoveMonth]    = useState(month)
@@ -144,16 +142,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(pos + 2, pos + 2) })
   }
 
-  // Insere emoji na posição do cursor
-  function insertEmoji(field: TextField, emoji: string) {
-    const ta = editTextareaRef.current
-    if (!ta) return
-    const start = ta.selectionStart, end = ta.selectionEnd
-    const val = String(formRef.current[field] || '')
-    const next = val.slice(0, start) + emoji + val.slice(end)
-    setForm(f => ({ ...f, [field]: next }))
-    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(start + emoji.length, start + emoji.length) })
-  }
 
   useEffect(() => {
     supabase.from('campaigns').select('id, name, type').eq('client_id', clientId).then(({ data }) => setCampaigns(data || []))
@@ -377,24 +365,14 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         </div>
         {editingField === field ? (
           <div>
-            <div className="flex items-center gap-1 mb-1.5 relative">
+            <div className="flex items-center gap-1 mb-1.5">
               <button onMouseDown={e => { e.preventDefault(); wrapSelection(field, '**') }} title="Negrito"
                 className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"><Bold size={13} /></button>
               <button onMouseDown={e => { e.preventDefault(); wrapSelection(field, '*') }} title="Itálico"
                 className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"><Italic size={13} /></button>
               <button onMouseDown={e => { e.preventDefault(); toggleBullet(field) }} title="Lista (bullet)"
                 className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"><List size={14} /></button>
-              <button onMouseDown={e => { e.preventDefault(); setEmojiOpen(o => o === field ? null : field) }} title="Emoji"
-                className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"><Smile size={14} /></button>
-              <span className="text-[10px] text-[var(--color-text-faint)] ml-1">**negrito** · *itálico* · Ctrl+⌘+Espaço p/ emoji do Mac</span>
-              {emojiOpen === field && (
-                <div className="absolute top-7 left-0 z-[85] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-pop p-2 grid grid-cols-8 gap-0.5 w-[268px]">
-                  {EMOJIS.map(em => (
-                    <button key={em} onMouseDown={e => { e.preventDefault(); insertEmoji(field, em) }}
-                      className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-lg transition-colors">{em}</button>
-                  ))}
-                </div>
-              )}
+              <span className="flex items-center gap-1 text-[10px] text-[var(--color-text-faint)] ml-1"><Smile size={12} /> Ctrl+⌘+Espaço (Mac) · ⊞+. (Windows)</span>
             </div>
             <textarea ref={editTextareaRef} autoFocus value={form[field] as string} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
               onBlur={() => blurCommit(field)} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discardEdit(field) } }}
@@ -420,7 +398,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-4 px-4"
-      onClick={e => { if (e.target === e.currentTarget) onClose() }} onPaste={handlePaste}>
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }} onPaste={handlePaste}>
       <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[1040px] max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
 
         <div className="h-[3px] flex-shrink-0 rounded-t-2xl" style={{ background: clientColor || typeObj.color }} />
