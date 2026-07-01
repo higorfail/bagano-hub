@@ -102,10 +102,12 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (!file) return
     setUploadingRef(true)
     const pid = await ensurePostId()
-    if (!pid) { toast('Adicione um título antes de subir imagens', 'info'); setUploadingRef(false); return }
-    const path = `posts/${pid}/${Date.now()}_${file.name}`
+    if (!pid) { toast('Adicione um título antes de subir imagens'); setUploadingRef(false); return }
+    // Higieniza o nome (acento/espaço/caractere especial faz o Storage rejeitar a key)
+    const safeName = file.name.normalize('NFD').replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = `posts/${pid}/${Date.now()}_${safeName}`
     const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false })
-    if (error) { toast('Erro no upload', 'error'); setUploadingRef(false); return }
+    if (error) { toast('Erro no upload: ' + error.message); setUploadingRef(false); return }
     const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
     const newImages = [...form.reference_images, publicUrl]
     setForm(f => ({ ...f, reference_images: newImages }))
