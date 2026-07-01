@@ -688,8 +688,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             {/* Campo de comentário */}
             <div className="px-3 py-3 border-b border-[var(--color-border)] flex items-end gap-2">
               <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment() } }}
-                placeholder="Comentar…  (⌘/Ctrl+Enter envia)" rows={2}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment() } }}
+                placeholder="Comentar…  (Enter envia · Shift+Enter quebra linha)" rows={2}
                 className="flex-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)]" />
               <button onClick={addComment} disabled={!newComment.trim()}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 flex-shrink-0" style={{ background: 'var(--color-accent)' }}>
