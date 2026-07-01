@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, AlignLeft, ImagePlus, XCircle, Target, Megaphone, Package, Check, ChevronDown, Send } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
@@ -32,11 +32,11 @@ const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','ag
 const DIAS  = ['dom','seg','ter','qua','qui','sex','sáb']
 
 type PostForm = {
-  title: string; copy: string; post_type: string; scheduled_date: string
-  status: string; drive_url: string; reference_notes: string; funil: string
-  campaign_type: string; reference_images: string[]
+  title: string; briefing: string; copy: string; legenda: string
+  post_type: string; scheduled_date: string; status: string; drive_url: string
+  reference_notes: string; funil: string; campaign_type: string; reference_images: string[]
 }
-const EMPTY: PostForm = { title:'', copy:'', post_type:'carrossel', scheduled_date:'', status:'producao', drive_url:'', reference_notes:'', funil:'', campaign_type:'', reference_images:[] }
+const EMPTY: PostForm = { title:'', briefing:'', copy:'', legenda:'', post_type:'carrossel', scheduled_date:'', status:'producao', drive_url:'', reference_notes:'', funil:'', campaign_type:'', reference_images:[] }
 
 type Props = {
   postId?: string
@@ -51,19 +51,16 @@ type Props = {
   onDeleted?: () => void
 }
 
-type EditableField = 'title' | 'copy' | 'reference_notes' | 'drive_url'
+type TextField = 'title' | 'briefing' | 'copy' | 'legenda' | 'reference_notes' | 'drive_url'
 type Comment = { id: string; author_name: string | null; body: string; created_at: string }
 
-function commentTime(iso: string) {
-  const d = new Date(iso)
-  const diff = Date.now() - d.getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'agora'
-  if (mins < 60) return `${mins}min`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h`
+function relTime(iso: string) {
+  const d = new Date(iso); const mins = Math.floor((Date.now() - d.getTime()) / 60000)
+  if (mins < 1) return 'agora'; if (mins < 60) return `${mins}min`
+  const hrs = Math.floor(mins / 60); if (hrs < 24) return `${hrs}h`
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
+function hostOf(url: string) { try { return new URL(url).hostname.replace('www.', '') } catch { return url } }
 
 export default function PostCard({ postId, clientId, clientName, clientColor, month, year, postNumber, onClose, onSaved, onDeleted }: Props) {
   const supabase = createClient()
@@ -75,10 +72,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [uploadingRef, setUploadingRef] = useState(false)
   const [currentId,    setCurrentId]    = useState<string | undefined>(postId)
   const [campaigns,    setCampaigns]    = useState<{ id: string; name: string; type: string }[]>([])
-  const [editingField, setEditingField] = useState<EditableField | null>(null)
+  const [editingField, setEditingField] = useState<TextField | null>(null)
   const [justSaved,    setJustSaved]    = useState(false)
   const [activityKey,  setActivityKey]  = useState(0)
-  const [sideTab,      setSideTab]      = useState<'detalhes' | 'comentarios' | 'historico'>('detalhes')
+  const [sideTab,      setSideTab]      = useState<'comentarios' | 'historico'>('comentarios')
   const [comments,     setComments]     = useState<Comment[]>([])
   const [newComment,   setNewComment]   = useState('')
   const refInputRef = useRef<HTMLInputElement>(null)
@@ -100,8 +97,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     async function load() {
       const { data } = await supabase.from('schedules').select('*').eq('id', postId).single()
       if (data) setForm({
-        title: data.title || '', copy: data.copy || '', post_type: data.post_type || 'carrossel',
-        scheduled_date: data.scheduled_date || '', status: data.status || 'producao',
+        title: data.title || '', briefing: data.briefing || '', copy: data.copy || '', legenda: data.legenda || '',
+        post_type: data.post_type || 'carrossel', scheduled_date: data.scheduled_date || '', status: data.status || 'producao',
         drive_url: data.drive_url || '', reference_notes: data.reference_notes || '',
         funil: data.funil || '', campaign_type: data.campaign_type || '',
         reference_images: Array.isArray(data.reference_images) ? data.reference_images : [],
@@ -111,7 +108,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     load()
   }, [postId])
 
-  // Carrega comentários
   useEffect(() => {
     if (!currentId) return
     supabase.from('schedule_comments').select('id, author_name, body, created_at').eq('schedule_id', currentId).order('created_at', { ascending: true })
@@ -132,18 +128,16 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (!f.title.trim()) return undefined
     const { data, error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year, post_number: postNumber,
-      title: f.title, copy: f.copy, post_type: f.post_type, status: f.status,
-      scheduled_date: f.scheduled_date || null, drive_url: f.drive_url,
-      reference_notes: f.reference_notes, funil: f.funil, campaign_type: f.campaign_type || null,
-      reference_images: f.reference_images,
+      title: f.title, briefing: f.briefing, copy: f.copy, legenda: f.legenda,
+      post_type: f.post_type, status: f.status, scheduled_date: f.scheduled_date || null,
+      drive_url: f.drive_url, reference_notes: f.reference_notes, funil: f.funil,
+      campaign_type: f.campaign_type || null, reference_images: f.reference_images,
     }).select().single()
     if (dbError(error, toast, 'criar post')) return undefined
     if (data) {
       setCurrentId(data.id)
       await logActivity({ tableName: 'schedules', recordId: data.id, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${f.title}"` })
-      setActivityKey(k => k + 1)
-      flashSaved()
-      onSaved()
+      setActivityKey(k => k + 1); flashSaved(); onSaved()
       return data.id
     }
     return undefined
@@ -166,25 +160,18 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     onSaved()
   }
 
-  function commitText(field: EditableField) {
-    setEditingField(null)
-    persist({ [field]: formRef.current[field] })
-  }
-  function changeType(value: string) { setForm(f => ({ ...f, post_type: value })); persist({ post_type: value }) }
-  function changeStatus(value: string) {
+  function commitText(field: TextField) { setEditingField(null); persist({ [field]: formRef.current[field] }) }
+  function changeType(v: string) { setForm(f => ({ ...f, post_type: v })); persist({ post_type: v }) }
+  function changeStatus(v: string) {
     const old = STATUS_LABEL[formRef.current.status] || formRef.current.status
-    const neu = STATUS_LABEL[value] || value
-    setForm(f => ({ ...f, status: value }))
-    persist({ status: value }, `Status: ${old} → ${neu}`, 'status_changed')
+    setForm(f => ({ ...f, status: v })); persist({ status: v }, `Status: ${old} → ${STATUS_LABEL[v] || v}`, 'status_changed')
   }
+  function setField(field: keyof PostForm, v: any) { setForm(f => ({ ...f, [field]: v })); persist({ [field]: v }) }
 
   async function addComment() {
-    const body = newComment.trim()
-    if (!body) return
-    const pid = await ensurePostId()
-    if (!pid) { toast('Adicione um título primeiro'); return }
-    const { data, error } = await supabase.from('schedule_comments')
-      .insert({ schedule_id: pid, author_name: currentMember?.name || null, body }).select().single()
+    const body = newComment.trim(); if (!body) return
+    const pid = await ensurePostId(); if (!pid) { toast('Adicione um título primeiro'); return }
+    const { data, error } = await supabase.from('schedule_comments').insert({ schedule_id: pid, author_name: currentMember?.name || null, body }).select().single()
     if (dbError(error, toast, 'comentar')) return
     if (data) setComments(c => [...c, data])
     setNewComment('')
@@ -192,13 +179,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     setActivityKey(k => k + 1)
   }
 
-  async function handleRefImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function uploadImageFile(file: File) {
     setUploadingRef(true)
     const pid = await ensurePostId()
     if (!pid) { toast('Adicione um título antes de subir imagens'); setUploadingRef(false); return }
-    const safeName = file.name.normalize('NFD').replace(/[^a-zA-Z0-9._-]/g, '_')
+    const safeName = file.name.normalize('NFD').replace(/[^a-zA-Z0-9._-]/g, '_') || `img_${Date.now()}.png`
     const path = `posts/${pid}/${Date.now()}_${safeName}`
     const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false })
     if (error) { toast('Erro no upload: ' + error.message); setUploadingRef(false); return }
@@ -206,9 +191,18 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const newImages = [...formRef.current.reference_images, publicUrl]
     setForm(f => ({ ...f, reference_images: newImages }))
     await supabase.from('schedules').update({ reference_images: newImages }).eq('id', pid)
-    flashSaved()
-    setUploadingRef(false)
+    flashSaved(); setUploadingRef(false)
+  }
+  async function handleRefImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return
+    await uploadImageFile(file)
     if (refInputRef.current) refInputRef.current.value = ''
+  }
+  async function handlePaste(e: React.ClipboardEvent) {
+    const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
+    if (!item) return
+    const file = item.getAsFile(); if (!file) return
+    e.preventDefault(); await uploadImageFile(file)
   }
 
   async function removeRefImage(url: string) {
@@ -222,20 +216,15 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   async function handleDelete() {
     if (!postId) return
     setDeleting(true)
-    try {
-      await moveToTrash('post', postId, form.title || 'Post sem título')
-    } catch (err) {
-      toast('Erro na lixeira: ' + (err instanceof Error ? err.message : String(err)))
-      setDeleting(false); return
-    }
+    try { await moveToTrash('post', postId, form.title || 'Post sem título') }
+    catch (err) { toast('Erro na lixeira: ' + (err instanceof Error ? err.message : String(err))); setDeleting(false); return }
     await supabase.from('schedules').delete().eq('id', postId)
-    setDeleting(false)
-    if (onDeleted) onDeleted()
-    onClose()
+    setDeleting(false); if (onDeleted) onDeleted(); onClose()
   }
 
   const typeObj   = POST_TYPES.find(t => t.value === form.post_type) || POST_TYPES[0]
   const statusObj = STATUSES.find(s => s.value === form.status) || STATUSES[0]
+  const refLinks  = form.reference_notes.match(/https?:\/\/[^\s]+/g) || []
 
   const dueDateLabel = (() => {
     if (!form.scheduled_date) return null
@@ -251,21 +240,57 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     </div>
   )
 
-  const selectCls = 'w-full appearance-none bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg pl-3 pr-8 py-2 text-sm font-medium text-[var(--color-text-primary)] outline-none cursor-pointer hover:border-[var(--color-border-hover)] transition-colors'
+  const fieldEditCls = 'w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none resize-none leading-relaxed'
+  const fieldViewCls = 'cursor-text text-sm text-[var(--color-text-primary)] leading-relaxed whitespace-pre-line rounded-lg hover:bg-[var(--color-bg-subtle)] -mx-2 px-2 py-1.5 transition-colors'
+
+  // Campo de texto editável (click-to-edit + autosave)
+  function textField(field: TextField, label: string, hint: string, placeholder: string, minH = 60) {
+    return (
+      <div>
+        <div className="flex items-baseline gap-2 mb-1.5">
+          <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">{label}</span>
+          <span className="text-[10px] text-[var(--color-text-faint)]">{hint}</span>
+        </div>
+        {editingField === field ? (
+          <textarea autoFocus value={form[field] as string} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
+            onBlur={() => commitText(field)} placeholder={placeholder}
+            className={fieldEditCls} style={{ minHeight: minH }} />
+        ) : (
+          <div onClick={() => setEditingField(field)} className={fieldViewCls} style={{ minHeight: minH }}>
+            {(form[field] as string) || <span className="text-[var(--color-text-faint)]">{placeholder}</span>}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-6 px-4"
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[920px] max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
+    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-4 px-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }} onPaste={handlePaste}>
+      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[1040px] h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
 
         <div className="h-[3px] flex-shrink-0 rounded-t-2xl" style={{ background: clientColor || typeObj.color }} />
 
-        {/* HEADER — badges de leitura (tipo + status) + salvo + fechar */}
-        <div className="flex items-center justify-between gap-3 px-6 py-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
-          <div className="flex items-center gap-2 min-w-0">
-            {postNumber && <span className="text-xs font-black text-[var(--color-border-strong)]">#{postNumber}</span>}
-            <span className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: typeObj.color + '22', color: typeObj.color }}>{typeObj.label}</span>
-            <span className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: statusObj.color + '22', color: statusObj.color }}>{statusObj.label}</span>
+        {/* HEADER — título */}
+        <div className="flex items-start justify-between gap-4 px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+          <div className="flex-1 min-w-0">
+            {postNumber && <span className="text-[11px] font-black text-[var(--color-border-strong)]">#{postNumber}</span>}
+            {editingField === 'title' ? (
+              <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                onBlur={() => commitText('title')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                placeholder="Título do post…"
+                className="w-full text-2xl font-bold text-[var(--color-text-primary)] bg-transparent outline-none placeholder:text-[var(--color-text-faint)] leading-tight" />
+            ) : (
+              <div onClick={() => setEditingField('title')} className="cursor-text text-2xl font-bold text-[var(--color-text-primary)] leading-tight hover:opacity-80 transition-opacity">
+                {form.title || <span className="text-[var(--color-text-faint)]">Título do post…</span>}
+              </div>
+            )}
+            {clientName && (
+              <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                em <span className="font-semibold" style={{ color: clientColor }}>{clientName}</span>
+                <span className="mx-1.5 text-[var(--color-text-faint)]">·</span>{MESES[month - 1]} {year}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className={`flex items-center gap-1 text-[11px] font-medium text-[var(--ds-success-text)] transition-opacity ${justSaved ? 'opacity-100' : 'opacity-0'}`}>
@@ -277,87 +302,153 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           </div>
         </div>
 
-        {/* TITLE */}
-        <div className="px-7 pt-5 pb-4 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
-          {editingField === 'title' ? (
-            <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              onBlur={() => commitText('title')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
-              placeholder="Título do post…"
-              className="w-full text-2xl font-bold text-[var(--color-text-primary)] bg-transparent outline-none placeholder:text-[var(--color-text-faint)] leading-tight" />
-          ) : (
-            <div onClick={() => setEditingField('title')} className="cursor-text text-2xl font-bold text-[var(--color-text-primary)] leading-tight hover:opacity-80 transition-opacity">
-              {form.title || <span className="text-[var(--color-text-faint)]">Título do post…</span>}
+        {/* PROPRIEDADES — barra no topo, vista primeiro */}
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-2.5 px-7 py-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+          {/* Tipo */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Tipo</span>
+            <div className="relative">
+              <select value={form.post_type} onChange={e => changeType(e.target.value)}
+                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
+                style={{ background: typeObj.color + '18', color: typeObj.color, borderColor: typeObj.color + '44' }}>
+                {POST_TYPES.map(t => <option key={t.value} value={t.value} style={{ color: 'var(--color-text-primary)' }}>{t.label}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: typeObj.color }} />
             </div>
-          )}
-          {clientName && (
-            <p className="text-xs text-[var(--color-text-muted)] mt-1.5">
-              em <span className="font-semibold" style={{ color: clientColor }}>{clientName}</span>
-              <span className="mx-1.5 text-[var(--color-text-faint)]">·</span>
-              {MESES[month - 1]} {year}
-            </p>
+          </div>
+          {/* Status */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Status</span>
+            <div className="relative">
+              <select value={form.status} onChange={e => changeStatus(e.target.value)}
+                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
+                style={{ background: statusObj.color + '18', color: statusObj.color, borderColor: statusObj.color + '44' }}>
+                {STATUSES.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj.color }} />
+            </div>
+          </div>
+          {/* Data */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Data</span>
+            <button onClick={() => setShowCal(true)}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors"
+              style={{ color: dueDateLabel ? dueDateLabel.color : 'var(--color-text-muted)' }}>
+              <Calendar size={12} /> {dueDateLabel ? dueDateLabel.text : 'Definir'}
+            </button>
+          </div>
+          {/* Funil */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Funil</span>
+            <div className="relative">
+              <select value={form.funil} onChange={e => setField('funil', e.target.value)}
+                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
+                <option value="">—</option>
+                {FUNIL_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+            </div>
+          </div>
+          {/* Campanha */}
+          {campaigns.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Campanha</span>
+              <div className="relative">
+                <select value={form.campaign_type} onChange={e => setField('campaign_type', e.target.value)}
+                  className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
+                  <option value="">Nenhuma</option>
+                  {campaigns.map(c => <option key={c.type} value={c.type}>{c.name}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+              </div>
+            </div>
           )}
         </div>
 
         {/* BODY */}
         <div className="flex gap-0 overflow-hidden flex-1 divide-x divide-[var(--color-border)]">
 
-          {/* LEFT — briefing + referências */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-y-auto">
-            {/* Briefing / Legenda */}
-            <div className="px-7 py-5 border-b border-[var(--color-border)]">
-              <div className="flex items-center gap-2 mb-2.5">
-                <AlignLeft size={14} className="text-[var(--color-text-muted)]" />
-                <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Legenda / Briefing</span>
-                <span className="text-[10px] text-[var(--color-text-faint)]">· o que o post deve dizer</span>
+          {/* LEFT — entrega + campos + referências */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-7 py-5 gap-5">
+
+            {/* 📦 Entrega */}
+            <div className="rounded-2xl p-4" style={{ background: 'var(--ds-info-bg)', border: '1px solid var(--ds-info-border)' }}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Package size={15} style={{ color: 'var(--ds-info-accent)' }} />
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--ds-info-text)' }}>Entrega do conteúdo</span>
+                <span className="text-[10px] ml-1" style={{ color: 'var(--ds-info-text)', opacity: 0.7 }}>· o post/carrossel/vídeo pronto (Drive)</span>
               </div>
-              {editingField === 'copy' ? (
-                <textarea autoFocus value={form.copy} onChange={e => setForm(f => ({ ...f, copy: e.target.value }))}
-                  onBlur={() => commitText('copy')} rows={7}
-                  placeholder="Texto da legenda, briefing, instruções para o designer/editor…"
-                  className="w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--color-text-primary)] outline-none resize-none leading-relaxed min-h-[150px]" />
-              ) : (
-                <div onClick={() => setEditingField('copy')} className="cursor-text text-sm text-[var(--color-text-primary)] leading-relaxed whitespace-pre-line min-h-[80px] rounded-lg hover:bg-[var(--color-bg-subtle)] -mx-1.5 px-1.5 py-1 transition-colors">
-                  {form.copy || <span className="text-[var(--color-text-faint)]">Clique para escrever a legenda / briefing…</span>}
+              {editingField === 'drive_url' ? (
+                <input autoFocus value={form.drive_url} onChange={e => setForm(f => ({ ...f, drive_url: e.target.value }))}
+                  onBlur={() => commitText('drive_url')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                  placeholder="https://drive.google.com/…"
+                  className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-info-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
+              ) : form.drive_url ? (
+                <div className="flex items-center gap-2">
+                  <a href={form.drive_url} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center gap-2 bg-[var(--color-bg-card)] rounded-lg px-3 py-2 text-sm font-medium truncate hover:opacity-90 transition-opacity" style={{ color: 'var(--ds-info-text)' }}>
+                    <ExternalLink size={13} className="flex-shrink-0" /> <span className="truncate">Abrir conteúdo no Drive</span>
+                  </a>
+                  <button onClick={() => setEditingField('drive_url')} className="text-[11px] text-[var(--ds-info-text)] hover:underline flex-shrink-0">editar</button>
                 </div>
+              ) : (
+                <button onClick={() => setEditingField('drive_url')}
+                  className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border-2 border-dashed transition-colors"
+                  style={{ borderColor: 'var(--ds-info-border)', color: 'var(--ds-info-text)' }}>
+                  <Link2 size={14} /> + Colar link do Drive
+                </button>
               )}
             </div>
 
+            {textField('briefing', 'Briefing', '· instruções pro time (o que fazer)', 'O que precisa ser feito, direção criativa, referências de estilo…', 70)}
+            {textField('copy', 'Copy', '· conceito / roteiro', 'Ideia central, roteiro do reels, texto das artes…', 70)}
+            {textField('legenda', 'Legenda', '· o texto que vai no Instagram', 'A legenda final do post, com hashtags e CTA…', 70)}
+
             {/* Referências */}
-            <div className="px-7 py-5">
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-2">
-                  <Link2 size={14} className="text-[var(--color-text-muted)]" />
-                  <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Referências</span>
-                  <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração, exemplos</span>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
+                  <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração · cole imagens (Ctrl+V)</span>
                 </div>
                 <button onClick={() => refInputRef.current?.click()} disabled={uploadingRef}
                   className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50">
-                  <ImagePlus size={13} />
-                  {uploadingRef ? 'Enviando…' : 'Imagem'}
+                  <ImagePlus size={13} /> {uploadingRef ? 'Enviando…' : 'Imagem'}
                 </button>
                 <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefImageUpload} />
               </div>
               {editingField === 'reference_notes' ? (
                 <textarea autoFocus value={form.reference_notes} onChange={e => setForm(f => ({ ...f, reference_notes: e.target.value }))}
-                  onBlur={() => commitText('reference_notes')} rows={3}
-                  placeholder="Links de referência, observações…"
-                  className="w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--color-text-primary)] outline-none resize-none leading-relaxed" />
+                  onBlur={() => commitText('reference_notes')} placeholder="Cole links de referência, observações…"
+                  className={fieldEditCls} style={{ minHeight: 60 }} />
               ) : (
-                <div onClick={() => setEditingField('reference_notes')} className="cursor-text text-sm text-[var(--color-text-primary)] leading-relaxed whitespace-pre-line rounded-lg hover:bg-[var(--color-bg-subtle)] -mx-1.5 px-1.5 py-1 transition-colors min-h-[40px]">
-                  {form.reference_notes || <span className="text-[var(--color-text-faint)]">Clique para adicionar links/observações de referência…</span>}
+                <div onClick={() => setEditingField('reference_notes')} className={fieldViewCls} style={{ minHeight: 40 }}>
+                  {form.reference_notes || <span className="text-[var(--color-text-faint)]">Clique para adicionar links/observações…</span>}
                 </div>
               )}
+              {/* chips de link */}
+              {refLinks.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {refLinks.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg pl-1.5 pr-2 py-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)] hover:text-[var(--color-text-primary)] transition-colors max-w-[200px]">
+                      <img src={`https://www.google.com/s2/favicons?domain=${hostOf(url)}&sz=32`} alt="" className="w-3.5 h-3.5 rounded-sm flex-shrink-0" />
+                      <span className="truncate">{hostOf(url)}</span>
+                      <ExternalLink size={10} className="flex-shrink-0 opacity-60" />
+                    </a>
+                  ))}
+                </div>
+              )}
+              {/* imagens */}
               {form.reference_images.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 mt-3">
+                <div className="grid grid-cols-4 gap-2 mt-2.5">
                   {form.reference_images.map((url, i) => (
                     <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-[var(--color-border)]">
                       <img src={url} alt={`Referência ${i + 1}`} className="w-full h-full object-cover" />
-                      <button onClick={() => removeRefImage(url)}
-                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5">
+                      <button onClick={() => removeRefImage(url)} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5">
                         <XCircle size={14} className="text-white" />
                       </button>
-                      <a href={url} target="_blank" rel="noopener noreferrer"
-                        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 flex items-end p-1.5">
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 flex items-end p-1.5">
                         <span className="text-[9px] text-white font-medium bg-black/40 rounded px-1">abrir</span>
                       </a>
                     </div>
@@ -367,157 +458,50 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             </div>
           </div>
 
-          {/* RIGHT — entrega (topo, fixo) + tabs */}
-          <div className="w-80 flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
-
-            {/* 📦 ENTREGA — sempre visível */}
-            <div className="px-4 pt-4 pb-3 border-b border-[var(--color-border)]">
-              <div className="rounded-xl p-3" style={{ background: 'var(--ds-info-bg)', border: '1px solid var(--ds-info-border)' }}>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Package size={14} style={{ color: 'var(--ds-info-accent)' }} />
-                  <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--ds-info-text)' }}>Entrega do conteúdo</span>
-                </div>
-                <p className="text-[10px] mb-2" style={{ color: 'var(--ds-info-text)', opacity: 0.8 }}>o post/carrossel/vídeo pronto (Drive)</p>
-                {editingField === 'drive_url' ? (
-                  <input autoFocus value={form.drive_url} onChange={e => setForm(f => ({ ...f, drive_url: e.target.value }))}
-                    onBlur={() => commitText('drive_url')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
-                    placeholder="https://drive.google.com/…"
-                    className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-info-accent)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none" />
-                ) : form.drive_url ? (
-                  <div className="flex items-center gap-1.5">
-                    <a href={form.drive_url} target="_blank" rel="noopener noreferrer"
-                      className="flex-1 flex items-center gap-1.5 bg-[var(--color-bg-card)] rounded-lg px-2.5 py-1.5 text-xs font-medium truncate hover:opacity-90 transition-opacity"
-                      style={{ color: 'var(--ds-info-text)' }}>
-                      <Link2 size={12} className="flex-shrink-0" /> <span className="truncate">Abrir no Drive</span>
-                    </a>
-                    <button onClick={() => setEditingField('drive_url')} className="text-[10px] text-[var(--ds-info-text)] hover:underline flex-shrink-0">editar</button>
-                  </div>
-                ) : (
-                  <button onClick={() => setEditingField('drive_url')}
-                    className="w-full flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border-2 border-dashed transition-colors"
-                    style={{ borderColor: 'var(--ds-info-border)', color: 'var(--ds-info-text)' }}>
-                    <Link2 size={13} /> + Colar link do Drive
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex items-center gap-0.5 px-3 border-b border-[var(--color-border)]">
-              {([['detalhes','Detalhes'],['comentarios','Comentários'],['historico','Histórico']] as const).map(([k, lbl]) => (
+          {/* RIGHT — comentários (visível) + histórico */}
+          <div className="w-[340px] flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
+            <div className="flex items-center gap-0.5 px-4 border-b border-[var(--color-border)]">
+              {([['comentarios','Comentários'],['historico','Histórico']] as const).map(([k, lbl]) => (
                 <button key={k} onClick={() => setSideTab(k)}
-                  className={`px-2.5 py-2.5 text-xs font-semibold border-b-2 transition-colors ${sideTab === k ? 'text-[var(--color-text-primary)] border-[var(--color-accent)]' : 'text-[var(--color-text-muted)] border-transparent hover:text-[var(--color-text-secondary)]'}`}>
+                  className={`px-3 py-3 text-xs font-semibold border-b-2 transition-colors ${sideTab === k ? 'text-[var(--color-text-primary)] border-[var(--color-accent)]' : 'text-[var(--color-text-muted)] border-transparent hover:text-[var(--color-text-secondary)]'}`}>
                   {lbl}{k === 'comentarios' && comments.length > 0 ? ` ${comments.length}` : ''}
                 </button>
               ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto flex flex-col">
-              {sideTab === 'detalhes' && (
-                <div className="px-4 py-4 flex flex-col gap-4">
-                  {/* Tipo */}
-                  <div>
-                    <label className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">Tipo de conteúdo</label>
-                    <div className="relative">
-                      <select value={form.post_type} onChange={e => changeType(e.target.value)} className={selectCls}>
-                        {POST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
-                    </div>
-                  </div>
-                  {/* Status */}
-                  <div>
-                    <label className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">Status (etapa)</label>
-                    <div className="relative">
-                      <select value={form.status} onChange={e => changeStatus(e.target.value)} className={selectCls}>
-                        {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
-                    </div>
-                  </div>
-                  {/* Data */}
-                  <div>
-                    <label className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 block">Data estimada</label>
-                    <button onClick={() => setShowCal(true)}
-                      className="w-full flex items-center gap-2 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm font-medium hover:border-[var(--color-border-hover)] transition-colors"
-                      style={{ color: dueDateLabel ? dueDateLabel.color : 'var(--color-text-muted)' }}>
-                      <Calendar size={13} /> {dueDateLabel ? dueDateLabel.text : 'Definir data'}
-                    </button>
-                  </div>
-                  {/* Funil */}
-                  <div>
-                    <label className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 flex items-center gap-1"><Target size={11} /> Funil</label>
-                    <div className="flex flex-wrap gap-1">
-                      {FUNIL_OPTIONS.map(o => (
-                        <button key={o} onClick={() => { const nv = form.funil === o ? '' : o; setForm(f => ({ ...f, funil: nv })); persist({ funil: nv }) }}
-                          className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-all border"
-                          style={form.funil === o
-                            ? { background: clientColor || 'var(--color-brand)', color: 'white', borderColor: 'transparent' }
-                            : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                          {o}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {/* Campanha */}
-                  {campaigns.length > 0 && (
-                    <div>
-                      <label className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5 flex items-center gap-1"><Megaphone size={11} /> Campanha</label>
-                      <div className="flex flex-wrap gap-1">
-                        <button onClick={() => { setForm(f => ({ ...f, campaign_type: '' })); persist({ campaign_type: '' }) }}
-                          className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-all border"
-                          style={!form.campaign_type ? { background: 'var(--color-text-primary)', color: 'var(--color-bg-card)', borderColor: 'transparent' } : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                          Nenhuma
-                        </button>
-                        {campaigns.map(c => (
-                          <button key={c.type} onClick={() => { const nv = form.campaign_type === c.type ? '' : c.type; setForm(f => ({ ...f, campaign_type: nv })); persist({ campaign_type: nv }) }}
-                            className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-all border"
-                            style={form.campaign_type === c.type ? { background: clientColor || 'var(--color-brand)', color: 'white', borderColor: 'transparent' } : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                            {c.name}
-                          </button>
-                        ))}
+            {sideTab === 'comentarios' ? (
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+                  {comments.length === 0 ? (
+                    <p className="text-xs text-[var(--color-text-faint)] text-center py-8">Nenhum comentário ainda.<br />Fale de mudanças, dúvidas, ajustes…</p>
+                  ) : comments.map(c => (
+                    <div key={c.id} className="flex flex-col">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{c.author_name || 'Alguém'}</span>
+                        <span className="text-[10px] text-[var(--color-text-faint)]">{relTime(c.created_at)}</span>
                       </div>
+                      <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{c.body}</div>
                     </div>
-                  )}
+                  ))}
                 </div>
-              )}
-
-              {sideTab === 'comentarios' && (
-                <div className="flex flex-col h-full">
-                  <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
-                    {comments.length === 0 ? (
-                      <p className="text-xs text-[var(--color-text-faint)] text-center py-6">Nenhum comentário ainda.<br/>Fale de mudanças, dúvidas, ajustes…</p>
-                    ) : comments.map(c => (
-                      <div key={c.id} className="flex flex-col">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{c.author_name || 'Alguém'}</span>
-                          <span className="text-[10px] text-[var(--color-text-faint)]">{commentTime(c.created_at)}</span>
-                        </div>
-                        <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{c.body}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="px-3 py-3 border-t border-[var(--color-border)] flex items-end gap-2">
-                    <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment() } }}
-                      placeholder="Escrever comentário…" rows={2}
-                      className="flex-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)]" />
-                    <button onClick={addComment} disabled={!newComment.trim()}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 flex-shrink-0" style={{ background: 'var(--color-accent)' }}>
-                      <Send size={14} />
-                    </button>
-                  </div>
+                <div className="px-3 py-3 border-t border-[var(--color-border)] flex items-end gap-2">
+                  <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment() } }}
+                    placeholder="Comentar…  (⌘/Ctrl+Enter envia)" rows={2}
+                    className="flex-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)]" />
+                  <button onClick={addComment} disabled={!newComment.trim()}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 flex-shrink-0" style={{ background: 'var(--color-accent)' }}>
+                    <Send size={14} />
+                  </button>
                 </div>
-              )}
-
-              {sideTab === 'historico' && (
-                <div className="px-4 py-3">
-                  {currentId
-                    ? <ActivityLog tableName="schedules" recordId={currentId} refreshKey={activityKey} />
-                    : <p className="text-xs text-[var(--color-text-faint)] py-6 text-center">O histórico aparece após salvar o post.</p>}
-                </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto px-4 py-3">
+                {currentId
+                  ? <ActivityLog tableName="schedules" recordId={currentId} refreshKey={activityKey} />
+                  : <p className="text-xs text-[var(--color-text-faint)] py-6 text-center">O histórico aparece após salvar o post.</p>}
+              </div>
+            )}
           </div>
         </div>
 
