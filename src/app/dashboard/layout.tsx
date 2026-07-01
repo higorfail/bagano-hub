@@ -285,10 +285,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-[var(--color-bg-page)] overflow-hidden">
       <aside className="w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col py-6 px-4 relative">
-        <div className="flex items-center gap-2.5 px-2 mb-8">
+        <Link href="/dashboard" className="flex items-center gap-2.5 px-2 mb-8 rounded-xl hover:opacity-80 transition-opacity" title="Ir para o início">
           <LogoIcon size={34} className="text-[var(--color-logo)] flex-shrink-0" />
           <span className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight">Bagano Hub</span>
-        </div>
+        </Link>
 
         <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Geral</p>
         <nav className="flex flex-col gap-0.5 mb-6">

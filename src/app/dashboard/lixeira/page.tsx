@@ -34,17 +34,20 @@ function relativeDate(dateStr: string) {
 export default function LixeiraPage() {
   const { toast } = useToast()
   const [items, setItems] = useState<TrashItem[]>([])
+  const [clients, setClients] = useState<{ id: string; name: string; color_hex: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<TrashItemType | 'all'>('all')
   const [acting, setActing] = useState<string | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
 
   const load = useCallback(async () => {
-    const { data } = await createClient()
-      .from('trash')
-      .select('*')
-      .order('deleted_at', { ascending: false })
-    setItems((data as TrashItem[]) || [])
+    const supabase = createClient()
+    const [{ data: trashData }, { data: clientsData }] = await Promise.all([
+      supabase.from('trash').select('*').order('deleted_at', { ascending: false }),
+      supabase.from('clients').select('id, name, color_hex'),
+    ])
+    setItems((trashData as TrashItem[]) || [])
+    setClients(clientsData || [])
     setLoading(false)
   }, [])
 
@@ -80,6 +83,7 @@ export default function LixeiraPage() {
 
   const filtered = filter === 'all' ? items : items.filter(i => i.item_type === filter)
   const types = [...new Set(items.map(i => i.item_type))] as TrashItemType[]
+  const clientMap = Object.fromEntries(clients.map(c => [c.id, c]))
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -162,10 +166,13 @@ export default function LixeiraPage() {
                 const days = daysLeft(item.expires_at)
                 const isUrgent = days <= 3
                 const isActing = acting === item.id
+                const data = (item.item_data || {}) as Record<string, any>
+                const client = data.client_id ? clientMap[data.client_id] : null
+                const images: string[] = Array.isArray(data.reference_images) ? data.reference_images : []
                 return (
-                  <div key={item.id} className="flex items-center gap-4 px-5 py-4 group hover:bg-[var(--color-bg-subtle)] transition-colors">
+                  <div key={item.id} className="flex items-start gap-4 px-5 py-4 group hover:bg-[var(--color-bg-subtle)] transition-colors">
                     {/* Icon */}
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-bg-subtle)' }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: 'var(--color-bg-subtle)' }}>
                       <Icon size={16} style={{ color: meta.color }} strokeWidth={1.75} />
                     </div>
 
@@ -173,22 +180,50 @@ export default function LixeiraPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{item.label}</p>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md" style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
-                          {meta.label}
+                        {data.post_number != null && <span className="text-[11px] font-bold text-[var(--color-text-faint)]">#{data.post_number}</span>}
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md" style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>{meta.label}</span>
+                        {client && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white flex items-center gap-1" style={{ background: client.color_hex }}>
+                            {client.name}
+                          </span>
+                        )}
+                        {data.post_type && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">{data.post_type}</span>}
+                      </div>
+
+                      {/* Meta: quem/quando/expira */}
+                      <div className="flex items-center gap-2 flex-wrap mt-1 text-xs text-[var(--color-text-muted)]">
+                        <span>Excluído {item.deleted_by ? <>por <span className="font-semibold text-[var(--color-text-secondary)]">{item.deleted_by}</span></> : ''} · {relativeDate(item.deleted_at)}</span>
+                        {data.scheduled_date && <span className="text-[var(--color-text-faint)]">· data {new Date(data.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>}
+                        <span className="font-medium" style={{ color: isUrgent ? 'var(--ds-error-accent)' : 'var(--color-text-faint)' }}>
+                          · {days === 0 ? 'expira hoje' : `expira em ${days}d`}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-xs text-[var(--color-text-muted)]">
-                          {relativeDate(item.deleted_at)}{item.deleted_by ? ` · ${item.deleted_by.split(' ')[0]}` : ''}
-                        </span>
-                        <span className="text-[10px] font-medium" style={{ color: isUrgent ? 'var(--ds-error-accent)' : 'var(--color-text-faint)' }}>
-                          {days === 0 ? 'expira hoje' : `expira em ${days}d`}
-                        </span>
-                      </div>
+
+                      {/* Prévia da copy/legenda */}
+                      {(data.copy || data.legenda || data.briefing) && (
+                        <p className="text-xs text-[var(--color-text-muted)] mt-1.5 line-clamp-2 leading-relaxed">{data.briefing || data.copy || data.legenda}</p>
+                      )}
+
+                      {/* Imagens que tinha */}
+                      {images.length > 0 && (
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          {images.slice(0, 8).map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="w-11 h-11 rounded-lg overflow-hidden border border-[var(--color-border)] flex-shrink-0 hover:opacity-80 transition-opacity">
+                              <img src={url} alt="" className="w-full h-full object-cover" />
+                            </a>
+                          ))}
+                          {images.length > 8 && <span className="text-[10px] text-[var(--color-text-faint)]">+{images.length - 8}</span>}
+                        </div>
+                      )}
+                      {data.drive_url && (
+                        <a href={data.drive_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] font-medium mt-1.5" style={{ color: 'var(--ds-info-text)' }}>
+                          📦 Conteúdo no Drive
+                        </a>
+                      )}
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5">
                       <button
                         onClick={() => restore(item)}
                         disabled={isActing}

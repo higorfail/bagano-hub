@@ -6,6 +6,7 @@ import { Plus, Trash2, Pencil, Check, X, Users } from 'lucide-react'
 import { moveToTrash } from '@/lib/trash'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
+import { useUser } from '@/lib/UserContext'
 
 type Member = { id: string; name: string; role: string; color: string }
 
@@ -32,6 +33,7 @@ const emptyForm = { name: '', role: 'posts', color: '#6366f1' }
 
 export default function EquipePage() {
   const { toast } = useToast()
+  const { currentMember } = useUser()
   const [members,  setMembers]  = useState<Member[]>([])
   const [loading,  setLoading]  = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -73,7 +75,7 @@ export default function EquipePage() {
     setDeleting(id)
     const member = members.find(m => m.id === id)
     if (member) {
-      try { await moveToTrash('member', id, member.name) } catch { /* trash table missing */ }
+      try { await moveToTrash('member', id, member.name, currentMember?.name) } catch { /* trash table missing */ }
     }
     const { error } = await createClient().from('team_members').delete().eq('id', id)
     if (error) { dbError(error, toast, 'remover pessoa'); setDeleting(null); return }

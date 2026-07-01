@@ -232,7 +232,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   async function handleDelete() {
     if (!postId) return
     setDeleting(true)
-    try { await moveToTrash('post', postId, form.title || 'Post sem título') }
+    try { await moveToTrash('post', postId, form.title || 'Post sem título', currentMember?.name) }
     catch (err) { toast('Erro na lixeira: ' + (err instanceof Error ? err.message : String(err))); setDeleting(false); return }
     await supabase.from('schedules').delete().eq('id', postId)
     setDeleting(false); if (onDeleted) onDeleted(); onClose()
