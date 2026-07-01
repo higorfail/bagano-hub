@@ -348,7 +348,7 @@ function CronogramaPageInner() {
           year={selectedYear}
           postNumber={editingPostId ? undefined : posts.length + 1}
           onClose={() => { setShowPostCard(false); setEditingPostId(null) }}
-          onSaved={() => { loadPosts(); setShowPostCard(false); setEditingPostId(null) }}
+          onSaved={() => { loadPosts() }}
           onDeleted={() => { loadPosts() }}
         />
       )}
