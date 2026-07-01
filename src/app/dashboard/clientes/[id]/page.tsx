@@ -10,6 +10,7 @@ import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import CampaignsTab from '@/components/CampaignsTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
+import PostMiniCard from '@/components/PostMiniCard'
 import PostCard from '@/components/PostCard'
 import ExtrasKanban from '@/components/ExtrasKanban'
 import ActivityLog from '@/components/ActivityLog'
@@ -316,62 +317,16 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
-                  {posts.map(post => {
-                    const typeLabel = TYPE_LABEL[post.post_type] || post.post_type
-                    const accent = { reels:'#ef4444', carrossel:'#3b82f6', post:'#f59e0b', story:'#8b5cf6', carrossel_stories:'#6366f1' }[post.post_type] || 'var(--color-border)'
-                    const isRejected = post.approval_status === 'não aprovado'
-                    const isApproved = post.approval_status === 'aprovado'
-                    const campaign = campaigns.find(c => c.type === post.campaign_type)
-                    return (
-                      <div key={post.id}
-                        className={`group text-left bg-[var(--color-bg-card)] border rounded-2xl flex flex-col cursor-pointer transition-all overflow-hidden
-                          ${isRejected ? 'border-[var(--ds-error-border)]' : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'}`}
-                        onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}>
-                        <div className="h-[3px] w-full flex-shrink-0" style={{ background: accent }} />
-                        <div className="p-5 flex flex-col gap-4 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-bold text-[var(--color-text-faint)]">#{post.post_number}</span>
-                              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${typeColor[typeLabel]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{typeLabel}</span>
-                              {post.funil && <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">{post.funil}</span>}
-                              {campaign && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
-                            </div>
-                            <button onClick={e => { e.stopPropagation(); quickDuplicate(post) }} title="Duplicar"
-                              className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-xl bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] flex items-center justify-center transition-all text-[var(--color-text-muted)] flex-shrink-0 text-xs">
-                              ⧉
-                            </button>
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-bold text-[var(--color-text-primary)] text-[15px] leading-snug line-clamp-2">{post.title || 'Sem título'}</p>
-                            {post.copy && <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-2 line-clamp-3">{post.copy}</p>}
-                          </div>
-                          {isRejected && post.approval_comment && (
-                            <div className="rounded-xl px-3 py-2 text-xs italic leading-snug" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
-                              "{post.approval_comment}"
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between pt-3 border-t border-[var(--color-border)] gap-2 mt-auto">
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs text-[var(--color-text-muted)]">
-                                {post.scheduled_date ? new Date(post.scheduled_date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) : 'Sem data'}
-                              </span>
-                              {post.drive_url && (
-                                <a href={post.drive_url} onClick={e => e.stopPropagation()} target="_blank" rel="noopener noreferrer"
-                                  className="text-xs flex items-center gap-1 transition-colors" style={{ color: 'var(--ds-info-text)' }}>
-                                  Drive
-                                </a>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              {isRejected && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>Não aprovado</span>}
-                              {isApproved && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado</span>}
-                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{STATUS_LABEL[post.status]||post.status}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
+                  {posts.map(post => (
+                    <PostMiniCard
+                      key={post.id}
+                      post={post}
+                      clientColor={client.color_hex}
+                      campaignName={campaigns.find(c => c.type === post.campaign_type)?.name || null}
+                      onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
+                      onDuplicate={() => quickDuplicate(post)}
+                    />
+                  ))}
                 </div>
               )}
             </div>

@@ -1,0 +1,118 @@
+'use client'
+
+import { Calendar, Paperclip, Copy, Package } from 'lucide-react'
+
+const TYPE: Record<string, { label: string; color: string }> = {
+  carrossel:         { label: 'Carrossel',         color: '#3b82f6' },
+  reels:             { label: 'Reels',             color: '#ef4444' },
+  post:              { label: 'Post',              color: '#f59e0b' },
+  story:             { label: 'Story',             color: '#8b5cf6' },
+  carrossel_stories: { label: 'Carrossel/Stories', color: '#6366f1' },
+}
+const STATUS: Record<string, { label: string; color: string }> = {
+  producao:             { label: 'Produção',      color: '#f59e0b' },
+  revisao_interna:      { label: 'Revisão',        color: '#6b7280' },
+  aguardando_aprovacao: { label: 'Com cliente',    color: '#ec4899' },
+  aprovado:             { label: 'Aprovado',       color: '#22c55e' },
+  agendado:             { label: 'Agendado',       color: '#3b82f6' },
+  publicado:            { label: 'Publicado',      color: '#059669' },
+}
+
+export type MiniPost = {
+  id: string
+  post_number?: number | null
+  title: string
+  copy?: string | null
+  post_type: string
+  status: string
+  approval_status?: string | null
+  approval_comment?: string | null
+  scheduled_date?: string | null
+  drive_url?: string | null
+  funil?: string | null
+  campaign_type?: string | null
+  reference_images?: string[] | null
+}
+
+type Props = {
+  post: MiniPost
+  clientColor?: string
+  campaignName?: string | null
+  selected?: boolean
+  onClick: () => void
+  onDuplicate?: () => void
+}
+
+export default function PostMiniCard({ post, clientColor, campaignName, selected, onClick, onDuplicate }: Props) {
+  const type   = TYPE[post.post_type] || { label: post.post_type || '—', color: 'var(--color-border)' }
+  const status = STATUS[post.status]  || { label: post.status, color: '#6b7280' }
+  const isRejected = post.approval_status === 'não aprovado'
+  const isApproved = post.approval_status === 'aprovado'
+  const refs   = post.reference_images?.length || 0
+  const delivered = !!post.drive_url
+
+  return (
+    <div
+      onClick={onClick}
+      className={`group text-left bg-[var(--color-bg-card)] border rounded-2xl flex flex-col cursor-pointer transition-all overflow-hidden shadow-card hover:shadow-pop
+        ${selected ? 'border-transparent' : isRejected ? 'border-[var(--ds-error-border)]' : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'}`}
+      style={selected ? { boxShadow: `0 0 0 2px ${clientColor || 'var(--color-accent)'}` } : {}}
+    >
+      <div className="h-[3px] w-full flex-shrink-0" style={{ background: type.color }} />
+
+      <div className="p-4 flex flex-col gap-3 flex-1">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {post.post_number != null && <span className="text-xs font-bold text-[var(--color-text-faint)]">#{post.post_number}</span>}
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: type.color + '22', color: type.color }}>{type.label}</span>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: status.color + '22', color: status.color }}>{status.label}</span>
+            {post.funil && <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">{post.funil}</span>}
+            {campaignName && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaignName}</span>}
+          </div>
+          {onDuplicate && (
+            <button onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicar"
+              className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] flex items-center justify-center transition-all text-[var(--color-text-muted)] flex-shrink-0">
+              <Copy size={11} />
+            </button>
+          )}
+        </div>
+
+        {/* Title + copy */}
+        <div className="flex-1">
+          <p className="font-bold text-[var(--color-text-primary)] text-[15px] leading-snug line-clamp-2">{post.title || 'Sem título'}</p>
+          {post.copy && <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 line-clamp-2">{post.copy}</p>}
+        </div>
+
+        {/* Rejection comment */}
+        {isRejected && post.approval_comment && (
+          <div className="rounded-lg px-2.5 py-1.5 text-xs italic leading-snug" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+            "{post.approval_comment}"
+          </div>
+        )}
+
+        {/* Footer — indicadores */}
+        <div className="flex items-center justify-between pt-2.5 border-t border-[var(--color-border)] gap-2 mt-auto">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] flex-shrink-0">
+              <Calendar size={11} />
+              {post.scheduled_date ? new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : 'Sem data'}
+            </span>
+            {refs > 0 && (
+              <span className="flex items-center gap-0.5 text-xs text-[var(--color-text-muted)] flex-shrink-0" title={`${refs} referência(s)`}>
+                <Paperclip size={11} /> {refs}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {delivered
+              ? <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}><Package size={10} /> Entregue</span>
+              : <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]"><Package size={10} /> Sem entrega</span>}
+            {isRejected && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>Não aprovado</span>}
+            {isApproved && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
