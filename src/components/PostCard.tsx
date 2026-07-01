@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
@@ -64,6 +64,13 @@ function relTime(iso: string) {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 function hostOf(url: string) { try { return new URL(url).hostname.replace('www.', '') } catch { return url } }
+// markdown leve: **negrito** e *itálico* (escapa HTML antes; quebras via CSS pre-line)
+function renderMd(text: string) {
+  const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return esc
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+}
 
 export default function PostCard({ postId, clientId, clientName, clientColor, month, year, postNumber, onClose, onSaved, onDeleted }: Props) {
   const supabase = createClient()
@@ -93,6 +100,22 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const discardRef = useRef(false)
   const editOriginal = useRef('')
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Envolve a seleção do textarea com um marcador (** ou *)
+  function wrapSelection(field: TextField, marker: string) {
+    const ta = editTextareaRef.current
+    if (!ta) return
+    const start = ta.selectionStart, end = ta.selectionEnd
+    const val = String(formRef.current[field] || '')
+    const sel = val.slice(start, end) || 'texto'
+    const next = val.slice(0, start) + marker + sel + marker + val.slice(end)
+    setForm(f => ({ ...f, [field]: next }))
+    requestAnimationFrame(() => {
+      ta.focus()
+      ta.setSelectionRange(start + marker.length, start + marker.length + sel.length)
+    })
+  }
 
   useEffect(() => {
     supabase.from('campaigns').select('id, name, type').eq('client_id', clientId).then(({ data }) => setCampaigns(data || []))
@@ -279,7 +302,14 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         </div>
         {editingField === field ? (
           <div>
-            <textarea autoFocus value={form[field] as string} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
+            <div className="flex items-center gap-1 mb-1.5">
+              <button onMouseDown={e => { e.preventDefault(); wrapSelection(field, '**') }} title="Negrito"
+                className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"><Bold size={13} /></button>
+              <button onMouseDown={e => { e.preventDefault(); wrapSelection(field, '*') }} title="Itálico"
+                className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"><Italic size={13} /></button>
+              <span className="text-[10px] text-[var(--color-text-faint)] ml-1">**negrito** · *itálico*</span>
+            </div>
+            <textarea ref={editTextareaRef} autoFocus value={form[field] as string} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
               onBlur={() => blurCommit(field)} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discardEdit(field) } }}
               placeholder={placeholder} className={fieldEditCls} style={{ minHeight: minH }} />
             <div className="flex items-center gap-2 mt-1.5">
@@ -292,7 +322,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           </div>
         ) : (
           <div onClick={() => startEdit(field)} className={fieldViewCls} style={{ minHeight: minH }}>
-            {(form[field] as string) || <span className="text-[var(--color-text-faint)]">{placeholder}</span>}
+            {(form[field] as string)
+              ? <span dangerouslySetInnerHTML={{ __html: renderMd(form[field] as string) }} />
+              : <span className="text-[var(--color-text-faint)]">{placeholder}</span>}
           </div>
         )}
       </div>
