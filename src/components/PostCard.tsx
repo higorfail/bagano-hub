@@ -113,6 +113,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const discardRef = useRef(false)
   const editOriginal = useRef('')
+  const backdropDown = useRef(false)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Envolve a seleção do textarea com um marcador (** ou *)
@@ -398,7 +399,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-4 px-4"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }} onPaste={handlePaste}>
+      onMouseDown={e => { backdropDown.current = e.target === e.currentTarget }}
+      onMouseUp={e => { if (backdropDown.current && e.target === e.currentTarget) onClose(); backdropDown.current = false }}
+      onPaste={handlePaste}>
       <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[1040px] max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
 
         <div className="h-[3px] flex-shrink-0 rounded-t-2xl" style={{ background: clientColor || typeObj.color }} />
