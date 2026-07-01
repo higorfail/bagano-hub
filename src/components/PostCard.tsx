@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
@@ -100,6 +100,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
   const [showDetails,  setShowDetails]  = useState(false)
   const [emojiOpen,    setEmojiOpen]    = useState<TextField | null>(null)
+  const [clientList,   setClientList]   = useState<{ id: string; name: string; color_hex: string }[]>([])
+  const [moveOpen,     setMoveOpen]     = useState(false)
+  const [moveMonth,    setMoveMonth]    = useState(month)
+  const [moveYear,     setMoveYear]     = useState(year)
   const refInputRef = useRef<HTMLInputElement>(null)
 
   const [form,     setForm]     = useState<PostForm>(EMPTY)
@@ -154,6 +158,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   useEffect(() => {
     supabase.from('campaigns').select('id, name, type').eq('client_id', clientId).then(({ data }) => setCampaigns(data || []))
   }, [clientId])
+
+  useEffect(() => {
+    supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name').then(({ data }) => setClientList(data || []))
+  }, [])
 
   useEffect(() => {
     if (!postId) return
@@ -293,6 +301,38 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     catch (err) { toast('Erro na lixeira: ' + (err instanceof Error ? err.message : String(err))); setDeleting(false); return }
     await supabase.from('schedules').delete().eq('id', postId)
     setDeleting(false); if (onDeleted) onDeleted(); onClose()
+  }
+
+  async function duplicatePost() {
+    const pid = await ensurePostId(); if (!pid) { toast('Adicione um título primeiro'); return }
+    const f = formRef.current
+    const { count } = await supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('client_id', clientId).eq('month', month).eq('year', year)
+    const { error } = await supabase.from('schedules').insert({
+      client_id: clientId, month, year, post_number: (count || 0) + 1,
+      title: (f.title || 'Post') + ' (cópia)', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
+      post_type: f.post_type, status: 'producao', scheduled_date: null, drive_url: f.drive_url,
+      reference_notes: f.reference_notes, funil: f.funil, campaign_type: f.campaign_type || null, reference_images: f.reference_images,
+    })
+    if (dbError(error, toast, 'duplicar')) return
+    toast('Post duplicado!'); onSaved(); onClose()
+  }
+
+  async function moveToClientId(newClientId: string) {
+    const pid = await ensurePostId(); if (!pid) return
+    const { error } = await supabase.from('schedules').update({ client_id: newClientId, campaign_type: null }).eq('id', pid)
+    if (dbError(error, toast, 'mover')) return
+    const name = clientList.find(c => c.id === newClientId)?.name
+    await logActivity({ tableName: 'schedules', recordId: pid, action: 'updated', actorName: currentMember?.name, description: `Movido para o cliente ${name || ''}` })
+    toast('Post movido de cliente'); onSaved(); onClose()
+  }
+
+  async function moveToMonth() {
+    const pid = await ensurePostId(); if (!pid) return
+    if (moveMonth === month && moveYear === year) { setMoveOpen(false); return }
+    const { error } = await supabase.from('schedules').update({ month: moveMonth, year: moveYear }).eq('id', pid)
+    if (dbError(error, toast, 'mover')) return
+    await logActivity({ tableName: 'schedules', recordId: pid, action: 'updated', actorName: currentMember?.name, description: `Movido para ${MESES[moveMonth - 1]} ${moveYear}` })
+    toast('Post movido de mês'); onSaved(); onClose()
   }
 
   const typeObj   = POST_TYPES.find(t => t.value === form.post_type) || POST_TYPES[0]
@@ -665,7 +705,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         </div>
 
         {/* FOOTER */}
-        <div className="px-7 py-3 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-card)]">
+        <div className="px-7 py-3 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-card)] relative">
           {!isNew ? (
             confirmDelete ? (
               <div className="flex items-center gap-2">
@@ -681,8 +721,49 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               </button>
             )
           ) : <div />}
-          <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-faint)]">
-            <Check size={12} /> Salvo automaticamente
+
+          <div className="flex items-center gap-3">
+            {currentId && (
+              <div className="relative">
+                <button onClick={() => setMoveOpen(v => !v)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
+                  <Move size={13} /> Mover / Duplicar
+                </button>
+                {moveOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[79]" onClick={() => setMoveOpen(false)} />
+                    <div className="absolute bottom-9 right-0 z-[80] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-pop p-3 w-64 flex flex-col gap-3">
+                      <button onClick={duplicatePost} className="w-full text-left text-xs font-medium px-2 py-1.5 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center gap-2 transition-colors">
+                        <Copy size={13} /> Duplicar post (este mês)
+                      </button>
+                      <div className="border-t border-[var(--color-border)]" />
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Mover para o mês</p>
+                        <div className="flex items-center gap-1.5">
+                          <select value={moveMonth} onChange={e => setMoveMonth(Number(e.target.value))} className="flex-1 capitalize text-xs border border-[var(--color-border)] rounded-lg px-2 py-1.5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none">
+                            {MESES.map((m, i) => <option key={i} value={i + 1} className="capitalize">{m}</option>)}
+                          </select>
+                          <select value={moveYear} onChange={e => setMoveYear(Number(e.target.value))} className="text-xs border border-[var(--color-border)] rounded-lg px-2 py-1.5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none">
+                            {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
+                          </select>
+                          <button onClick={moveToMonth} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: 'var(--color-accent)' }}>Ir</button>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Mover para o cliente</p>
+                        <select value="" onChange={e => { if (e.target.value) moveToClientId(e.target.value) }} className="w-full text-xs border border-[var(--color-border)] rounded-lg px-2 py-1.5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none">
+                          <option value="">Escolher cliente…</option>
+                          {clientList.filter(c => c.id !== clientId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-faint)]">
+              <Check size={12} /> Salvo automaticamente
+            </div>
           </div>
         </div>
 
