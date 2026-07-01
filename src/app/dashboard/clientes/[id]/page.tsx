@@ -10,7 +10,6 @@ import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import CampaignsTab from '@/components/CampaignsTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
-import PostFormModal from '@/components/PostFormModal'
 import PostCard from '@/components/PostCard'
 import ExtrasKanban from '@/components/ExtrasKanban'
 import ActivityLog from '@/components/ActivityLog'
@@ -59,7 +58,6 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [team, setTeam] = useState<any[]>([])
   const [allMembers, setAllMembers] = useState<any[]>([])
   const [showAddMember, setShowAddMember] = useState(false)
-  const [showNewPost, setShowNewPost] = useState(false)
   const [showPostCard, setShowPostCard] = useState(false)
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
   const [campaigns, setCampaigns] = useState<{ id: string; name: string; type: string }[]>([])
@@ -250,7 +248,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
               {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Manual</a>}
               {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Drive</a>}
               <button onClick={openEditClient} className="border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Editar</button>
-              <button onClick={() => setShowNewPost(true)} className="bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-xl px-4 py-2 text-sm font-medium">+ Novo post</button>
+              <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }} className="bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-xl px-4 py-2 text-sm font-medium">+ Novo post</button>
             </div>
           </div>
 
@@ -288,7 +286,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                     <p className="text-[var(--color-text-primary)] font-semibold text-lg">Nenhum post em {MONTHS[selectedMonth-1]}</p>
                     <p className="text-[var(--color-text-muted)] text-sm max-w-xs">Adicione o primeiro post do mês para montar o cronograma.</p>
                   </div>
-                  <button onClick={() => setShowNewPost(true)}
+                  <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
                     className="flex items-center gap-2 font-semibold px-6 py-3 rounded-xl text-sm transition-opacity hover:opacity-90 shadow-sm text-white"
                     style={{ background: client?.color_hex || 'var(--color-brand)' }}>
                     Criar primeiro post
@@ -638,29 +636,18 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
         </div>
       </div>
 
-      {showPostCard && editingPostId && client && (
+      {showPostCard && client && (
         <PostCard
-          postId={editingPostId}
+          postId={editingPostId || undefined}
           clientId={id}
           clientName={client.name}
           clientColor={client.color_hex}
           month={selectedMonth}
           year={selectedYear}
+          postNumber={editingPostId ? undefined : posts.length + 1}
           onClose={() => { setShowPostCard(false); setEditingPostId(null) }}
           onSaved={reloadPosts}
           onDeleted={reloadPosts}
-        />
-      )}
-
-      {showNewPost && client && (
-        <PostFormModal
-          clientId={id}
-          clientName={client.name}
-          month={selectedMonth}
-          year={selectedYear}
-          nextPostNumber={posts.length + 1}
-          onClose={() => setShowNewPost(false)}
-          onSaved={reloadPosts}
         />
       )}
 
