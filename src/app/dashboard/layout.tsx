@@ -65,6 +65,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const memberRef = useRef<HTMLDivElement>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [approvalsCount, setApprovalsCount] = useState(0)
+  const [stats, setStats] = useState({ total: 0, approved: 0, revision: 0 })
+  const [seenApprovals, setSeenApprovals] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0
+    return Number(localStorage.getItem('approvals-seen') || 0)
+  })
   const [showNotifications, setShowNotifications] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
   const { mode, setMode } = useTheme()
@@ -99,12 +104,15 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   async function loadNotifications() {
     const supabase = createClient()
+    const now = new Date()
+    const month = now.getMonth() + 1
+    const year = now.getFullYear()
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
     const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
     const today = new Date().toISOString().slice(0, 10)
     const threeDaysAgoDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-    const [approvalsRes, extraCmtsRes, matCmtsRes, captacoesRes, pendingPostsRes, pendingCountRes, rejectedCountRes] = await Promise.all([
+    const [approvalsRes, extraCmtsRes, matCmtsRes, captacoesRes, pendingPostsRes, pendingCountRes, rejectedCountRes, totalMonthRes, approvedMonthRes] = await Promise.all([
       supabase.from('schedules')
         .select('id, title, approval_status, approval_comment, clients(name, color_hex)')
         .in('approval_status', ['aprovado', 'não aprovado'])
@@ -136,10 +144,18 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         .eq('status', 'aguardando_aprovacao'),
       supabase.from('schedules')
         .select('id', { count: 'exact', head: true })
-        .eq('approval_status', 'não aprovado'),
+        .eq('approval_status', 'não aprovado')
+        .not('status', 'in', '(aprovado,agendado,publicado)'),
+      supabase.from('schedules')
+        .select('id', { count: 'exact', head: true })
+        .eq('month', month).eq('year', year),
+      supabase.from('schedules')
+        .select('id', { count: 'exact', head: true })
+        .eq('month', month).eq('year', year).eq('approval_status', 'aprovado'),
     ])
 
     setApprovalsCount((pendingCountRes.count || 0) + (rejectedCountRes.count || 0))
+    setStats({ total: totalMonthRes.count || 0, approved: approvedMonthRes.count || 0, revision: rejectedCountRes.count || 0 })
 
     const result: Notification[] = []
 
@@ -232,7 +248,17 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
+  // Ao abrir a página de Aprovações, marca a contagem atual como "vista" → esconde o badge
+  useEffect(() => {
+    if (pathname === '/dashboard/aprovacao') {
+      setSeenApprovals(approvalsCount)
+      localStorage.setItem('approvals-seen', String(approvalsCount))
+    }
+  }, [pathname, approvalsCount])
+
   const unread = notifications.filter(n => !readIds.has(n.id)).length
+  const approvalsBadge = approvalsCount > seenApprovals ? approvalsCount : 0
+  const approvalPct = stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0
 
   function NavItem({ href, icon: Icon, label, external, badge }: { href: string; icon: any; label: string; external?: boolean; badge?: number }) {
     const active = pathname === href
@@ -271,7 +297,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
         <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Produção</p>
         <nav className="flex flex-col gap-0.5 mb-6">
-          {productionItems.map(item => <NavItem key={item.href} {...item} badge={item.href === '/dashboard/aprovacao' ? approvalsCount : undefined} />)}
+          {productionItems.map(item => <NavItem key={item.href} {...item} badge={item.href === '/dashboard/aprovacao' ? approvalsBadge : undefined} />)}
         </nav>
 
         <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Conteúdo</p>
@@ -388,6 +414,23 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                     </button>
                   )}
                 </div>
+
+                {/* Resumo divertido de aprovações */}
+                {stats.total > 0 && (
+                  <div className="px-4 py-3 flex items-center gap-3 flex-shrink-0 border-b border-[var(--color-border)]" style={{ background: 'var(--color-accent-bg)' }}>
+                    <span className="text-2xl leading-none">{approvalPct >= 80 ? '🎉' : approvalPct >= 50 ? '💪' : '📈'}</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[var(--color-text-primary)]">
+                        {approvalPct >= 80 ? 'Uhuul! ' : ''}{approvalPct}% dos posts aprovados
+                      </p>
+                      <p className="text-[11px] text-[var(--color-text-secondary)]">
+                        {stats.revision > 0
+                          ? `${stats.revision} ${stats.revision === 1 ? 'post precisa' : 'posts precisam'} de ajuste`
+                          : 'nenhum ajuste pendente ✨'}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* List */}
                 <div className="overflow-y-auto flex-1">

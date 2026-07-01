@@ -62,6 +62,14 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
   const [sheetPost,    setSheetPost]    = useState<Post | null>(null)
   const [sheetComment, setSheetComment] = useState('')
 
+  // Página pública: força tema claro (não segue o dark mode do dispositivo do cliente)
+  useEffect(() => {
+    const html = document.documentElement
+    const prev = html.getAttribute('data-theme')
+    html.setAttribute('data-theme', 'light')
+    return () => { if (prev) html.setAttribute('data-theme', prev); else html.removeAttribute('data-theme') }
+  }, [])
+
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok }); setTimeout(() => setToast(null), 3500)
   }

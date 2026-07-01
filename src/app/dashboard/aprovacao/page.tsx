@@ -51,6 +51,7 @@ export default function AprovacaoPage() {
           .from('schedules')
           .select('id, title, post_type, status, approval_status, approval_comment, scheduled_date, month, year, client_id')
           .or('status.eq.aguardando_aprovacao,approval_status.eq.não aprovado')
+          .not('status', 'in', '(aprovado,agendado,publicado)')
           .order('scheduled_date', { ascending: true }),
         supabase
           .from('clients')

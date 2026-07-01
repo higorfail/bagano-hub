@@ -199,7 +199,7 @@ export default function DashboardPage() {
     ), [schedules, todayStr])
 
   const rejected = useMemo(() =>
-    schedules.filter(s => s.approval_status === CFG.A.naoAprovado),
+    schedules.filter(s => s.approval_status === CFG.A.naoAprovado && ![CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)),
   [schedules])
 
   const clientsWithReels = useMemo(() =>
@@ -315,7 +315,7 @@ export default function DashboardPage() {
   const donutSource = isCurrentOv ? schedules : ovSchedules
   const ovTotal     = donutSource.length
   // "Precisam ajuste" é transversal (approval_status), mostrado como alerta à parte
-  const ovNotOk     = donutSource.filter(s => s.approval_status === CFG.A.naoAprovado).length
+  const ovNotOk     = donutSource.filter(s => s.approval_status === CFG.A.naoAprovado && ![CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)).length
 
   // Rosca = distribuição por status (exclusivos → soma sempre = total)
   const STATUS_SLICES: { key: string; label: string; tone: BadgeTone }[] = [
