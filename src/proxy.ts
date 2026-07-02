@@ -13,12 +13,13 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const authed = hasSupabaseSession(request)
 
+  // Auth temporariamente desativada para testes
   // Protege o dashboard: sem sessão → manda pro login (raiz)
-  if (pathname.startsWith('/dashboard') && !authed) {
-    const url = new URL('/', request.url)
-    url.searchParams.set('redirect', pathname)
-    return NextResponse.redirect(url)
-  }
+  // if (pathname.startsWith('/dashboard') && !authed) {
+  //   const url = new URL('/', request.url)
+  //   url.searchParams.set('redirect', pathname)
+  //   return NextResponse.redirect(url)
+  // }
 
   // Já logado abrindo o login → vai direto pro dashboard
   if (pathname === '/' && authed) {
