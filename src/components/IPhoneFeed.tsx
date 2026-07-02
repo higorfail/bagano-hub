@@ -89,7 +89,7 @@ function driveIdToEmbed(id: string) {
 async function fetchFolderFiles(folderId: string): Promise<DriveFile[]> {
   try {
     const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents&fields=files(id,name,mimeType,thumbnailLink,webViewLink)&orderBy=name&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
+      `https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType,thumbnailLink,webViewLink)&orderBy=name&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
     )
     if (!res.ok) return []
     return (await res.json()).files || []
