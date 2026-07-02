@@ -28,7 +28,7 @@ type Post = {
   id: string; post_number: number; title: string; copy: string
   post_type: string; scheduled_date: string; status: string
   approval_status: string; approval_comment: string
-  drive_url: string; reference_notes: string; funil: string; campaign_type: string
+  drive_url: string; drive_folder_url: string; reference_notes: string; funil: string; campaign_type: string
 }
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -509,6 +509,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   type: p.post_type === 'reels' ? 'reel' : p.post_type === 'carrossel' || p.post_type === 'carrossel_stories' ? 'carousel' : p.post_type === 'story' ? 'story' : 'photo',
                   status: p.approval_status === 'aprovado' ? 'approved' : p.approval_status === 'não aprovado' ? 'changes_requested' : p.status === 'publicado' ? 'approved' : 'pending',
                   drive_url: p.drive_url,
+                  drive_folder_url: p.drive_folder_url,
                   copy: p.copy,
                   scheduled_date: p.scheduled_date,
                 }))}

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Calendar, Paperclip, Copy, Package, Play } from 'lucide-react'
 
 const TYPE: Record<string, { label: string; color: string }> = {
@@ -31,6 +32,7 @@ export type MiniPost = {
   approval_comment?: string | null
   scheduled_date?: string | null
   drive_url?: string | null
+  drive_folder_url?: string | null
   funil?: string | null
   campaign_type?: string | null
   reference_images?: string[] | null
@@ -59,10 +61,29 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
   const isApproved  = post.approval_status === 'aprovado'
   const isRevisao   = post.status === 'revisao_interna'
   const refs      = post.reference_images?.length || 0
-  const delivered = !!post.drive_url
+  const delivered = !!(post.drive_url || post.drive_folder_url)
   const isVideo   = post.post_type === 'reels'
-  const driveId   = post.drive_url?.match(/[-\w]{25,}/)?.[0]
-  const thumbUrl  = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w480` : null
+
+  const [thumbUrl, setThumbUrl] = useState<string | null>(() => {
+    const id = post.drive_url?.match(/[-\w]{25,}/)?.[0]
+    return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w480` : null
+  })
+
+  useEffect(() => {
+    if (!post.drive_folder_url) return
+    const folderId = post.drive_folder_url.match(/\/folders\/([-\w]{25,})/)?.[1]
+    if (!folderId) return
+    const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
+    if (!key) return
+    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType)&orderBy=name&key=${key}`)
+      .then(r => r.json())
+      .then(d => {
+        const images: { id: string; name: string; mimeType: string }[] = (d.files || []).filter((f: { id: string; name: string; mimeType: string }) => f.mimeType.startsWith('image/'))
+        const img = images.find(f => /^capa\./i.test(f.name)) ?? images[0]
+        if (img) setThumbUrl(`https://drive.google.com/thumbnail?id=${img.id}&sz=w480`)
+      })
+      .catch(() => {})
+  }, [post.drive_folder_url])
 
   return (
     <div

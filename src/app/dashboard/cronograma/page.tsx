@@ -16,7 +16,7 @@ type Client = { id: string; name: string; color_hex: string }
 type Post = {
   id: string; post_number: number; title: string; copy: string
   post_type: string; scheduled_date: string; status: string
-  drive_url: string; reference_notes: string; funil: string
+  drive_url: string; drive_folder_url: string; reference_notes: string; funil: string
   campaign_type: string; approval_status: string; approval_comment: string
 }
 
