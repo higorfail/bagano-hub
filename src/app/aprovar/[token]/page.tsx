@@ -17,6 +17,70 @@ const TYPE_EMOJIS: Record<string, string> = {
   reels: '🎬', carrossel: '📸', post: '🖼️', story: '⭕', carrossel_stories: '🔁',
 }
 
+function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
+  const [images, setImages] = useState<{ id: string; name: string }[]>([])
+  const [slide, setSlide]   = useState(0)
+  const [ready, setReady]   = useState(false)
+
+  useEffect(() => {
+    const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
+    if (!key) { setReady(true); return }
+    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType)&orderBy=name&key=${key}`)
+      .then(r => r.json())
+      .then(d => {
+        const imgs = (d.files || [])
+          .filter((f: { id: string; name: string; mimeType: string }) => f.mimeType.startsWith('image/'))
+        setImages(imgs)
+        setReady(true)
+      })
+      .catch(() => setReady(true))
+  }, [folderId])
+
+  if (!ready) return (
+    <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f3' }}>
+      <div style={{ width: 24, height: 24, border: '3px solid #e5e7eb', borderTopColor: '#374151', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    </div>
+  )
+
+  if (images.length === 0) return (
+    <a href={folderUrl} target="_blank" rel="noopener noreferrer"
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', background: '#f5f5f3', fontSize: 13, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
+      📂 Abrir pasta no Drive
+    </a>
+  )
+
+  const prev = () => setSlide(s => (s - 1 + images.length) % images.length)
+  const next = () => setSlide(s => (s + 1) % images.length)
+
+  return (
+    <div style={{ position: 'relative', background: '#111', userSelect: 'none' }}>
+      <div style={{ position: 'relative', paddingTop: '100%', overflow: 'hidden' }}>
+        <img
+          key={images[slide].id}
+          src={`https://drive.google.com/thumbnail?id=${images[slide].id}&sz=w800`}
+          alt={`Slide ${slide + 1}`}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+        />
+      </div>
+      {images.length > 1 && (
+        <>
+          <button onClick={prev} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>‹</button>
+          <button onClick={next} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>›</button>
+          <div style={{ position: 'absolute', bottom: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 5 }}>
+            {images.map((_, i) => (
+              <div key={i} onClick={() => setSlide(i)} style={{ width: i === slide ? 16 : 6, height: 6, borderRadius: 3, background: i === slide ? '#fff' : 'rgba(255,255,255,0.45)', cursor: 'pointer', transition: 'width 0.2s, background 0.2s' }} />
+            ))}
+          </div>
+        </>
+      )}
+      <a href={folderUrl} target="_blank" rel="noopener noreferrer"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 12, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
+        📂 {slide + 1}/{images.length} · Abrir pasta no Drive
+      </a>
+    </div>
+  )
+}
+
 function ReelFolderThumb({ folderId }: { folderId: string }) {
   const [imgId, setImgId] = useState<string | null>(null)
   useEffect(() => {
@@ -658,11 +722,10 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
 
                   const isCarrossel = post.post_type === 'carrossel' || post.post_type === 'carrossel_stories'
                   const driveId     = post.drive_url?.match(/[-\w]{25,}/)?.[0]
-                  const folderId    = post.drive_folder_url?.match(/[-\w]{25,}/)?.[0]
+                  const folderId    = post.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
                   const isVideoPost = post.post_type === 'reels'
                   const thumbUrl    = driveId && !isVideoPost && !isCarrossel ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w800` : null
                   const embedUrl    = driveId && isVideoPost  ? `https://drive.google.com/file/d/${driveId}/preview` : null
-                  const folderEmbed = isCarrossel && folderId ? `https://drive.google.com/embeddedfolderview?id=${folderId}&usp=sharing` : null
 
                   const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
                   const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#fafafa'
@@ -697,14 +760,8 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
                           </div>
                         </div>
-                      ) : folderEmbed ? (
-                        <div>
-                          <iframe src={folderEmbed} style={{ width: '100%', height: 280, border: 'none', display: 'block' }} />
-                          <a href={post.drive_folder_url} target="_blank" rel="noopener noreferrer"
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
-                            📂 Abrir pasta no Drive
-                          </a>
-                        </div>
+                      ) : isCarrossel && folderId ? (
+                        <CarouselPreview folderId={folderId} folderUrl={post.drive_folder_url || ''} />
                       ) : thumbUrl ? (
                         <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>
                           <img src={thumbUrl} alt={post.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 220 }}
