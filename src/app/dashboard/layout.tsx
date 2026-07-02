@@ -81,6 +81,12 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     catch { return new Set() }
   })
 
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try { return new Set(JSON.parse(localStorage.getItem('notif-dismissed') || '[]')) }
+    catch { return new Set() }
+  })
+
   function markRead(id: string) {
     setReadIds(prev => {
       const next = new Set(prev); next.add(id)
@@ -92,6 +98,20 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   function markAllRead() {
     setReadIds(prev => {
       const next = new Set([...prev, ...notifications.map(n => n.id)])
+      localStorage.setItem('notif-read', JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  function clearAll() {
+    const ids = notifications.map(n => n.id)
+    setDismissedIds(prev => {
+      const next = new Set([...prev, ...ids])
+      localStorage.setItem('notif-dismissed', JSON.stringify([...next]))
+      return next
+    })
+    setReadIds(prev => {
+      const next = new Set([...prev, ...ids])
       localStorage.setItem('notif-read', JSON.stringify([...next]))
       return next
     })
@@ -376,7 +396,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     }
   }, [pathname, approvalsCount])
 
-  const unread = notifications.filter(n => !readIds.has(n.id)).length
+  const visibleNotifications = notifications.filter(n => !dismissedIds.has(n.id))
+  const unread = visibleNotifications.filter(n => !readIds.has(n.id)).length
   const approvalsBadge = approvalsCount > seenApprovals ? approvalsCount : 0
   const approvalPct = stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0
 
@@ -529,11 +550,18 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white" style={{ background: 'var(--ds-error-accent)' }}>{unread} nova{unread !== 1 ? 's' : ''}</span>
                     )}
                   </div>
-                  {unread > 0 && (
-                    <button onClick={markAllRead} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-brand)] transition-colors">
-                      Marcar tudo como lido
-                    </button>
-                  )}
+                  <div className="flex items-center gap-3">
+                    {unread > 0 && (
+                      <button onClick={markAllRead} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-brand)] transition-colors">
+                        Marcar como lido
+                      </button>
+                    )}
+                    {visibleNotifications.length > 0 && (
+                      <button onClick={clearAll} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-brand)] transition-colors">
+                        Limpar
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Resumo divertido de aprovações */}
@@ -555,13 +583,13 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
                 {/* List */}
                 <div className="overflow-y-auto flex-1">
-                  {notifications.length === 0 ? (
+                  {visibleNotifications.length === 0 ? (
                     <div className="px-5 py-12 text-center flex flex-col items-center gap-2">
                       <Bell size={28} strokeWidth={1.5} className="text-[var(--color-text-faint)]" />
                       <p className="text-sm text-[var(--color-text-muted)]">Nenhuma notificação</p>
                       <p className="text-xs text-[var(--color-text-faint)]">Aprovações e comentários aparecerão aqui</p>
                     </div>
-                  ) : notifications.map(n => {
+                  ) : visibleNotifications.map(n => {
                     const isRead = readIds.has(n.id)
                     const isApproval = n.type === 'approval'
                     const isRejection = n.type === 'rejection'
