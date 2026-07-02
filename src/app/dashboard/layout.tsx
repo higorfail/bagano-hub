@@ -410,22 +410,24 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           <span className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight">Bagano Hub</span>
         </Link>
 
-        <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Geral</p>
-        <nav className="flex flex-col gap-0.5 mb-6">
-          {navItems.map(item => <NavItem key={item.href} {...item} />)}
-        </nav>
+        <div className="flex-1 overflow-y-auto min-h-0 -mx-4 px-4">
+          <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Geral</p>
+          <nav className="flex flex-col gap-0.5 mb-6">
+            {navItems.map(item => <NavItem key={item.href} {...item} />)}
+          </nav>
 
-        <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Produção</p>
-        <nav className="flex flex-col gap-0.5 mb-6">
-          {productionItems.map(item => <NavItem key={item.href} {...item} badge={item.href === '/dashboard/aprovacao' ? approvalsBadge : undefined} />)}
-        </nav>
+          <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Produção</p>
+          <nav className="flex flex-col gap-0.5 mb-6">
+            {productionItems.map(item => <NavItem key={item.href} {...item} badge={item.href === '/dashboard/aprovacao' ? approvalsBadge : undefined} />)}
+          </nav>
 
-        <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Conteúdo</p>
-        <nav className="flex flex-col gap-0.5">
-          {contentItems.map(item => <NavItem key={item.href} {...item} />)}
-        </nav>
+          <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Conteúdo</p>
+          <nav className="flex flex-col gap-0.5">
+            {contentItems.map(item => <NavItem key={item.href} {...item} />)}
+          </nav>
+        </div>
 
-        <div className="mt-auto pt-4 border-t border-[var(--color-border)]" ref={memberRef}>
+        <div className="pt-4 border-t border-[var(--color-border)]" ref={memberRef}>
           <button
             onClick={() => setShowMemberPicker(v => !v)}
             className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-[var(--color-bg-subtle)] transition-colors text-left group"
