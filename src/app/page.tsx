@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import LogoWordmark from '@/components/logos/LogoWordmark'
@@ -13,6 +13,16 @@ export default function Home() {
   const [error, setError] = useState('')
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('code')
+    if (!code) return
+    setLoading(true)
+    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+      if (!error) router.push('/auth/definir-senha')
+      else { setError('Link inválido ou expirado.'); setLoading(false) }
+    })
+  }, [])
 
   async function handleLogin() {
     setLoading(true)
