@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import PostCard from '@/components/PostCard'
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const WEEKDAYS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
@@ -16,21 +17,23 @@ type Post = {
   client_id: string
   client_name: string
   client_color: string
-}
-
-const STATUS_COLOR: Record<string, string> = {
-  aprovado:       'bg-green-100 text-green-700 border-green-200',
-  'não aprovado': 'bg-red-100 text-red-700 border-red-200',
-  pendente:       'bg-yellow-100 text-yellow-700 border-yellow-200',
+  month: number
+  year: number
 }
 
 export default function CalendarioPage() {
+  useEffect(() => { document.title = 'Calendário · Bagano Hub' }, [])
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year,  setYear]  = useState(now.getFullYear())
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
-  const [tooltip, setTooltip] = useState<Post | null>(null)
+
+  const [showPostCard,   setShowPostCard]   = useState(false)
+  const [editingPostId,  setEditingPostId]  = useState<string | null>(null)
+  const [editingPostCtx, setEditingPostCtx] = useState<{
+    clientId: string; clientName: string; clientColor: string; month: number; year: number
+  } | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -38,7 +41,7 @@ export default function CalendarioPage() {
       const supabase = createClient()
       const { data } = await supabase
         .from('schedules')
-        .select('id, title, scheduled_date, post_type, approval_status, client_id, clients(name, color_hex)')
+        .select('id, title, scheduled_date, post_type, approval_status, client_id, month, year, clients(name, color_hex)')
         .eq('month', month)
         .eq('year', year)
         .order('scheduled_date', { ascending: true })
@@ -51,6 +54,8 @@ export default function CalendarioPage() {
         client_id: d.client_id,
         client_name: d.clients?.name || '—',
         client_color: d.clients?.color_hex || '#94a3b8',
+        month: d.month,
+        year: d.year,
       })))
       setLoading(false)
     }
@@ -64,6 +69,18 @@ export default function CalendarioPage() {
   function nextMonth() {
     if (month === 12) { setMonth(1); setYear(y => y + 1) }
     else setMonth(m => m + 1)
+  }
+
+  function openPost(p: Post) {
+    setEditingPostId(p.id)
+    setEditingPostCtx({
+      clientId: p.client_id,
+      clientName: p.client_name,
+      clientColor: p.client_color,
+      month: p.month,
+      year: p.year,
+    })
+    setShowPostCard(true)
   }
 
   // Build calendar grid
@@ -82,8 +99,6 @@ export default function CalendarioPage() {
     return posts.filter(p => p.scheduled_date === dateStr)
   }
 
-  const postsWithoutDate = posts.filter(p => !p.scheduled_date)
-
   // unique clients for legend
   const clients = [...new Map(posts.map(p => [p.client_id, { name: p.client_name, color: p.client_color }])).values()]
 
@@ -92,12 +107,14 @@ export default function CalendarioPage() {
     day === today.getDate() && month === today.getMonth() + 1 && year === today.getFullYear()
 
   return (
-    <div className="p-6 flex flex-col gap-5 h-full overflow-auto">
+    <div className="p-6 flex flex-col gap-5 h-full overflow-auto page-content">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Calendário</h1>
-          <p className="text-[var(--color-text-muted)] text-sm mt-0.5">{posts.length} posts em {MONTHS[month-1]} {year}</p>
+          <p className="text-[var(--color-text-muted)] text-sm mt-0.5">
+            {loading ? 'Carregando…' : `${posts.length} post${posts.length !== 1 ? 's' : ''} em ${MONTHS[month-1]} ${year}`}
+          </p>
         </div>
         <div className="flex items-center gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1">
           <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
@@ -145,7 +162,7 @@ export default function CalendarioPage() {
                 className={`min-h-[100px] border-r border-b border-[var(--color-border)] p-1.5 flex flex-col gap-1 last:border-r-0 ${!day ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
                 {day && (
                   <div className="flex items-center justify-between mb-0.5 px-0.5">
-                    <span className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full ${todayCell ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)]' : 'text-[var(--color-text-muted)]'}`}>
+                    <span className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full ${todayCell ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)]'}`}>
                       {day}
                     </span>
                     {dayPosts.length > 0 && (
@@ -154,32 +171,23 @@ export default function CalendarioPage() {
                   </div>
                 )}
                 {dayPosts.slice(0, 4).map(p => (
-                  <div key={p.id}
-                    onMouseEnter={() => setTooltip(p)}
-                    onMouseLeave={() => setTooltip(null)}
-                    className="relative group rounded-md px-1.5 py-0.5 text-[10px] font-medium truncate cursor-default border"
-                    style={{ background: p.client_color + '22', color: p.client_color, borderColor: p.client_color + '44' }}>
-                    <span className="truncate">{p.title}</span>
-                    {/* Tooltip */}
-                    {tooltip?.id === p.id && (
-                      <div className="absolute left-0 top-full mt-1 z-50 w-52 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-xl p-3 flex flex-col gap-1.5 pointer-events-none">
-                        <p className="text-xs font-semibold text-[var(--color-text-primary)] leading-snug">{p.title}</p>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.client_color }} />
-                          <p className="text-[10px] text-[var(--color-text-muted)]">{p.client_name}</p>
-                        </div>
-                        {p.post_type && <p className="text-[10px] text-[var(--color-text-muted)] capitalize">{p.post_type}</p>}
-                        {p.approval_status && (
-                          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border self-start ${STATUS_COLOR[p.approval_status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] border-[var(--color-border)]'}`}>
-                            {p.approval_status}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    key={p.id}
+                    onClick={() => openPost(p)}
+                    className="rounded-md px-1.5 py-0.5 text-[10px] font-medium truncate border text-left w-full hover:opacity-80 transition-opacity"
+                    style={{ background: p.client_color + '22', color: p.client_color, borderColor: p.client_color + '44' }}
+                    title={p.title}
+                  >
+                    {p.title}
+                  </button>
                 ))}
                 {dayPosts.length > 4 && (
-                  <p className="text-[9px] text-[var(--color-text-faint)] px-1">+{dayPosts.length - 4} mais</p>
+                  <button
+                    onClick={() => openPost(dayPosts[4])}
+                    className="text-[9px] text-[var(--color-text-faint)] px-1 text-left hover:text-[var(--color-text-secondary)] transition-colors"
+                  >
+                    +{dayPosts.length - 4} mais
+                  </button>
                 )}
               </div>
             )
@@ -187,26 +195,47 @@ export default function CalendarioPage() {
         </div>
       </div>
 
-      {/* Posts sem data */}
-      {postsWithoutDate.length > 0 && (
-        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 shadow-card">
-          <p className="text-xs font-semibold text-[var(--color-text-muted)] mb-3 uppercase tracking-wide">Sem data agendada</p>
-          <div className="flex flex-wrap gap-2">
-            {postsWithoutDate.map(p => (
-              <div key={p.id} className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border"
-                style={{ background: p.client_color + '15', color: p.client_color, borderColor: p.client_color + '33' }}>
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: p.client_color }} />
-                {p.title}
-              </div>
-            ))}
-          </div>
+      {loading && (
+        <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[var(--color-text-primary)] rounded-full animate-spin" />
         </div>
       )}
 
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[var(--color-bg-page)]/60 backdrop-blur-sm rounded-2xl">
-          <p className="text-sm text-[var(--color-text-muted)]">Carregando...</p>
-        </div>
+      {showPostCard && editingPostId && editingPostCtx && (
+        <PostCard
+          postId={editingPostId}
+          clientId={editingPostCtx.clientId}
+          clientName={editingPostCtx.clientName}
+          clientColor={editingPostCtx.clientColor}
+          month={editingPostCtx.month}
+          year={editingPostCtx.year}
+          onClose={() => { setShowPostCard(false); setEditingPostId(null); setEditingPostCtx(null) }}
+          onSaved={() => {
+            setShowPostCard(false)
+            setEditingPostId(null)
+            setEditingPostCtx(null)
+            // reload to reflect any changes
+            const supabase = createClient()
+            supabase.from('schedules')
+              .select('id, title, scheduled_date, post_type, approval_status, client_id, month, year, clients(name, color_hex)')
+              .eq('month', month).eq('year', year)
+              .order('scheduled_date', { ascending: true })
+              .then(({ data }) => {
+                setPosts((data || []).map((d: any) => ({
+                  id: d.id,
+                  title: d.title || 'Sem título',
+                  scheduled_date: d.scheduled_date,
+                  post_type: d.post_type || '',
+                  approval_status: d.approval_status || null,
+                  client_id: d.client_id,
+                  client_name: d.clients?.name || '—',
+                  client_color: d.clients?.color_hex || '#94a3b8',
+                  month: d.month,
+                  year: d.year,
+                })))
+              })
+          }}
+        />
       )}
     </div>
   )

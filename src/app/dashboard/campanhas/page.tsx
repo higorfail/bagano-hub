@@ -42,6 +42,7 @@ const STATUS_LABEL: Record<string, string> = { producao: 'Produção', revisao_i
 function getInitials(name: string) { return (name || '?').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() }
 
 export default function CampanhasPage() {
+  useEffect(() => { document.title = 'Campanhas · Bagano Hub' }, [])
   const supabase = createClient()
   const isDark = useDarkMode()
   const [selected, setSelected] = useState('natal')

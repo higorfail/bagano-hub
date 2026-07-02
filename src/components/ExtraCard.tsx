@@ -199,6 +199,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       client_id: fixedClientId || clientId || null,
       description, due_date: dueDate || null, due_time: dueTime || null,
       assigned_members: assignedMembers, assigned_member_id: assignedMembers[0] || null, labels,
+      needs_client_approval: needsClientApproval,
     }
     // Build client/member info locally to avoid depending on PostgREST joins
     const resolvedClientId = fixedClientId || clientId || null
@@ -223,14 +224,14 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       setId(data.id)
       savedData = withRelations(data)
       originalStatusRef.current = status
-      await logActivity({ tableName: 'extras', recordId: data.id, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
+      await logActivity({ tableName: 'extras', recordId: data.id, clientId: resolvedClientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
       setActivityKey(k => k + 1)
     } else {
       const statusLabels: Record<string,string> = { backlog: 'A fazer', doing: 'Em andamento', done: 'Concluído' }
       if (status !== originalStatusRef.current) {
         const oldLabel = statusLabels[originalStatusRef.current] || originalStatusRef.current
         const newLabel = statusLabels[status] || status
-        await logActivity({ tableName: 'extras', recordId: id, action: 'status_changed', actorName: currentMember?.name, field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
+        await logActivity({ tableName: 'extras', recordId: id, clientId: fixedClientId || clientId || null, action: 'status_changed', actorName: currentMember?.name, field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
         originalStatusRef.current = status as ExtraStatus
         setActivityKey(k => k + 1)
       }
@@ -243,7 +244,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
 
   async function handleDelete() {
     if (!id) { onClose(); return }
-    await logActivity({ tableName: 'extras', recordId: id, action: 'deleted', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
+    await logActivity({ tableName: 'extras', recordId: id, clientId: fixedClientId || clientId || null, action: 'deleted', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
     await supabase.from('extras').delete().eq('id', id)
     if (onDeleted) onDeleted(id)
     onClose()
@@ -272,7 +273,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const { data } = await supabase.from('extra_comments').insert({ extra_id: eid, body, author_name: authorName }).select().single()
     if (data) setComments(c => [...c, data])
     setNewComment('')
-    await logActivity({ tableName: 'extras', recordId: eid, action: 'commented', actorName: authorName, description: `${authorName} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
+    await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action: 'commented', actorName: authorName, description: `${authorName} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
   }
 

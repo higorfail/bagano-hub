@@ -32,6 +32,7 @@ function relativeDate(dateStr: string) {
 }
 
 export default function LixeiraPage() {
+  useEffect(() => { document.title = 'Lixeira · Bagano Hub' }, [])
   const { toast } = useToast()
   const [items, setItems] = useState<TrashItem[]>([])
   const [clients, setClients] = useState<{ id: string; name: string; color_hex: string }[]>([])

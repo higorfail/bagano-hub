@@ -54,6 +54,7 @@ const BLANK_CAPTACAO = {
 }
 
 export default function AgendaPage() {
+  useEffect(() => { document.title = 'Agenda · Bagano Hub' }, [])
   const supabase = createClient()
   const { toast } = useToast()
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))

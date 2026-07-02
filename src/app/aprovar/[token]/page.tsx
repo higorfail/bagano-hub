@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { use } from 'react'
 import { createClient } from '@/lib/supabase'
+import { logActivity } from '@/lib/activity'
 import { CheckCircle, MessageSquare, RotateCcw, AlertTriangle } from 'lucide-react'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
 
@@ -33,8 +34,9 @@ function mapStatus(s: Post): FeedPost['status'] {
 
 interface Post {
   id: string; title: string; post_type: string; status: string
-  drive_url?: string; copy?: string; scheduled_date?: string
+  drive_url?: string; copy?: string; briefing?: string; scheduled_date?: string
   post_number?: number; approval_comment?: string; approval_status?: string
+  funil?: string; campaign_type?: string
 }
 
 export default function ApprovalPage({ params }: { params: Promise<{ token: string }> }) {
@@ -62,6 +64,12 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
   const [sheetPost,    setSheetPost]    = useState<Post | null>(null)
   const [sheetComment, setSheetComment] = useState('')
 
+  useEffect(() => {
+    if (!client || !tokenData) return
+    const label = tokenData.type === 'cronograma' ? 'Aprovação do Cronograma' : 'Aprovação Final'
+    document.title = `${label} · ${client.name}`
+  }, [client, tokenData])
+
   // Página pública: força tema claro (não segue o dark mode do dispositivo do cliente)
   useEffect(() => {
     const html = document.documentElement
@@ -84,13 +92,18 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
       .from('clients').select('id, name, color_hex, logo_url, instagram_url').eq('id', tk.client_id).single()
     if (!cl) { setError('Cliente não encontrado.'); setLoading(false); return }
     setClient(cl)
+    const baseQuery = supabase.from('schedules')
+      .select('id, title, post_type, status, drive_url, drive_folder_url, copy, briefing, scheduled_date, feed_order, post_number, approval_comment, approval_status, funil, campaign_type')
+      .eq('client_id', tk.client_id)
+      .eq('month', tk.month)
+      .eq('year',  tk.year)
+      .order('post_number', { ascending: true })
+    const schedulesQuery = tk.type === 'cronograma'
+      ? baseQuery.eq('status', 'aguardando_aprovacao_crono')
+      : baseQuery.eq('status', 'aguardando_aprovacao')
+
     const [{ data: sc }, { data: ex }] = await Promise.all([
-      supabase.from('schedules')
-        .select('id, title, post_type, status, drive_url, drive_folder_url, copy, scheduled_date, feed_order, post_number, approval_comment, approval_status')
-        .eq('client_id', tk.client_id)
-        .eq('month', tk.month)
-        .eq('year',  tk.year)
-        .order('post_number', { ascending: true }),
+      schedulesQuery,
       supabase.from('extras')
         .select('id, title, type, description, due_date, needs_client_approval, client_approval_status, client_approval_comment')
         .eq('client_id', tk.client_id)
@@ -117,6 +130,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     setSubmitting(postId)
     await supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null }).eq('id', postId)
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'aprovado', approval_comment: undefined } : p))
+    logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post` })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setSheetPost(null); setSheetComment('')
     showToast('Post aprovado! ✓')
@@ -126,8 +140,9 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
   async function requestChanges(postId: string, comment: string) {
     const c = comment.trim(); if (!c) return
     setSubmitting(postId)
-    await supabase.from('schedules').update({ approval_status: 'não aprovado', approval_comment: c }).eq('id', postId)
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'não aprovado', approval_comment: c } : p))
+    await supabase.from('schedules').update({ approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' }).eq('id', postId)
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' } : p))
+    logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente solicitou alterações: "${c}"` })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setComments(cc => { const n = { ...cc }; delete n[postId]; return n })
     setSheetPost(null); setSheetComment('')
@@ -137,8 +152,8 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
 
   async function undo(postId: string) {
     setSubmitting(postId)
-    await supabase.from('schedules').update({ approval_status: null, approval_comment: null }).eq('id', postId)
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: undefined, approval_comment: undefined } : p))
+    await supabase.from('schedules').update({ approval_status: null, approval_comment: null, status: 'aguardando_aprovacao' }).eq('id', postId)
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: undefined, approval_comment: undefined, status: 'aguardando_aprovacao' } : p))
     setSubmitting(null)
   }
 
@@ -146,12 +161,48 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     const pending = posts.filter(p => p.approval_status !== 'aprovado' && p.approval_status !== 'não aprovado')
     if (!pending.length) return
     setApprovingAll(true)
-    await Promise.all(pending.map(p =>
-      supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null }).eq('id', p.id)
-    ))
+    await Promise.all([
+      ...pending.map(p => supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null }).eq('id', p.id)),
+      ...pending.map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post` })),
+    ])
     setPosts(prev => prev.map(p =>
       pending.find(pp => pp.id === p.id) ? { ...p, approval_status: 'aprovado', approval_comment: undefined } : p
     ))
+    showToast(`${pending.length} posts aprovados! 🎉`)
+    setApprovingAll(false)
+  }
+
+  // ── Cronograma approval actions ────────────────────────────────────────────
+  async function approveCrono(postId: string) {
+    setSubmitting(postId)
+    await supabase.from('schedules').update({ status: 'producao', approval_status: 'aprovado', approval_comment: null }).eq('id', postId)
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'producao', approval_status: 'aprovado' } : p))
+    logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post' })
+    showToast('Post aprovado! ✓')
+    setSubmitting(null)
+  }
+
+  async function rejectCrono(postId: string, comment: string) {
+    const c = comment.trim(); if (!c) return
+    setSubmitting(postId)
+    await supabase.from('schedules').update({ status: 'estrategia', approval_status: 'não aprovado', approval_comment: c }).eq('id', postId)
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'estrategia', approval_status: 'não aprovado', approval_comment: c } : p))
+    logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste na estratégia: "${c}"` })
+    setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
+    setComments(cc => { const n = { ...cc }; delete n[postId]; return n })
+    showToast('Solicitação enviada!', false)
+    setSubmitting(null)
+  }
+
+  async function approveAllCrono() {
+    const pending = posts.filter(p => p.status === 'aguardando_aprovacao_crono')
+    if (!pending.length) return
+    setApprovingAll(true)
+    await Promise.all([
+      ...pending.map(p => supabase.from('schedules').update({ status: 'producao', approval_status: 'aprovado', approval_comment: null }).eq('id', p.id)),
+      ...pending.map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post' })),
+    ])
+    setPosts(prev => prev.map(p => pending.find(pp => pp.id === p.id) ? { ...p, status: 'producao', approval_status: 'aprovado' } : p))
     showToast(`${pending.length} posts aprovados! 🎉`)
     setApprovingAll(false)
   }
@@ -208,7 +259,215 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
 
   const cc = client?.color_hex || '#111111'
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Cronograma approval render ─────────────────────────────────────────────
+  if (tokenData?.type === 'cronograma') {
+    const cronoPending  = posts.filter(p => p.status === 'aguardando_aprovacao_crono').length
+    const cronoApproved = posts.filter(p => p.approval_status === 'aprovado').length
+    const allCronoDone  = posts.length > 0 && cronoPending === 0
+    const pctCrono      = posts.length > 0 ? (cronoApproved / posts.length) * 100 : 0
+
+    const campaigns  = [...new Set(posts.map(p => p.campaign_type).filter(Boolean))] as string[]
+    const byCampaign = campaigns.map(ct => ({ name: ct, posts: posts.filter(p => p.campaign_type === ct) }))
+    const noCampaign = posts.filter(p => !p.campaign_type)
+
+    function renderCronoCard(post: Post) {
+      const isApproved = post.approval_status === 'aprovado'
+      const isChanged  = post.approval_status === 'não aprovado'
+      const isComm     = commenting.has(post.id)
+      const comment    = comments[post.id] || ''
+      const isLoading  = submitting === post.id
+
+      return (
+        <div key={post.id} style={{ background: '#fff', borderRadius: 22, border: `1.5px solid ${isApproved ? '#86efac' : isChanged ? '#fcd34d' : '#ebebeb'}`, overflow: 'hidden', boxShadow: isApproved ? '0 2px 12px rgba(34,197,94,0.08)' : '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: isApproved ? '#f0fdf4' : isChanged ? '#fffbeb' : '#fafafa', borderBottom: `1px solid ${isApproved ? '#86efac' : isChanged ? '#fcd34d' : '#ebebeb'}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#c4c4c0', letterSpacing: '0.05em' }}>#{String(post.post_number || 1).padStart(2, '0')}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#555', background: '#f0f0ee', padding: '2px 9px', borderRadius: 100 }}>{TYPE_EMOJIS[post.post_type]} {TYPE_LABELS[post.post_type]}</span>
+              {post.scheduled_date && <span style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>}
+              {post.funil && <span style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', padding: '1px 7px', borderRadius: 100 }}>{post.funil.split(' ')[0]}</span>}
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: isApproved ? '#16a34a' : isChanged ? '#b45309' : '#9ca3af' }}>
+              {isApproved ? '✓ Aprovado' : isChanged ? '⚠ Revisar' : '● Pendente'}
+            </span>
+          </div>
+
+          <div style={{ padding: '16px 18px' }}>
+            <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 12px', lineHeight: 1.3, letterSpacing: '-0.02em' }}>{post.title}</h3>
+
+            {post.briefing && (
+              <div style={{ marginBottom: 14 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Estratégia / Briefing</p>
+                <div style={{ background: '#fafaf8', borderRadius: 14, padding: '12px 14px', border: '1px solid #f0f0ec' }}>
+                  <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{post.briefing}</p>
+                </div>
+              </div>
+            )}
+
+            {post.copy && (
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Rascunho de copy</p>
+                <div style={{ background: '#f8f6ff', borderRadius: 14, padding: '12px 14px', border: '1px solid #e8e0f9' }}>
+                  <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{post.copy}</p>
+                </div>
+              </div>
+            )}
+
+            {isChanged && post.approval_comment && (
+              <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
+                <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sua solicitação</p>
+                <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{post.approval_comment}"</p>
+              </div>
+            )}
+
+            {isComm && (
+              <div style={{ marginBottom: 14 }}>
+                <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px', fontWeight: 600 }}>O que precisa mudar?</p>
+                <textarea autoFocus value={comment}
+                  onChange={e => setComments(c => ({ ...c, [post.id]: e.target.value }))}
+                  placeholder="Ex: Mudar o foco para o produto B, ajustar a data..."
+                  rows={3}
+                  style={{ width: '100%', background: '#fff', border: `2px solid ${cc}`, borderRadius: 14, padding: '13px 16px', fontSize: 15, color: '#111', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5, fontFamily: 'inherit' }}
+                />
+              </div>
+            )}
+
+            {isApproved ? (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#f0fdf4', border: '1.5px solid #86efac', fontSize: 15, fontWeight: 700, color: '#16a34a' }}>
+                  <CheckCircle size={17} strokeWidth={2.5} /> Aprovado
+                </div>
+                <button onClick={() => { supabase.from('schedules').update({ status: 'aguardando_aprovacao_crono', approval_status: null }).eq('id', post.id); setPosts(prev => prev.map(p => p.id === post.id ? { ...p, status: 'aguardando_aprovacao_crono', approval_status: undefined } : p)) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 16px', borderRadius: 16, background: '#fff', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}>
+                  <RotateCcw size={13} /> Desfazer
+                </button>
+              </div>
+            ) : isComm ? (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => { setCommenting(s => { const n = new Set(s); n.delete(post.id); return n }); setComments(c => { const n = { ...c }; delete n[post.id]; return n }) }}
+                  style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: 'none', fontSize: 14, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={() => rejectCrono(post.id, comment)} disabled={!comment.trim() || !!isLoading}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 14, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
+                  <MessageSquare size={15} /> Enviar pedido
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setCommenting(s => { const n = new Set(s); n.add(post.id); return n })}
+                  style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 14, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>✏️ Pedir ajuste</button>
+                <button onClick={() => approveCrono(post.id)} disabled={!!isLoading}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: cc, border: 'none', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 6px 24px ${cc}44`, letterSpacing: '-0.02em' }}>
+                  {isLoading ? '…' : <><CheckCircle size={17} strokeWidth={2.5} /> Aprovar</>}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div style={{ minHeight: '100dvh', background: '#f8f8f6', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', paddingBottom: cronoPending > 0 && !allCronoDone ? 90 : 32 }}>
+        {toast && (
+          <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: toast.ok ? '#111' : '#d97706', color: '#fff', fontSize: 14, fontWeight: 600, padding: '11px 22px', borderRadius: 100, boxShadow: '0 8px 40px rgba(0,0,0,0.22)', display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+            {toast.ok ? <CheckCircle size={15} /> : <MessageSquare size={15} />}
+            {toast.msg}
+          </div>
+        )}
+
+        <header style={{ background: '#fff', borderBottom: '1px solid #ebebeb', position: 'sticky', top: 0, zIndex: 30 }}>
+          <div style={{ maxWidth: 600, margin: '0 auto', padding: '14px 16px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              {client?.logo_url
+                ? <img src={client.logo_url} alt={client.name} style={{ width: 44, height: 44, borderRadius: 14, objectFit: 'contain', flexShrink: 0, border: '1px solid #f0f0f0' }} />
+                : <div style={{ width: 44, height: 44, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 15, fontWeight: 800, background: cc, flexShrink: 0 }}>{initials(client?.name || '')}</div>
+              }
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{client?.name}</p>
+                <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovação do Cronograma · {MONTHS[(tokenData?.month ?? 1) - 1]} {tokenData?.year}</p>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <p style={{ margin: 0, lineHeight: 1 }}>
+                  <span style={{ fontSize: 22, fontWeight: 900, color: allCronoDone ? '#16a34a' : '#111', letterSpacing: '-0.04em' }}>{cronoApproved}</span>
+                  <span style={{ fontSize: 13, color: '#d1d5db', fontWeight: 500 }}>/{posts.length}</span>
+                </p>
+                <p style={{ fontSize: 10, color: '#b0b0b0', margin: '3px 0 0', letterSpacing: '0.02em' }}>APROVADOS</p>
+              </div>
+            </div>
+            <div style={{ height: 4, background: '#f3f3f1', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
+              <div style={{ height: '100%', borderRadius: 2, background: allCronoDone ? '#22c55e' : cc, width: `${pctCrono}%`, transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)' }} />
+            </div>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.5 }}>
+              Revise a <strong style={{ color: '#111' }}>estratégia de cada post</strong>. Após sua aprovação, nossa equipe cria as artes e vídeos.
+            </p>
+          </div>
+        </header>
+
+        <main style={{ maxWidth: 560, margin: '0 auto', padding: '20px 16px 0' }}>
+          {posts.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 20px', background: '#fff', borderRadius: 24, border: '1px solid #ebebeb' }}>
+              <p style={{ fontSize: 32, marginBottom: 12, lineHeight: 1 }}>📋</p>
+              <p style={{ fontSize: 16, fontWeight: 700, color: '#111', margin: '0 0 8px' }}>Nenhum post para revisar</p>
+              <p style={{ fontSize: 14, color: '#9ca3af', margin: 0 }}>Todos os posts já foram processados.</p>
+            </div>
+          ) : allCronoDone ? (
+            <div style={{ textAlign: 'center', padding: '32px 20px 28px', background: '#fff', borderRadius: 24, border: '1.5px solid #86efac', boxShadow: '0 2px 16px rgba(34,197,94,0.1)' }}>
+              <div style={{ fontSize: 56, marginBottom: 14, lineHeight: 1 }}>🎉</div>
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: '#111', margin: '0 0 10px', letterSpacing: '-0.03em' }}>Cronograma aprovado!</h2>
+              <p style={{ fontSize: 14, color: '#6b7280', margin: 0, lineHeight: 1.65 }}>
+                Obrigado! Nossa equipe já vai para a produção das artes e vídeos.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div style={{ background: '#fff', borderRadius: 18, padding: '14px 18px', marginBottom: 20, border: '1px solid #ebebeb', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: cc + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 20 }}>📋</div>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: '#111', margin: '0 0 4px', letterSpacing: '-0.01em' }}>Aprove a estratégia</p>
+                  <p style={{ fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.55 }}>
+                    Ainda não há artes — você está aprovando a <strong style={{ color: '#111' }}>ideia e direcionamento</strong> de cada post. Se precisar de ajuste, toque em <strong style={{ color: '#111' }}>Pedir ajuste</strong>.
+                  </p>
+                </div>
+              </div>
+
+              {byCampaign.map(({ name, posts: cposts }) => (
+                <div key={name} style={{ marginBottom: 24 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1, height: 1, background: '#ebebeb' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: cc + '15', border: `1px solid ${cc}33`, borderRadius: 100, padding: '4px 12px' }}>
+                      <span style={{ fontSize: 12 }}>📣</span>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: cc, margin: 0 }}>Mini campanha: {name}</p>
+                      <span style={{ fontSize: 11, color: cc + 'aa', fontWeight: 600 }}>{cposts.length} posts</span>
+                    </div>
+                    <div style={{ flex: 1, height: 1, background: '#ebebeb' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{cposts.map(p => renderCronoCard(p))}</div>
+                </div>
+              ))}
+
+              {noCampaign.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{noCampaign.map(p => renderCronoCard(p))}</div>
+              )}
+            </>
+          )}
+          <p style={{ textAlign: 'center', fontSize: 11, color: '#d1d5db', marginTop: 28 }}>Powered by Bagano Hub</p>
+        </main>
+
+        {cronoPending > 0 && !allCronoDone && (
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '10px 16px 20px', background: 'rgba(248,248,246,0.95)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: '1px solid #ebebeb', zIndex: 20 }}>
+            <div style={{ maxWidth: 560, margin: '0 auto' }}>
+              <button onClick={approveAllCrono} disabled={approvingAll}
+                style={{ width: '100%', padding: '17px 0', borderRadius: 18, background: cc, border: 'none', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: approvingAll ? 0.7 : 1, boxShadow: `0 8px 36px ${cc}55`, letterSpacing: '-0.02em' }}>
+                {approvingAll ? 'Aprovando…' : `Aprovar todos os ${cronoPending} posts pendentes`}
+              </button>
+            </div>
+          </div>
+        )}
+        <style>{`* { -webkit-tap-highlight-color: transparent; box-sizing: border-box; } @keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    )
+  }
+
+  // ── Final approval render ──────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100dvh', background: '#f8f8f6', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', paddingBottom: tab === 'posts' && pendingCount > 0 && !allDone ? 90 : 32 }}>
 
@@ -232,7 +491,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
             }
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{client?.name}</p>
-              <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Cronograma · {MONTHS[(tokenData?.month ?? 1) - 1]} {tokenData?.year}</p>
+              <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovação Final · {MONTHS[(tokenData?.month ?? 1) - 1]} {tokenData?.year}</p>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <p style={{ margin: 0, lineHeight: 1 }}>
@@ -374,8 +633,10 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   const isExpanded = expanded.has(post.id)
                   const longCopy   = (post.copy || '').length > 180
 
-                  const driveId  = post.drive_url?.match(/[-\w]{25,}/)?.[0]
-                  const thumbUrl = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w800` : null
+                  const driveId    = post.drive_url?.match(/[-\w]{25,}/)?.[0]
+                  const isVideoPost = post.post_type === 'reels'
+                  const thumbUrl    = driveId && !isVideoPost ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w800` : null
+                  const embedUrl    = driveId && isVideoPost  ? `https://drive.google.com/file/d/${driveId}/preview` : null
 
                   const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
                   const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#fafafa'
@@ -401,13 +662,18 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                         <span style={{ fontSize: 11, fontWeight: 700, color: statusClr }}>{statusTxt}</span>
                       </div>
 
-                      {/* Drive image */}
-                      {thumbUrl && (
+                      {/* Drive media */}
+                      {embedUrl ? (
+                        <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '56.25%' }}>
+                          <iframe src={embedUrl} allow="autoplay" allowFullScreen
+                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
+                        </div>
+                      ) : thumbUrl ? (
                         <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>
                           <img src={thumbUrl} alt={post.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 220 }}
                             onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
                         </div>
-                      )}
+                      ) : null}
 
                       {/* Content */}
                       <div style={{ padding: '16px 18px' }}>

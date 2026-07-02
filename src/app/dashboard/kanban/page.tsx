@@ -38,6 +38,7 @@ const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julh
 
 
 export default function KanbanPage() {
+  useEffect(() => { document.title = 'Kanban · Bagano Hub' }, [])
   const { toast } = useToast()
   const [posts, setPosts] = useState<Post[]>([])
   const [clients, setClients] = useState<Client[]>([])

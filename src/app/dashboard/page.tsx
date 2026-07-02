@@ -26,6 +26,7 @@ const CFG = {
     producao:            'producao',
     revisaoInterna:      'revisao_interna',
     aguardandoAprovacao: 'aguardando_aprovacao',
+    ajuste:              'ajuste',
     aprovado:            'aprovado',
     agendado:            'agendado',
     publicado:           'publicado',
@@ -54,8 +55,6 @@ const WEEKDAY_SHORT = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB']
 const TYPE_SHORT: Record<string, string> = {
   reels: 'Reel', carrossel: 'Carrossel', post: 'Post', story: 'Story', carrossel_stories: 'Crsl/Story',
 }
-
-const PRODUCTION_LEAD_DAYS = 14
 
 type Client   = { id: string; name: string; color_hex: string }
 type Schedule = {
@@ -98,6 +97,7 @@ function dominantTypeLabel(posts: { post_type: string }[]) {
 }
 
 export default function DashboardPage() {
+  useEffect(() => { document.title = 'Início · Bagano Hub' }, [])
   const router    = useRouter()
   const supabase  = createClient()
   const { currentMember } = useUser()
@@ -109,6 +109,7 @@ export default function DashboardPage() {
   const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
   const [myExtras,     setMyExtras]     = useState<any[]>([])
   const [loading,      setLoading]      = useState(true)
+  const [loadError,    setLoadError]    = useState(false)
 
   // Visão geral do mês — mês e período selecionáveis (escopo do widget)
   const [ovMonth,     setOvMonth]     = useState(new Date().getMonth() + 1)
@@ -126,35 +127,40 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function load() {
-      const in90Str = new Date(now.getTime() + 90 * 86400000).toISOString().split('T')[0]
-      const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
-      const [{ data: cls }, { data: sch }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
-        supabase.from(CFG.t.clients)
-          .select('id, name, color_hex')
-          .eq('status', 'active')
-          .order('name'),
-        supabase.from(CFG.t.schedules)
-          .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at')
-          .eq('month', month)
-          .eq('year', year),
-        supabase.from(CFG.t.specialDates)
-          .select('id, name, date')
-          .gte('date', todayStr)
-          .lte('date', in120Str)
-          .order('date'),
-        supabase.from('captacoes')
-          .select('id, client_id, scheduled_date, status, months_covered')
-          .gte('scheduled_date', ago45Str)
-          .lte('scheduled_date', in90Str)
-          .order('scheduled_date'),
-        supabase.from('client_team')
-          .select('client_id, member_id, funcao'),
-      ])
-      setClients(cls || [])
-      setSchedules(sch || [])
-      setSpecialDates(sd || [])
-      setCaptacoes(cap || [])
-      setClientTeam(ct || [])
+      try {
+        const in90Str = new Date(now.getTime() + 90 * 86400000).toISOString().split('T')[0]
+        const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
+        const [{ data: cls, error: e1 }, { data: sch }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
+          supabase.from(CFG.t.clients)
+            .select('id, name, color_hex')
+            .eq('status', 'active')
+            .order('name'),
+          supabase.from(CFG.t.schedules)
+            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at')
+            .eq('month', month)
+            .eq('year', year),
+          supabase.from(CFG.t.specialDates)
+            .select('id, name, date')
+            .gte('date', todayStr)
+            .lte('date', in120Str)
+            .order('date'),
+          supabase.from('captacoes')
+            .select('id, client_id, scheduled_date, status, months_covered')
+            .gte('scheduled_date', ago45Str)
+            .lte('scheduled_date', in90Str)
+            .order('scheduled_date'),
+          supabase.from('client_team')
+            .select('client_id, member_id, funcao'),
+        ])
+        if (e1) { setLoadError(true); setLoading(false); return }
+        setClients(cls || [])
+        setSchedules(sch || [])
+        setSpecialDates(sd || [])
+        setCaptacoes(cap || [])
+        setClientTeam(ct || [])
+      } catch {
+        setLoadError(true)
+      }
       setLoading(false)
     }
     load()
@@ -202,13 +208,6 @@ export default function DashboardPage() {
     schedules.filter(s => s.approval_status === CFG.A.naoAprovado && ![CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)),
   [schedules])
 
-  const clientsWithReels = useMemo(() =>
-    new Set(schedules.filter(s => s.post_type === 'reels').map(s => s.client_id)),
-  [schedules])
-
-  const urgentDates = useMemo(() =>
-    specialDates.filter(sd => daysBetween(now, new Date(sd.date + 'T12:00:00')) <= PRODUCTION_LEAD_DAYS),
-  [specialDates])
 
   const upcoming7 = useMemo(() =>
     schedules
@@ -253,7 +252,11 @@ export default function DashboardPage() {
   // Métricas
   const total      = schedules.length
   const published  = schedules.filter(s => s.status === CFG.S.publicado).length
-  const approved   = schedules.filter(s => s.approval_status === CFG.A.aprovado).length
+  // "Aprovados" = aprovação do cliente confirmada OU já passou para agendado/publicado
+  const approved   = schedules.filter(s =>
+    s.approval_status === CFG.A.aprovado ||
+    [CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)
+  ).length
   const inProd     = schedules.filter(s => s.status === CFG.S.producao).length
   const withClient = schedules.filter(s => s.status === CFG.S.aguardandoAprovacao).length
 
@@ -322,6 +325,7 @@ export default function DashboardPage() {
     { key: CFG.S.producao,            label: 'Em produção',     tone: 'amber'   },
     { key: CFG.S.revisaoInterna,      label: 'Revisão interna', tone: 'orange'  },
     { key: CFG.S.aguardandoAprovacao, label: 'Com cliente',     tone: 'blue'    },
+    { key: CFG.S.ajuste,              label: 'Ajuste',          tone: 'red'     },
     { key: CFG.S.aprovado,            label: 'Aprovado',        tone: 'purple'  },
     { key: CFG.S.agendado,            label: 'Agendado',        tone: 'green'   },
     { key: CFG.S.publicado,           label: 'Publicado',       tone: 'neutral' },
@@ -347,7 +351,14 @@ export default function DashboardPage() {
   })()
 
   // "Para você": meu trabalho agrupado por cliente
-  const workItems = hasAssignments ? [...myProductionQueue, ...myPendingApproval] : (isStrategist ? pendingApproval : (isProducer ? productionQueue : []))
+  // Fallback quando não há assignments: filtra por tipo de acordo com o role
+  const isVideoRole = ['video', 'editor'].some(r => roleStr.includes(r))
+  const fallbackQueue = isProducer
+    ? (isVideoRole ? productionQueue.filter(s => s.post_type === 'reels') : productionQueue)
+    : []
+  const workItems = hasAssignments
+    ? [...myProductionQueue, ...myPendingApproval]
+    : (isStrategist ? pendingApproval : fallbackQueue)
   const myClientCards = Object.values(workItems.reduce((acc, s) => {
     (acc[s.client_id] ||= { cid: s.client_id, posts: [] as Schedule[] }).posts.push(s)
     return acc
@@ -361,6 +372,16 @@ export default function DashboardPage() {
   if (loading) return (
     <div className="flex items-center justify-center h-full">
       <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[var(--color-accent)] rounded-full animate-spin" />
+    </div>
+  )
+
+  if (loadError) return (
+    <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-8">
+      <p className="text-sm text-[var(--color-text-muted)]">Não foi possível carregar o dashboard.</p>
+      <button onClick={() => window.location.reload()}
+        className="text-xs px-4 py-2 rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-card)] transition-colors">
+        Tentar novamente
+      </button>
     </div>
   )
 

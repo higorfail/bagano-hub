@@ -7,6 +7,7 @@ import ExtrasKanban from '@/components/ExtrasKanban'
 import { CheckSquare, Clock, AlertCircle } from 'lucide-react'
 
 export default function ExtrasPage() {
+  useEffect(() => { document.title = 'Extras · Bagano Hub' }, [])
   const { members } = useUser()
   const supabase = createClient()
   const [stats, setStats] = useState({ total: 0, done: 0, overdue: 0 })

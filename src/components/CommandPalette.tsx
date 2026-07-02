@@ -3,10 +3,19 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { Search, Users, FileText, Package, X } from 'lucide-react'
+import { Search, Users, FileText, Package, X, LayoutList } from 'lucide-react'
+
+const STATUS_LABEL: Record<string,string> = {
+  producao: 'Produção', revisao_interna: 'Revisão', aguardando_aprovacao: 'Com cliente',
+  aprovado: 'Aprovado', agendado: 'Agendado', publicado: 'Publicado',
+}
+const TYPE_LABEL: Record<string,string> = {
+  reels: 'Reels', carrossel: 'Carrossel', post: 'Post', story: 'Story', carrossel_stories: 'Carrossel/Stories',
+}
+const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
 type Result = {
-  type: 'cliente' | 'post' | 'material'
+  type: 'cliente' | 'post' | 'material' | 'extra'
   id: string
   title: string
   subtitle: string
@@ -49,10 +58,11 @@ export default function CommandPalette() {
       const supabase = createClient()
       const q = query.trim()
 
-      const [clientsRes, postsRes, materialsRes] = await Promise.all([
+      const [clientsRes, postsRes, materialsRes, extrasRes] = await Promise.all([
         supabase.from('clients').select('id, name, color_hex').ilike('name', `%${q}%`).limit(5),
-        supabase.from('schedules').select('id, title, client_id, month, year, clients(name)').ilike('title', `%${q}%`).limit(5),
-        supabase.from('materials').select('id, title, client_id, clients(name)').ilike('title', `%${q}%`).limit(5),
+        supabase.from('schedules').select('id, title, copy, post_type, status, client_id, month, year, clients(name, color_hex)').or(`title.ilike.%${q}%,copy.ilike.%${q}%`).limit(6),
+        supabase.from('materials').select('id, title, client_id, clients(name)').ilike('title', `%${q}%`).limit(4),
+        supabase.from('extras').select('id, title, type, status, client_id, clients(name)').or(`title.ilike.%${q}%,description.ilike.%${q}%`).limit(4),
       ])
 
       const out: Result[] = []
@@ -60,13 +70,18 @@ export default function CommandPalette() {
         type: 'cliente', id: c.id, title: c.name, subtitle: 'Cliente',
         href: `/dashboard/clientes/${c.id}`, color: c.color_hex,
       }))
-      postsRes.data?.forEach((p: any) => out.push({
-        type: 'post', id: p.id, title: p.title || 'Post sem título',
-        subtitle: p.clients?.name || 'Post', href: `/dashboard/clientes/${p.client_id}?post=${p.id}&m=${p.month}&y=${p.year}`,
-      }))
+      postsRes.data?.forEach((p: any) => {
+        const parts = [p.clients?.name, TYPE_LABEL[p.post_type] || p.post_type, STATUS_LABEL[p.status] || p.status, `${MONTHS[(p.month||1)-1]} ${p.year}`].filter(Boolean)
+        out.push({ type: 'post', id: p.id, title: p.title || 'Post sem título', subtitle: parts.join(' · '), href: `/dashboard/cronograma?client=${p.client_id}` })
+      })
       materialsRes.data?.forEach((m: any) => out.push({
         type: 'material', id: m.id, title: m.title,
-        subtitle: m.clients?.name || 'Material', href: `/dashboard/clientes/${m.client_id}`,
+        subtitle: m.clients?.name || 'Material', href: `/dashboard/materiais`,
+      }))
+      extrasRes.data?.forEach((e: any) => out.push({
+        type: 'extra', id: e.id, title: e.title,
+        subtitle: [e.clients?.name, e.type].filter(Boolean).join(' · '),
+        href: `/dashboard/extras`,
       }))
 
       setResults(out)
@@ -92,6 +107,7 @@ export default function CommandPalette() {
     cliente: Users,
     post: FileText,
     material: Package,
+    extra: LayoutList,
   }
 
   return (
@@ -137,35 +153,48 @@ export default function CommandPalette() {
                 <div className="px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">Buscando...</div>
               ) : results.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">Nenhum resultado para "{query}"</div>
-              ) : (
-                <div className="py-2">
-                  {results.map((r, i) => {
-                    const Icon = icons[r.type]
-                    return (
-                      <button
-                        key={`${r.type}-${r.id}`}
-                        onClick={() => go(r)}
-                        onMouseEnter={() => setSelectedIdx(i)}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${i === selectedIdx ? 'bg-[var(--color-bg-subtle)]' : ''}`}
-                      >
-                        {r.color ? (
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0" style={{ background: r.color }}>
-                            {r.title.slice(0, 2).toUpperCase()}
-                          </div>
-                        ) : (
-                          <div className="w-8 h-8 rounded-lg bg-[var(--color-bg-subtle)] flex items-center justify-center flex-shrink-0">
-                            <Icon size={15} className="text-[var(--color-text-secondary)]" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{r.title}</p>
-                          <p className="text-xs text-[var(--color-text-muted)]">{r.subtitle}</p>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+              ) : (() => {
+                const GROUP_LABEL: Record<string,string> = { cliente: 'Clientes', post: 'Posts', material: 'Materiais', extra: 'Extras' }
+                const GROUP_ORDER: Result['type'][] = ['cliente', 'post', 'material', 'extra']
+                const grouped = GROUP_ORDER.map(t => ({ type: t, items: results.filter(r => r.type === t) })).filter(g => g.items.length > 0)
+                let idx = -1
+                return (
+                  <div className="py-2">
+                    {grouped.map(group => (
+                      <div key={group.type}>
+                        <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">{GROUP_LABEL[group.type]}</p>
+                        {group.items.map(r => {
+                          idx++
+                          const myIdx = idx
+                          const Icon = icons[r.type]
+                          return (
+                            <button
+                              key={`${r.type}-${r.id}`}
+                              onClick={() => go(r)}
+                              onMouseEnter={() => setSelectedIdx(myIdx)}
+                              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${myIdx === selectedIdx ? 'bg-[var(--color-bg-subtle)]' : ''}`}
+                            >
+                              {r.color ? (
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0" style={{ background: r.color }}>
+                                  {r.title.slice(0, 2).toUpperCase()}
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 rounded-lg bg-[var(--color-bg-subtle)] flex items-center justify-center flex-shrink-0">
+                                  <Icon size={15} className="text-[var(--color-text-secondary)]" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{r.title}</p>
+                                <p className="text-xs text-[var(--color-text-muted)] truncate">{r.subtitle}</p>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </div>

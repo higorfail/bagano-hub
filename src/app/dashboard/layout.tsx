@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check } from 'lucide-react'
-import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, CheckCircle2, XCircle, Camera, Clock, MessageCircle, Trash2 } from 'lucide-react'
+import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, CheckCircle2, XCircle, Camera, Clock, MessageCircle, Trash2, Zap, CalendarClock, ListChecks, Eye } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider } from '@/lib/ToastContext'
@@ -20,6 +20,7 @@ const navItems = [
 const productionItems = [
   { href: '/dashboard/agenda',     icon: CalendarDays,   label: 'Agenda' },
   { href: '/dashboard/cronograma', icon: Calendar,       label: 'Cronograma' },
+  { href: '/dashboard/criacao',    icon: Zap,            label: 'Criação' },
   { href: '/dashboard/kanban',     icon: Kanban,         label: 'Kanban' },
   { href: '/dashboard/aprovacao',  icon: ClipboardCheck, label: 'Aprovações' },
   { href: '/dashboard/feed',       icon: Smartphone,     label: 'Feed Visual' },
@@ -36,7 +37,7 @@ const contentItems = [
 
 type Notification = {
   id: string
-  type: 'approval' | 'rejection' | 'comment' | 'captacao' | 'deadline'
+  type: 'approval' | 'rejection' | 'comment' | 'captacao' | 'deadline' | 'urgente' | 'extra_vencido' | 'cronograma_ok' | 'revisao_interna'
   title: string
   subtitle: string
   body?: string
@@ -106,52 +107,79 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     const supabase = createClient()
     const now = new Date()
     const month = now.getMonth() + 1
-    const year = now.getFullYear()
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const today = new Date().toISOString().slice(0, 10)
-    const threeDaysAgoDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const year  = now.getFullYear()
+    const today           = now.toISOString().slice(0, 10)
+    const tomorrow        = new Date(Date.now() + 1 * 86400000).toISOString().slice(0, 10)
+    const threeDaysFromNow= new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
+    const threeDaysAgo    = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10)
+    const sevenDaysAgo    = new Date(Date.now() - 7 * 86400000).toISOString()
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString()
 
-    const [approvalsRes, extraCmtsRes, matCmtsRes, captacoesRes, pendingPostsRes, pendingCountRes, rejectedCountRes, totalMonthRes, approvedMonthRes] = await Promise.all([
-      supabase.from('schedules')
-        .select('id, title, approval_status, approval_comment, clients(name, color_hex)')
-        .in('approval_status', ['aprovado', 'não aprovado'])
-        .limit(30),
-      supabase.from('extra_comments')
-        .select('id, body, author_name, created_at, extras(title)')
-        .gte('created_at', sevenDaysAgo)
+    const [
+      activityApprovalsRes,
+      activityRevisaoRes,
+      captacoesRes,
+      pendingPostsRes,
+      urgentPostsRes,
+      overdueExtrasRes,
+      extraCmtsRes,
+      matCmtsRes,
+      cronogramaFinalizadoRes,
+      pendingCountRes,
+      rejectedCountRes,
+      totalMonthRes,
+      approvedMonthRes,
+    ] = await Promise.all([
+      // Aprovações/rejeições do cliente via activity_log (com timestamp real)
+      supabase.from('activity_log')
+        .select('id, record_id, action, description, client_id, created_at, clients(name, color_hex), schedules(title, month, year)')
+        .in('action', ['client_approved', 'client_rejected', 'crono_approved', 'crono_rejected'])
+        .gte('created_at', fourteenDaysAgo)
         .order('created_at', { ascending: false })
-        .limit(15),
-      supabase.from('material_comments')
-        .select('id, body, author_name, created_at, materials(title)')
-        .gte('created_at', sevenDaysAgo)
+        .limit(20),
+      // Posts enviados para revisão interna (últimas 48h)
+      supabase.from('activity_log')
+        .select('id, record_id, description, client_id, created_at, clients(name, color_hex), schedules(month, year)')
+        .eq('action', 'revisao_interna')
+        .gte('created_at', new Date(Date.now() - 48 * 3600000).toISOString())
         .order('created_at', { ascending: false })
-        .limit(15),
+        .limit(10),
+      // Captações nos próximos 3 dias
       supabase.from('captacoes')
         .select('id, scheduled_date, clients(name, color_hex)')
-        .gte('scheduled_date', today)
-        .lte('scheduled_date', threeDaysFromNow)
-        .eq('status', 'agendada')
-        .order('scheduled_date')
-        .limit(10),
+        .gte('scheduled_date', today).lte('scheduled_date', threeDaysFromNow)
+        .eq('status', 'agendada').order('scheduled_date').limit(10),
+      // Posts aguardando aprovação há 3+ dias
       supabase.from('schedules')
-        .select('id, title, clients(name, color_hex)')
+        .select('id, title, client_id, month, year, clients(name, color_hex)')
         .eq('status', 'aguardando_aprovacao')
-        .lte('scheduled_date', threeDaysAgoDate)
-        .limit(10),
+        .lte('scheduled_date', threeDaysAgo).limit(10),
+      // Posts urgentes: publicar hoje ou amanhã e ainda não estão prontos
       supabase.from('schedules')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'aguardando_aprovacao'),
-      supabase.from('schedules')
-        .select('id', { count: 'exact', head: true })
-        .eq('approval_status', 'não aprovado')
-        .not('status', 'in', '(aprovado,agendado,publicado)'),
-      supabase.from('schedules')
-        .select('id', { count: 'exact', head: true })
-        .eq('month', month).eq('year', year),
-      supabase.from('schedules')
-        .select('id', { count: 'exact', head: true })
-        .eq('month', month).eq('year', year).eq('approval_status', 'aprovado'),
+        .select('id, title, scheduled_date, client_id, month, year, clients(name, color_hex)')
+        .gte('scheduled_date', today).lte('scheduled_date', tomorrow)
+        .not('status', 'in', '(agendado,publicado,aprovado)').limit(10),
+      // Extras vencidos
+      supabase.from('extras')
+        .select('id, title, due_date, client_id, clients(name, color_hex)')
+        .lt('due_date', today).neq('status', 'done').limit(10),
+      // Comentários em extras (7 dias)
+      supabase.from('extra_comments')
+        .select('id, body, author_name, created_at, extras(title)')
+        .gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }).limit(10),
+      // Comentários em materiais (7 dias)
+      supabase.from('material_comments')
+        .select('id, body, author_name, created_at, materials(title)')
+        .gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }).limit(10),
+      // Cronogramas finalizados recentemente (7 dias)
+      supabase.from('cronograma_status')
+        .select('id, month, year, finalized_by, finalized_at, client_id, clients(name, color_hex)')
+        .eq('status', 'finalizado').gte('finalized_at', sevenDaysAgo)
+        .order('finalized_at', { ascending: false }).limit(5),
+      supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('status', 'aguardando_aprovacao'),
+      supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('approval_status', 'não aprovado').not('status', 'in', '(aprovado,agendado,publicado,aguardando_aprovacao)'),
+      supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('month', month).eq('year', year),
+      supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('month', month).eq('year', year).eq('approval_status', 'aprovado'),
     ])
 
     setApprovalsCount((pendingCountRes.count || 0) + (rejectedCountRes.count || 0))
@@ -159,20 +187,74 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
     const result: Notification[] = []
 
-    ;(approvalsRes.data || []).forEach((d: any) => {
+    // Aprovações/rejeições com timestamp real
+    ;(activityApprovalsRes.data || []).forEach((d: any) => {
+      const isCrono = d.action === 'crono_approved' || d.action === 'crono_rejected'
+      const isApproval = d.action === 'client_approved' || d.action === 'crono_approved'
+      const clientId = d.client_id || ''
+      const recordId = d.record_id || ''
+      const schedule = d.schedules as any
+      const postMonth = schedule?.month ? `&m=${schedule.month}` : ''
+      const postYear  = schedule?.year  ? `&y=${schedule.year}`  : ''
+      // Link always goes to the right client; for content rejections, also opens the specific post
+      const link = isCrono
+        ? `/dashboard/cronograma?client=${clientId}`
+        : isApproval
+          ? `/dashboard/cronograma?client=${clientId}${postMonth}${postYear}`
+          : `/dashboard/cronograma?client=${clientId}&post=${recordId}${postMonth}${postYear}`
       result.push({
-        id: `approval-${d.id}`,
-        type: d.approval_status === 'aprovado' ? 'approval' : 'rejection',
-        title: d.approval_status === 'aprovado' ? 'Post aprovado pelo cliente' : 'Alterações solicitadas',
-        subtitle: d.title || 'Post sem título',
-        body: d.approval_comment || '',
-        client_name: d.clients?.name || '',
-        client_color: d.clients?.color_hex || '',
-        created_at: new Date(0).toISOString(),
-        link: '/dashboard/cronograma',
+        id: `activity-${d.id}`,
+        type: isApproval ? 'approval' : 'rejection',
+        title: isApproval
+          ? (isCrono ? 'Cliente aprovou o cronograma' : 'Cliente aprovou o conteúdo')
+          : (isCrono ? 'Ajuste pedido no cronograma' : 'Ajuste pedido no conteúdo'),
+        subtitle: (d.schedules as any)?.title || 'Post',
+        body: isApproval ? '' : d.description?.replace(/^Cliente (pediu ajuste na estratégia|solicitou alterações): "|"$/g, '') || '',
+        client_name: (d.clients as any)?.name || '',
+        client_color: (d.clients as any)?.color_hex || '',
+        created_at: d.created_at,
+        link,
       })
     })
 
+    // Posts enviados para revisão interna
+    ;(activityRevisaoRes.data || []).forEach((d: any) => {
+      const sch = d.schedules as any
+      const mq = sch?.month ? `&m=${sch.month}` : ''
+      const yq = sch?.year  ? `&y=${sch.year}`  : ''
+      result.push({
+        id: `revisao-${d.id}`,
+        type: 'revisao_interna' as const,
+        title: 'Conteúdo enviado para revisão',
+        subtitle: d.description?.replace(/^"(.+)".*$/, '$1') || 'Post',
+        client_name: (d.clients as any)?.name || '',
+        client_color: (d.clients as any)?.color_hex || '',
+        created_at: d.created_at,
+        link: `/dashboard/cronograma?client=${d.client_id || ''}&post=${d.record_id || ''}${mq}${yq}`,
+      })
+    })
+
+    // Posts urgentes (publicar hoje/amanhã, não prontos)
+    ;(urgentPostsRes.data || []).forEach((d: any) => {
+      const date = new Date(d.scheduled_date + 'T12:00:00')
+      const isToday = d.scheduled_date === today
+      const mq = d.month ? `&m=${d.month}` : ''
+      const yq = d.year  ? `&y=${d.year}`  : ''
+      result.push({
+        id: `urgente-${d.id}`,
+        type: 'urgente',
+        title: isToday ? 'Publicar hoje — ainda não pronto' : 'Publicar amanhã — ainda não pronto',
+        subtitle: d.title || 'Post sem título',
+        client_name: (d.clients as any)?.name || '',
+        client_color: (d.clients as any)?.color_hex || '',
+        created_at: date.toISOString(),
+        link: d.client_id
+          ? `/dashboard/cronograma?client=${d.client_id}&post=${d.id}${mq}${yq}`
+          : '/dashboard/cronograma',
+      })
+    })
+
+    // Captações próximas
     ;(captacoesRes.data || []).forEach((d: any) => {
       const date = new Date(d.scheduled_date + 'T12:00:00')
       const diffDays = Math.ceil((date.getTime() - Date.now()) / 86400000)
@@ -181,27 +263,64 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         id: `capt-${d.id}`,
         type: 'captacao',
         title: `Captação ${when}`,
-        subtitle: d.clients?.name || 'Cliente',
+        subtitle: (d.clients as any)?.name || 'Cliente',
         client_name: date.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }),
-        client_color: d.clients?.color_hex || '',
-        created_at: new Date(0).toISOString(),
+        client_color: (d.clients as any)?.color_hex || '',
+        created_at: date.toISOString(),
         link: '/dashboard/agenda',
       })
     })
 
+    // Posts aguardando há 3+ dias
     ;(pendingPostsRes.data || []).forEach((d: any) => {
+      const mq = d.month ? `&m=${d.month}` : ''
+      const yq = d.year  ? `&y=${d.year}`  : ''
       result.push({
         id: `pending-${d.id}`,
         type: 'deadline',
         title: 'Aguardando aprovação há 3+ dias',
         subtitle: d.title || 'Post sem título',
-        client_name: d.clients?.name || '',
-        client_color: d.clients?.color_hex || '',
-        created_at: new Date(0).toISOString(),
-        link: '/dashboard/aprovacao',
+        client_name: (d.clients as any)?.name || '',
+        client_color: (d.clients as any)?.color_hex || '',
+        created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
+        link: d.client_id
+          ? `/dashboard/cronograma?client=${d.client_id}&post=${d.id}${mq}${yq}`
+          : '/dashboard/aprovacao',
       })
     })
 
+    // Extras vencidos
+    ;(overdueExtrasRes.data || []).forEach((d: any) => {
+      const date = new Date(d.due_date + 'T12:00:00')
+      const diffDays = Math.floor((Date.now() - date.getTime()) / 86400000)
+      result.push({
+        id: `extra-overdue-${d.id}`,
+        type: 'extra_vencido',
+        title: diffDays === 1 ? 'Extra venceu ontem' : `Extra venceu há ${diffDays} dias`,
+        subtitle: d.title || 'Extra sem título',
+        client_name: (d.clients as any)?.name || '',
+        client_color: (d.clients as any)?.color_hex || '',
+        created_at: date.toISOString(),
+        link: '/dashboard/extras',
+      })
+    })
+
+    // Cronogramas finalizados recentemente
+    ;(cronogramaFinalizadoRes.data || []).forEach((d: any) => {
+      const MONTHS_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+      result.push({
+        id: `crono-${d.id}`,
+        type: 'cronograma_ok',
+        title: 'Cronograma finalizado',
+        subtitle: `${(d.clients as any)?.name || ''} · ${MONTHS_PT[(d.month||1)-1]} ${d.year}`,
+        client_name: d.finalized_by ? `por ${d.finalized_by.split(' ')[0]}` : '',
+        client_color: (d.clients as any)?.color_hex || '',
+        created_at: d.finalized_at,
+        link: '/dashboard/cronograma',
+      })
+    })
+
+    // Comentários em extras
     ;(extraCmtsRes.data || []).forEach((d: any) => {
       result.push({
         id: `extra-cmt-${d.id}`,
@@ -215,6 +334,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       })
     })
 
+    // Comentários em materiais
     ;(matCmtsRes.data || []).forEach((d: any) => {
       result.push({
         id: `mat-cmt-${d.id}`,
@@ -387,8 +507,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               ))}
             </div>
 
-          <div ref={notifRef}>
-          <div className="relative">
+          <div ref={notifRef} className="relative">
             <button onClick={() => { setShowNotifications(v => !v) }}
               className="relative w-9 h-9 rounded-xl hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-all">
               <Bell size={18} strokeWidth={1.75} className="text-[var(--color-text-secondary)]" />
@@ -450,13 +569,17 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                         className={`flex items-start gap-3 px-4 py-3.5 border-b border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors cursor-pointer ${!isRead ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
                         {/* Icon */}
                         <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5`} style={{
-                          background: isApproval ? 'var(--ds-success-bg)' : isRejection ? 'var(--ds-error-bg)' : n.type === 'captacao' ? 'var(--ds-purple-bg)' : n.type === 'deadline' ? 'var(--ds-warn-bg)' : 'var(--ds-info-bg)',
-                          color: isApproval ? 'var(--ds-success-accent)' : isRejection ? 'var(--ds-error-accent)' : n.type === 'captacao' ? 'var(--ds-purple-accent)' : n.type === 'deadline' ? 'var(--ds-warn-accent)' : 'var(--ds-info-accent)',
+                          background: isApproval ? 'var(--ds-success-bg)' : isRejection ? 'var(--ds-error-bg)' : n.type === 'captacao' ? 'var(--ds-purple-bg)' : n.type === 'urgente' ? 'var(--ds-error-bg)' : n.type === 'deadline' || n.type === 'extra_vencido' ? 'var(--ds-warn-bg)' : n.type === 'cronograma_ok' ? 'var(--ds-success-bg)' : n.type === 'revisao_interna' ? 'var(--ds-caution-bg)' : 'var(--ds-info-bg)',
+                          color: isApproval ? 'var(--ds-success-accent)' : isRejection ? 'var(--ds-error-accent)' : n.type === 'captacao' ? 'var(--ds-purple-accent)' : n.type === 'urgente' ? 'var(--ds-error-accent)' : n.type === 'deadline' || n.type === 'extra_vencido' ? 'var(--ds-warn-accent)' : n.type === 'cronograma_ok' ? 'var(--ds-success-accent)' : n.type === 'revisao_interna' ? 'var(--ds-caution-accent)' : 'var(--ds-info-accent)',
                         }}>
-                          {isApproval    ? <CheckCircle2 size={15} strokeWidth={2} /> :
-                           isRejection   ? <XCircle      size={15} strokeWidth={2} /> :
-                           n.type === 'captacao' ? <Camera size={15} strokeWidth={2} /> :
-                           n.type === 'deadline' ? <Clock  size={15} strokeWidth={2} /> :
+                          {isApproval              ? <CheckCircle2 size={15} strokeWidth={2} /> :
+                           isRejection             ? <XCircle      size={15} strokeWidth={2} /> :
+                           n.type === 'captacao'   ? <Camera       size={15} strokeWidth={2} /> :
+                           n.type === 'urgente'    ? <Zap          size={15} strokeWidth={2} /> :
+                           n.type === 'revisao_interna' ? <Eye     size={15} strokeWidth={2} /> :
+                           n.type === 'extra_vencido' ? <ListChecks size={15} strokeWidth={2} /> :
+                           n.type === 'cronograma_ok' ? <CalendarClock size={15} strokeWidth={2} /> :
+                           n.type === 'deadline'   ? <Clock        size={15} strokeWidth={2} /> :
                            <MessageCircle size={15} strokeWidth={2} />}
                         </div>
 
@@ -483,7 +606,6 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
             )}
-          </div>
           </div>
           </div>{/* flex items-center gap-1 */}
         </div>

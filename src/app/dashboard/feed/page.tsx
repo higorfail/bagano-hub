@@ -15,6 +15,7 @@ interface Client {
 }
 
 export default function FeedPage() {
+  useEffect(() => { document.title = 'Feed · Bagano Hub' }, [])
   const supabase = createClient()
   const [clients, setClients] = useState<Client[]>([])
   const [selected, setSelected] = useState<Client | null>(null)

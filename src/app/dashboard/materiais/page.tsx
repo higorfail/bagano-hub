@@ -30,6 +30,7 @@ const COLUMNS = [
 ]
 
 export default function MateriaisPage() {
+  useEffect(() => { document.title = 'Materiais · Bagano Hub' }, [])
   const { currentMember, showOnlyMine, members } = useUser()
   const [materials, setMaterials] = useState<Material[]>([])
   const [clients, setClients] = useState<any[]>([])

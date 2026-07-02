@@ -15,9 +15,10 @@ import {
 
 const TYPE_OPTIONS = ['Menu', 'Cardápio', 'Arte avulsa', 'Logo', 'Manual', 'Placa', 'Cartão', 'Sacola', 'Sousplat', 'Story', 'Capas destaque', 'Fundos', 'Outro']
 const STATUS_OPTIONS = [
-  { value: 'producao',            label: 'A fazer',       color: '#F59E0B' },
-  { value: 'aguardando_aprovacao', label: 'Em aprovação',  color: '#EC4899' },
-  { value: 'finalizado',          label: 'Finalizado',    color: '#22C55E' },
+  { value: 'producao',            label: 'A fazer',          color: '#F59E0B' },
+  { value: 'aguardando_aprovacao', label: 'Em aprovação',    color: '#EC4899' },
+  { value: 'ajuste',              label: 'Ajuste solicitado', color: '#EF4444' },
+  { value: 'finalizado',          label: 'Finalizado',       color: '#22C55E' },
 ]
 const LABEL_PALETTE = [
   { name: 'Vermelho', color: '#EF4444' },
@@ -215,7 +216,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         setActivityKey(k => k + 1)
       }
     } else {
-      const statusLabels: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', finalizado: 'Finalizado' }
+      const statusLabels: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', ajuste: 'Ajuste solicitado', finalizado: 'Finalizado' }
       if (status !== originalStatusRef.current) {
         const oldLabel = statusLabels[originalStatusRef.current] || originalStatusRef.current
         const newLabel = statusLabels[status] || status
@@ -566,6 +567,37 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 placeholder="Especificações, dimensões, instruções, referências…"
                 className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-xl px-4 py-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)] resize-none leading-relaxed"
               />
+            </div>
+
+            {/* ENTREGA DO DESIGNER */}
+            <div
+              className="rounded-2xl p-4 transition-colors"
+              style={driveUrl
+                ? { background: 'var(--ds-success-bg)', border: '1px solid var(--ds-success-border)' }
+                : { background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+            >
+              <SectionTitle icon={Link2}>
+                {driveUrl ? '✓ Entrega do designer' : 'Entrega do designer'}
+              </SectionTitle>
+              <div className="flex gap-2">
+                <input
+                  value={driveUrl}
+                  onChange={e => setDriveUrl(e.target.value)}
+                  placeholder="Link do Drive, Figma, WeTransfer…"
+                  className="flex-1 border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-alt)]"
+                />
+                {driveUrl && (
+                  <a
+                    href={driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-xl border"
+                    style={{ color: 'var(--ds-success-text)', borderColor: 'var(--ds-success-border)' }}
+                  >
+                    <ExternalLink size={13} /> Abrir
+                  </a>
+                )}
+              </div>
             </div>
 
             {/* CHECKLIST */}

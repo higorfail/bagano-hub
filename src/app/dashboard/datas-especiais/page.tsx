@@ -26,6 +26,7 @@ function urgencyStyle(days: number): { pill: string; badge: string } {
 }
 
 export default function DatasEspeciaisPage() {
+  useEffect(() => { document.title = 'Datas Especiais · Bagano Hub' }, [])
   const { toast } = useToast()
   const [dates, setDates]       = useState<SpecialDate[]>([])
   const [loading, setLoading]   = useState(true)

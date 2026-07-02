@@ -1,6 +1,6 @@
 'use client'
 
-import { Calendar, Paperclip, Copy, Package } from 'lucide-react'
+import { Calendar, Paperclip, Copy, Package, Play } from 'lucide-react'
 
 const TYPE: Record<string, { label: string; color: string }> = {
   carrossel:         { label: 'Carrossel',         color: '#3b82f6' },
@@ -11,8 +11,9 @@ const TYPE: Record<string, { label: string; color: string }> = {
 }
 const STATUS: Record<string, { label: string; color: string }> = {
   producao:             { label: 'Produção',      color: '#f59e0b' },
-  revisao_interna:      { label: 'Revisão',        color: '#6b7280' },
+  revisao_interna:      { label: 'Revisão interna', color: '#8b5cf6' },
   aguardando_aprovacao: { label: 'Com cliente',    color: '#ec4899' },
+  ajuste:              { label: 'Ajuste',          color: '#ef4444' },
   aprovado:             { label: 'Aprovado',       color: '#22c55e' },
   agendado:             { label: 'Agendado',       color: '#3b82f6' },
   publicado:            { label: 'Publicado',      color: '#059669' },
@@ -53,10 +54,14 @@ type Props = {
 export default function PostMiniCard({ post, clientColor, campaignName, selected, onClick, onDuplicate, draggable, dragging, dragOver, onDragStart, onDragEnd, onDragOver, onDrop }: Props) {
   const type   = TYPE[post.post_type] || { label: post.post_type || '—', color: 'var(--color-border)' }
   const status = STATUS[post.status]  || { label: post.status, color: '#6b7280' }
-  const isRejected = post.approval_status === 'não aprovado'
-  const isApproved = post.approval_status === 'aprovado'
-  const refs   = post.reference_images?.length || 0
+  const isRejected  = post.approval_status === 'não aprovado'
+  const isApproved  = post.approval_status === 'aprovado'
+  const isRevisao   = post.status === 'revisao_interna'
+  const refs      = post.reference_images?.length || 0
   const delivered = !!post.drive_url
+  const isVideo   = post.post_type === 'reels'
+  const driveId   = post.drive_url?.match(/[-\w]{25,}/)?.[0]
+  const thumbUrl  = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w480` : null
 
   return (
     <div
@@ -70,10 +75,27 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
         ${dragging ? 'opacity-40' : ''}
         ${dragOver ? 'ring-2 ring-[var(--color-accent)]' : ''}
-        ${selected ? 'border-transparent' : isRejected ? 'border-[var(--ds-error-border)]' : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'}`}
-      style={selected ? { boxShadow: `0 0 0 2px ${clientColor || 'var(--color-accent)'}` } : {}}
+        ${selected ? 'border-transparent' : isRejected ? 'border-[var(--ds-error-border)]' : isRevisao ? 'border-[#8b5cf6]/40' : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'}`}
+      style={selected ? { boxShadow: `0 0 0 2px ${clientColor || 'var(--color-accent)'}` } : isRevisao ? { boxShadow: '0 0 0 1px #8b5cf644' } : {}}
     >
-      <div className="h-[3px] w-full flex-shrink-0" style={{ background: type.color }} />
+      <div className="h-[3px] w-full flex-shrink-0" style={{ background: isRevisao ? '#8b5cf6' : type.color }} />
+
+      {/* Drive thumbnail */}
+      {thumbUrl && (
+        <div className="relative overflow-hidden bg-[var(--color-bg-subtle)] flex-shrink-0"
+          style={{ height: isVideo ? 140 : 110 }}>
+          <img src={thumbUrl} alt={post.title}
+            className="w-full h-full object-cover"
+            onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
+          {isVideo && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+              <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                <Play size={16} className="text-[#111] ml-0.5" fill="currentColor" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="p-4 flex flex-col gap-3 flex-1">
         {/* Header */}

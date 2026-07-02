@@ -17,12 +17,15 @@ const POST_TYPES = [
   { value: 'carrossel_stories', label: 'Carrossel/Stories', color: '#6366f1' },
 ]
 const STATUSES = [
-  { value: 'producao',              label: 'Produção',            color: '#f59e0b' },
-  { value: 'revisao_interna',       label: 'Revisão interna',     color: '#6b7280' },
-  { value: 'aguardando_aprovacao',  label: 'Aguardando aprovação',color: '#ec4899' },
-  { value: 'aprovado',              label: 'Aprovado',            color: '#22c55e' },
-  { value: 'agendado',              label: 'Agendado',            color: '#3b82f6' },
-  { value: 'publicado',             label: 'Publicado',           color: '#059669' },
+  { value: 'estrategia',                 label: 'Estratégia',           color: '#8b5cf6' },
+  { value: 'aguardando_aprovacao_crono', label: 'Ag. crono',            color: '#f472b6' },
+  { value: 'producao',                   label: 'Produção',             color: '#f59e0b' },
+  { value: 'revisao_interna',            label: 'Revisão interna',      color: '#8b5cf6' },
+  { value: 'aguardando_aprovacao',       label: 'Aguardando aprovação', color: '#ec4899' },
+  { value: 'ajuste',                     label: 'Ajuste solicitado',    color: '#ef4444' },
+  { value: 'aprovado',                   label: 'Aprovado',             color: '#22c55e' },
+  { value: 'agendado',                   label: 'Agendado',             color: '#3b82f6' },
+  { value: 'publicado',                  label: 'Publicado',            color: '#059669' },
 ]
 const FUNIL_OPTIONS = ['Topo de funil','Meio de funil','Fundo de funil','Institucional','Promocional','Engajamento','Venda']
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(STATUSES.map(s => [s.value, s.label]))
@@ -39,7 +42,7 @@ type PostForm = {
   post_type: string; scheduled_date: string; status: string; drive_url: string
   reference_notes: string; funil: string; campaign_type: string; reference_images: string[]
 }
-const EMPTY: PostForm = { title:'', briefing:'', copy:'', legenda:'', post_type:'carrossel', scheduled_date:'', status:'producao', drive_url:'', reference_notes:'', funil:'', campaign_type:'', reference_images:[] }
+const EMPTY: PostForm = { title:'', briefing:'', copy:'', legenda:'', post_type:'carrossel', scheduled_date:'', status:'estrategia', drive_url:'', reference_notes:'', funil:'', campaign_type:'', reference_images:[] }
 
 type Props = {
   postId?: string
@@ -81,11 +84,57 @@ function renderMd(text: string) {
   return blocks.join('')
 }
 const EMOJI_GROUPS: [string, string[]][] = [
-  ['Rostos', ['😀','😃','😄','😁','😆','😅','😂','🤣','🥲','☺️','😊','🙂','😉','😍','🥰','😘','😗','😙','😚','😋','😛','😜','🤪','😝','🤗','🤩','🥳','😎','🤔','🤨','😐','😴','😌','😔','😢','😭','😤','😠','😳','🥺','😱','🤯']],
-  ['Gestos & coração', ['👍','👎','👏','🙌','🙏','💪','👌','✌️','🤞','🤙','🤝','👋','🫶','🫰','☝️','👀','❤️','🧡','💛','💚','💙','💜','🖤','🤍','💖','💕','💯','🔥','✨','⭐','🌟','⚡','💥','🎉','🎊']],
-  ['Comida & bebida', ['🍕','🍔','🍟','🌭','🥪','🌮','🌯','🥙','🥗','🍝','🍜','🍲','🍣','🍱','🍤','🍗','🥩','🍰','🎂','🧁','🍩','🍪','🍫','🍬','🍦','☕','🍵','🧉','🍺','🍻','🍷','🥂','🍾','🍸','🍹','🧀','🥑','🍓','🍎','🍊']],
-  ['Trabalho', ['📸','🎬','🎥','📷','📣','📢','🚀','📈','📊','💡','📌','📎','📱','💻','🖥️','🗓️','✅','☑️','🎯','🏆','🥇','💥','🔔','🔗','💬','✍️','📝','⏰','🕐']],
+  ['Rostos', ['😀','😃','😄','😁','😆','😅','😂','🤣','🥲','☺️','😊','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳','😏','😒','😞','😔','😟','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👾','🤖','🫥','😶','😑','😐','🙄','😬','🤥','🤫','🤭','🫢','🫣','🤔','🫠','🤐','🥴','😵','😵‍💫','🤯','🤠','🥸','😳','🥱','😴','🤤','😪','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','😨','😰','😥','😓','😦','😧','😲','😯','😮','🥹','😱','😺','😸','😹','😻','😼','😽','🙀','😿','😾']],
+  ['Gestos & mãos', ['👋','🤚','🖐️','✋','🖖','🫱','🫲','🫳','🫴','🫷','🫸','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏','🫶','🙌','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦿','🦵','🦶','👂','🦻','👃','🫀','🫁','🧠','🦷','🦴','👁️','👀','👅','👄','🫦']],
+  ['Pessoas & profissões', ['👶','🧒','👦','👧','🧑','👱','👨','🧔','👩','🧓','👴','👵','👮','🕵️','💂','🥷','👷','🫅','🤴','👸','👼','🎅','🤶','🧙','🧝','🧛','🧟','🧞','🧜','🧚','🧑‍⚕️','👨‍⚕️','👩‍⚕️','🧑‍🎓','👨‍🎓','👩‍🎓','🧑‍🏫','👨‍🏫','👩‍🏫','🧑‍⚖️','👨‍⚖️','👩‍⚖️','🧑‍🌾','👨‍🌾','👩‍🌾','🧑‍🍳','👨‍🍳','👩‍🍳','🧑‍🔧','👨‍🔧','👩‍🔧','🧑‍🏭','👨‍🏭','👩‍🏭','🧑‍💼','👨‍💼','👩‍💼','🧑‍🔬','👨‍🔬','👩‍🔬','🧑‍🎨','👨‍🎨','👩‍🎨','🧑‍✈️','👨‍✈️','👩‍✈️','🧑‍🚀','👨‍🚀','👩‍🚀','🧑‍🚒','👨‍🚒','👩‍🚒','🧑‍💻','👨‍💻','👩‍💻','💃','🕺','🧖','🧘','🏋️','🤸','🏄','🚴','🤼','⛹️','🤾','🏌️','🧗','🚵','🤺','🏇']],
+  ['Roupas & acessórios', ['👔','👗','👘','👙','👚','👕','👖','🧥','🥻','🩱','🩲','🩳','🧣','🧤','🧦','🧢','👒','🎩','🪖','⛑️','👑','💍','💎','👟','👠','👡','👢','🥾','🥿','👞','👜','👝','🎒','🛍️','👛','💼','🧳','👓','🕶️','🥽','🌂','☂️','💄','💅','💍','🪬','🧿','📿','🔮']],
+  ['Corações & celebração', ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','💖','💗','💓','💞','💕','💟','❣️','💌','💘','💝','💋','❤','🩷','🩵','🩶','🎉','🎊','🎈','🎁','🎀','🪅','🥳','🙌','✨','⭐','🌟','💫','🔥','⚡','💥','🌈','💯','🚀','🏆','🥇','🎯','🎗️']],
+  ['Animais (terrestres)', ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐔','🐧','🐦','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🦌','🦬','🐃','🐂','🐄','🐑','🐏','🐐','🦙','🐪','🐫','🦒','🦘','🐘','🦛','🦏','🐊','🐆','🐅','🦍','🦧','🐇','🦝','🦨','🦡','🦫','🦦','🦥','🐁','🐀','🐿️','🦔','🐕','🐩','🦮','🐈','🐈‍⬛','🐓','🦃','🦤','🦚','🦜','🦢','🦩','🕊️','🐓','🦋','🐌','🐛','🐝','🪱','🐞','🐜','🪲','🦟','🦗','🕷️','🦂']],
+  ['Animais (aquáticos)', ['🐙','🦑','🦐','🦞','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🦭','🐢','🐍','🦎','🦖','🦕','🦠','🪸','🌊']],
+  ['Plantas & natureza', ['🌵','🎄','🌲','🌳','🌴','🪵','🌱','🌿','☘️','🍀','🎍','🪴','🎋','🍃','🍂','🍁','🪺','🪹','🍄','🌾','🌰','🪨','💐','🌷','🌹','🥀','🪷','🌺','🌸','🌼','🌻','🫧']],
+  ['Clima & espaço', ['☀️','🌤️','⛅','🌥️','☁️','🌦️','🌧️','⛈️','🌩️','🌨️','❄️','☃️','⛄','🌬️','💨','🌀','🌈','☂️','☔','⛱️','⚡','🔥','💧','🌫️','🌁','🌙','🌛','🌜','🌚','🌝','🌞','🌕','🌖','🌗','🌘','🌑','🌒','🌓','🌔','🌟','⭐','🌠','🌌','🪐','☄️','🌍','🌎','🌏','🌐','🗺️','🧭']],
+  ['Frutas & vegetais', ['🍏','🍎','🍐','🍊','🍋','🫛','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🫑','🧄','🧅','🥔','🍠','🌽','🥕','🥜','🌰','🫚','🧅']],
+  ['Comida', ['🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🫓','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥮','🍡','🍢','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🍯','🧂','🥄','🍴','🍽️','🫙']],
+  ['Bebidas', ['☕','🍵','🧃','🥤','🧋','🍺','🍻','🥂','🍷','🫗','🥃','🍸','🍹','🧉','🍾','🧊','🫖','🥛','🍼','🧊']],
+  ['Transporte', ['🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🛴','🚲','🛵','🏍️','🛺','🚁','🛸','🚀','✈️','🛩️','🛫','🛬','🛥️','🚢','⛴️','🚤','🛟','⚓','🛶','⛵','🚂','🚃','🚄','🚅','🚆','🚇','🚈','🚉','🚊','🚝','🚞','🛤️','🛣️','🚦','🚥','🛑','🚧','⛽','🛞','🪂','🛡️','🚀','🛸','🏎️']],
+  ['Lugares & construções', ['🏠','🏡','🏢','🏣','🏤','🏥','🏦','🏨','🏩','🏪','🏫','🏬','🏭','🏯','🏰','🗼','🗽','⛪','🕌','🛕','🕍','⛩️','🕋','⛲','⛺','🌁','🌃','🏙️','🌄','🌅','🌆','🌇','🌉','🏔️','⛰️','🌋','🗻','🏕️','🏖️','🏜️','🏝️','🏞️','🏗️','🏘️','🏚️']],
+  ['Esportes', ['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🏓','🏸','🏒','🥍','🏑','🥊','🥋','🎽','🛹','🛼','🛷','⛸️','⛷️','🏂','🏋️','🤼','🤸','⛹️','🤾','🏌️','🏄','🚣','🧗','🚵','🚴','🏇','🤺','🏆','🥇','🥈','🥉','🏅','🎖️','🏵️','🎯','🎳','🤿','🎣','🏹','🥋','🥊']],
+  ['Música & artes', ['🎵','🎶','🎼','🎤','🎧','🎷','🪗','🎸','🎹','🎺','🎻','🥁','🪘','🪈','📻','🎙️','🎬','🎥','📽️','🎞️','🎭','🎨','🖌️','🖍️','✏️','🖊️','🖋️','🎤','🎪','🎠','🎡','🎢','🪩','🎑','🖼️','🪆']],
+  ['Jogos & entretenimento', ['🎮','🕹️','🎲','♟️','🎯','🎱','🎰','🃏','🀄','🎴','🧩','🪀','🪁','🃏','🎳','🪃']],
+  ['Tecnologia', ['📱','📲','💻','⌨️','🖥️','🖨️','🖱️','🖲️','💽','💾','💿','📀','📡','🔋','🪫','🔌','💡','🔦','🕯️','🪔','📣','📢','🔔','🔕','📯','📶','🛰️','📷','📸','📹','🎥','📞','☎️','📟','📠','📺','📻']],
+  ['Escritório & educação', ['📝','📋','📁','📂','🗂️','📊','📈','📉','📌','📍','✂️','🗃️','🗄️','🗑️','📇','📃','📄','📑','🗒️','🗓️','📅','📆','📎','🖇️','📏','📐','✏️','🖊️','🖋️','🖌️','📓','📔','📒','📕','📗','📘','📙','📚','📖','🔖','🏷️','📧','📨','📩','📤','📥','📦','📫','📪','📬','📭','📮','🗳️','✉️','💼']],
+  ['Dinheiro & negócios', ['💰','💴','💵','💶','💷','💸','💳','🪙','💹','💱','💲','🏧','🧾','💎','🔐','🔑','🗝️','🔒','🔓','🔏','📛','🔰','🏆','🥇','🎯','🚀','📣','📢']],
+  ['Ferramentas & ciência', ['🔧','🔨','⚒️','🛠️','⛏️','🪚','🔩','⚙️','🗜️','⚖️','🔗','⛓️','🪝','🧲','🪜','🪤','🔫','💣','🪓','🔪','🗡️','⚔️','🛡️','🩺','🩻','💊','💉','🩹','🩼','🧬','🔬','🔭','🧪','🧫','🌡️','🧭']],
+  ['Objetos do lar', ['🚪','🪞','🪟','🛋️','🪑','🛏️','🛁','🚿','🪠','🧴','🧹','🧺','🧻','🪣','🧼','🧽','🧯','🛒','🪤','💈','🪄','🏺','⚰️','🪦','⚱️','🗿','🛒','🧳','🎒','👜','👝','👛']],
+  ['Símbolos', ['✅','❌','❓','❗','⭕','🚫','⛔','🔞','♾️','©️','®️','™️','♻️','🔱','📛','🔰','💤','🔃','🔄','🔙','🔚','🔛','🔜','🔝','🆗','🆕','🆙','🆒','🆓','🆖','🆔','🆘','🆎','🆑','🅰️','🅱️','🅾️','✔️','❎','❔','❕','🔅','🔆','📶','📳','📴','📵','➕','➖','➗','✖️','💲','💱','↗️','➡️','↘️','⬇️','↙️','⬅️','↖️','⬆️','↕️','↔️','↩️','↪️','⤴️','⤵️','🔼','🔽','⏩','⏫','⏪','⏬','▶️','⏸️','⏹️','⏺️','⏏️','🎦','🔴','🟠','🟡','🟢','🔵','🟣','🟤','⚫','⚪','🔶','🔷','🔸','🔹','🔺','🔻','💠','🔘','🔲','🔳','⬛','⬜','🟥','🟧','🟨','🟩','🟦','🟪','🟫','▪️','▫️','◾','◽','◼️','◻️']],
+  ['Números & letras', ['0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','#️⃣','*️⃣','🔠','🔡','🔢','🔣','🔤']],
+  ['Relógios & tempo', ['🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚','🕛','🕜','🕝','🕞','🕟','🕠','🕡','🕢','🕣','🕤','🕥','🕦','🕧','⌛','⏳','⏰','⏱️','⏲️','🕰️']],
+  ['Signos & religião', ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','⛎','✝️','☦️','🕉️','☪️','☮️','✡️','🔯','🪯','☯️','☸️','🪬','🧿','📿','🛐','⛎']],
+  ['Bandeiras', ['🏳️','🏴','🚩','🏁','🏳️‍🌈','🏳️‍⚧️','🏴‍☠️','🇦🇨','🇦🇩','🇦🇪','🇦🇫','🇦🇬','🇦🇮','🇦🇱','🇦🇲','🇦🇴','🇦🇶','🇦🇷','🇦🇸','🇦🇹','🇦🇺','🇦🇼','🇦🇽','🇦🇿','🇧🇦','🇧🇧','🇧🇩','🇧🇪','🇧🇫','🇧🇬','🇧🇭','🇧🇮','🇧🇯','🇧🇱','🇧🇲','🇧🇳','🇧🇴','🇧🇶','🇧🇷','🇧🇸','🇧🇹','🇧🇻','🇧🇼','🇧🇾','🇧🇿','🇨🇦','🇨🇨','🇨🇩','🇨🇫','🇨🇬','🇨🇭','🇨🇮','🇨🇰','🇨🇱','🇨🇲','🇨🇳','🇨🇴','🇨🇵','🇨🇷','🇨🇺','🇨🇻','🇨🇼','🇨🇽','🇨🇾','🇨🇿','🇩🇪','🇩🇬','🇩🇯','🇩🇰','🇩🇲','🇩🇴','🇩🇿','🇪🇦','🇪🇨','🇪🇪','🇪🇬','🇪🇭','🇪🇷','🇪🇸','🇪🇹','🇪🇺','🇫🇮','🇫🇯','🇫🇰','🇫🇲','🇫🇴','🇫🇷','🇬🇦','🇬🇧','🇬🇩','🇬🇪','🇬🇫','🇬🇬','🇬🇭','🇬🇮','🇬🇱','🇬🇲','🇬🇳','🇬🇵','🇬🇶','🇬🇷','🇬🇸','🇬🇹','🇬🇺','🇬🇼','🇬🇾','🇭🇰','🇭🇲','🇭🇳','🇭🇷','🇭🇹','🇭🇺','🇮🇨','🇮🇩','🇮🇪','🇮🇱','🇮🇲','🇮🇳','🇮🇴','🇮🇶','🇮🇷','🇮🇸','🇮🇹','🇯🇪','🇯🇲','🇯🇴','🇯🇵','🇰🇪','🇰🇬','🇰🇭','🇰🇮','🇰🇲','🇰🇳','🇰🇵','🇰🇷','🇰🇼','🇰🇾','🇰🇿','🇱🇦','🇱🇧','🇱🇨','🇱🇮','🇱🇰','🇱🇷','🇱🇸','🇱🇹','🇱🇺','🇱🇻','🇱🇾','🇲🇦','🇲🇨','🇲🇩','🇲🇪','🇲🇫','🇲🇬','🇲🇭','🇲🇰','🇲🇱','🇲🇲','🇲🇳','🇲🇴','🇲🇵','🇲🇶','🇲🇷','🇲🇸','🇲🇹','🇲🇺','🇲🇻','🇲🇼','🇲🇽','🇲🇾','🇲🇿','🇳🇦','🇳🇨','🇳🇪','🇳🇫','🇳🇬','🇳🇮','🇳🇱','🇳🇴','🇳🇵','🇳🇷','🇳🇺','🇳🇿','🇴🇲','🇵🇦','🇵🇪','🇵🇫','🇵🇬','🇵🇭','🇵🇰','🇵🇱','🇵🇲','🇵🇳','🇵🇷','🇵🇸','🇵🇹','🇵🇼','🇵🇾','🇶🇦','🇷🇪','🇷🇴','🇷🇸','🇷🇺','🇷🇼','🇸🇦','🇸🇧','🇸🇨','🇸🇩','🇸🇪','🇸🇬','🇸🇭','🇸🇮','🇸🇯','🇸🇰','🇸🇱','🇸🇲','🇸🇳','🇸🇴','🇸🇷','🇸🇸','🇸🇹','🇸🇻','🇸🇽','🇸🇾','🇸🇿','🇹🇦','🇹🇨','🇹🇩','🇹🇫','🇹🇬','🇹🇭','🇹🇯','🇹🇰','🇹🇱','🇹🇲','🇹🇳','🇹🇴','🇹🇷','🇹🇹','🇹🇻','🇹🇼','🇹🇿','🇺🇦','🇺🇬','🇺🇲','🇺🇳','🇺🇸','🇺🇾','🇺🇿','🇻🇦','🇻🇨','🇻🇪','🇻🇬','🇻🇮','🇻🇳','🇻🇺','🇼🇫','🇼🇸','🇽🇰','🇾🇪','🇾🇹','🇿🇦','🇿🇲','🇿🇼','🏴󠁧󠁢󠁥󠁮󠁧󠁿','🏴󠁧󠁢󠁳󠁣󠁴󠁿','🏴󠁧󠁢󠁷󠁬󠁳󠁿']],
 ]
+
+function DriveThumbnail({ driveUrl, isVideo }: { driveUrl: string; isVideo: boolean }) {
+  const [visible, setVisible] = useState(false)
+  const driveId = driveUrl.match(/[-\w]{25,}/)?.[0]
+  const thumbUrl = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w600` : null
+  if (!thumbUrl) return null
+  return (
+    <a href={driveUrl} target="_blank" rel="noopener noreferrer"
+      onClick={e => e.stopPropagation()}
+      className="relative block rounded-xl overflow-hidden mb-2 bg-[var(--color-bg-alt)]"
+      style={{ height: visible ? (isVideo ? 180 : 140) : 0 }}>
+      <img src={thumbUrl} alt="preview" className="w-full h-full object-cover"
+        onLoad={() => setVisible(true)} onError={() => {}} />
+      {isVideo && visible && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+          <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#111" className="ml-1"><polygon points="5,3 19,12 5,21" /></svg>
+          </div>
+        </div>
+      )}
+    </a>
+  )
+}
 
 export default function PostCard({ postId, clientId, clientName, clientColor, month, year, postNumber, onClose, onSaved, onDeleted }: Props) {
   const supabase = createClient()
@@ -113,7 +162,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [moveYear,     setMoveYear]     = useState(year)
   const refInputRef = useRef<HTMLInputElement>(null)
 
-  const [form,     setForm]     = useState<PostForm>(EMPTY)
+  const [form,           setForm]           = useState<PostForm>(EMPTY)
+  const [approvalStatus, setApprovalStatus] = useState<string>('')
   const formRef = useRef(form); formRef.current = form
   const [showCal,  setShowCal]  = useState(false)
   const [calMonth, setCalMonth] = useState(() => ({ y: year, m: month - 1 }))
@@ -166,6 +216,13 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
 
   useEffect(() => {
+    const main = document.querySelector('main') as HTMLElement | null
+    const prev = main?.style.overflow ?? ''
+    if (main) main.style.overflow = 'hidden'
+    return () => { if (main) main.style.overflow = prev }
+  }, [])
+
+  useEffect(() => {
     supabase.from('campaigns').select('id, name, type').eq('client_id', clientId).then(({ data }) => setCampaigns(data || []))
   }, [clientId])
 
@@ -177,13 +234,16 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (!postId) return
     async function load() {
       const { data } = await supabase.from('schedules').select('*').eq('id', postId).single()
-      if (data) setForm({
-        title: data.title || '', briefing: data.briefing || '', copy: data.copy || '', legenda: data.legenda || '',
-        post_type: data.post_type || 'carrossel', scheduled_date: data.scheduled_date || '', status: data.status || 'producao',
-        drive_url: data.drive_url || '', reference_notes: data.reference_notes || '',
-        funil: data.funil || '', campaign_type: data.campaign_type || '',
-        reference_images: Array.isArray(data.reference_images) ? data.reference_images : [],
-      })
+      if (data) {
+        setForm({
+          title: data.title || '', briefing: data.briefing || '', copy: data.copy || '', legenda: data.legenda || '',
+          post_type: data.post_type || 'carrossel', scheduled_date: data.scheduled_date || '', status: data.status || 'producao',
+          drive_url: data.drive_url || '', reference_notes: data.reference_notes || '',
+          funil: data.funil || '', campaign_type: data.campaign_type || '',
+          reference_images: Array.isArray(data.reference_images) ? data.reference_images : [],
+        })
+        setApprovalStatus(data.approval_status || '')
+      }
       setLoading(false)
     }
     load()
@@ -224,7 +284,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (dbError(error, toast, 'criar post')) return undefined
     if (data) {
       setCurrentId(data.id)
-      await logActivity({ tableName: 'schedules', recordId: data.id, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${f.title}"` })
+      await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${f.title}"` })
       setActivityKey(k => k + 1); flashSaved(); onSaved()
       return data.id
     }
@@ -242,22 +302,33 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (dbError(error, toast, 'salvar')) return
     if (hadId) flashSaved()
     if (logMsg) {
-      await logActivity({ tableName: 'schedules', recordId: pid, action, actorName: currentMember?.name, description: logMsg })
+      await logActivity({ tableName: 'schedules', recordId: pid, clientId, action, actorName: currentMember?.name, description: logMsg })
       setActivityKey(k => k + 1)
     }
     onSaved()
   }
 
-  function commitText(field: TextField) { setEditingField(null); persist({ [field]: formRef.current[field] }) }
+  const who = currentMember?.name || 'Alguém'
+  const FIELD_LABEL: Record<TextField, string> = { title: 'o título', briefing: 'o briefing', copy: 'a copy', legenda: 'a legenda', reference_notes: 'as referências', drive_url: 'o link do Drive' }
+
+  function commitText(field: TextField) {
+    setEditingField(null)
+    const v = formRef.current[field]
+    if (v === editOriginal.current) return  // nada mudou → não salva/registra
+    persist({ [field]: v }, `${who} editou ${FIELD_LABEL[field]}`)
+  }
   function startEdit(field: TextField) { editOriginal.current = String(formRef.current[field] || ''); setEditingField(field) }
   function discardEdit(field: TextField) { discardRef.current = true; setForm(f => ({ ...f, [field]: editOriginal.current })); setEditingField(null) }
   function blurCommit(field: TextField) { if (discardRef.current) { discardRef.current = false; return } commitText(field) }
-  function changeType(v: string) { setForm(f => ({ ...f, post_type: v })); persist({ post_type: v }) }
+  function changeType(v: string) {
+    const label = POST_TYPES.find(t => t.value === v)?.label || v
+    setForm(f => ({ ...f, post_type: v })); persist({ post_type: v }, `${who} definiu o tipo: ${label}`)
+  }
   function changeStatus(v: string) {
     const old = STATUS_LABEL[formRef.current.status] || formRef.current.status
-    setForm(f => ({ ...f, status: v })); persist({ status: v }, `Status: ${old} → ${STATUS_LABEL[v] || v}`, 'status_changed')
+    setForm(f => ({ ...f, status: v })); persist({ status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
   }
-  function setField(field: keyof PostForm, v: any) { setForm(f => ({ ...f, [field]: v })); persist({ [field]: v }) }
+  function setField(field: keyof PostForm, v: any, logMsg?: string) { setForm(f => ({ ...f, [field]: v })); persist({ [field]: v }, logMsg) }
 
   async function addComment() {
     const body = newComment.trim(); if (!body) return
@@ -266,7 +337,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (dbError(error, toast, 'comentar')) return
     if (data) setComments(c => [...c, data])
     setNewComment('')
-    await logActivity({ tableName: 'schedules', recordId: pid, action: 'commented', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} comentou` })
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'commented', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} comentou` })
     setActivityKey(k => k + 1)
   }
 
@@ -298,6 +369,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const newImages = [...formRef.current.reference_images, publicUrl]
     setForm(f => ({ ...f, reference_images: newImages }))
     await supabase.from('schedules').update({ reference_images: newImages }).eq('id', pid)
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, description: `${who} anexou uma imagem de referência` })
+    setActivityKey(k => k + 1)
     flashSaved(); setUploadingRef(false)
   }
   async function handleRefImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -336,7 +409,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const { error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year, post_number: (count || 0) + 1,
       title: (f.title || 'Post') + ' (cópia)', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
-      post_type: f.post_type, status: 'producao', scheduled_date: null, drive_url: f.drive_url,
+      post_type: f.post_type, status: 'estrategia', scheduled_date: null, drive_url: f.drive_url,
       reference_notes: f.reference_notes, funil: f.funil, campaign_type: f.campaign_type || null, reference_images: f.reference_images,
     })
     if (dbError(error, toast, 'duplicar')) return
@@ -348,7 +421,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const { error } = await supabase.from('schedules').update({ client_id: newClientId, campaign_type: null }).eq('id', pid)
     if (dbError(error, toast, 'mover')) return
     const name = clientList.find(c => c.id === newClientId)?.name
-    await logActivity({ tableName: 'schedules', recordId: pid, action: 'updated', actorName: currentMember?.name, description: `Movido para o cliente ${name || ''}` })
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, description: `Movido para o cliente ${name || ''}` })
     toast('Post movido de cliente'); onSaved(); onClose()
   }
 
@@ -357,7 +430,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (moveMonth === month && moveYear === year) { setMoveOpen(false); return }
     const { error } = await supabase.from('schedules').update({ month: moveMonth, year: moveYear }).eq('id', pid)
     if (dbError(error, toast, 'mover')) return
-    await logActivity({ tableName: 'schedules', recordId: pid, action: 'updated', actorName: currentMember?.name, description: `Movido para ${MESES[moveMonth - 1]} ${moveYear}` })
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, description: `Movido para ${MESES[moveMonth - 1]} ${moveYear}` })
     toast('Post movido de mês'); onSaved(); onClose()
   }
 
@@ -416,7 +489,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               {emojiOpen === field && (
                 <>
                   <div className="fixed inset-0 z-[84]" onMouseDown={e => { e.preventDefault(); setEmojiOpen(null) }} />
-                  <div className="absolute top-7 left-0 z-[85] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-pop p-2 w-[300px] max-h-64 overflow-y-auto">
+                  <div className="absolute top-7 left-0 z-[85] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-pop p-2 w-[300px] max-h-80 overflow-y-auto">
                     {EMOJI_GROUPS.map(([name, emojis]) => (
                       <div key={name} className="mb-2 last:mb-0">
                         <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] px-1 mb-1">{name}</p>
@@ -535,7 +608,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               function pick(d: number) {
                 const mm = String(calMonth.m+1).padStart(2,'0'), dd = String(d).padStart(2,'0')
                 const s = `${calMonth.y}-${mm}-${dd}`
-                setForm(f => ({ ...f, scheduled_date: s })); persist({ scheduled_date: s }); setShowCal(false)
+                setForm(f => ({ ...f, scheduled_date: s })); persist({ scheduled_date: s }, `${who} definiu a data para ${new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`); setShowCal(false)
               }
               return (
                 <>
@@ -563,7 +636,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                       })}
                     </div>
                     {form.scheduled_date && (
-                      <button onClick={() => { setForm(f=>({...f,scheduled_date:''})); persist({ scheduled_date: '' }); setShowCal(false) }} className="w-full py-1.5 text-xs text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">
+                      <button onClick={() => { setForm(f=>({...f,scheduled_date:''})); persist({ scheduled_date: '' }, `${who} removeu a data`); setShowCal(false) }} className="w-full py-1.5 text-xs text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">
                         Remover data
                       </button>
                     )}
@@ -576,7 +649,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Funil</span>
             <div className="relative">
-              <select value={form.funil} onChange={e => setField('funil', e.target.value)}
+              <select value={form.funil} onChange={e => setField('funil', e.target.value, e.target.value ? `${who} definiu o funil: ${e.target.value}` : `${who} removeu o funil`)}
                 className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
                 <option value="">—</option>
                 {FUNIL_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
@@ -589,7 +662,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             <div className="flex flex-col gap-1">
               <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Campanha</span>
               <div className="relative">
-                <select value={form.campaign_type} onChange={e => setField('campaign_type', e.target.value)}
+                <select value={form.campaign_type} onChange={e => { const nm = campaigns.find(c => c.type === e.target.value)?.name; setField('campaign_type', e.target.value, e.target.value ? `${who} definiu a campanha: ${nm || ''}` : `${who} removeu a campanha`) }}
                   className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
                   <option value="">Nenhuma</option>
                   {campaigns.map(c => <option key={c.type} value={c.type}>{c.name}</option>)}
@@ -607,25 +680,28 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-7 py-5 gap-5">
 
             {/* 📦 Entrega */}
-            <div className="rounded-2xl p-4" style={{ background: 'var(--ds-info-bg)', border: '1px solid var(--ds-info-border)' }}>
+            <div className="rounded-2xl p-4 transition-colors" style={form.drive_url ? { background: 'var(--ds-success-bg)', border: '1px solid var(--ds-success-border)' } : { background: 'var(--ds-info-bg)', border: '1px solid var(--ds-info-border)' }}>
               <div className="flex items-center gap-1.5 mb-1">
-                <Package size={15} style={{ color: 'var(--ds-info-accent)' }} />
-                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--ds-info-text)' }}>Entrega do conteúdo</span>
-                <span className="text-[10px] ml-1" style={{ color: 'var(--ds-info-text)', opacity: 0.7 }}>· o post/carrossel/vídeo pronto (Drive)</span>
+                <Package size={15} style={{ color: form.drive_url ? 'var(--ds-success-accent)' : 'var(--ds-info-accent)' }} />
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: form.drive_url ? 'var(--ds-success-text)' : 'var(--ds-info-text)' }}>Entrega do conteúdo</span>
+                <span className="text-[10px] ml-1" style={{ color: form.drive_url ? 'var(--ds-success-text)' : 'var(--ds-info-text)', opacity: 0.7 }}>· o post/carrossel/vídeo pronto (Drive)</span>
               </div>
               {editingField === 'drive_url' ? (
                 <input autoFocus value={form.drive_url} onChange={e => setForm(f => ({ ...f, drive_url: e.target.value }))}
                   onBlur={() => blurCommit('drive_url')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { e.preventDefault(); discardEdit('drive_url') } }}
                   placeholder="https://drive.google.com/…"
-                  className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-info-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
+                  className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-success-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
               ) : form.drive_url ? (
-                <div className="flex items-center gap-2">
-                  <a href={form.drive_url} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 flex items-center gap-2 bg-[var(--color-bg-card)] rounded-lg px-3 py-2 text-sm font-medium truncate hover:opacity-90 transition-opacity" style={{ color: 'var(--ds-info-text)' }}>
-                    <ExternalLink size={13} className="flex-shrink-0" /> <span className="truncate">Abrir conteúdo no Drive</span>
-                  </a>
-                  <button onClick={() => startEdit('drive_url')} className="text-[11px] text-[var(--ds-info-text)] hover:underline flex-shrink-0">editar</button>
-                </div>
+                <>
+                  <DriveThumbnail driveUrl={form.drive_url} isVideo={form.post_type === 'reels'} />
+                  <div className="flex items-center gap-2">
+                    <a href={form.drive_url} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 flex items-center gap-2 bg-[var(--color-bg-card)] rounded-lg px-3 py-2 text-sm font-semibold truncate hover:opacity-90 transition-opacity" style={{ color: 'var(--ds-success-text)' }}>
+                      <ExternalLink size={13} className="flex-shrink-0" /> <span className="truncate">✓ Conteúdo entregue — Abrir no Drive</span>
+                    </a>
+                    <button onClick={() => startEdit('drive_url')} className="text-[11px] hover:underline flex-shrink-0" style={{ color: 'var(--ds-success-text)' }}>editar</button>
+                  </div>
+                </>
               ) : (
                 <button onClick={() => startEdit('drive_url')}
                   className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border-2 border-dashed transition-colors"
@@ -638,6 +714,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             {textField('briefing', 'Briefing', '· instruções pro time (o que fazer)', 'O que precisa ser feito, direção criativa, referências de estilo…', 70)}
             {textField('copy', 'Copy', '· conceito / roteiro', 'Ideia central, roteiro do reels, texto das artes…', 70)}
             {textField('legenda', 'Legenda', '· o texto que vai no Instagram', 'A legenda final do post, com hashtags e CTA…', 70)}
+
 
             {/* Referências */}
             <div>
@@ -665,7 +742,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               {/* chips de link */}
               {refLinks.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                  {refLinks.map((url, i) => (
+                  {refLinks.map((url: string, i: number) => (
                     <a key={i} href={url} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg pl-1.5 pr-2 py-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)] hover:text-[var(--color-text-primary)] transition-colors max-w-[200px]">
                       <img src={`https://www.google.com/s2/favicons?domain=${hostOf(url)}&sz=32`} alt="" className="w-3.5 h-3.5 rounded-sm flex-shrink-0" />
@@ -781,6 +858,34 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           ) : <div />}
 
           <div className="flex items-center gap-3">
+            {form.status === 'revisao_interna' && currentId && (
+              <button
+                onClick={() => changeStatus('aguardando_aprovacao')}
+                className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl transition-all"
+                style={{ background: '#8b5cf6', color: '#fff' }}
+              >
+                ✓ Aprovado internamente — Enviar pro cliente
+              </button>
+            )}
+            {form.status === 'ajuste' && currentId && (
+              <button
+                onClick={async () => {
+                  await persist({ approval_status: null, status: 'aguardando_aprovacao' }, `${who} marcou ajuste como feito e reenviou para aprovação`, 'status_changed')
+                  setApprovalStatus('')
+                  changeStatus('aguardando_aprovacao')
+                }}
+                className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl transition-all"
+                style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)', border: '1px solid var(--ds-error-border)' }}
+              >
+                ✏ Ajuste feito — Reenviar para aprovação
+              </button>
+            )}
+            {approvalStatus === 'aprovado' && (
+              <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl"
+                style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
+                ✓ Aprovado pelo cliente
+              </span>
+            )}
             {currentId && (
               <div className="relative">
                 <button onClick={() => setMoveOpen(v => !v)}

@@ -1,9 +1,10 @@
 'use client'
 
-import { use, useEffect, useState, useRef, Suspense } from 'react'
+import { use, useEffect, useState, Suspense } from 'react'
+import { Copy } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
+import IPhoneFeed from '@/components/IPhoneFeed'
 import MaterialCard from '@/components/MaterialCard'
 import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
@@ -15,6 +16,7 @@ import PostCard from '@/components/PostCard'
 import ExtrasKanban from '@/components/ExtrasKanban'
 import ActivityLog from '@/components/ActivityLog'
 import OnboardingTab from '@/components/OnboardingTab'
+import ManualTab from '@/components/ManualTab'
 
 type Client = {
   id: string; name: string; color_hex: string; logo_url: string
@@ -31,12 +33,13 @@ type Post = {
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const typeColor: Record<string,string> = { 'reels':'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]','carrossel':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','story':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','carrossel_stories':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','post':'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]' }
-const statusColor: Record<string,string> = { 'publicado':'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]','aprovado':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','agendado':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','aguardando_aprovacao':'bg-[var(--ds-warn-bg)] text-[var(--ds-warn-text)]','revisao_interna':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','producao':'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]','pendente':'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]' }
-const STATUS_LABEL: Record<string,string> = { producao:'Produção', revisao_interna:'Revisão', aguardando_aprovacao:'Aguardando aprovação', aprovado:'Aprovado', agendado:'Agendado', publicado:'Publicado' }
+const statusColor: Record<string,string> = { 'publicado':'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]','aprovado':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','agendado':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','aguardando_aprovacao':'bg-[var(--ds-warn-bg)] text-[var(--ds-warn-text)]','aguardando_aprovacao_crono':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','revisao_interna':'bg-[#8b5cf6]/10 text-[#8b5cf6]','ajuste':'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]','producao':'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]','estrategia':'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]','pendente':'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]' }
+const STATUS_LABEL: Record<string,string> = { estrategia:'Estratégia', aguardando_aprovacao_crono:'Ag. crono', producao:'Produção', revisao_interna:'Revisão', aguardando_aprovacao:'Aguardando aprovação', ajuste:'Ajuste solicitado', aprovado:'Aprovado', agendado:'Agendado', publicado:'Publicado' }
 const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'Carrossel/Stories' }
-const approvalColor: Record<string,string> = { 'aprovado':'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]','não aprovado':'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]' }
 const FUNCAO_LABEL: Record<string,string> = { videos:'Editor', posts:'Designer', estrategia:'Estratégia', social:'Social Media', acompanha:'Acompanha', outro:'Outro' }
 function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }
+
+type CronoStatus = { status: string; finalized_at: string | null; finalized_by: string | null } | null
 
 function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -46,16 +49,15 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [client, setClient] = useState<Client | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [tab, setTab] = useState('cronograma')
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
-  const initialMonthSet = useRef(false)
-  if (!initialMonthSet.current) {
+  const [selectedMonth, setSelectedMonth] = useState(() => {
     const mParam = searchParams.get('m')
-    if (mParam) { setSelectedMonth(parseInt(mParam)) }
-    initialMonthSet.current = true
-  }
-  const [selectedYear] = useState(new Date().getFullYear())
+    const m = mParam ? parseInt(mParam) : NaN
+    return !isNaN(m) && m >= 1 && m <= 12 ? m : new Date().getMonth() + 1
+  })
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<'list'|'grid'>('list')
+  const [viewMode, setViewMode] = useState<'list'|'grid'>('grid')
   const [team, setTeam] = useState<any[]>([])
   const [allMembers, setAllMembers] = useState<any[]>([])
   const [showAddMember, setShowAddMember] = useState(false)
@@ -70,8 +72,19 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [newMemberId, setNewMemberId] = useState('')
   const [newFuncao, setNewFuncao] = useState('posts')
   const [showEditClient, setShowEditClient] = useState(false)
-  const [editClientForm, setEditClientForm] = useState({ name: '', color_hex: '', drive_folder_url: '', sous_chef_url: '', instagram_url: '', instagram_followers: '', instagram_following: '' })
+  const [editClientForm, setEditClientForm] = useState({ name: '', color_hex: '', logo_url: '', drive_folder_url: '', sous_chef_url: '', instagram_url: '', instagram_followers: '', instagram_following: '' })
   const [savingClient, setSavingClient] = useState(false)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [cronoStatus, setCronoStatus] = useState<CronoStatus>(null)
+  const [togglingStatus, setTogglingStatus] = useState(false)
+  const [showApprovalModal, setShowApprovalModal] = useState(false)
+  const [approvalLink, setApprovalLink] = useState('')
+  const [generatingLink, setGeneratingLink] = useState(false)
+  const [aiMessage, setAiMessage] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => { document.title = client ? `${client.name} · Bagano Hub` : 'Cliente · Bagano Hub' }, [client])
 
   useEffect(() => {
     async function load() {
@@ -111,6 +124,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
       ;(cms || []).forEach((x: any) => { if (mc[x.material_id]) mc[x.material_id].comments++ })
       ;(atts || []).forEach((x: any) => { if (mc[x.material_id]) mc[x.material_id].attachments++ })
       setMatCounts(mc)
+      const { data: statusData } = await supabase.from('cronograma_status').select('*').eq('client_id', id).eq('month', selectedMonth).eq('year', selectedYear).maybeSingle()
+      setCronoStatus(statusData || null)
       setLoading(false)
     }
     load()
@@ -137,7 +152,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 
 
   async function moveMatStatus(matId: string, newStatus: string) {
-    const labels: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', finalizado: 'Finalizado' }
+    const labels: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', ajuste: 'Ajuste solicitado', finalizado: 'Finalizado' }
     const mat = materials.find(m => m.id === matId)
     const oldLabel = labels[mat?.status || 'producao'] || mat?.status || ''
     const newLabel = labels[newStatus] || newStatus
@@ -158,6 +173,90 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
     const supabase = createClient()
     const { data } = await supabase.from('schedules').select('*').eq('client_id', id).eq('month', selectedMonth).eq('year', selectedYear).order('post_number')
     setPosts(data || [])
+  }
+
+  async function reorderPosts(targetId: string) {
+    const from = posts.findIndex(p => p.id === dragId)
+    const to   = posts.findIndex(p => p.id === targetId)
+    setDragId(null); setDragOverId(null)
+    if (from < 0 || to < 0 || from === to) return
+    const arr = [...posts]
+    const [moved] = arr.splice(from, 1)
+    arr.splice(to, 0, moved)
+    const renumbered = arr.map((p, i) => ({ ...p, post_number: i + 1 }))
+    const prev = posts
+    setPosts(renumbered)
+    const supabase = createClient()
+    const changed = renumbered.filter(p => prev.find(o => o.id === p.id)?.post_number !== p.post_number)
+    const results = await Promise.all(changed.map(p => supabase.from('schedules').update({ post_number: p.post_number }).eq('id', p.id)))
+    if (results.some(r => r.error)) { setPosts(prev); toast('Erro ao reordenar') }
+  }
+
+  async function generateApprovalLink(type: 'cronograma' | 'final') {
+    setGeneratingLink(true)
+    const supabase = createClient()
+    const typeLabel = type === 'cronograma' ? 'cronograma' : 'conteúdo final'
+    const monthLabel = MONTHS[selectedMonth - 1]
+
+    if (type === 'cronograma') {
+      const estrategiaPosts = posts.filter(p => p.status === 'estrategia')
+      if (estrategiaPosts.length > 0) {
+        await Promise.all(estrategiaPosts.map(p =>
+          supabase.from('schedules').update({ status: 'aguardando_aprovacao_crono', approval_status: null, approval_comment: null }).eq('id', p.id)
+        ))
+        setPosts(prev => prev.map(p => estrategiaPosts.find(ep => ep.id === p.id) ? { ...p, status: 'aguardando_aprovacao_crono' } : p))
+      }
+    } else {
+      const revisaoPosts = posts.filter(p => p.status === 'revisao_interna')
+      if (revisaoPosts.length > 0) {
+        await Promise.all(revisaoPosts.map(p =>
+          supabase.from('schedules').update({ status: 'aguardando_aprovacao', approval_status: null, approval_comment: null }).eq('id', p.id)
+        ))
+        setPosts(prev => prev.map(p => revisaoPosts.find(rp => rp.id === p.id) ? { ...p, status: 'aguardando_aprovacao' } : p))
+      }
+    }
+
+    const { data: existing } = await supabase
+      .from('approval_tokens').select('token')
+      .eq('client_id', id).eq('month', selectedMonth).eq('year', selectedYear).eq('type', type)
+      .maybeSingle()
+    const token = existing?.token || (
+      await supabase.from('approval_tokens')
+        .insert({ client_id: id, month: selectedMonth, year: selectedYear, type })
+        .select('token').single()
+    ).data?.token
+
+    const link = `${window.location.origin}/aprovar/${token}`
+    setApprovalLink(link)
+    setAiMessage(`Olá! 👋 O ${typeLabel} de ${monthLabel} para ${client?.name} está pronto para aprovação.\n\nAcesse o link abaixo para revisar e aprovar:\n${link}`)
+    setGeneratingLink(false)
+  }
+
+  async function openApprovalModal(type: 'cronograma' | 'final') {
+    setShowApprovalModal(true); setApprovalLink(''); setAiMessage('')
+    await generateApprovalLink(type)
+  }
+
+  function copyLink() { navigator.clipboard.writeText(approvalLink); setCopied(true); setTimeout(() => setCopied(false), 2000) }
+  function openWhatsApp() { window.open(`https://wa.me/?text=${encodeURIComponent(aiMessage || approvalLink)}`, '_blank') }
+
+  async function toggleFinalized() {
+    setTogglingStatus(true)
+    const supabase = createClient()
+    const isFinalized = cronoStatus?.status === 'finalizado'
+    if (isFinalized) {
+      setCronoStatus(s => s ? { ...s, status: 'rascunho', finalized_at: null, finalized_by: null } : null)
+      toast('Cronograma reaberto')
+      const { error } = await supabase.from('cronograma_status').update({ status: 'rascunho', finalized_at: null, finalized_by: null }).eq('client_id', id).eq('month', selectedMonth).eq('year', selectedYear)
+      if (error) toast('Erro ao salvar no banco')
+    } else {
+      const newStatus: Exclude<CronoStatus, null> = { status: 'finalizado', finalized_at: new Date().toISOString(), finalized_by: null }
+      setCronoStatus(newStatus)
+      toast('Cronograma marcado como finalizado!')
+      const { error } = await supabase.from('cronograma_status').upsert({ client_id: id, month: selectedMonth, year: selectedYear, ...newStatus }, { onConflict: 'client_id,month,year' })
+      if (error) toast('Erro ao salvar no banco')
+    }
+    setTogglingStatus(false)
   }
 
   async function addMember() {
@@ -185,6 +284,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
     setEditClientForm({
       name: client.name,
       color_hex: client.color_hex,
+      logo_url: client.logo_url || '',
       drive_folder_url: client.drive_folder_url || '',
       sous_chef_url: client.sous_chef_url || '',
       instagram_url: client.instagram_url || '',
@@ -218,7 +318,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const published = posts.filter(p => p.status === 'publicado').length
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full" onClick={() => setShowMonthPicker(false)}>
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-6 border-b border-[var(--color-border)]">
 
@@ -233,7 +333,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+              {client.logo_url
+                ? <img src={client.logo_url} alt={client.name} className="w-12 h-12 rounded-2xl object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                : <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+              }
               <div>
                 <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">{client.name}</h1>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -254,7 +357,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           </div>
 
           <div className="flex items-center gap-1 mt-5">
-            {[{key:'cronograma',label:'Cronograma'},{key:'feed',label:'Feed'},{key:'materiais',label:'Materiais'},{key:'campanhas',label:'Campanhas'},{key:'time',label:'Time'},{key:'extras',label:'Extras'},{key:'onboarding',label:'Onboarding'},{key:'drive',label:'Drive'},{key:'historico',label:'Histórico'}].map(t => (
+            {[{key:'cronograma',label:'Cronograma'},{key:'feed',label:'Feed'},{key:'materiais',label:'Materiais'},{key:'campanhas',label:'Campanhas'},{key:'time',label:'Time'},{key:'extras',label:'Extras'},{key:'onboarding',label:'Onboarding'},{key:'drive',label:'Drive'},{key:'historico',label:'Histórico'},{key:'manual',label:'Manual'}].map(t => (
               <button key={t.key} onClick={() => setTab(t.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab===t.key?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
             ))}
           </div>
@@ -264,16 +367,66 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           {tab === 'cronograma' && (
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-[var(--color-text-secondary)]">{posts.length} posts em {MONTHS[selectedMonth-1]}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-[var(--color-text-secondary)]">{posts.length} posts em {MONTHS[selectedMonth-1]}</p>
+                  {cronoStatus?.status === 'finalizado' && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Finalizado</span>
+                  )}
+                </div>
                 <div className="flex items-center gap-3">
+                  {(() => {
+                    const cronoPosts = posts.filter(p => p.status === 'estrategia' || p.status === 'aguardando_aprovacao_crono')
+                    const finalPosts = posts.filter(p => p.status === 'revisao_interna' || p.status === 'aguardando_aprovacao')
+                    return (<>
+                      <button onClick={() => openApprovalModal('cronograma')}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all"
+                        style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
+                        📋 Aprovar crono{cronoPosts.length > 0 && ` (${cronoPosts.length})`}
+                      </button>
+                      <button onClick={() => openApprovalModal('final')}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all"
+                        style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
+                        ✅ Aprovação final{finalPosts.length > 0 && ` (${finalPosts.length})`}
+                      </button>
+                    </>)
+                  })()}
+                  <button
+                    onClick={toggleFinalized}
+                    disabled={togglingStatus}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all"
+                    style={cronoStatus?.status === 'finalizado'
+                      ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)', borderColor: 'var(--ds-success-border)' }
+                      : { background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}
+                  >
+                    {cronoStatus?.status === 'finalizado' ? '↩ Reabrir' : '✓ Finalizar cronograma'}
+                  </button>
                   <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
                     <button onClick={() => setViewMode('list')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
                     <button onClick={() => setViewMode('grid')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setSelectedMonth(m => m===1?12:m-1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
-                    <span className="text-sm font-medium text-[var(--color-text-primary)] w-24 text-center">{MONTHS[selectedMonth-1]} {selectedYear}</span>
-                    <button onClick={() => setSelectedMonth(m => m===12?1:m+1)} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
+                  <div className="relative flex items-center gap-1">
+                    <button onClick={() => setSelectedMonth(m => { const prev = m===1?12:m-1; if (prev===12) setSelectedYear(y=>y-1); return prev })} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
+                    <button onClick={() => setShowMonthPicker(p => !p)} className="text-sm font-medium text-[var(--color-text-primary)] px-2 py-1 rounded-lg hover:bg-[var(--color-bg-subtle)] min-w-[120px] text-center">
+                      {MONTHS[selectedMonth-1]} {selectedYear}
+                    </button>
+                    <button onClick={() => setSelectedMonth(m => { const next = m===12?1:m+1; if (next===1) setSelectedYear(y=>y+1); return next })} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
+                    {showMonthPicker && (
+                      <div className="absolute top-full mt-1 right-0 z-50 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-xl p-3 w-56" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-2.5">
+                          <button onClick={() => setSelectedYear(y => y - 1)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] flex items-center justify-center">‹</button>
+                          <span className="text-sm font-semibold text-[var(--color-text-primary)]">{selectedYear}</span>
+                          <button onClick={() => setSelectedYear(y => y + 1)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] flex items-center justify-center">›</button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1">
+                          {MONTHS.map((mo, i) => (
+                            <button key={i} onClick={() => { setSelectedMonth(i + 1); setShowMonthPicker(false) }}
+                              className={`text-xs py-1.5 rounded-lg font-medium transition-all ${selectedMonth===i+1 ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]' : 'hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
+                              {mo.slice(0, 3)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -316,7 +469,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   })}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   {posts.map(post => (
                     <PostMiniCard
                       key={post.id}
@@ -325,6 +478,13 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                       campaignName={campaigns.find(c => c.type === post.campaign_type)?.name || null}
                       onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
                       onDuplicate={() => quickDuplicate(post)}
+                      draggable
+                      dragging={dragId === post.id}
+                      dragOver={dragOverId === post.id && dragId !== post.id}
+                      onDragStart={() => setDragId(post.id)}
+                      onDragEnd={() => { setDragId(null); setDragOverId(null) }}
+                      onDragOver={e => { e.preventDefault(); setDragOverId(post.id) }}
+                      onDrop={() => reorderPosts(post.id)}
                     />
                   ))}
                 </div>
@@ -378,14 +538,15 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
               {/* Kanban 3 colunas */}
               {(() => {
                 const MAT_COLS = [
-                  { key: 'producao',             label: 'A fazer',      color: '#F59E0B' },
-                  { key: 'aguardando_aprovacao',  label: 'Em aprovação', color: '#EC4899' },
-                  { key: 'finalizado',            label: 'Finalizado',   color: '#22C55E' },
+                  { key: 'producao',             label: 'A fazer',          color: '#F59E0B' },
+                  { key: 'aguardando_aprovacao',  label: 'Em aprovação',    color: '#EC4899' },
+                  { key: 'ajuste',               label: 'Ajuste solicitado', color: '#EF4444' },
+                  { key: 'finalizado',            label: 'Finalizado',       color: '#22C55E' },
                 ]
                 function colItems(colKey: string) {
                   return materials.filter(m => {
                     const s = m.status || 'producao'
-                    if (colKey === 'producao') return s === 'producao' || (!['aguardando_aprovacao','finalizado'].includes(s))
+                    if (colKey === 'producao') return s === 'producao' || (!['aguardando_aprovacao','ajuste','finalizado'].includes(s))
                     return s === colKey
                   })
                 }
@@ -544,6 +705,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             <OnboardingTab clientId={client.id} />
           )}
 
+          {tab === 'manual' && (
+            <ManualTab clientId={id} />
+          )}
+
           {tab === 'drive' && (
             <div className="flex flex-col h-full">
               {client.drive_folder_url ? (() => {
@@ -607,6 +772,48 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
       )}
 
       {/* Modal editar cliente */}
+      {showApprovalModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Enviar para aprovação</h2>
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{client?.name} · {MONTHS[selectedMonth-1]} {selectedYear}</p>
+              </div>
+              <button onClick={() => setShowApprovalModal(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-lg leading-none">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+              {generatingLink ? (
+                <div className="flex items-center justify-center py-8"><p className="text-sm text-[var(--color-text-muted)]">Gerando link...</p></div>
+              ) : (
+                <>
+                  <div className="bg-[var(--color-bg-subtle)] rounded-xl p-3"><span className="text-xs text-[var(--color-text-secondary)] break-all">{approvalLink}</span></div>
+                  <div className="border border-[var(--color-border)] rounded-xl p-4 flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-[var(--color-text-primary)] text-white text-xs flex items-center justify-center font-bold flex-shrink-0">1</span>
+                      <div><p className="text-sm font-semibold text-[var(--color-text-primary)]">Copiar link e enviar manualmente</p><p className="text-xs text-[var(--color-text-muted)]">Cole no WhatsApp, e-mail ou onde preferir</p></div>
+                    </div>
+                    <button onClick={copyLink} className="w-full py-2.5 rounded-xl border border-[var(--color-text-primary)] text-sm font-semibold text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] flex items-center justify-center gap-2">
+                      <Copy size={14} />{copied ? 'Copiado!' : 'Copiar link'}
+                    </button>
+                  </div>
+                  <div className="border border-[#25D366] rounded-xl p-4 flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-[#25D366] text-white text-xs flex items-center justify-center font-bold flex-shrink-0">2</span>
+                      <div><p className="text-sm font-semibold text-[var(--color-text-primary)]">Enviar pelo WhatsApp</p><p className="text-xs text-[var(--color-text-muted)]">Edite a mensagem se quiser</p></div>
+                    </div>
+                    <div className="rounded-xl p-3 min-h-[80px]" style={{ background: 'var(--ds-success-bg)' }}>
+                      <textarea value={aiMessage} onChange={e => setAiMessage(e.target.value)} rows={5} className="w-full text-xs text-[var(--color-text-primary)] bg-transparent outline-none resize-none" />
+                    </div>
+                    <button onClick={openWhatsApp} className="w-full py-2.5 rounded-xl bg-[#25D366] text-sm font-semibold text-white hover:bg-[#20BD5A] transition-colors">Abrir WhatsApp</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showEditClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/30" onClick={() => setShowEditClient(false)} />
@@ -617,9 +824,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0" style={{ background: editClientForm.color_hex }}>
-                {editClientForm.name ? editClientForm.name.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase() : '?'}
-              </div>
+              {editClientForm.logo_url
+                ? <img src={editClientForm.logo_url} alt={editClientForm.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                : <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0" style={{ background: editClientForm.color_hex }}>{editClientForm.name ? editClientForm.name.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase() : '?'}</div>
+              }
               <p className="text-sm text-[var(--color-text-muted)]">Prévia do avatar</p>
             </div>
 
@@ -643,6 +851,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   ))}
                   <input type="color" value={editClientForm.color_hex} onChange={e => setEditClientForm((f: any) => ({ ...f, color_hex: e.target.value }))} className="w-7 h-7 rounded-lg cursor-pointer border border-[var(--color-border)] p-0.5" />
                 </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Foto / Logo (URL)</label>
+                <input type="url" value={editClientForm.logo_url} onChange={e => setEditClientForm((f: any) => ({ ...f, logo_url: e.target.value }))} placeholder="https://… (foto do Instagram, logo, etc.)" className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]" />
               </div>
               <div>
                 <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Link do Drive</label>

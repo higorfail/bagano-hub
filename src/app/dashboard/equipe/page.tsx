@@ -32,6 +32,7 @@ function initials(name: string) {
 const emptyForm = { name: '', role: 'posts', color: '#6366f1' }
 
 export default function EquipePage() {
+  useEffect(() => { document.title = 'Equipe · Bagano Hub' }, [])
   const { toast } = useToast()
   const { currentMember } = useUser()
   const [members,  setMembers]  = useState<Member[]>([])

@@ -32,6 +32,7 @@ function getInitials(name: string) {
 }
 
 export default function ClientesPage() {
+  useEffect(() => { document.title = 'Clientes · Bagano Hub' }, [])
   const { currentMember, showOnlyMine } = useUser()
   const { toast } = useToast()
   const [clients, setClients] = useState<Client[]>([])
@@ -159,12 +160,10 @@ export default function ClientesPage() {
               ✎
             </button>
             <div className="flex items-center gap-3 mb-4">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold text-white flex-shrink-0"
-                style={{ background: client.color_hex }}
-              >
-                {getInitials(client.name)}
-              </div>
+              {client.logo_url
+                ? <img src={client.logo_url} alt={client.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                : <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold text-white flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+              }
               <div className="min-w-0">
                 <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{client.name}</p>
               </div>
@@ -200,12 +199,10 @@ export default function ClientesPage() {
                     ✏️
                   </button>
                   <div className="flex items-center gap-3 mb-2">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold text-white flex-shrink-0"
-                      style={{ background: client.color_hex }}
-                    >
-                      {getInitials(client.name)}
-                    </div>
+                    {client.logo_url
+                      ? <img src={client.logo_url} alt={client.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                      : <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold text-white flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+                    }
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{client.name}</p>
                       <p className="text-xs text-[var(--color-text-muted)]">Inativo</p>
@@ -232,12 +229,10 @@ export default function ClientesPage() {
 
             {/* Preview do avatar */}
             <div className="flex items-center gap-3">
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-                style={{ background: form.color_hex }}
-              >
-                {form.name ? getInitials(form.name) : '?'}
-              </div>
+              {form.logo_url
+                ? <img src={form.logo_url} alt={form.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                : <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0" style={{ background: form.color_hex }}>{form.name ? getInitials(form.name) : '?'}</div>
+              }
               <p className="text-sm text-[var(--color-text-muted)]">Prévia do avatar</p>
             </div>
 
@@ -277,6 +272,17 @@ export default function ClientesPage() {
                     title="Cor personalizada"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Foto / Logo (URL)</label>
+                <input
+                  type="url"
+                  value={form.logo_url}
+                  onChange={e => setForm(f => ({ ...f, logo_url: e.target.value }))}
+                  placeholder="https://… (foto do Instagram, logo, etc.)"
+                  className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]"
+                />
               </div>
 
               <div>

@@ -9,7 +9,7 @@ import PostMiniCard from '@/components/PostMiniCard'
 import Button from '@/components/ui/Button'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
-import { Check, Copy, Calendar, Link2 } from 'lucide-react'
+import { Check, Copy, Calendar, Link2, Search, X } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 
 type Client = { id: string; name: string; color_hex: string }
@@ -29,18 +29,21 @@ const POST_TYPES = [
   { value: 'carrossel_stories', label: 'Carrossel/Stories' },
 ]
 const STATUSES = [
-  { value: 'producao', label: 'Produção' },
-  { value: 'revisao_interna', label: 'Revisão interna' },
-  { value: 'aguardando_aprovacao', label: 'Aguardando aprovação' },
-  { value: 'aprovado', label: 'Aprovado' },
-  { value: 'agendado', label: 'Agendado' },
-  { value: 'publicado', label: 'Publicado' },
+  { value: 'estrategia',                 label: 'Estratégia' },
+  { value: 'aguardando_aprovacao_crono', label: 'Ag. aprovação crono' },
+  { value: 'producao',                   label: 'Produção' },
+  { value: 'revisao_interna',            label: 'Revisão interna' },
+  { value: 'aguardando_aprovacao',       label: 'Aguardando aprovação' },
+  { value: 'ajuste',                     label: 'Ajuste solicitado' },
+  { value: 'aprovado',                   label: 'Aprovado' },
+  { value: 'agendado',                   label: 'Agendado' },
+  { value: 'publicado',                  label: 'Publicado' },
 ]
 const STATUS_LABEL: Record<string,string> = Object.fromEntries(STATUSES.map(s => [s.value, s.label]))
 const TYPE_LABEL: Record<string,string> = Object.fromEntries([
   ['reels','Reels'],['carrossel','Carrossel'],['post','Post'],['story','Story'],['carrossel_stories','Carrossel/Stories']
 ])
-const EMPTY_FORM = { title: '', copy: '', post_type: 'carrossel', scheduled_date: '', status: 'producao', drive_url: '', reference_notes: '', funil: '' }
+const EMPTY_FORM = { title: '', copy: '', post_type: 'carrossel', scheduled_date: '', status: 'estrategia', drive_url: '', reference_notes: '', funil: '' }
 const FUNIL_OPTIONS = ['Topo de funil', 'Meio de funil', 'Fundo de funil', 'Institucional', 'Promocional', 'Engajamento', 'Venda']
 
 function ReferenceLinks({ text }: { text: string }) {
@@ -67,12 +70,15 @@ const typeAccent: Record<string,string> = {
   story: '#8b5cf6', carrossel_stories: '#6366f1',
 }
 const statusColor: Record<string,string> = {
-  producao:              'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]',
-  revisao_interna:       'bg-[var(--ds-warn-bg)] text-[var(--ds-warn-text)]',
-  aguardando_aprovacao:  'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
-  aprovado:              'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]',
-  agendado:              'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]',
-  publicado:             'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]',
+  estrategia:                  'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',
+  aguardando_aprovacao_crono:  'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
+  producao:                    'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]',
+  revisao_interna:             'bg-[#8b5cf6]/10 text-[#8b5cf6]',
+  aguardando_aprovacao:        'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
+  ajuste:                      'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]',
+  aprovado:                    'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]',
+  agendado:                    'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]',
+  publicado:                   'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]',
 }
 
 type CronoStatus = { status: string; finalized_at: string | null; finalized_by: string | null } | null
@@ -87,12 +93,20 @@ function CronogramaPageInner() {
   const [togglingStatus, setTogglingStatus] = useState(false)
   const searchParams = useSearchParams()
   const clientParam = searchParams.get('client')
+  const postParam   = searchParams.get('post')
   const [selectedClient, setSelectedClient] = useState<string>('')
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const m = parseInt(searchParams.get('m') || '')
+    return !isNaN(m) && m >= 1 && m <= 12 ? m : new Date().getMonth() + 1
+  })
+  const [selectedYear, setSelectedYear] = useState(() => {
+    const y = parseInt(searchParams.get('y') || '')
+    return !isNaN(y) && y > 2000 ? y : new Date().getFullYear()
+  })
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [selected, setSelected] = useState<Post | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading,   setLoading]   = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [showPostCard,  setShowPostCard]  = useState(false)
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
   const [dragId,     setDragId]     = useState<string | null>(null)
@@ -104,18 +118,49 @@ function CronogramaPageInner() {
   const [loadingAi, setLoadingAi] = useState(false)
   const [copied, setCopied] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterType,   setFilterType]   = useState('')
+  const [filterText,   setFilterText]   = useState('')
+
+  useEffect(() => {
+    const cl = clients.find(c => c.id === selectedClient)
+    document.title = cl ? `Cronograma · ${cl.name} · Bagano Hub` : 'Cronograma · Bagano Hub'
+  }, [clients, selectedClient, selectedMonth, selectedYear])
 
   useEffect(() => {
     async function loadClients() {
-      const supabase = createClient()
-      const { data } = await supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name')
-      if (clientParam && data?.some(c => c.id === clientParam)) { setSelectedClient(clientParam); setTimeout(() => setShowPostCard(true), 100) }
-      setClients(data || [])
-      if (data && data.length > 0) setSelectedClient(data[0].id)
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name')
+        if (error) { setLoadError(true); setLoading(false); return }
+        setClients(data || [])
+        if (clientParam && data?.some(c => c.id === clientParam)) {
+          setSelectedClient(clientParam)
+          // If a specific post was requested, PostCard will be opened after loadPosts runs
+          if (!postParam) setTimeout(() => setShowPostCard(true), 100)
+        } else if (data && data.length > 0) {
+          setSelectedClient(data[0].id)
+        }
+      } catch {
+        setLoadError(true)
+      }
       setLoading(false)
     }
     loadClients()
   }, [])
+
+  // Sync client/month/year when URL params change (e.g. user clicks a notification while already on this page)
+  useEffect(() => {
+    if (!clientParam || !clients.length) return
+    if (clientParam !== selectedClient && clients.some(c => c.id === clientParam)) {
+      const m = parseInt(searchParams.get('m') || '')
+      const y = parseInt(searchParams.get('y') || '')
+      if (!isNaN(m) && m >= 1 && m <= 12) setSelectedMonth(m)
+      if (!isNaN(y) && y > 2000) setSelectedYear(y)
+      setSelectedClient(clientParam)
+      if (!postParam) setTimeout(() => setShowPostCard(true), 100)
+    }
+  }, [clientParam, clients])
 
   useEffect(() => {
     if (!selectedClient) return
@@ -132,6 +177,11 @@ function CronogramaPageInner() {
     setPosts(postsData || [])
     setCronoStatus(statusData || null)
     setCampaigns(campaignsData || [])
+    // Auto-open specific post from ?post= param (e.g. from notification link)
+    if (postParam && postsData?.some(p => p.id === postParam)) {
+      setEditingPostId(postParam)
+      setShowPostCard(true)
+    }
   }
 
   async function toggleFinalized() {
@@ -173,7 +223,7 @@ function CronogramaPageInner() {
       client_id: selectedClient, month: selectedMonth, year: selectedYear,
       post_number: posts.length + 1,
       title: `${title} (cópia)`, copy, post_type, drive_url, reference_notes,
-      status: 'producao', scheduled_date: null,
+      status: 'estrategia', scheduled_date: null,
     })
     await loadPosts()
     toast('Post duplicado!')
@@ -198,37 +248,72 @@ function CronogramaPageInner() {
     if (err) { setPosts(prev); dbError(err, toast, 'reordenar') }
   }
 
-  async function generateApprovalLink() {
+  async function generateApprovalLink(type: 'cronograma' | 'final') {
     setGeneratingLink(true)
     const supabase = createClient()
-    await supabase.from('approval_tokens').delete().eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear)
-    const { data } = await supabase.from('approval_tokens').insert({ client_id: selectedClient, month: selectedMonth, year: selectedYear }).select().single()
-    const link = `${window.location.origin}/aprovar/${data.token}`
+    const cl = clients.find(c => c.id === selectedClient)
+    const month = MONTHS[selectedMonth - 1]
+
+    if (type === 'cronograma') {
+      const estrategiaPosts = posts.filter(p => p.status === 'estrategia')
+      if (estrategiaPosts.length > 0) {
+        await Promise.all(estrategiaPosts.map(p =>
+          supabase.from('schedules').update({ status: 'aguardando_aprovacao_crono', approval_status: null, approval_comment: null }).eq('id', p.id)
+        ))
+        setPosts(prev => prev.map(p => estrategiaPosts.find(ep => ep.id === p.id) ? { ...p, status: 'aguardando_aprovacao_crono', approval_status: null, approval_comment: null } : p))
+      }
+    } else {
+      const revisaoPosts = posts.filter(p => p.status === 'revisao_interna')
+      if (revisaoPosts.length > 0) {
+        await Promise.all(revisaoPosts.map(p =>
+          supabase.from('schedules').update({ status: 'aguardando_aprovacao', approval_status: null, approval_comment: null }).eq('id', p.id)
+        ))
+        setPosts(prev => prev.map(p => revisaoPosts.find(rp => rp.id === p.id) ? { ...p, status: 'aguardando_aprovacao', approval_status: null, approval_comment: null } : p))
+      }
+    }
+
+    // Get or create token for this type
+    const { data: existing } = await supabase
+      .from('approval_tokens').select('token')
+      .eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear).eq('type', type)
+      .maybeSingle()
+    const token = existing?.token || (
+      await supabase.from('approval_tokens')
+        .insert({ client_id: selectedClient, month: selectedMonth, year: selectedYear, type })
+        .select('token').single()
+    ).data?.token
+
+    const link = `${window.location.origin}/aprovar/${token}`
     setApprovalLink(link)
     setGeneratingLink(false)
-    generateAiMessage(link)
+
+    const typeLabel = type === 'cronograma' ? 'cronograma' : 'conteúdo final'
+    setAiMessage(`Olá! 👋 O ${typeLabel} de ${month} para ${cl?.name} está pronto para aprovação.\n\nAcesse o link abaixo para revisar e aprovar:\n${link}`)
   }
 
-  async function generateAiMessage(link: string) {
-    setLoadingAi(true)
-    const client = clients.find(c => c.id === selectedClient)
-    const month = MONTHS[selectedMonth - 1]
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 300, messages: [{ role: 'user', content: `Crie uma mensagem curta e profissional para enviar via WhatsApp para o cliente "${client?.name}" pedindo que ele acesse o link abaixo para aprovar o cronograma de ${month}. A mensagem deve ser amigável, direta e conter o link. Use no máximo 4 linhas. Link: ${link}` }] }) })
-      const data = await res.json()
-      setAiMessage(data.content?.[0]?.text || '')
-    } catch {
-      setAiMessage(`Olá! 👋 O cronograma de ${month} para ${client?.name} está pronto para aprovação.\n\nAcesse o link abaixo para revisar e aprovar os posts:\n${link}`)
-    }
-    setLoadingAi(false)
+  async function openApprovalModal(type: 'cronograma' | 'final') {
+    setShowApprovalModal(true); setApprovalLink(''); setAiMessage('')
+    await generateApprovalLink(type)
   }
-
-  async function openApprovalModal() { setShowApprovalModal(true); setApprovalLink(''); setAiMessage(''); await generateApprovalLink() }
   function copyLink() { navigator.clipboard.writeText(approvalLink); setCopied(true); setTimeout(() => setCopied(false), 2000) }
   function openWhatsApp() { window.open(`https://wa.me/?text=${encodeURIComponent(aiMessage || approvalLink)}`, '_blank') }
 
   const client = clients.find(c => c.id === selectedClient)
-  if (loading) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Carregando...</div>
+  if (loading) return (
+    <div className="flex items-center justify-center h-full">
+      <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[var(--color-text-primary)] rounded-full animate-spin" />
+    </div>
+  )
+
+  if (loadError) return (
+    <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-8">
+      <p className="text-sm text-[var(--color-text-muted)]">Não foi possível carregar o cronograma.</p>
+      <button onClick={() => window.location.reload()}
+        className="text-xs px-4 py-2 rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-card)] transition-colors">
+        Tentar novamente
+      </button>
+    </div>
+  )
 
   return (
     <div className="flex h-full">
@@ -294,7 +379,28 @@ function CronogramaPageInner() {
                 {cronoStatus?.status === 'finalizado' ? 'Reabrir' : 'Marcar finalizado'}
               </button>
             )}
-            {posts.length > 0 && <button onClick={openApprovalModal} className="border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-xl px-4 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)] hover:border-[var(--color-text-primary)] hover:text-[var(--color-text-primary)] transition-all">Enviar para aprovação</button>}
+            {(() => {
+              const cronoPosts  = posts.filter(p => p.status === 'estrategia' || p.status === 'aguardando_aprovacao_crono')
+              const finalPosts  = posts.filter(p => p.status === 'revisao_interna' || p.status === 'aguardando_aprovacao')
+              return (<>
+                <button
+                  onClick={() => openApprovalModal('cronograma')}
+                  className="border rounded-xl px-4 py-2 text-sm font-medium transition-all hover:opacity-90"
+                  style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}
+                  title={cronoPosts.length === 0 ? 'Nenhum post em estratégia para enviar' : `${cronoPosts.length} post${cronoPosts.length !== 1 ? 's' : ''} para aprovação de cronograma`}
+                >
+                  📋 Aprovar cronograma{cronoPosts.length > 0 && <span className="ml-1.5 bg-white/30 text-[10px] font-bold rounded-full px-1.5 py-0.5">{cronoPosts.length}</span>}
+                </button>
+                <button
+                  onClick={() => openApprovalModal('final')}
+                  className="border rounded-xl px-4 py-2 text-sm font-medium transition-all hover:opacity-90"
+                  style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}
+                  title={finalPosts.length === 0 ? 'Nenhum post em revisão para enviar' : `${finalPosts.length} post${finalPosts.length !== 1 ? 's' : ''} para aprovação final`}
+                >
+                  ✅ Aprovação final{finalPosts.length > 0 && <span className="ml-1.5 bg-white/30 text-[10px] font-bold rounded-full px-1.5 py-0.5">{finalPosts.length}</span>}
+                </button>
+              </>)
+            })()}
             <Button variant="dark" onClick={() => { setEditingPostId(null); setShowPostCard(true) }}>+ Novo post</Button>
           </div>
         </div>
@@ -312,28 +418,78 @@ function CronogramaPageInner() {
               </div>
               <Button variant="dark" size="lg" onClick={() => setShowPostCard(true)}>Criar primeiro post</Button>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4">
-              {posts.map(post => (
-                <PostMiniCard
-                  key={post.id}
-                  post={post}
-                  clientColor={client?.color_hex}
-                  campaignName={campaigns.find(c => c.type === post.campaign_type)?.name || null}
-                  selected={selected?.id === post.id}
-                  onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
-                  onDuplicate={() => duplicatePost(post)}
-                  draggable
-                  dragging={dragId === post.id}
-                  dragOver={dragOverId === post.id && dragId !== post.id}
-                  onDragStart={() => setDragId(post.id)}
-                  onDragEnd={() => { setDragId(null); setDragOverId(null) }}
-                  onDragOver={e => { e.preventDefault(); if (dragOverId !== post.id) setDragOverId(post.id) }}
-                  onDrop={() => reorderPosts(post.id)}
-                />
-              ))}
-            </div>
-          )}
+          ) : (() => {
+            const visiblePosts = posts.filter(p => {
+              if (filterStatus && p.status !== filterStatus) return false
+              if (filterType && p.post_type !== filterType) return false
+              if (filterText && !p.title.toLowerCase().includes(filterText.toLowerCase()) && !(p.copy || '').toLowerCase().includes(filterText.toLowerCase())) return false
+              return true
+            })
+            const hasFilter = filterStatus || filterType || filterText
+            return (
+              <>
+                <div className="flex items-center gap-2 flex-wrap mb-5">
+                  <div className="relative flex-1 min-w-[160px] max-w-xs">
+                    <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+                    <input
+                      value={filterText}
+                      onChange={e => setFilterText(e.target.value)}
+                      placeholder="Buscar título ou copy..."
+                      className="w-full pl-8 pr-3 py-1.5 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]"
+                    />
+                  </div>
+                  <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                    className="text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
+                    <option value="">Todos os status</option>
+                    {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                  <select value={filterType} onChange={e => setFilterType(e.target.value)}
+                    className="text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
+                    <option value="">Todos os tipos</option>
+                    {POST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                  {hasFilter && (
+                    <button onClick={() => { setFilterText(''); setFilterStatus(''); setFilterType('') }}
+                      className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
+                      <X size={11} /> Limpar
+                    </button>
+                  )}
+                  {hasFilter && (
+                    <span className="text-xs text-[var(--color-text-muted)] ml-auto">
+                      {visiblePosts.length} de {posts.length} posts
+                    </span>
+                  )}
+                </div>
+                {visiblePosts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+                    <p className="text-[var(--color-text-primary)] font-semibold">Nenhum post encontrado</p>
+                    <p className="text-[var(--color-text-muted)] text-sm">Tente ajustar os filtros.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-4">
+                    {visiblePosts.map(post => (
+                      <PostMiniCard
+                        key={post.id}
+                        post={post}
+                        clientColor={client?.color_hex}
+                        campaignName={campaigns.find(c => c.type === post.campaign_type)?.name || null}
+                        selected={selected?.id === post.id}
+                        onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
+                        onDuplicate={() => duplicatePost(post)}
+                        draggable={!hasFilter}
+                        dragging={dragId === post.id}
+                        dragOver={dragOverId === post.id && dragId !== post.id}
+                        onDragStart={() => setDragId(post.id)}
+                        onDragEnd={() => { setDragId(null); setDragOverId(null) }}
+                        onDragOver={e => { e.preventDefault(); if (dragOverId !== post.id) setDragOverId(post.id) }}
+                        onDrop={() => reorderPosts(post.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </div>
       </div>
 
