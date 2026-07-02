@@ -125,7 +125,8 @@ function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
     fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,mimeType)&orderBy=name&key=${key}`)
       .then(r => r.json())
       .then(d => {
-        const img = (d.files || []).find((f: { id: string; mimeType: string }) => f.mimeType.startsWith('image/'))
+        const images: { id: string; name: string; mimeType: string }[] = (d.files || []).filter((f: { id: string; name: string; mimeType: string }) => f.mimeType.startsWith('image/'))
+        const img = images.find(f => /^capa\./i.test(f.name)) ?? images[0]
         if (img) setThumbUrl(`https://drive.google.com/thumbnail?id=${img.id}&sz=w600`)
       })
       .catch(() => {})

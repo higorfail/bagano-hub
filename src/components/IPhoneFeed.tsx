@@ -86,6 +86,11 @@ function driveIdToThumbnail(id: string, size = 400) {
 function driveIdToEmbed(id: string) {
   return `https://drive.google.com/file/d/${id}/preview`
 }
+function pickCover(files: DriveFile[]): DriveFile | undefined {
+  const images = files.filter(f => f.mimeType.startsWith('image/'))
+  return images.find(f => /^capa\./i.test(f.name)) ?? images[0]
+}
+
 async function fetchFolderFiles(folderId: string): Promise<DriveFile[]> {
   try {
     const res = await fetch(
@@ -105,17 +110,18 @@ async function resolveMedia(post: FeedPost): Promise<ResolvedMedia> {
     if (folderId) {
       const files = await fetchFolderFiles(folderId)
       if (files.length > 0) {
-        const images = files.filter(f => f.mimeType.startsWith('image/'))
+        const cover = pickCover(files)
         const videos = files.filter(f => f.mimeType.startsWith('video/'))
         if (post.type === 'reel') {
-          return { thumbnailUrl: images[0] ? driveIdToThumbnail(images[0].id) : undefined, videoEmbedUrl: videos[0] ? driveIdToEmbed(videos[0].id) : undefined, folderLink: folderUrl }
+          return { thumbnailUrl: cover ? driveIdToThumbnail(cover.id) : undefined, videoEmbedUrl: videos[0] ? driveIdToEmbed(videos[0].id) : undefined, folderLink: folderUrl }
         }
         if (post.type === 'carousel' || post.type === 'story') {
+          const images = files.filter(f => f.mimeType.startsWith('image/'))
           const sorted = images.sort((a, b) => a.name.localeCompare(b.name))
           const urls = sorted.map(f => driveIdToThumbnail(f.id, 600))
-          return { thumbnailUrl: urls[0], carouselImages: urls, folderLink: folderUrl }
+          return { thumbnailUrl: cover ? driveIdToThumbnail(cover.id, 600) : urls[0], carouselImages: urls, folderLink: folderUrl }
         }
-        return { thumbnailUrl: images[0] ? driveIdToThumbnail(images[0].id) : undefined, folderLink: folderUrl }
+        return { thumbnailUrl: cover ? driveIdToThumbnail(cover.id) : undefined, folderLink: folderUrl }
       }
     }
   }
@@ -146,7 +152,7 @@ function StoryCircle({ post, clientColor, clientInitials, avatarUrl, seen, appro
         const folderId = extractDriveId(post.drive_folder_url)
         if (folderId) {
           const files = await fetchFolderFiles(folderId)
-          const img = files.find(f => f.mimeType.startsWith('image/'))
+          const img = pickCover(files)
           if (img) { setThumbUrl(driveIdToThumbnail(img.id, 200)); return }
         }
       }
@@ -436,7 +442,7 @@ function PostThumb({ post, onClick, dragging, dragOver }: {
         const folderId = extractDriveId(post.drive_folder_url)
         if (folderId) {
           const files = await fetchFolderFiles(folderId)
-          const img = files.find(f => f.mimeType.startsWith('image/'))
+          const img = pickCover(files)
           if (img) { setThumbUrl(driveIdToThumbnail(img.id, 300)); return }
         }
       }
