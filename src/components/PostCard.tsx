@@ -687,99 +687,75 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             {(() => {
               const isCarrossel = form.post_type === 'carrossel' || form.post_type === 'carrossel_stories'
               const isReel      = form.post_type === 'reels'
-              const hasDelivery = isCarrossel ? !!form.drive_folder_url : !!form.drive_url
+              const driveLink   = form.drive_folder_url || form.drive_url
+              const hasDelivery = !!driveLink
+              const isFolder    = /\/folders\//.test(driveLink)
+
+              function startDriveEdit() {
+                editOriginal.current = driveLink
+                setForm(f => ({ ...f, drive_url: driveLink }))
+                setEditingField('drive_url')
+              }
+
+              function commitDriveLink() {
+                if (discardRef.current) { discardRef.current = false; return }
+                setEditingField(null)
+                const value = (formRef.current.drive_url || '').trim()
+                if (value === editOriginal.current) {
+                  if (/\/folders\//.test(editOriginal.current)) setForm(f => ({ ...f, drive_url: '' }))
+                  return
+                }
+                if (/\/folders\//.test(value)) {
+                  setForm(f => ({ ...f, drive_folder_url: value, drive_url: '' }))
+                  persist({ drive_folder_url: value || null, drive_url: null }, `${who} editou o link do Drive`)
+                } else {
+                  setForm(f => ({ ...f, drive_url: value, drive_folder_url: '' }))
+                  persist({ drive_url: value || null, drive_folder_url: null }, `${who} editou o link do Drive`)
+                }
+              }
+
               return (
                 <div className="rounded-2xl p-4 transition-colors flex flex-col gap-3" style={hasDelivery ? { background: 'var(--ds-success-bg)', border: '1px solid var(--ds-success-border)' } : { background: 'var(--ds-info-bg)', border: '1px solid var(--ds-info-border)' }}>
                   <div className="flex items-center gap-1.5">
                     <Package size={15} style={{ color: hasDelivery ? 'var(--ds-success-accent)' : 'var(--ds-info-accent)' }} />
                     <span className="text-xs font-bold uppercase tracking-wider" style={{ color: hasDelivery ? 'var(--ds-success-text)' : 'var(--ds-info-text)' }}>Entrega do conteúdo</span>
                   </div>
-
-                  {/* Carrossel: pasta do Drive com os slides */}
-                  {isCarrossel && (
-                    <div>
-                      <p className="text-[11px] font-semibold mb-1.5" style={{ color: form.drive_folder_url ? 'var(--ds-success-text)' : 'var(--ds-info-text)', opacity: 0.85 }}>📂 Pasta com os slides</p>
-                      {editingField === 'drive_folder_url' ? (
-                        <input autoFocus value={form.drive_folder_url} onChange={e => setForm(f => ({ ...f, drive_folder_url: e.target.value }))}
-                          onBlur={() => blurCommit('drive_folder_url')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { e.preventDefault(); discardEdit('drive_folder_url') } }}
-                          placeholder="https://drive.google.com/drive/folders/…"
-                          className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-success-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
-                      ) : form.drive_folder_url ? (
+                  <div>
+                    {editingField === 'drive_url' ? (
+                      <input autoFocus value={form.drive_url}
+                        onChange={e => setForm(f => ({ ...f, drive_url: e.target.value }))}
+                        onBlur={commitDriveLink}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') e.currentTarget.blur()
+                          else if (e.key === 'Escape') {
+                            e.preventDefault()
+                            discardRef.current = true
+                            setForm(f => ({ ...f, drive_url: /\/folders\//.test(editOriginal.current) ? '' : editOriginal.current }))
+                            setEditingField(null)
+                          }
+                        }}
+                        placeholder="https://drive.google.com/…"
+                        className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-success-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
+                    ) : driveLink ? (
+                      <>
+                        {!isFolder && <DriveThumbnail driveUrl={driveLink} isVideo={isReel} />}
                         <div className="flex items-center gap-2">
-                          <a href={form.drive_folder_url} target="_blank" rel="noopener noreferrer"
+                          <a href={driveLink} target="_blank" rel="noopener noreferrer"
                             className="flex-1 flex items-center gap-2 bg-[var(--color-bg-card)] rounded-lg px-3 py-2 text-sm font-semibold truncate hover:opacity-90 transition-opacity" style={{ color: 'var(--ds-success-text)' }}>
-                            <ExternalLink size={13} className="flex-shrink-0" /> <span className="truncate">✓ Abrir pasta no Drive</span>
+                            <ExternalLink size={13} className="flex-shrink-0" />
+                            <span className="truncate">✓ {isFolder ? 'Abrir pasta no Drive' : 'Conteúdo entregue — Abrir no Drive'}</span>
                           </a>
-                          <button onClick={() => startEdit('drive_folder_url')} className="text-[11px] hover:underline flex-shrink-0" style={{ color: 'var(--ds-success-text)' }}>editar</button>
+                          <button onClick={startDriveEdit} className="text-[11px] hover:underline flex-shrink-0" style={{ color: 'var(--ds-success-text)' }}>editar</button>
                         </div>
-                      ) : (
-                        <button onClick={() => startEdit('drive_folder_url')}
-                          className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border-2 border-dashed transition-colors"
-                          style={{ borderColor: 'var(--ds-info-border)', color: 'var(--ds-info-text)' }}>
-                          <Link2 size={14} /> + Colar link da pasta (slides)
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Reel: pasta com a capa (opcional) */}
-                  {isReel && (
-                    <div>
-                      <p className="text-[11px] font-semibold mb-1.5" style={{ color: form.drive_folder_url ? 'var(--ds-success-text)' : 'var(--ds-info-text)', opacity: 0.85 }}>🖼 Pasta com a capa (opcional)</p>
-                      {editingField === 'drive_folder_url' ? (
-                        <input autoFocus value={form.drive_folder_url} onChange={e => setForm(f => ({ ...f, drive_folder_url: e.target.value }))}
-                          onBlur={() => blurCommit('drive_folder_url')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { e.preventDefault(); discardEdit('drive_folder_url') } }}
-                          placeholder="https://drive.google.com/drive/folders/…"
-                          className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-success-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
-                      ) : form.drive_folder_url ? (
-                        <div className="flex items-center gap-2">
-                          <a href={form.drive_folder_url} target="_blank" rel="noopener noreferrer"
-                            className="flex-1 flex items-center gap-2 bg-[var(--color-bg-card)] rounded-lg px-3 py-2 text-sm font-semibold truncate hover:opacity-90 transition-opacity" style={{ color: 'var(--ds-success-text)' }}>
-                            <ExternalLink size={13} className="flex-shrink-0" /> <span className="truncate">✓ Abrir pasta no Drive</span>
-                          </a>
-                          <button onClick={() => startEdit('drive_folder_url')} className="text-[11px] hover:underline flex-shrink-0" style={{ color: 'var(--ds-success-text)' }}>editar</button>
-                        </div>
-                      ) : (
-                        <button onClick={() => startEdit('drive_folder_url')}
-                          className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border-2 border-dashed transition-colors"
-                          style={{ borderColor: 'var(--ds-info-border)', color: 'var(--ds-info-text)' }}>
-                          <Link2 size={14} /> + Colar link da pasta com a capa
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Arquivo único: reels, post, story */}
-                  {!isCarrossel && (
-                    <div>
-                      <p className="text-[11px] font-semibold mb-1.5" style={{ color: form.drive_url ? 'var(--ds-success-text)' : 'var(--ds-info-text)', opacity: 0.85 }}>
-                        {isReel ? '🎬 Arquivo do vídeo' : '🖼 Arquivo da arte'}
-                      </p>
-                      {editingField === 'drive_url' ? (
-                        <input autoFocus value={form.drive_url} onChange={e => setForm(f => ({ ...f, drive_url: e.target.value }))}
-                          onBlur={() => blurCommit('drive_url')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { e.preventDefault(); discardEdit('drive_url') } }}
-                          placeholder="https://drive.google.com/…"
-                          className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-success-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
-                      ) : form.drive_url ? (
-                        <>
-                          <DriveThumbnail driveUrl={form.drive_url} isVideo={form.post_type === 'reels'} />
-                          <div className="flex items-center gap-2">
-                            <a href={form.drive_url} target="_blank" rel="noopener noreferrer"
-                              className="flex-1 flex items-center gap-2 bg-[var(--color-bg-card)] rounded-lg px-3 py-2 text-sm font-semibold truncate hover:opacity-90 transition-opacity" style={{ color: 'var(--ds-success-text)' }}>
-                              <ExternalLink size={13} className="flex-shrink-0" /> <span className="truncate">✓ Conteúdo entregue — Abrir no Drive</span>
-                            </a>
-                            <button onClick={() => startEdit('drive_url')} className="text-[11px] hover:underline flex-shrink-0" style={{ color: 'var(--ds-success-text)' }}>editar</button>
-                          </div>
-                        </>
-                      ) : (
-                        <button onClick={() => startEdit('drive_url')}
-                          className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border-2 border-dashed transition-colors"
-                          style={{ borderColor: 'var(--ds-info-border)', color: 'var(--ds-info-text)' }}>
-                          <Link2 size={14} /> + Colar link do Drive
-                        </button>
-                      )}
-                    </div>
-                  )}
+                      </>
+                    ) : (
+                      <button onClick={startDriveEdit}
+                        className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border-2 border-dashed transition-colors"
+                        style={{ borderColor: 'var(--ds-info-border)', color: 'var(--ds-info-text)' }}>
+                        <Link2 size={14} /> + Colar link do Drive
+                      </button>
+                    )}
+                  </div>
                 </div>
               )
             })()}
