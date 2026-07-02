@@ -23,6 +23,7 @@ const CFG = {
     specialDates: 'special_dates',
   },
   S: {
+    captacao:            'captacao',
     producao:            'producao',
     revisaoInterna:      'revisao_interna',
     aguardandoAprovacao: 'aguardando_aprovacao',
@@ -234,7 +235,7 @@ export default function DashboardPage() {
 
   const productionQueue = useMemo(() =>
     schedules
-      .filter(s => [CFG.S.producao, CFG.S.revisaoInterna].includes(s.status))
+      .filter(s => [CFG.S.captacao, CFG.S.producao, CFG.S.revisaoInterna].includes(s.status))
       .sort((a, b) => {
         if (a.scheduled_date && !b.scheduled_date) return -1
         if (!a.scheduled_date && b.scheduled_date) return 1
@@ -257,7 +258,7 @@ export default function DashboardPage() {
     s.approval_status === CFG.A.aprovado ||
     [CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)
   ).length
-  const inProd     = schedules.filter(s => s.status === CFG.S.producao).length
+  const inProd     = schedules.filter(s => [CFG.S.captacao, CFG.S.producao].includes(s.status)).length
   const withClient = schedules.filter(s => s.status === CFG.S.aguardandoAprovacao).length
 
   const metricCards: { label: string; value: number; icon: typeof SquarePen; tone: BadgeTone }[] = [
@@ -322,6 +323,7 @@ export default function DashboardPage() {
 
   // Rosca = distribuição por status (exclusivos → soma sempre = total)
   const STATUS_SLICES: { key: string; label: string; tone: BadgeTone }[] = [
+    { key: CFG.S.captacao,            label: 'Captação',        tone: 'blue'    },
     { key: CFG.S.producao,            label: 'Em produção',     tone: 'amber'   },
     { key: CFG.S.revisaoInterna,      label: 'Revisão interna', tone: 'orange'  },
     { key: CFG.S.aguardandoAprovacao, label: 'Com cliente',     tone: 'blue'    },

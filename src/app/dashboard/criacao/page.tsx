@@ -54,7 +54,8 @@ type Extra = {
   assigned_members: string[] | null
 }
 
-type AgendaEntry = { client_id: string; member_ids: string[] | null }
+type AgendaEntry   = { client_id: string; member_ids: string[] | null }
+type ClientTeamRow = { client_id: string; member_id: string; funcao: string }
 
 function getInitials(name: string) {
   return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
@@ -80,6 +81,7 @@ export default function CriacaoPage() {
   const [cronoNotes,   setCronoNotes]   = useState<CronoStatus[]>([])
   const [extras,       setExtras]       = useState<Extra[]>([])
   const [agendaEntries,setAgendaEntries]= useState<AgendaEntry[]>([])
+  const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
   const [loading,      setLoading]      = useState(true)
   const [loadError,    setLoadError]    = useState(false)
 
@@ -108,12 +110,12 @@ export default function CriacaoPage() {
       const fromStr = from.toISOString().slice(0, 10)
       const toStr   = to.toISOString().slice(0, 10)
 
-      const [{ data: cl, error: e1 }, { data: mb, error: e2 }, { data: po, error: e3 }, { data: cs }, { data: ex }, { data: ag }] = await Promise.all([
+      const [{ data: cl, error: e1 }, { data: mb, error: e2 }, { data: po, error: e3 }, { data: cs }, { data: ex }, { data: ag }, { data: ct }] = await Promise.all([
         supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name'),
         supabase.from('team_members').select('id, name, role, color').order('name'),
         supabase.from('schedules')
           .select('id, title, post_type, scheduled_date, briefing, copy, funil, post_number, month, year, client_id')
-          .eq('status', 'producao')
+          .in('status', ['producao', 'captacao'])
           .order('scheduled_date', { ascending: true, nullsFirst: false }),
         supabase.from('cronograma_status')
           .select('client_id, month, year, production_note')
@@ -127,6 +129,7 @@ export default function CriacaoPage() {
           .select('client_id, member_ids')
           .gte('week_start', fromStr)
           .lte('week_start', toStr),
+        supabase.from('client_team').select('client_id, member_id, funcao'),
       ])
 
       if (e1 || e2 || e3) { setLoadError(true); setLoading(false); return }
@@ -137,6 +140,7 @@ export default function CriacaoPage() {
       setCronoNotes(cs || [])
       setExtras(ex || [])
       setAgendaEntries(ag || [])
+      setClientTeam(ct || [])
 
       // On first load only: collapse all clients except the first
       if (!hasInitialized.current) {
@@ -173,9 +177,23 @@ export default function CriacaoPage() {
     return cronoNotes.find(n => n.client_id === clientId && n.month === month && n.year === year)?.production_note || null
   }
 
-  // For member filter on posts: check if member is assigned to that client in agenda_criacao
-  function clientHasMember(clientId: string, memberId: string) {
-    return agendaEntries.some(e => e.client_id === clientId && (e.member_ids || []).includes(memberId))
+  // client_team rows for the filtered member (primary source of truth for who works on what)
+  const FUNCAO_POST_TYPES: Record<string, string[] | null> = {
+    videos: ['reels'],
+    posts:  ['carrossel', 'story', 'carrossel_stories', 'post'],
+  }
+  // Returns true if a member is responsible for a given post type on a given client
+  function memberCoversPost(clientId: string, memberId: string, postType: string): boolean {
+    const teamRows = clientTeam.filter(r => r.client_id === clientId && r.member_id === memberId)
+    if (teamRows.length === 0) {
+      // Fallback: check agenda_criacao (scheduling calendar)
+      return agendaEntries.some(e => e.client_id === clientId && (e.member_ids || []).includes(memberId))
+    }
+    // Has client_team entry — check if funcao covers this post type
+    return teamRows.some(r => {
+      const allowed = FUNCAO_POST_TYPES[r.funcao]
+      return allowed == null || allowed.includes(postType)
+    })
   }
 
   async function saveNote(clientId: string, month: number, year: number) {
@@ -228,17 +246,10 @@ export default function CriacaoPage() {
     }, 350)
   }
 
-  // Apply post filters
-  // Only use agenda-based filter if the member actually has agenda entries —
-  // if they have none (e.g. agenda not filled yet), show all posts instead of hiding everything.
-  const memberHasAnyAgenda = filterMember
-    ? agendaEntries.some(e => (e.member_ids || []).includes(filterMember))
-    : false
-
   const filteredPosts = posts.filter(p => {
     if (filterClient && p.client_id !== filterClient) return false
     if (filterType   && p.post_type !== filterType)   return false
-    if (filterMember && memberHasAnyAgenda && !clientHasMember(p.client_id, filterMember)) return false
+    if (filterMember && !memberCoversPost(p.client_id, filterMember, p.post_type)) return false
     return true
   })
 
@@ -370,12 +381,12 @@ export default function CriacaoPage() {
             <div>
               <p className="text-[var(--color-text-primary)] font-semibold">
                 {filterMember === currentMember?.id && !filterClient && !filterType
-                  ? 'Nenhum post atribuído a você'
+                  ? 'Nenhum post para você agora'
                   : 'Nenhum resultado'}
               </p>
               <p className="text-[var(--color-text-muted)] text-sm mt-1">
                 {filterMember === currentMember?.id && !filterClient && !filterType
-                  ? 'Use o filtro de membro para ver o trabalho da equipe.'
+                  ? 'Verifique se você está na equipe dos clientes no cronograma.'
                   : 'Ajuste os filtros acima.'}
               </p>
             </div>

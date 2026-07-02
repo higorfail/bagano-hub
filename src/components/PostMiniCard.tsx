@@ -10,6 +10,7 @@ const TYPE: Record<string, { label: string; color: string }> = {
   carrossel_stories: { label: 'Carrossel/Stories', color: '#6366f1' },
 }
 const STATUS: Record<string, { label: string; color: string }> = {
+  captacao:             { label: 'Captação',      color: '#0ea5e9' },
   producao:             { label: 'Produção',      color: '#f59e0b' },
   revisao_interna:      { label: 'Revisão interna', color: '#8b5cf6' },
   aguardando_aprovacao: { label: 'Com cliente',    color: '#ec4899' },

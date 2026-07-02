@@ -71,6 +71,21 @@ export default function AgendaPage() {
   const [entryNotes,   setEntryNotes]   = useState('')
   const [savingEntry,  setSavingEntry]  = useState(false)
 
+  // Drag-and-drop entre dias
+  const [dragEntryId, setDragEntryId] = useState<string | null>(null)
+  const [dragOverDay, setDragOverDay] = useState<number | null>(null)
+
+  async function moveEntry(entryId: string, newDayIndex: number) {
+    const entry = entries.find(e => e.id === entryId)
+    if (!entry || entry.day_of_week === newDayIndex + 1) return
+    setEntries(prev => prev.map(e => e.id === entryId ? { ...e, day_of_week: newDayIndex + 1 } : e))
+    const { error } = await supabase.from('agenda_criacao').update({ day_of_week: newDayIndex + 1 }).eq('id', entryId)
+    if (error) {
+      setEntries(prev => prev.map(e => e.id === entryId ? { ...e, day_of_week: entry.day_of_week } : e))
+      dbError(error, toast, 'mover entrada')
+    }
+  }
+
   // Captação modal
   const [captModal,   setCaptModal]   = useState(false)
   const [captForm,    setCaptForm]    = useState({ ...BLANK_CAPTACAO })
@@ -291,7 +306,10 @@ export default function AgendaPage() {
 
               return (
                 <div key={dayIndex}
-                  className={`bg-[var(--color-bg-card)] rounded-2xl border p-4 flex flex-col gap-2 min-h-[180px] ${isToday ? 'border-[var(--color-brand)]' : 'border-[var(--color-border)]'}`}>
+                  onDragOver={e => { e.preventDefault(); setDragOverDay(dayIndex) }}
+                  onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDay(null) }}
+                  onDrop={() => { if (dragEntryId !== null) moveEntry(dragEntryId, dayIndex); setDragOverDay(null) }}
+                  className={`bg-[var(--color-bg-card)] rounded-2xl border p-4 flex flex-col gap-2 min-h-[180px] transition-colors ${isToday ? 'border-[var(--color-brand)]' : dragOverDay === dayIndex ? 'border-[var(--color-brand)] bg-[var(--color-brand)]/5' : 'border-[var(--color-border)]'}`}>
                   {/* Day header */}
                   <div className="flex items-center justify-between mb-1">
                     <div>
@@ -315,7 +333,11 @@ export default function AgendaPage() {
                     if (!client) return null
                     const assignedMembers = (entry.member_ids || []).map(mid => memberMap[mid]).filter(Boolean)
                     return (
-                      <div key={entry.id} className="group flex items-start gap-2 bg-[var(--color-bg-page)] rounded-xl p-2.5 relative">
+                      <div key={entry.id}
+                        draggable
+                        onDragStart={() => setDragEntryId(entry.id)}
+                        onDragEnd={() => { setDragEntryId(null); setDragOverDay(null) }}
+                        className={`group flex items-start gap-2 bg-[var(--color-bg-page)] rounded-xl p-2.5 relative cursor-grab active:cursor-grabbing active:opacity-50 transition-opacity ${dragEntryId === entry.id ? 'opacity-40' : ''}`}>
                         <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0"
                           style={{ background: client.color_hex }}>
                           {getInitials(client.name)}

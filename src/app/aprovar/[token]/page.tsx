@@ -17,6 +17,29 @@ const TYPE_EMOJIS: Record<string, string> = {
   reels: '🎬', carrossel: '📸', post: '🖼️', story: '⭕', carrossel_stories: '🔁',
 }
 
+function ReelFolderThumb({ folderId }: { folderId: string }) {
+  const [imgId, setImgId] = useState<string | null>(null)
+  useEffect(() => {
+    const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
+    if (!key) return
+    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,mimeType)&orderBy=name&key=${key}`)
+      .then(r => r.json())
+      .then(d => {
+        const img = (d.files || []).find((f: { id: string; mimeType: string }) => f.mimeType.startsWith('image/'))
+        if (img) setImgId(img.id)
+      })
+      .catch(() => {})
+  }, [folderId])
+  if (!imgId) return null
+  return (
+    <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>
+      <img src={`https://drive.google.com/thumbnail?id=${imgId}&sz=w800`} alt=""
+        style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 220 }}
+        onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
+    </div>
+  )
+}
+
 function initials(name: string) {
   return (name || '?').split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
 }
@@ -34,7 +57,7 @@ function mapStatus(s: Post): FeedPost['status'] {
 
 interface Post {
   id: string; title: string; post_type: string; status: string
-  drive_url?: string; copy?: string; briefing?: string; scheduled_date?: string
+  drive_url?: string; drive_folder_url?: string; copy?: string; briefing?: string; scheduled_date?: string
   post_number?: number; approval_comment?: string; approval_status?: string
   funil?: string; campaign_type?: string
 }
@@ -128,8 +151,8 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
   // ── Actions ────────────────────────────────────────────────────────────────
   async function approve(postId: string) {
     setSubmitting(postId)
-    await supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null }).eq('id', postId)
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'aprovado', approval_comment: undefined } : p))
+    await supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null, status: 'aprovado' }).eq('id', postId)
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p))
     logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post` })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setSheetPost(null); setSheetComment('')
@@ -162,11 +185,11 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     if (!pending.length) return
     setApprovingAll(true)
     await Promise.all([
-      ...pending.map(p => supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null }).eq('id', p.id)),
+      ...pending.map(p => supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null, status: 'aprovado' }).eq('id', p.id)),
       ...pending.map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post` })),
     ])
     setPosts(prev => prev.map(p =>
-      pending.find(pp => pp.id === p.id) ? { ...p, approval_status: 'aprovado', approval_comment: undefined } : p
+      pending.find(pp => pp.id === p.id) ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p
     ))
     showToast(`${pending.length} posts aprovados! 🎉`)
     setApprovingAll(false)
@@ -633,10 +656,13 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   const isExpanded = expanded.has(post.id)
                   const longCopy   = (post.copy || '').length > 180
 
-                  const driveId    = post.drive_url?.match(/[-\w]{25,}/)?.[0]
+                  const isCarrossel = post.post_type === 'carrossel' || post.post_type === 'carrossel_stories'
+                  const driveId     = post.drive_url?.match(/[-\w]{25,}/)?.[0]
+                  const folderId    = post.drive_folder_url?.match(/[-\w]{25,}/)?.[0]
                   const isVideoPost = post.post_type === 'reels'
-                  const thumbUrl    = driveId && !isVideoPost ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w800` : null
+                  const thumbUrl    = driveId && !isVideoPost && !isCarrossel ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w800` : null
                   const embedUrl    = driveId && isVideoPost  ? `https://drive.google.com/file/d/${driveId}/preview` : null
+                  const folderEmbed = isCarrossel && folderId ? `https://drive.google.com/embeddedfolderview?id=${folderId}&usp=sharing` : null
 
                   const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
                   const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#fafafa'
@@ -664,9 +690,20 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
 
                       {/* Drive media */}
                       {embedUrl ? (
-                        <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '56.25%' }}>
-                          <iframe src={embedUrl} allow="autoplay" allowFullScreen
-                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
+                        <div>
+                          {folderId && <ReelFolderThumb folderId={folderId} />}
+                          <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '56.25%' }}>
+                            <iframe src={embedUrl} allow="autoplay" allowFullScreen
+                              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
+                          </div>
+                        </div>
+                      ) : folderEmbed ? (
+                        <div>
+                          <iframe src={folderEmbed} style={{ width: '100%', height: 280, border: 'none', display: 'block' }} />
+                          <a href={post.drive_folder_url} target="_blank" rel="noopener noreferrer"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
+                            📂 Abrir pasta no Drive
+                          </a>
                         </div>
                       ) : thumbUrl ? (
                         <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>

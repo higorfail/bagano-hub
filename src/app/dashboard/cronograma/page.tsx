@@ -31,6 +31,7 @@ const POST_TYPES = [
 const STATUSES = [
   { value: 'estrategia',                 label: 'Estratégia' },
   { value: 'aguardando_aprovacao_crono', label: 'Ag. aprovação crono' },
+  { value: 'captacao',                   label: 'Captação' },
   { value: 'producao',                   label: 'Produção' },
   { value: 'revisao_interna',            label: 'Revisão interna' },
   { value: 'aguardando_aprovacao',       label: 'Aguardando aprovação' },
@@ -72,6 +73,7 @@ const typeAccent: Record<string,string> = {
 const statusColor: Record<string,string> = {
   estrategia:                  'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',
   aguardando_aprovacao_crono:  'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
+  captacao:                    'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]',
   producao:                    'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]',
   revisao_interna:             'bg-[#8b5cf6]/10 text-[#8b5cf6]',
   aguardando_aprovacao:        'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
@@ -94,6 +96,7 @@ function CronogramaPageInner() {
   const searchParams = useSearchParams()
   const clientParam = searchParams.get('client')
   const postParam   = searchParams.get('post')
+  const syncKey     = `${clientParam}|${postParam}|${searchParams.get('m')}|${searchParams.get('y')}`
   const [selectedClient, setSelectedClient] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const m = parseInt(searchParams.get('m') || '')
@@ -149,18 +152,18 @@ function CronogramaPageInner() {
     loadClients()
   }, [])
 
-  // Sync client/month/year when URL params change (e.g. user clicks a notification while already on this page)
+  // Sync client/month/year whenever URL params change (notification click while already on this page)
   useEffect(() => {
     if (!clientParam || !clients.length) return
+    const m = parseInt(searchParams.get('m') || '')
+    const y = parseInt(searchParams.get('y') || '')
+    if (!isNaN(m) && m >= 1 && m <= 12) setSelectedMonth(m)
+    if (!isNaN(y) && y > 2000) setSelectedYear(y)
     if (clientParam !== selectedClient && clients.some(c => c.id === clientParam)) {
-      const m = parseInt(searchParams.get('m') || '')
-      const y = parseInt(searchParams.get('y') || '')
-      if (!isNaN(m) && m >= 1 && m <= 12) setSelectedMonth(m)
-      if (!isNaN(y) && y > 2000) setSelectedYear(y)
       setSelectedClient(clientParam)
       if (!postParam) setTimeout(() => setShowPostCard(true), 100)
     }
-  }, [clientParam, clients])
+  }, [syncKey, clients])
 
   useEffect(() => {
     if (!selectedClient) return

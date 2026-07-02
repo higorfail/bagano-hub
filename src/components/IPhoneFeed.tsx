@@ -141,9 +141,19 @@ function StoryCircle({ post, clientColor, clientInitials, avatarUrl, seen, appro
 }) {
   const [thumbUrl, setThumbUrl] = useState<string | undefined>()
   useEffect(() => {
-    const url = post.drive_folder_url || post.drive_url
-    const id = extractDriveId(url)
-    if (id) setThumbUrl(driveIdToThumbnail(id, 200))
+    async function load() {
+      if (post.drive_folder_url) {
+        const folderId = extractDriveId(post.drive_folder_url)
+        if (folderId) {
+          const files = await fetchFolderFiles(folderId)
+          const img = files.find(f => f.mimeType.startsWith('image/'))
+          if (img) { setThumbUrl(driveIdToThumbnail(img.id, 200)); return }
+        }
+      }
+      const id = extractDriveId(post.drive_url)
+      if (id) setThumbUrl(driveIdToThumbnail(id, 200))
+    }
+    load()
   }, [post.drive_folder_url, post.drive_url])
 
   const ring = approvalMode
@@ -421,8 +431,19 @@ function PostThumb({ post, onClick, dragging, dragOver }: {
   const status = STATUS_CONFIG[post.status]
 
   useEffect(() => {
-    const id = extractDriveId(post.drive_folder_url || post.drive_url)
-    if (id) setThumbUrl(driveIdToThumbnail(id, 300))
+    async function load() {
+      if (post.drive_folder_url) {
+        const folderId = extractDriveId(post.drive_folder_url)
+        if (folderId) {
+          const files = await fetchFolderFiles(folderId)
+          const img = files.find(f => f.mimeType.startsWith('image/'))
+          if (img) { setThumbUrl(driveIdToThumbnail(img.id, 300)); return }
+        }
+      }
+      const id = extractDriveId(post.drive_url)
+      if (id) setThumbUrl(driveIdToThumbnail(id, 300))
+    }
+    load()
   }, [post.drive_folder_url, post.drive_url])
 
   return (
