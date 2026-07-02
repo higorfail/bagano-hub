@@ -81,25 +81,66 @@ function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl:
   )
 }
 
-function ReelFolderThumb({ folderId }: { folderId: string }) {
-  const [imgId, setImgId] = useState<string | null>(null)
+type DriveFileInfo = { id: string; name: string; mimeType: string }
+function useFolderFiles(folderId: string) {
+  const [files, setFiles] = useState<DriveFileInfo[]>([])
+  const [ready, setReady] = useState(false)
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
-    if (!key) return
-    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,mimeType)&orderBy=name&key=${key}`)
+    if (!key) { setReady(true); return }
+    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType)&orderBy=name&key=${key}`)
       .then(r => r.json())
-      .then(d => {
-        const img = (d.files || []).find((f: { id: string; mimeType: string }) => f.mimeType.startsWith('image/'))
-        if (img) setImgId(img.id)
-      })
-      .catch(() => {})
+      .then(d => { setFiles(d.files || []); setReady(true) })
+      .catch(() => setReady(true))
   }, [folderId])
-  if (!imgId) return null
+  return { files, ready }
+}
+function pickCover(images: DriveFileInfo[]) {
+  return images.find(f => /^capa\./i.test(f.name)) ?? images[0]
+}
+const SPINNER = <div style={{ width: 24, height: 24, border: '3px solid #e5e7eb', borderTopColor: '#374151', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+
+function FolderThumb({ folderId, maxHeight = 220 }: { folderId: string; maxHeight?: number }) {
+  const { files, ready } = useFolderFiles(folderId)
+  if (!ready) return <div style={{ height: maxHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f3' }}>{SPINNER}</div>
+  const img = pickCover(files.filter(f => f.mimeType.startsWith('image/')))
+  if (!img) return null
   return (
-    <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>
-      <img src={`https://drive.google.com/thumbnail?id=${imgId}&sz=w800`} alt=""
-        style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 220 }}
+    <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight, overflow: 'hidden' }}>
+      <img src={`https://drive.google.com/thumbnail?id=${img.id}&sz=w800`} alt=""
+        style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight }}
         onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
+    </div>
+  )
+}
+
+function ReelFolderPreview({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
+  const { files, ready } = useFolderFiles(folderId)
+  if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111' }}>{SPINNER}</div>
+  const images = files.filter(f => f.mimeType.startsWith('image/'))
+  const videos = files.filter(f => f.mimeType.startsWith('video/'))
+  const cover  = pickCover(images)
+  const video  = videos[0]
+  return (
+    <div>
+      {cover && (
+        <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>
+          <img src={`https://drive.google.com/thumbnail?id=${cover.id}&sz=w800`} alt=""
+            style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 220 }}
+            onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
+        </div>
+      )}
+      {video ? (
+        <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '56.25%' }}>
+          <iframe src={`https://drive.google.com/file/d/${video.id}/preview`} allow="autoplay" allowFullScreen
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
+        </div>
+      ) : (
+        <a href={folderUrl} target="_blank" rel="noopener noreferrer"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
+          🎬 Abrir reel no Drive
+        </a>
+      )}
     </div>
   )
 }
@@ -754,14 +795,18 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                       {/* Drive media */}
                       {embedUrl ? (
                         <div>
-                          {folderId && <ReelFolderThumb folderId={folderId} />}
+                          {folderId && <FolderThumb folderId={folderId} />}
                           <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '56.25%' }}>
                             <iframe src={embedUrl} allow="autoplay" allowFullScreen
                               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
                           </div>
                         </div>
+                      ) : isVideoPost && folderId ? (
+                        <ReelFolderPreview folderId={folderId} folderUrl={post.drive_folder_url || ''} />
                       ) : isCarrossel && folderId ? (
                         <CarouselPreview folderId={folderId} folderUrl={post.drive_folder_url || ''} />
+                      ) : folderId ? (
+                        <FolderThumb folderId={folderId} />
                       ) : thumbUrl ? (
                         <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>
                           <img src={thumbUrl} alt={post.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 220 }}
@@ -947,30 +992,36 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
 
       {/* ── FEED TAB: post approval bottom sheet ────────────────────── */}
       {tab === 'feed' && sheetPost && (() => {
-        const isApproved = sheetPost.approval_status === 'aprovado'
-        const isChanges  = sheetPost.approval_status === 'não aprovado'
-        const isLoading  = submitting === sheetPost.id
-        const driveId    = sheetPost.drive_url?.match(/[-\w]{25,}/)?.[0]
-        const thumbUrl   = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w600` : null
+        const isApproved  = sheetPost.approval_status === 'aprovado'
+        const isChanges   = sheetPost.approval_status === 'não aprovado'
+        const isLoading   = submitting === sheetPost.id
+        const driveId     = sheetPost.drive_url?.match(/[-\w]{25,}/)?.[0]
+        const sheetFolder = sheetPost.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
+        const thumbUrl    = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w600` : null
+        const isSheetCarrossel = sheetPost.post_type === 'carrossel' || sheetPost.post_type === 'carrossel_stories'
 
         return (
           <div onClick={e => { if (e.target === e.currentTarget) { setSheetPost(null); setSheetComment('') } }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 0' }}>
-            <div style={{ background: '#fff', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 480, overflow: 'hidden', maxHeight: '90dvh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ background: '#fff', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 480, overflow: 'hidden', maxHeight: '92dvh', display: 'flex', flexDirection: 'column' }}>
 
               {/* Drag handle */}
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0', flexShrink: 0 }}>
                 <div style={{ width: 40, height: 4, borderRadius: 2, background: '#e5e7eb' }} />
               </div>
 
               <div style={{ overflowY: 'auto', flex: 1 }}>
-                {/* Thumbnail */}
-                {thumbUrl && (
-                  <div style={{ background: '#f5f5f3', maxHeight: 200, overflow: 'hidden' }}>
-                    <img src={thumbUrl} alt={sheetPost.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 200 }}
+                {/* Media — artwork first, approval below */}
+                {isSheetCarrossel && sheetFolder ? (
+                  <CarouselPreview folderId={sheetFolder} folderUrl={sheetPost.drive_folder_url || ''} />
+                ) : sheetFolder ? (
+                  <FolderThumb folderId={sheetFolder} maxHeight={300} />
+                ) : thumbUrl ? (
+                  <div style={{ background: '#f5f5f3', maxHeight: 300, overflow: 'hidden' }}>
+                    <img src={thumbUrl} alt={sheetPost.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 300 }}
                       onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
                   </div>
-                )}
+                ) : null}
 
                 <div style={{ padding: '16px 20px 24px' }}>
                   {/* Header */}
