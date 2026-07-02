@@ -114,6 +114,34 @@ const EMOJI_GROUPS: [string, string[]][] = [
   ['Bandeiras', ['🏳️','🏴','🚩','🏁','🏳️‍🌈','🏳️‍⚧️','🏴‍☠️','🇦🇨','🇦🇩','🇦🇪','🇦🇫','🇦🇬','🇦🇮','🇦🇱','🇦🇲','🇦🇴','🇦🇶','🇦🇷','🇦🇸','🇦🇹','🇦🇺','🇦🇼','🇦🇽','🇦🇿','🇧🇦','🇧🇧','🇧🇩','🇧🇪','🇧🇫','🇧🇬','🇧🇭','🇧🇮','🇧🇯','🇧🇱','🇧🇲','🇧🇳','🇧🇴','🇧🇶','🇧🇷','🇧🇸','🇧🇹','🇧🇻','🇧🇼','🇧🇾','🇧🇿','🇨🇦','🇨🇨','🇨🇩','🇨🇫','🇨🇬','🇨🇭','🇨🇮','🇨🇰','🇨🇱','🇨🇲','🇨🇳','🇨🇴','🇨🇵','🇨🇷','🇨🇺','🇨🇻','🇨🇼','🇨🇽','🇨🇾','🇨🇿','🇩🇪','🇩🇬','🇩🇯','🇩🇰','🇩🇲','🇩🇴','🇩🇿','🇪🇦','🇪🇨','🇪🇪','🇪🇬','🇪🇭','🇪🇷','🇪🇸','🇪🇹','🇪🇺','🇫🇮','🇫🇯','🇫🇰','🇫🇲','🇫🇴','🇫🇷','🇬🇦','🇬🇧','🇬🇩','🇬🇪','🇬🇫','🇬🇬','🇬🇭','🇬🇮','🇬🇱','🇬🇲','🇬🇳','🇬🇵','🇬🇶','🇬🇷','🇬🇸','🇬🇹','🇬🇺','🇬🇼','🇬🇾','🇭🇰','🇭🇲','🇭🇳','🇭🇷','🇭🇹','🇭🇺','🇮🇨','🇮🇩','🇮🇪','🇮🇱','🇮🇲','🇮🇳','🇮🇴','🇮🇶','🇮🇷','🇮🇸','🇮🇹','🇯🇪','🇯🇲','🇯🇴','🇯🇵','🇰🇪','🇰🇬','🇰🇭','🇰🇮','🇰🇲','🇰🇳','🇰🇵','🇰🇷','🇰🇼','🇰🇾','🇰🇿','🇱🇦','🇱🇧','🇱🇨','🇱🇮','🇱🇰','🇱🇷','🇱🇸','🇱🇹','🇱🇺','🇱🇻','🇱🇾','🇲🇦','🇲🇨','🇲🇩','🇲🇪','🇲🇫','🇲🇬','🇲🇭','🇲🇰','🇲🇱','🇲🇲','🇲🇳','🇲🇴','🇲🇵','🇲🇶','🇲🇷','🇲🇸','🇲🇹','🇲🇺','🇲🇻','🇲🇼','🇲🇽','🇲🇾','🇲🇿','🇳🇦','🇳🇨','🇳🇪','🇳🇫','🇳🇬','🇳🇮','🇳🇱','🇳🇴','🇳🇵','🇳🇷','🇳🇺','🇳🇿','🇴🇲','🇵🇦','🇵🇪','🇵🇫','🇵🇬','🇵🇭','🇵🇰','🇵🇱','🇵🇲','🇵🇳','🇵🇷','🇵🇸','🇵🇹','🇵🇼','🇵🇾','🇶🇦','🇷🇪','🇷🇴','🇷🇸','🇷🇺','🇷🇼','🇸🇦','🇸🇧','🇸🇨','🇸🇩','🇸🇪','🇸🇬','🇸🇭','🇸🇮','🇸🇯','🇸🇰','🇸🇱','🇸🇲','🇸🇳','🇸🇴','🇸🇷','🇸🇸','🇸🇹','🇸🇻','🇸🇽','🇸🇾','🇸🇿','🇹🇦','🇹🇨','🇹🇩','🇹🇫','🇹🇬','🇹🇭','🇹🇯','🇹🇰','🇹🇱','🇹🇲','🇹🇳','🇹🇴','🇹🇷','🇹🇹','🇹🇻','🇹🇼','🇹🇿','🇺🇦','🇺🇬','🇺🇲','🇺🇳','🇺🇸','🇺🇾','🇺🇿','🇻🇦','🇻🇨','🇻🇪','🇻🇬','🇻🇮','🇻🇳','🇻🇺','🇼🇫','🇼🇸','🇽🇰','🇾🇪','🇾🇹','🇿🇦','🇿🇲','🇿🇼','🏴󠁧󠁢󠁥󠁮󠁧󠁿','🏴󠁧󠁢󠁳󠁣󠁴󠁿','🏴󠁧󠁢󠁷󠁬󠁳󠁿']],
 ]
 
+function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null)
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const folderId = folderUrl.match(/\/folders\/([-\w]{25,})/)?.[1]
+    if (!folderId) return
+    const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
+    if (!key) return
+    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,mimeType)&orderBy=name&key=${key}`)
+      .then(r => r.json())
+      .then(d => {
+        const img = (d.files || []).find((f: { id: string; mimeType: string }) => f.mimeType.startsWith('image/'))
+        if (img) setThumbUrl(`https://drive.google.com/thumbnail?id=${img.id}&sz=w600`)
+      })
+      .catch(() => {})
+  }, [folderUrl])
+  if (!thumbUrl) return null
+  return (
+    <a href={folderUrl} target="_blank" rel="noopener noreferrer"
+      onClick={e => e.stopPropagation()}
+      className="relative block rounded-xl overflow-hidden mb-2 bg-[var(--color-bg-alt)]"
+      style={{ height: visible ? 140 : 0 }}>
+      <img src={thumbUrl} alt="preview" className="w-full h-full object-cover"
+        onLoad={() => setVisible(true)} onError={() => {}} />
+    </a>
+  )
+}
+
 function DriveThumbnail({ driveUrl, isVideo }: { driveUrl: string; isVideo: boolean }) {
   const [visible, setVisible] = useState(false)
   const driveId = driveUrl.match(/[-\w]{25,}/)?.[0]
@@ -738,7 +766,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                         className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-success-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
                     ) : driveLink ? (
                       <>
-                        {!isFolder && <DriveThumbnail driveUrl={driveLink} isVideo={isReel} />}
+                        {isFolder ? <FolderThumbnail folderUrl={driveLink} /> : <DriveThumbnail driveUrl={driveLink} isVideo={isReel} />}
                         <div className="flex items-center gap-2">
                           <a href={driveLink} target="_blank" rel="noopener noreferrer"
                             className="flex-1 flex items-center gap-2 bg-[var(--color-bg-card)] rounded-lg px-3 py-2 text-sm font-semibold truncate hover:opacity-90 transition-opacity" style={{ color: 'var(--ds-success-text)' }}>
