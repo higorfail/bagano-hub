@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
@@ -76,7 +76,6 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   const [description, setDescription] = useState('')
   const [dueDate,     setDueDate]     = useState('')
   const [dueTime,     setDueTime]     = useState('')
-  const [reminder,    setReminder]    = useState('')
   const [driveUrl,    setDriveUrl]    = useState('')
   const [labels,      setLabels]      = useState<{ text: string; color: string }[]>([])
 
@@ -340,8 +339,10 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   const clientName = clients.find(c => c.id === clientId)?.name
   const statusObj  = STATUS_OPTIONS.find(s => s.value === status)
 
-  // Responsáveis selecionados
-  const selectedMembersData = assignedMembers.map(mid => members.find(m => m.id === mid)).filter(Boolean)
+  const selectedMembersData = useMemo(
+    () => assignedMembers.map(mid => members.find(m => m.id === mid)).filter(Boolean),
+    [assignedMembers, members]
+  )
 
   if (loading) return (
     <div className="fixed inset-0 bg-black/40 z-[70] flex items-center justify-center">
@@ -998,18 +999,10 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                     <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)} className="w-24 border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-[var(--color-brand)]" />
                   </div>
                 </div>
-                <label className="text-[10px] font-bold uppercase text-[var(--color-text-muted)] mb-1 block">Lembrete</label>
-                <select value={reminder} onChange={e => setReminder(e.target.value)} className="w-full border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-sm bg-[var(--color-bg-card)] outline-none mb-4">
-                  <option value="">Nenhum</option>
-                  <option value="0">No dia da entrega</option>
-                  <option value="1">1 dia antes</option>
-                  <option value="2">2 dias antes</option>
-                  <option value="7">1 semana antes</option>
-                </select>
                 <div className="flex flex-col gap-2">
                   <button onClick={() => setShowDatePicker(false)} className="w-full py-2 text-sm font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Confirmar</button>
                   {dueDate && (
-                    <button onClick={() => { setDueDate(''); setDueTime(''); setReminder(''); setShowDatePicker(false) }} className="w-full py-2 text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">Remover data</button>
+                    <button onClick={() => { setDueDate(''); setDueTime(''); setShowDatePicker(false) }} className="w-full py-2 text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">Remover data</button>
                   )}
                 </div>
               </div>

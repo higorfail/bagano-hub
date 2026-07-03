@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Plus, CheckSquare, FileText, Bell, Calendar, User, AlertCircle } from 'lucide-react'
 import ExtraCard from './ExtraCard'
@@ -129,14 +129,14 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
     setNewStatus(null)
   }
 
-  const clientMap = Object.fromEntries(clients.map(c => [c.id, c]))
+  const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])), [clients])
 
-  const filtered = extras.filter(e => {
+  const filtered = useMemo(() => extras.filter(e => {
     if (!globalMode) return true
     if (filterClient === 'all')    return true
     if (filterClient === 'global') return !e.client_id
     return e.client_id === filterClient
-  })
+  }), [extras, globalMode, filterClient])
 
   if (loading) return (
     <div className="flex items-center justify-center py-12">

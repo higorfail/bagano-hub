@@ -14,10 +14,11 @@ import { useUser } from '@/lib/UserContext'
 
 type Client = { id: string; name: string; color_hex: string }
 type Post = {
-  id: string; post_number: number; title: string; copy: string
-  post_type: string; scheduled_date: string; status: string
-  drive_url: string; drive_folder_url: string; reference_notes: string; funil: string
-  campaign_type: string; approval_status: string; approval_comment: string
+  id: string; post_number: number; title: string; copy?: string | null
+  post_type: string; scheduled_date: string | null; status: string
+  drive_url?: string | null; drive_folder_url?: string | null; reference_notes?: string | null; funil?: string | null
+  campaign_type?: string | null; approval_status?: string | null; approval_comment?: string | null
+  reference_images?: string[] | null
 }
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -173,7 +174,7 @@ function CronogramaPageInner() {
   async function loadPosts() {
     const supabase = createClient()
     const [{ data: postsData }, { data: statusData }, { data: campaignsData }] = await Promise.all([
-      supabase.from('schedules').select('*').eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear).order('post_number'),
+      supabase.from('schedules').select('id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy').eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear).order('post_number'),
       supabase.from('cronograma_status').select('status, finalized_at, finalized_by').eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear).maybeSingle(),
       supabase.from('campaigns').select('id, name, type').eq('client_id', selectedClient),
     ])

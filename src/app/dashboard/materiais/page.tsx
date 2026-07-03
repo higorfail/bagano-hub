@@ -15,13 +15,15 @@ type Material = {
   title: string
   type: string
   status: string
-  description: string
-  drive_url: string
-  notes: string
   due_date: string | null
   assigned_to: string | null
-  label: string | null
+  assigned_members?: string[] | null
+  labels?: { text: string; color: string }[] | null
   created_at: string
+  description?: string
+  drive_url?: string
+  notes?: string
+  label?: string | null
 }
 
 const COLUMNS = [
@@ -52,7 +54,7 @@ export default function MateriaisPage() {
     async function load() {
       const supabase = createClient()
       const [{ data: mats }, { data: cls }] = await Promise.all([
-        supabase.from('materials').select('*').order('created_at', { ascending: false }),
+        supabase.from('materials').select('id, client_id, title, type, status, due_date, assigned_to, assigned_members, labels, created_at').order('created_at', { ascending: false }),
         supabase.from('clients').select('id, name, color_hex').order('name'),
       ])
       setMaterials(mats || [])

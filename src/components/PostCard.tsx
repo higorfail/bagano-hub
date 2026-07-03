@@ -201,7 +201,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [calMonth, setCalMonth] = useState(() => ({ y: year, m: month - 1 }))
 
   const isNew = !postId
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedTimer      = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mentionTimer    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const linkCopiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const discardRef = useRef(false)
   const editOriginal = useRef('')
   const backdropDown = useRef(false)
@@ -294,7 +296,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       .then(({ data }) => setActivities(data || []))
   }, [currentId, activityKey])
 
-  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current) }, [])
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    if (mentionTimer.current) clearTimeout(mentionTimer.current)
+    if (linkCopiedTimer.current) clearTimeout(linkCopiedTimer.current)
+  }, [])
 
   function flashSaved() {
     setJustSaved(true)
@@ -638,7 +644,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                   const url = `${window.location.origin}/dashboard/cronograma?client=${clientId}&post=${currentId}&m=${month}&y=${year}`
                   navigator.clipboard.writeText(url)
                   setLinkCopied(true)
-                  setTimeout(() => setLinkCopied(false), 2000)
+                  if (linkCopiedTimer.current) clearTimeout(linkCopiedTimer.current)
+                  linkCopiedTimer.current = setTimeout(() => setLinkCopied(false), 2000)
                 }}
                 title="Copiar link do card"
                 className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-colors"
@@ -949,7 +956,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                     if (mentionOpen && e.key === 'Escape') { setMentionOpen(false); return }
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment() }
                   }}
-                  onBlur={() => setTimeout(() => setMentionOpen(false), 150)}
+                  onBlur={() => { mentionTimer.current = setTimeout(() => setMentionOpen(false), 150) }}
                   placeholder="Comentar… @ para mencionar  (Enter envia · Shift+Enter quebra linha)" rows={2}
                   className="w-full bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)]" />
               </div>
