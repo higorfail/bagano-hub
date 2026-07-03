@@ -36,7 +36,7 @@ export default function AprovacaoPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading,   setLoading]   = useState(true)
   const [loadError, setLoadError] = useState(false)
-  const [filter,    setFilter]    = useState<'todos' | 'aguardando' | 'revisao'>('todos')
+  const [filter,    setFilter]    = useState<'todos' | 'aguardando' | 'revisao' | 'aprovado'>('todos')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -47,8 +47,7 @@ export default function AprovacaoPage() {
           supabase
             .from('schedules')
             .select('id, title, post_type, status, approval_status, approval_comment, scheduled_date, month, year, client_id')
-            .or('status.eq.aguardando_aprovacao,status.eq.ajuste,approval_status.eq.não aprovado')
-            .not('status', 'in', '(aprovado,agendado,publicado)')
+            .or('status.eq.aguardando_aprovacao,status.eq.ajuste,approval_status.eq.não aprovado,approval_status.eq.aprovado')
             .order('month', { ascending: false }),
           supabase.from('clients').select('id, name, color_hex').eq('status', 'active'),
         ])
@@ -75,9 +74,10 @@ export default function AprovacaoPage() {
   }, [clients])
 
   const filtered = useMemo(() => {
-    if (filter === 'aguardando') return posts.filter(p => p.status === 'aguardando_aprovacao')
+    if (filter === 'aguardando') return posts.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado')
     if (filter === 'revisao')    return posts.filter(p => p.approval_status === 'não aprovado')
-    return posts
+    if (filter === 'aprovado')   return posts.filter(p => p.approval_status === 'aprovado')
+    return posts.filter(p => p.approval_status !== 'aprovado')
   }, [posts, filter])
 
   // Agrupar por cliente, mantendo ordem: clientes com revisão primeiro
@@ -95,8 +95,9 @@ export default function AprovacaoPage() {
     })
   }, [filtered])
 
-  const aguardandoCount = posts.filter(p => p.status === 'aguardando_aprovacao').length
+  const aguardandoCount = posts.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado').length
   const revisaoCount    = posts.filter(p => p.approval_status === 'não aprovado').length
+  const aprovadoCount   = posts.filter(p => p.approval_status === 'aprovado').length
 
   function toggle(id: string) {
     setExpanded(prev => {
@@ -157,11 +158,12 @@ export default function AprovacaoPage() {
         </div>
 
         {/* Filtros */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {[
-            { key: 'todos',      label: 'Todos',           count: aguardandoCount + revisaoCount },
+            { key: 'todos',      label: 'Pendentes',       count: aguardandoCount + revisaoCount },
             { key: 'aguardando', label: 'Aguardando',       count: aguardandoCount },
             { key: 'revisao',    label: 'Precisa revisão',  count: revisaoCount },
+            { key: 'aprovado',   label: 'Aprovados',        count: aprovadoCount },
           ].map(f => (
             <button
               key={f.key}
@@ -192,8 +194,9 @@ export default function AprovacaoPage() {
           const client    = clientMap[clientId]
           if (!client) return null
           const isOpen    = expanded.has(clientId)
-          const pendentes = clientPosts.filter(p => p.status === 'aguardando_aprovacao').length
-          const revisoes  = clientPosts.filter(p => p.approval_status === 'não aprovado').length
+          const pendentes  = clientPosts.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado').length
+          const revisoes   = clientPosts.filter(p => p.approval_status === 'não aprovado').length
+          const aprovados  = clientPosts.filter(p => p.approval_status === 'aprovado').length
           const hasUrgency = revisoes > 0
 
           // Agrupar por mês dentro do cliente
@@ -245,6 +248,11 @@ export default function AprovacaoPage() {
                       <AlertTriangle size={10} /> {revisoes} revisão
                     </span>
                   )}
+                  {aprovados > 0 && (
+                    <span className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
+                      <CheckCircle2 size={10} /> {aprovados} aprovado{aprovados !== 1 ? 's' : ''}
+                    </span>
+                  )}
                   {isOpen
                     ? <ChevronDown size={15} className="text-[var(--color-text-muted)] ml-1 flex-shrink-0" />
                     : <ChevronRight size={15} className="text-[var(--color-text-muted)] ml-1 flex-shrink-0" />
@@ -269,6 +277,7 @@ export default function AprovacaoPage() {
                         <div className="divide-y divide-[var(--color-bg-subtle)]">
                           {mPosts.map(p => {
                             const needsRevision = p.approval_status === 'não aprovado'
+                            const isApproved    = p.approval_status === 'aprovado'
                             return (
                               <button
                                 key={p.id}
@@ -277,7 +286,7 @@ export default function AprovacaoPage() {
                               >
                                 <div
                                   className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-0.5"
-                                  style={{ background: needsRevision ? 'var(--ds-warn-accent)' : 'var(--ds-info-accent)' }}
+                                  style={{ background: isApproved ? 'var(--ds-success-accent)' : needsRevision ? 'var(--ds-warn-accent)' : 'var(--ds-info-accent)' }}
                                 />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{p.title || 'Sem título'}</p>
@@ -300,7 +309,11 @@ export default function AprovacaoPage() {
                                   </div>
                                 </div>
                                 <div className="flex-shrink-0">
-                                  {needsRevision ? (
+                                  {isApproved ? (
+                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
+                                      ✓ Aprovado
+                                    </span>
+                                  ) : needsRevision ? (
                                     <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)', borderColor: 'var(--ds-warn-border)' }}>
                                       Revisão
                                     </span>
