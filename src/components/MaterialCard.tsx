@@ -63,6 +63,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   const [saving,        setSaving]        = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [id,       setId]       = useState<string | undefined>(materialId)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   // Campos principais
   const [title,       setTitle]       = useState('')
@@ -377,6 +378,20 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
+          {id && (
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/dashboard/materiais?post=${id}`
+                navigator.clipboard.writeText(url)
+                setLinkCopied(true)
+                setTimeout(() => setLinkCopied(false), 2000)
+              }}
+              title="Copiar link do card"
+              className="w-9 h-9 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-colors"
+              style={{ color: linkCopied ? 'var(--ds-success-text)' : 'var(--color-text-secondary)' }}>
+              {linkCopied ? <Check size={16} /> : <Link2 size={16} />}
+            </button>
+          )}
           <button
             onClick={() => { handleSaveMain(); onClose() }}
             className="w-9 h-9 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]"

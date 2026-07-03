@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import MaterialCard from '@/components/MaterialCard'
@@ -32,14 +33,20 @@ const COLUMNS = [
 export default function MateriaisPage() {
   useEffect(() => { document.title = 'Materiais · Bagano Hub' }, [])
   const { currentMember, showOnlyMine, members } = useUser()
+  const searchParams = useSearchParams()
   const [materials, setMaterials] = useState<Material[]>([])
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filterClient, setFilterClient] = useState('')
   const [counts, setCounts] = useState<Record<string, {checklist:number, checkDone:number, comments:number, attachments:number}>>({})
-  const [cardOpen,    setCardOpen]    = useState<string | 'new' | null>(null)
+  const [cardOpen,    setCardOpen]    = useState<string | 'new' | null>(() => searchParams.get('post'))
   const [draggingId,  setDraggingId]  = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+
+  useEffect(() => {
+    const p = searchParams.get('post')
+    if (p) setCardOpen(p)
+  }, [searchParams.get('post')])
 
   useEffect(() => {
     async function load() {
@@ -148,7 +155,7 @@ export default function MateriaisPage() {
                       key={m.id}
                       material={{ ...m, _checkTotal: ct.checklist, _checkDone: ct.checkDone, _comments: ct.comments, _attachments: ct.attachments }}
                       members={members}
-                      onClick={() => setCardOpen(m.id)}
+                      onClick={() => { setCardOpen(m.id); window.history.replaceState(null, '', `?post=${m.id}`) }}
                       draggable={true}
                       onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingId(m.id) }}
                       onMovePrev={prevCol ? () => moveStatus(m.id, prevCol.key) : undefined}
@@ -181,7 +188,7 @@ export default function MateriaisPage() {
         <MaterialCard
           materialId={cardOpen === 'new' ? undefined : cardOpen}
           clients={clients}
-          onClose={() => setCardOpen(null)}
+          onClose={() => { setCardOpen(null); window.history.replaceState(null, '', window.location.pathname) }}
           onSaved={reload}
           onDeleted={handleDeleted}
         />

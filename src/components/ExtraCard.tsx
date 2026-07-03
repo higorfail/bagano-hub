@@ -68,6 +68,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [loading, setLoading] = useState(!!extraId)
   const [saving,  setSaving]  = useState(false)
   const [id,      setId]      = useState<string | undefined>(extraId)
+  const [linkCopied, setLinkCopied] = useState(false)
   const originalStatusRef = useRef<ExtraStatus>(initialStatus ?? 'backlog')
   const [sideTab,     setSideTab]     = useState<'comments' | 'history'>('comments')
   const [activityKey, setActivityKey] = useState(0)
@@ -361,6 +362,20 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               </button>
             ))}
           </div>
+          {id && (
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/dashboard/extras?post=${id}`
+                navigator.clipboard.writeText(url)
+                setLinkCopied(true)
+                setTimeout(() => setLinkCopied(false), 2000)
+              }}
+              title="Copiar link do card"
+              className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-colors"
+              style={{ color: linkCopied ? 'var(--ds-success-text)' : 'var(--color-text-secondary)' }}>
+              {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
+            </button>
+          )}
           <button onClick={() => { handleSaveMain(); onClose() }}
             className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] transition-colors">
             <X size={16} />

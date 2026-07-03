@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import ExtrasKanban from '@/components/ExtrasKanban'
@@ -9,6 +10,8 @@ import { CheckSquare, Clock, AlertCircle } from 'lucide-react'
 export default function ExtrasPage() {
   useEffect(() => { document.title = 'Extras · Bagano Hub' }, [])
   const { members } = useUser()
+  const searchParams = useSearchParams()
+  const postParam = searchParams.get('post')
   const supabase = createClient()
   const [stats, setStats] = useState({ total: 0, done: 0, overdue: 0 })
 
@@ -52,7 +55,7 @@ export default function ExtrasPage() {
       </div>
 
       {/* Kanban */}
-      <ExtrasKanban globalMode={true} members={members} />
+      <ExtrasKanban globalMode={true} members={members} initialOpenId={postParam} />
     </div>
   )
 }

@@ -51,6 +51,7 @@ interface ExtrasKanbanProps {
   clientId?: string | null
   globalMode?: boolean
   members?: Member[]
+  initialOpenId?: string | null
 }
 
 function formatDue(d: string) {
@@ -67,14 +68,16 @@ function isOverdue(due_date?: string | null, status?: ExtraStatus) {
   return new Date(due_date + 'T23:59:59') < new Date()
 }
 
-export default function ExtrasKanban({ clientId, globalMode = false, members = [] }: ExtrasKanbanProps) {
+export default function ExtrasKanban({ clientId, globalMode = false, members = [], initialOpenId }: ExtrasKanbanProps) {
   const supabase = createClient()
   const [extras,  setExtras]  = useState<Extra[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
 
   // Modal state — null = closed, string = editing existing, 'new:{status}' = creating in column
-  const [openExtraId,     setOpenExtraId]     = useState<string | null>(null)
+  const [openExtraId,     setOpenExtraId]     = useState<string | null>(initialOpenId || null)
+
+  useEffect(() => { if (initialOpenId) setOpenExtraId(initialOpenId) }, [initialOpenId])
   const [newStatus,       setNewStatus]       = useState<ExtraStatus | null>(null)
 
   // Client filter (global mode)
@@ -219,7 +222,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                         setDraggingId(extra.id)
                       }}
                       onDragEnd={() => { setDraggingId(null); setDragOverCol(null) }}
-                      onClick={() => { if (!draggingId) setOpenExtraId(extra.id) }}
+                      onClick={() => { if (!draggingId) { setOpenExtraId(extra.id); window.history.replaceState(null, '', `?post=${extra.id}`) } }}
                       className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 cursor-grab active:cursor-grabbing shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 relative"
                       style={{
                         borderLeft: `3px solid ${PRIORITY_BORDER[extra.priority]}`,
@@ -308,7 +311,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
           fixedClientId={clientId}
           clients={globalMode ? clients : []}
           members={members}
-          onClose={() => setOpenExtraId(null)}
+          onClose={() => { setOpenExtraId(null); window.history.replaceState(null, '', window.location.pathname) }}
           onSaved={handleSaved}
           onDeleted={handleDeleted}
         />

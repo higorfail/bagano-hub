@@ -151,6 +151,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       totalMonthRes,
       approvedMonthRes,
       mentionsRes,
+      materialMentionsRes,
+      extraMentionsRes,
     ] = await Promise.all([
       // Aprovações/rejeições do cliente via activity_log (com timestamp real)
       supabase.from('activity_log')
@@ -187,11 +189,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         .lt('due_date', today).neq('status', 'done').limit(10),
       // Comentários em extras (7 dias)
       supabase.from('extra_comments')
-        .select('id, body, author_name, created_at, extras(title)')
+        .select('id, body, author_name, created_at, extra_id, extras(title)')
         .gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }).limit(10),
       // Comentários em materiais (7 dias)
       supabase.from('material_comments')
-        .select('id, body, author_name, created_at, materials(title)')
+        .select('id, body, author_name, created_at, material_id, materials(title)')
         .gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }).limit(10),
       // Cronogramas finalizados recentemente (7 dias)
       supabase.from('cronograma_status')
@@ -202,7 +204,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('approval_status', 'não aprovado').not('status', 'in', '(aprovado,agendado,publicado,aguardando_aprovacao)'),
       supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('month', month).eq('year', year),
       supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('month', month).eq('year', year).eq('approval_status', 'aprovado'),
-      // Menções ao currentMember nos comentários (14 dias)
+      // Menções ao currentMember nos comentários de posts (14 dias)
       currentMember
         ? supabase.from('schedule_comments')
             .select('id, body, author_name, created_at, schedule_id, schedules(id, title, client_id, month, year, clients(name, color_hex))')
@@ -211,6 +213,26 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             .gte('created_at', fourteenDaysAgo)
             .order('created_at', { ascending: false })
             .limit(15)
+        : Promise.resolve({ data: [] }),
+      // Menções em materiais (14 dias)
+      currentMember
+        ? supabase.from('material_comments')
+            .select('id, body, author_name, created_at, material_id, materials(id, title)')
+            .ilike('body', `%@${currentMember.name.split(' ')[0]}%`)
+            .neq('author_name', currentMember.name)
+            .gte('created_at', fourteenDaysAgo)
+            .order('created_at', { ascending: false })
+            .limit(10)
+        : Promise.resolve({ data: [] }),
+      // Menções em extras (14 dias)
+      currentMember
+        ? supabase.from('extra_comments')
+            .select('id, body, author_name, created_at, extra_id, extras(id, title)')
+            .ilike('body', `%@${currentMember.name.split(' ')[0]}%`)
+            .neq('author_name', currentMember.name)
+            .gte('created_at', fourteenDaysAgo)
+            .order('created_at', { ascending: false })
+            .limit(10)
         : Promise.resolve({ data: [] }),
     ])
 
@@ -333,7 +355,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         client_name: (d.clients as any)?.name || '',
         client_color: (d.clients as any)?.color_hex || '',
         created_at: date.toISOString(),
-        link: '/dashboard/extras',
+        link: `/dashboard/extras?post=${d.id}`,
       })
     })
 
@@ -348,7 +370,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         client_name: d.finalized_by ? `por ${d.finalized_by.split(' ')[0]}` : '',
         client_color: (d.clients as any)?.color_hex || '',
         created_at: d.finalized_at,
-        link: '/dashboard/cronograma',
+        link: d.client_id ? `/dashboard/cronograma?client=${d.client_id}&m=${d.month}&y=${d.year}` : '/dashboard/cronograma',
       })
     })
 
@@ -362,7 +384,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         body: d.body || '',
         client_name: d.author_name || '',
         created_at: d.created_at,
-        link: '/dashboard/extras',
+        link: d.extra_id ? `/dashboard/extras?post=${d.extra_id}` : '/dashboard/extras',
       })
     })
 
@@ -376,7 +398,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         body: d.body || '',
         client_name: d.author_name || '',
         created_at: d.created_at,
-        link: '/dashboard/materiais',
+        link: d.material_id ? `/dashboard/materiais?post=${d.material_id}` : '/dashboard/materiais',
       })
     })
 
@@ -397,6 +419,34 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         link: sch?.client_id
           ? `/dashboard/cronograma?client=${sch.client_id}&post=${d.schedule_id}${mq}${yq}`
           : '/dashboard/cronograma',
+      })
+    })
+
+    // Menções em materiais
+    ;(materialMentionsRes.data || []).forEach((d: any) => {
+      const mat = d.materials as any
+      result.push({
+        id: `mention-mat-${d.id}`,
+        type: 'mention' as const,
+        title: `${d.author_name || 'Alguém'} te mencionou`,
+        subtitle: mat?.title || 'Material',
+        body: d.body || '',
+        created_at: d.created_at,
+        link: `/dashboard/materiais?post=${d.material_id}`,
+      })
+    })
+
+    // Menções em extras
+    ;(extraMentionsRes.data || []).forEach((d: any) => {
+      const ext = d.extras as any
+      result.push({
+        id: `mention-ext-${d.id}`,
+        type: 'mention' as const,
+        title: `${d.author_name || 'Alguém'} te mencionou`,
+        subtitle: ext?.title || 'Extra',
+        body: d.body || '',
+        created_at: d.created_at,
+        link: `/dashboard/extras?post=${d.extra_id}`,
       })
     })
 

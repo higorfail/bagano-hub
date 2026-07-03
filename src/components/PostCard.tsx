@@ -31,10 +31,6 @@ const STATUSES = [
 ]
 const FUNIL_OPTIONS = ['Topo de funil','Meio de funil','Fundo de funil','Institucional','Promocional','Engajamento','Venda']
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(STATUSES.map(s => [s.value, s.label]))
-const ACTION_DOT: Record<string, string> = {
-  created: 'var(--ds-success-accent)', deleted: 'var(--ds-error-accent)',
-  status_changed: 'var(--ds-info-accent)', commented: 'var(--ds-purple-accent)', updated: 'var(--ds-caution-accent)',
-}
 
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
 const DIAS  = ['dom','seg','ter','qua','qui','sex','sáb']
@@ -179,6 +175,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [campaigns,    setCampaigns]    = useState<{ id: string; name: string; type: string }[]>([])
   const [editingField, setEditingField] = useState<TextField | null>(null)
   const [justSaved,    setJustSaved]    = useState(false)
+  const [linkCopied,   setLinkCopied]   = useState(false)
   const [activityKey,  setActivityKey]  = useState(0)
   const [comments,     setComments]     = useState<Comment[]>([])
   const [newComment,   setNewComment]   = useState('')
@@ -453,7 +450,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   async function removeRefImage(url: string) {
     const newImages = formRef.current.reference_images.filter(u => u !== url)
     setForm(f => ({ ...f, reference_images: newImages }))
-    if (currentId) await supabase.from('schedules').update({ reference_images: newImages }).eq('id', currentId)
+    if (currentId) {
+      await supabase.from('schedules').update({ reference_images: newImages }).eq('id', currentId)
+      await logActivity({ tableName: 'schedules', recordId: currentId, clientId, action: 'updated', actorName: currentMember?.name, description: `${who} removeu uma imagem de referência` })
+      setActivityKey(k => k + 1)
+    }
     const path = url.split('/bagano-materiais/')[1]
     if (path) supabase.storage.from('bagano-materiais').remove([path])
   }
@@ -478,6 +479,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       reference_notes: f.reference_notes, funil: f.funil, campaign_type: f.campaign_type || null, reference_images: f.reference_images,
     })
     if (dbError(error, toast, 'duplicar')) return
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, description: `${who} duplicou este post` })
     toast('Post duplicado!'); onSaved(); onClose()
   }
 
@@ -626,6 +628,20 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             <span className={`flex items-center gap-1 text-[11px] font-medium text-[var(--ds-success-text)] transition-opacity ${justSaved ? 'opacity-100' : 'opacity-0'}`}>
               <Check size={12} /> salvo
             </span>
+            {currentId && (
+              <button
+                onClick={() => {
+                  const url = `${window.location.origin}/dashboard/cronograma?client=${clientId}&post=${currentId}&m=${month}&y=${year}`
+                  navigator.clipboard.writeText(url)
+                  setLinkCopied(true)
+                  setTimeout(() => setLinkCopied(false), 2000)
+                }}
+                title="Copiar link do card"
+                className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-colors"
+                style={{ color: linkCopied ? 'var(--ds-success-text)' : 'var(--color-text-secondary)' }}>
+                {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
+              </button>
+            )}
             <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] transition-colors">
               <X size={16} />
             </button>
@@ -741,8 +757,67 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         {/* BODY */}
         <div className="flex gap-0 overflow-hidden flex-1 divide-x divide-[var(--color-border)]">
 
-          {/* LEFT — entrega + campos + referências */}
+          {/* LEFT — campos + referências + entrega */}
           <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-7 py-5 gap-5">
+
+            {textField('briefing', 'Briefing', '· instruções pro time (o que fazer)', 'O que precisa ser feito, direção criativa, referências de estilo…', 70)}
+            {textField('copy', 'Copy', '· conceito / roteiro', 'Ideia central, roteiro do reels, texto das artes…', 70)}
+            {textField('legenda', 'Legenda', '· o texto que vai no Instagram', 'A legenda final do post, com hashtags e CTA…', 70)}
+
+
+            {/* Referências */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
+                  <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração · cole imagens (Ctrl+V)</span>
+                </div>
+                <button onClick={() => refInputRef.current?.click()} disabled={uploadingRef}
+                  className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50">
+                  <ImagePlus size={13} /> {uploadingRef ? 'Enviando…' : 'Imagem'}
+                </button>
+                <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefImageUpload} />
+              </div>
+              {editingField === 'reference_notes' ? (
+                <textarea autoFocus value={form.reference_notes} onChange={e => setForm(f => ({ ...f, reference_notes: e.target.value }))}
+                  onBlur={() => blurCommit('reference_notes')} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discardEdit('reference_notes') } }}
+                  placeholder="Cole links de referência, observações…"
+                  className={fieldEditCls} style={{ minHeight: 60 }} />
+              ) : (
+                <div onClick={() => startEdit('reference_notes')} className={fieldViewCls} style={{ minHeight: 40 }}>
+                  {form.reference_notes || <span className="text-[var(--color-text-faint)]">Clique para adicionar links/observações…</span>}
+                </div>
+              )}
+              {/* chips de link */}
+              {refLinks.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {refLinks.map((url: string, i: number) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg pl-1.5 pr-2 py-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)] hover:text-[var(--color-text-primary)] transition-colors max-w-[200px]">
+                      <img src={`https://www.google.com/s2/favicons?domain=${hostOf(url)}&sz=32`} alt="" className="w-3.5 h-3.5 rounded-sm flex-shrink-0" />
+                      <span className="truncate">{hostOf(url)}</span>
+                      <ExternalLink size={10} className="flex-shrink-0 opacity-60" />
+                    </a>
+                  ))}
+                </div>
+              )}
+              {/* imagens */}
+              {form.reference_images.length > 0 && (
+                <div className="grid grid-cols-4 gap-2 mt-2.5">
+                  {form.reference_images.map((url, i) => (
+                    <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-[var(--color-border)]">
+                      <img src={url} alt={`Referência ${i + 1}`} className="w-full h-full object-cover" />
+                      <button onClick={() => removeRefImage(url)} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5">
+                        <XCircle size={14} className="text-white" />
+                      </button>
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 flex items-end p-1.5">
+                        <span className="text-[9px] text-white font-medium bg-black/40 rounded px-1">abrir</span>
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* 📦 Entrega */}
             {(() => {
@@ -820,65 +895,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 </div>
               )
             })()}
-
-            {textField('briefing', 'Briefing', '· instruções pro time (o que fazer)', 'O que precisa ser feito, direção criativa, referências de estilo…', 70)}
-            {textField('copy', 'Copy', '· conceito / roteiro', 'Ideia central, roteiro do reels, texto das artes…', 70)}
-            {textField('legenda', 'Legenda', '· o texto que vai no Instagram', 'A legenda final do post, com hashtags e CTA…', 70)}
-
-
-            {/* Referências */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
-                  <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração · cole imagens (Ctrl+V)</span>
-                </div>
-                <button onClick={() => refInputRef.current?.click()} disabled={uploadingRef}
-                  className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50">
-                  <ImagePlus size={13} /> {uploadingRef ? 'Enviando…' : 'Imagem'}
-                </button>
-                <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefImageUpload} />
-              </div>
-              {editingField === 'reference_notes' ? (
-                <textarea autoFocus value={form.reference_notes} onChange={e => setForm(f => ({ ...f, reference_notes: e.target.value }))}
-                  onBlur={() => blurCommit('reference_notes')} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discardEdit('reference_notes') } }}
-                  placeholder="Cole links de referência, observações…"
-                  className={fieldEditCls} style={{ minHeight: 60 }} />
-              ) : (
-                <div onClick={() => startEdit('reference_notes')} className={fieldViewCls} style={{ minHeight: 40 }}>
-                  {form.reference_notes || <span className="text-[var(--color-text-faint)]">Clique para adicionar links/observações…</span>}
-                </div>
-              )}
-              {/* chips de link */}
-              {refLinks.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {refLinks.map((url: string, i: number) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg pl-1.5 pr-2 py-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)] hover:text-[var(--color-text-primary)] transition-colors max-w-[200px]">
-                      <img src={`https://www.google.com/s2/favicons?domain=${hostOf(url)}&sz=32`} alt="" className="w-3.5 h-3.5 rounded-sm flex-shrink-0" />
-                      <span className="truncate">{hostOf(url)}</span>
-                      <ExternalLink size={10} className="flex-shrink-0 opacity-60" />
-                    </a>
-                  ))}
-                </div>
-              )}
-              {/* imagens */}
-              {form.reference_images.length > 0 && (
-                <div className="grid grid-cols-4 gap-2 mt-2.5">
-                  {form.reference_images.map((url, i) => (
-                    <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-[var(--color-border)]">
-                      <img src={url} alt={`Referência ${i + 1}`} className="w-full h-full object-cover" />
-                      <button onClick={() => removeRefImage(url)} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5">
-                        <XCircle size={14} className="text-white" />
-                      </button>
-                      <a href={url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 flex items-end p-1.5">
-                        <span className="text-[9px] text-white font-medium bg-black/40 rounded px-1">abrir</span>
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* RIGHT — comentários + atividade (feed único, tipo Trello) */}
@@ -945,43 +961,56 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 <p className="text-xs text-[var(--color-text-faint)] text-center py-8">
                   {currentId ? 'Nada ainda. Comente mudanças, dúvidas, ajustes…' : 'Comentários e atividade aparecem após salvar o post.'}
                 </p>
-              ) : visibleFeed.map(item => item.kind === 'comment' ? (
-                <div key={item.id} className="flex flex-col group">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{item.author || 'Alguém'}</span>
-                    <span className="text-[10px] text-[var(--color-text-faint)]">{relTime(item.at)}</span>
-                    {editingCommentId !== item.cid && (
-                      <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => { setEditingCommentId(item.cid); setEditCommentText(item.body) }} title="Editar"
-                          className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-page)] transition-colors"><Pencil size={11} /></button>
-                        <button onClick={() => deleteComment(item.cid)} title="Excluir"
-                          className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--ds-error-text)] hover:bg-[var(--color-bg-page)] transition-colors"><Trash2 size={11} /></button>
+              ) : visibleFeed.map(item => {
+                const n = item.author || null
+                const memberMatch = n ? members.find(x => x.name === n) : null
+                const av = {
+                  initials: n ? n.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase() : '?',
+                  color: (memberMatch as any)?.color || '#9ca3af',
+                }
+                return item.kind === 'comment' ? (
+                  <div key={item.id} className="flex items-start gap-2.5 group">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5"
+                      style={{ background: av.color }}>{av.initials}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{item.author || 'Alguém'}</span>
+                        <span className="text-[10px] text-[var(--color-text-faint)]">{relTime(item.at)}</span>
+                        {editingCommentId !== item.cid && (
+                          <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => { setEditingCommentId(item.cid); setEditCommentText(item.body) }} title="Editar"
+                              className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-page)] transition-colors"><Pencil size={11} /></button>
+                            <button onClick={() => deleteComment(item.cid)} title="Excluir"
+                              className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--ds-error-text)] hover:bg-[var(--color-bg-page)] transition-colors"><Trash2 size={11} /></button>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  {editingCommentId === item.cid ? (
-                    <div>
-                      <textarea autoFocus value={editCommentText} onChange={e => setEditCommentText(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditComment(item.cid) } else if (e.key === 'Escape') { setEditingCommentId(null) } }}
-                        rows={2} className="w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none" />
-                      <div className="flex items-center gap-2 mt-1">
-                        <button onClick={() => saveEditComment(item.cid)} className="text-[11px] font-semibold px-2.5 py-1 rounded-md text-white" style={{ background: 'var(--color-accent)' }}>Salvar</button>
-                        <button onClick={() => setEditingCommentId(null)} className="text-[11px] px-2.5 py-1 rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
-                      </div>
+                      {editingCommentId === item.cid ? (
+                        <div>
+                          <textarea autoFocus value={editCommentText} onChange={e => setEditCommentText(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditComment(item.cid) } else if (e.key === 'Escape') { setEditingCommentId(null) } }}
+                            rows={2} className="w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none" />
+                          <div className="flex items-center gap-2 mt-1">
+                            <button onClick={() => saveEditComment(item.cid)} className="text-[11px] font-semibold px-2.5 py-1 rounded-md text-white" style={{ background: 'var(--color-accent)' }}>Salvar</button>
+                            <button onClick={() => setEditingCommentId(null)} className="text-[11px] px-2.5 py-1 rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{renderCommentWithMentions(item.body)}</div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{renderCommentWithMentions(item.body)}</div>
-                  )}
-                </div>
-              ) : (
-                <div key={item.id} className="flex items-start gap-2 py-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ background: ACTION_DOT[item.action] || 'var(--color-text-faint)' }} />
-                  <p className="text-[11px] text-[var(--color-text-muted)] leading-snug flex-1">
-                    {item.body}
-                    <span className="text-[var(--color-text-faint)]"> · {relTime(item.at)}</span>
-                  </p>
-                </div>
-              ))}
+                  </div>
+                ) : (
+                  <div key={item.id} className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5 opacity-80"
+                      style={{ background: av.color }}>{av.initials}</div>
+                    <p className="text-[11px] text-[var(--color-text-muted)] leading-snug flex-1 pt-0.5">
+                      {item.body}
+                      <span className="text-[var(--color-text-faint)]"> · {relTime(item.at)}</span>
+                    </p>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>

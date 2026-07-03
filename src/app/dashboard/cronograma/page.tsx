@@ -477,7 +477,7 @@ function CronogramaPageInner() {
                         clientColor={client?.color_hex}
                         campaignName={campaigns.find(c => c.type === post.campaign_type)?.name || null}
                         selected={selected?.id === post.id}
-                        onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
+                        onClick={() => { setEditingPostId(post.id); setShowPostCard(true); window.history.replaceState(null, '', `?client=${selectedClient}&post=${post.id}&m=${selectedMonth}&y=${selectedYear}`) }}
                         onDuplicate={() => duplicatePost(post)}
                         draggable={!hasFilter}
                         dragging={dragId === post.id}
@@ -506,7 +506,7 @@ function CronogramaPageInner() {
           month={selectedMonth}
           year={selectedYear}
           postNumber={editingPostId ? undefined : posts.length + 1}
-          onClose={() => { setShowPostCard(false); setEditingPostId(null) }}
+          onClose={() => { setShowPostCard(false); setEditingPostId(null); window.history.replaceState(null, '', `?client=${selectedClient}&m=${selectedMonth}&y=${selectedYear}`) }}
           onSaved={() => { loadPosts() }}
           onDeleted={() => { loadPosts() }}
         />
