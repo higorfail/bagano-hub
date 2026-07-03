@@ -1,19 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import ExtrasKanban from '@/components/ExtrasKanban'
-import { CheckSquare, Clock, AlertCircle } from 'lucide-react'
+import { CheckSquare, AlertCircle } from 'lucide-react'
 
-export default function ExtrasPage() {
-  useEffect(() => { document.title = 'Extras · Bagano Hub' }, [])
+function ExtrasContent() {
   const { members } = useUser()
   const searchParams = useSearchParams()
   const postParam = searchParams.get('post')
   const supabase = createClient()
   const [stats, setStats] = useState({ total: 0, done: 0, overdue: 0 })
+
+  useEffect(() => { document.title = 'Extras · Bagano Hub' }, [])
 
   useEffect(() => {
     async function load() {
@@ -31,13 +32,11 @@ export default function ExtrasPage() {
 
   return (
     <div className="p-8 flex flex-col gap-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Extras</h1>
         <p className="text-sm text-[var(--color-text-muted)] mt-0.5">Tarefas, notas e lembretes · todos os clientes</p>
       </div>
 
-      {/* Stats */}
       <div className="flex gap-3">
         {[
           { label: 'Total',      value: stats.total,   icon: CheckSquare, color: 'var(--color-text-primary)' },
@@ -54,8 +53,15 @@ export default function ExtrasPage() {
         ))}
       </div>
 
-      {/* Kanban */}
       <ExtrasKanban globalMode={true} members={members} initialOpenId={postParam} />
     </div>
+  )
+}
+
+export default function ExtrasPage() {
+  return (
+    <Suspense>
+      <ExtrasContent />
+    </Suspense>
   )
 }
