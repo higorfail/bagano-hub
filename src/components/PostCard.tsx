@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
 import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
@@ -185,6 +186,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [editCommentText,  setEditCommentText]  = useState('')
   const [mentionOpen,      setMentionOpen]      = useState(false)
   const [mentionQuery,     setMentionQuery]      = useState('')
+  const [mentionPos,       setMentionPos]        = useState<{ top: number; left: number; width: number } | null>(null)
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
   const [showDetails,  setShowDetails]  = useState(false)
@@ -890,12 +892,12 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
             {/* Campo de comentário */}
             <div className="px-3 py-3 border-b border-[var(--color-border)] flex items-end gap-2">
-              <div className="relative flex-1">
-                {mentionOpen && (() => {
+              <div className="flex-1">
+                {mentionOpen && mentionPos && (() => {
                   const filtered = members.filter(m => !mentionQuery || m.name.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 6)
                   if (!filtered.length) return null
-                  return (
-                    <div className="absolute bottom-full left-0 mb-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-pop overflow-hidden z-50 w-full">
+                  return createPortal(
+                    <div style={{ position: 'fixed', bottom: window.innerHeight - mentionPos.top + 4, left: mentionPos.left, width: mentionPos.width, zIndex: 9999, background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
                       {filtered.map(m => (
                         <button key={m.id} onMouseDown={e => { e.preventDefault(); insertMention(m) }}
                           className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--color-bg-subtle)] text-left transition-colors">
@@ -906,7 +908,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                           <span className="text-xs font-medium text-[var(--color-text-primary)]">{m.name}</span>
                         </button>
                       ))}
-                    </div>
+                    </div>,
+                    document.body
                   )
                 })()}
                 <textarea ref={commentTextareaRef} value={newComment}
@@ -916,8 +919,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                     const pos = e.target.selectionStart
                     const before = val.slice(0, pos)
                     const m = before.match(/@(\w*)$/)
-                    if (m) { setMentionOpen(true); setMentionQuery(m[1]) }
-                    else setMentionOpen(false)
+                    if (m) {
+                      setMentionOpen(true); setMentionQuery(m[1])
+                      const rect = commentTextareaRef.current?.getBoundingClientRect()
+                      if (rect) setMentionPos({ top: rect.top, left: rect.left, width: rect.width })
+                    } else setMentionOpen(false)
                   }}
                   onKeyDown={e => {
                     if (mentionOpen && e.key === 'Escape') { setMentionOpen(false); return }

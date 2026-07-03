@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check } from 'lucide-react'
-import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, CheckCircle2, XCircle, Camera, Clock, MessageCircle, Trash2, Zap, CalendarClock, ListChecks, Eye } from 'lucide-react'
+import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, CheckCircle2, XCircle, Camera, Clock, MessageCircle, Trash2, Zap, CalendarClock, ListChecks, Eye, AtSign } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider } from '@/lib/ToastContext'
@@ -37,7 +37,7 @@ const contentItems = [
 
 type Notification = {
   id: string
-  type: 'approval' | 'rejection' | 'comment' | 'captacao' | 'deadline' | 'urgente' | 'extra_vencido' | 'cronograma_ok' | 'revisao_interna'
+  type: 'approval' | 'rejection' | 'comment' | 'captacao' | 'deadline' | 'urgente' | 'extra_vencido' | 'cronograma_ok' | 'revisao_interna' | 'mention'
   title: string
   subtitle: string
   body?: string
@@ -72,6 +72,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     return Number(localStorage.getItem('approvals-seen') || 0)
   })
   const [showNotifications, setShowNotifications] = useState(false)
+  const [notifFilter, setNotifFilter] = useState<'all' | 'mentions'>('all')
   const notifRef = useRef<HTMLDivElement>(null)
   const { mode, setMode } = useTheme()
 
@@ -121,7 +122,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     loadNotifications()
     const interval = setInterval(loadNotifications, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [currentMember?.id])
 
   async function loadNotifications() {
     const supabase = createClient()
@@ -149,6 +150,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       rejectedCountRes,
       totalMonthRes,
       approvedMonthRes,
+      mentionsRes,
     ] = await Promise.all([
       // Aprovações/rejeições do cliente via activity_log (com timestamp real)
       supabase.from('activity_log')
@@ -200,6 +202,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('approval_status', 'não aprovado').not('status', 'in', '(aprovado,agendado,publicado,aguardando_aprovacao)'),
       supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('month', month).eq('year', year),
       supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('month', month).eq('year', year).eq('approval_status', 'aprovado'),
+      // Menções ao currentMember nos comentários (14 dias)
+      currentMember
+        ? supabase.from('schedule_comments')
+            .select('id, body, author_name, created_at, schedule_id, schedules(id, title, client_id, month, year, clients(name, color_hex))')
+            .ilike('body', `%@${currentMember.name.split(' ')[0]}%`)
+            .neq('author_name', currentMember.name)
+            .gte('created_at', fourteenDaysAgo)
+            .order('created_at', { ascending: false })
+            .limit(15)
+        : Promise.resolve({ data: [] }),
     ])
 
     setApprovalsCount((pendingCountRes.count || 0) + (rejectedCountRes.count || 0))
@@ -368,6 +380,26 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       })
     })
 
+    // Menções ao membro atual em comentários de posts
+    ;(mentionsRes.data || []).forEach((d: any) => {
+      const sch = d.schedules as any
+      const mq = sch?.month ? `&m=${sch.month}` : ''
+      const yq = sch?.year  ? `&y=${sch.year}`  : ''
+      result.push({
+        id: `mention-${d.id}`,
+        type: 'mention',
+        title: `${d.author_name || 'Alguém'} te mencionou`,
+        subtitle: sch?.title || 'Post',
+        body: d.body || '',
+        client_name: (sch?.clients as any)?.name || '',
+        client_color: (sch?.clients as any)?.color_hex || '',
+        created_at: d.created_at,
+        link: sch?.client_id
+          ? `/dashboard/cronograma?client=${sch.client_id}&post=${d.schedule_id}${mq}${yq}`
+          : '/dashboard/cronograma',
+      })
+    })
+
     result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     setNotifications(result)
   }
@@ -397,7 +429,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   }, [pathname, approvalsCount])
 
   const visibleNotifications = notifications.filter(n => !dismissedIds.has(n.id))
+  const filteredNotifs = notifFilter === 'mentions'
+    ? visibleNotifications.filter(n => n.type === 'mention')
+    : visibleNotifications
   const unread = visibleNotifications.filter(n => !readIds.has(n.id)).length
+  const mentionUnread = visibleNotifications.filter(n => n.type === 'mention' && !readIds.has(n.id)).length
   const approvalsBadge = approvalsCount > seenApprovals ? approvalsCount : 0
   const approvalPct = stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0
 
@@ -581,29 +617,53 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                   </div>
                 )}
 
+                {/* Filtros */}
+                {currentMember && (
+                  <div className="px-4 py-2 flex items-center gap-1.5 border-b border-[var(--color-border)] flex-shrink-0">
+                    <button onClick={() => setNotifFilter('all')}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors"
+                      style={notifFilter === 'all' ? { background: 'var(--color-accent)', color: '#fff' } : { color: 'var(--color-text-muted)' }}>
+                      Todas
+                    </button>
+                    <button onClick={() => setNotifFilter('mentions')}
+                      className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors"
+                      style={notifFilter === 'mentions' ? { background: 'var(--color-accent)', color: '#fff' } : { color: 'var(--color-text-muted)' }}>
+                      <AtSign size={10} /> Menções
+                      {mentionUnread > 0 && notifFilter !== 'mentions' && (
+                        <span className="min-w-[14px] h-3.5 rounded-full text-white text-[8px] font-bold flex items-center justify-center px-0.5" style={{ background: 'var(--ds-error-accent)' }}>
+                          {mentionUnread > 9 ? '9+' : mentionUnread}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                )}
+
                 {/* List */}
                 <div className="overflow-y-auto flex-1">
-                  {visibleNotifications.length === 0 ? (
+                  {filteredNotifs.length === 0 ? (
                     <div className="px-5 py-12 text-center flex flex-col items-center gap-2">
-                      <Bell size={28} strokeWidth={1.5} className="text-[var(--color-text-faint)]" />
-                      <p className="text-sm text-[var(--color-text-muted)]">Nenhuma notificação</p>
-                      <p className="text-xs text-[var(--color-text-faint)]">Aprovações e comentários aparecerão aqui</p>
+                      {notifFilter === 'mentions'
+                        ? <><AtSign size={28} strokeWidth={1.5} className="text-[var(--color-text-faint)]" /><p className="text-sm text-[var(--color-text-muted)]">Nenhuma menção</p><p className="text-xs text-[var(--color-text-faint)]">Quando alguém usar @{currentMember?.name.split(' ')[0]} em um comentário, vai aparecer aqui</p></>
+                        : <><Bell size={28} strokeWidth={1.5} className="text-[var(--color-text-faint)]" /><p className="text-sm text-[var(--color-text-muted)]">Nenhuma notificação</p><p className="text-xs text-[var(--color-text-faint)]">Aprovações e comentários aparecerão aqui</p></>
+                      }
                     </div>
-                  ) : visibleNotifications.map(n => {
+                  ) : filteredNotifs.map(n => {
                     const isRead = readIds.has(n.id)
                     const isApproval = n.type === 'approval'
                     const isRejection = n.type === 'rejection'
+                    const isMention = n.type === 'mention'
                     return (
                       <Link key={n.id} href={n.link}
                         onClick={() => { markRead(n.id); setShowNotifications(false) }}
                         className={`flex items-start gap-3 px-4 py-3.5 border-b border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors cursor-pointer ${!isRead ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
                         {/* Icon */}
                         <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5`} style={{
-                          background: isApproval ? 'var(--ds-success-bg)' : isRejection ? 'var(--ds-error-bg)' : n.type === 'captacao' ? 'var(--ds-purple-bg)' : n.type === 'urgente' ? 'var(--ds-error-bg)' : n.type === 'deadline' || n.type === 'extra_vencido' ? 'var(--ds-warn-bg)' : n.type === 'cronograma_ok' ? 'var(--ds-success-bg)' : n.type === 'revisao_interna' ? 'var(--ds-caution-bg)' : 'var(--ds-info-bg)',
-                          color: isApproval ? 'var(--ds-success-accent)' : isRejection ? 'var(--ds-error-accent)' : n.type === 'captacao' ? 'var(--ds-purple-accent)' : n.type === 'urgente' ? 'var(--ds-error-accent)' : n.type === 'deadline' || n.type === 'extra_vencido' ? 'var(--ds-warn-accent)' : n.type === 'cronograma_ok' ? 'var(--ds-success-accent)' : n.type === 'revisao_interna' ? 'var(--ds-caution-accent)' : 'var(--ds-info-accent)',
+                          background: isApproval ? 'var(--ds-success-bg)' : isRejection ? 'var(--ds-error-bg)' : isMention ? 'var(--ds-purple-bg)' : n.type === 'captacao' ? 'var(--ds-purple-bg)' : n.type === 'urgente' ? 'var(--ds-error-bg)' : n.type === 'deadline' || n.type === 'extra_vencido' ? 'var(--ds-warn-bg)' : n.type === 'cronograma_ok' ? 'var(--ds-success-bg)' : n.type === 'revisao_interna' ? 'var(--ds-caution-bg)' : 'var(--ds-info-bg)',
+                          color: isApproval ? 'var(--ds-success-accent)' : isRejection ? 'var(--ds-error-accent)' : isMention ? 'var(--ds-purple-accent)' : n.type === 'captacao' ? 'var(--ds-purple-accent)' : n.type === 'urgente' ? 'var(--ds-error-accent)' : n.type === 'deadline' || n.type === 'extra_vencido' ? 'var(--ds-warn-accent)' : n.type === 'cronograma_ok' ? 'var(--ds-success-accent)' : n.type === 'revisao_interna' ? 'var(--ds-caution-accent)' : 'var(--ds-info-accent)',
                         }}>
                           {isApproval              ? <CheckCircle2 size={15} strokeWidth={2} /> :
                            isRejection             ? <XCircle      size={15} strokeWidth={2} /> :
+                           isMention               ? <AtSign       size={15} strokeWidth={2} /> :
                            n.type === 'captacao'   ? <Camera       size={15} strokeWidth={2} /> :
                            n.type === 'urgente'    ? <Zap          size={15} strokeWidth={2} /> :
                            n.type === 'revisao_interna' ? <Eye     size={15} strokeWidth={2} /> :
