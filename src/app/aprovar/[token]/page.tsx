@@ -615,7 +615,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
 
   // ── Final approval render ──────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100dvh', background: '#f8f8f6', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', paddingBottom: tab === 'posts' && pendingCount > 0 && !allDone ? 90 : 32 }}>
+    <div style={{ minHeight: '100dvh', background: '#f8f8f6', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', paddingBottom: 32 }}>
 
       {/* Toast */}
       {toast && (
@@ -1007,17 +1007,6 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
         </main>
       )}
 
-      {/* ── STICKY APPROVE ALL (posts tab only) ─────────────────────── */}
-      {tab === 'posts' && pendingCount > 0 && !allDone && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '10px 16px 20px', background: 'rgba(248,248,246,0.95)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: '1px solid #ebebeb', zIndex: 20 }}>
-          <div style={{ maxWidth: 560, margin: '0 auto' }}>
-            <button onClick={approveAll} disabled={approvingAll}
-              style={{ width: '100%', padding: '17px 0', borderRadius: 18, background: cc, border: 'none', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: approvingAll ? 0.7 : 1, boxShadow: `0 8px 36px ${cc}55`, letterSpacing: '-0.02em', transition: 'opacity 0.2s' }}>
-              {approvingAll ? 'Aprovando…' : `Aprovar todos os ${pendingCount} posts pendentes`}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ── FEED TAB: post approval bottom sheet ────────────────────── */}
       {tab === 'feed' && sheetPost && (() => {
