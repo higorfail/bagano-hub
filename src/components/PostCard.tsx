@@ -169,7 +169,7 @@ function DriveThumbnail({ driveUrl, isVideo }: { driveUrl: string; isVideo: bool
 export default function PostCard({ postId, clientId, clientName, clientColor, month, year, postNumber, onClose, onSaved, onDeleted }: Props) {
   const supabase = createClient()
   const { toast } = useToast()
-  const { currentMember } = useUser()
+  const { currentMember, members } = useUser()
   const [loading,      setLoading]      = useState(!!postId)
   const [deleting,     setDeleting]     = useState(false)
   const [confirmDelete,setConfirmDelete]= useState(false)
@@ -183,6 +183,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [newComment,   setNewComment]   = useState('')
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editCommentText,  setEditCommentText]  = useState('')
+  const [mentionOpen,      setMentionOpen]      = useState(false)
+  const [mentionQuery,     setMentionQuery]      = useState('')
+  const commentTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
   const [showDetails,  setShowDetails]  = useState(false)
   const [emojiOpen,    setEmojiOpen]    = useState<TextField | null>(null)
@@ -372,6 +375,33 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     setNewComment('')
     await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'commented', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} comentou` })
     setActivityKey(k => k + 1)
+  }
+
+  function insertMention(member: { name: string }) {
+    const ta = commentTextareaRef.current
+    const pos = ta?.selectionStart ?? newComment.length
+    const before = newComment.slice(0, pos)
+    const after  = newComment.slice(pos)
+    const match  = before.match(/@\w*$/)
+    const start  = match ? pos - match[0].length : pos
+    const firstName = member.name.split(' ')[0]
+    const inserted = newComment.slice(0, start) + `@${firstName} ` + after
+    setNewComment(inserted)
+    setMentionOpen(false)
+    requestAnimationFrame(() => {
+      ta?.focus()
+      const p = start + firstName.length + 2
+      ta?.setSelectionRange(p, p)
+    })
+  }
+
+  function renderCommentWithMentions(body: string) {
+    const parts = body.split(/(@\S+)/g)
+    return parts.map((part, i) =>
+      /^@\S+/.test(part)
+        ? <strong key={i} style={{ color: 'var(--color-accent)' }}>{part}</strong>
+        : <span key={i}>{part}</span>
+    )
   }
 
   async function saveEditComment(cid: string) {
@@ -860,10 +890,43 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
             {/* Campo de comentário */}
             <div className="px-3 py-3 border-b border-[var(--color-border)] flex items-end gap-2">
-              <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment() } }}
-                placeholder="Comentar…  (Enter envia · Shift+Enter quebra linha)" rows={2}
-                className="flex-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)]" />
+              <div className="relative flex-1">
+                {mentionOpen && (() => {
+                  const filtered = members.filter(m => !mentionQuery || m.name.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 6)
+                  if (!filtered.length) return null
+                  return (
+                    <div className="absolute bottom-full left-0 mb-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-pop overflow-hidden z-50 w-full">
+                      {filtered.map(m => (
+                        <button key={m.id} onMouseDown={e => { e.preventDefault(); insertMention(m) }}
+                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--color-bg-subtle)] text-left transition-colors">
+                          <div className="w-5 h-5 rounded-md flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0"
+                            style={{ background: (m as any).color || 'var(--color-brand)' }}>
+                            {m.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <span className="text-xs font-medium text-[var(--color-text-primary)]">{m.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
+                <textarea ref={commentTextareaRef} value={newComment}
+                  onChange={e => {
+                    const val = e.target.value
+                    setNewComment(val)
+                    const pos = e.target.selectionStart
+                    const before = val.slice(0, pos)
+                    const m = before.match(/@(\w*)$/)
+                    if (m) { setMentionOpen(true); setMentionQuery(m[1]) }
+                    else setMentionOpen(false)
+                  }}
+                  onKeyDown={e => {
+                    if (mentionOpen && e.key === 'Escape') { setMentionOpen(false); return }
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment() }
+                  }}
+                  onBlur={() => setTimeout(() => setMentionOpen(false), 150)}
+                  placeholder="Comentar… @ para mencionar  (Enter envia · Shift+Enter quebra linha)" rows={2}
+                  className="w-full bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)]" />
+              </div>
               <button onClick={addComment} disabled={!newComment.trim()}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 flex-shrink-0" style={{ background: 'var(--color-accent)' }}>
                 <Send size={14} />
@@ -901,7 +964,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                       </div>
                     </div>
                   ) : (
-                    <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{item.body}</div>
+                    <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{renderCommentWithMentions(item.body)}</div>
                   )}
                 </div>
               ) : (

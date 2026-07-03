@@ -531,7 +531,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             </div>
 
           <div ref={notifRef} className="relative">
-            <button onClick={() => { setShowNotifications(v => !v) }}
+            <button onClick={() => { if (!showNotifications) markAllRead(); setShowNotifications(v => !v) }}
               className="relative w-9 h-9 rounded-xl hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-all">
               <Bell size={18} strokeWidth={1.75} className="text-[var(--color-text-secondary)]" />
               {unread > 0 && (
