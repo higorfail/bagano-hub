@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
@@ -32,7 +32,7 @@ const COLUMNS = [
   { key: 'finalizado', label: 'Finalizados', color: '#22C55E' },
 ]
 
-export default function MateriaisPage() {
+function MateriaisContent() {
   useEffect(() => { document.title = 'Materiais · Bagano Hub' }, [])
   const { currentMember, showOnlyMine, members } = useUser()
   const searchParams = useSearchParams()
@@ -196,5 +196,13 @@ export default function MateriaisPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function MateriaisPage() {
+  return (
+    <Suspense>
+      <MateriaisContent />
+    </Suspense>
   )
 }
