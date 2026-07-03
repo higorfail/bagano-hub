@@ -703,7 +703,7 @@ export default function IPhoneFeed({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, background: 'var(--color-border)' }}>
               {gridPosts.map(post => (
                 <PostThumb key={post.id} post={post}
-                  onClick={() => { setSelectedPost(post); onPostClick?.(post) }}
+                  onClick={() => { if (!onPostClick) setSelectedPost(post); onPostClick?.(post) }}
                   dragging={dragging === post.id}
                   dragOver={dragOver === post.id && dragging !== post.id}
                 />
