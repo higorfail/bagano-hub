@@ -204,7 +204,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
   const [extraComments,    setExtraComments]    = useState<Record<string, string>>({})
   const [extraCommenting,  setExtraCommenting]  = useState<Set<string>>(new Set())
   const [approvingAll, setApprovingAll] = useState(false)
-  const [tab,          setTab]          = useState<'feed' | 'posts'>('feed')
+  const [tab,          setTab]          = useState<'feed' | 'calendario' | 'posts'>('feed')
 
   // Feed-tab: selected post for bottom sheet
   const [sheetPost,    setSheetPost]    = useState<Post | null>(null)
@@ -663,8 +663,9 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
           {/* Tab switcher */}
           <div style={{ display: 'flex', gap: 2, background: '#f3f3f1', borderRadius: 14, padding: 3, marginBottom: 0 }}>
             {([
-              { key: 'feed',  label: '📱 Visão do feed' },
-              { key: 'posts', label: '✅ Aprovar posts'  },
+              { key: 'feed',       label: '📱 Feed'        },
+              { key: 'calendario', label: '📅 Calendário'  },
+              { key: 'posts',      label: '✅ Aprovar'     },
             ] as const).map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
                 style={{
@@ -1008,8 +1009,141 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
       )}
 
 
+      {/* ── CALENDÁRIO TAB ────────────────────────────────────────────── */}
+      {tab === 'calendario' && (() => {
+        const DAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+        const calYear  = tokenData?.year  || new Date().getFullYear()
+        const calMonth = tokenData?.month || new Date().getMonth() + 1
+        const mm = String(calMonth).padStart(2, '0')
+
+        const postsByDate: Record<string, Post[]> = {}
+        posts.forEach(p => {
+          if (p.scheduled_date) {
+            if (!postsByDate[p.scheduled_date]) postsByDate[p.scheduled_date] = []
+            postsByDate[p.scheduled_date].push(p)
+          }
+        })
+        const postsWithoutDate = posts.filter(p => !p.scheduled_date)
+
+        const firstDay    = new Date(calYear, calMonth - 1, 1).getDay()
+        const daysInMonth = new Date(calYear, calMonth, 0).getDate()
+        const cells: (number | null)[] = [
+          ...Array(firstDay).fill(null),
+          ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+        ]
+
+        const today = new Date()
+
+        return (
+          <div style={{ maxWidth: 600, margin: '0 auto', padding: '20px 16px' }}>
+
+            {/* Month header */}
+            <div style={{ textAlign: 'center', marginBottom: 14 }}>
+              <p style={{ fontSize: 18, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em' }}>
+                {MONTHS[calMonth - 1]} {calYear}
+              </p>
+              <p style={{ fontSize: 12, color: '#9ca3af', margin: '3px 0 0' }}>
+                {posts.filter(p => p.scheduled_date).length} posts agendados no mês
+              </p>
+            </div>
+
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginBottom: 14 }}>
+              {[['#22c55e','Aprovado'],['#f59e0b','Revisar'],['#d1d5db','Pendente']].map(([color, label]) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
+                  <span style={{ fontSize: 11, color: '#6b7280' }}>{label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar grid */}
+            <div style={{ background: '#fff', borderRadius: 20, border: '1px solid #ebebeb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: 20 }}>
+              {/* Day headers */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #f0f0f0', background: '#fafaf8' }}>
+                {DAYS_SHORT.map(d => (
+                  <div key={d} style={{ textAlign: 'center', padding: '8px 0', fontSize: 10, fontWeight: 800, color: '#b0b0b0', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{d}</div>
+                ))}
+              </div>
+
+              {/* Day cells */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                {cells.map((day, i) => {
+                  if (!day) return (
+                    <div key={i} style={{ minHeight: 64, borderRight: i % 7 !== 6 ? '1px solid #f5f5f5' : 'none', borderBottom: '1px solid #f5f5f5', background: '#fafaf8' }} />
+                  )
+                  const dateStr  = `${calYear}-${mm}-${String(day).padStart(2, '0')}`
+                  const dayPosts = postsByDate[dateStr] || []
+                  const hasPosts = dayPosts.length > 0
+                  const isToday  = today.getFullYear() === calYear && today.getMonth() + 1 === calMonth && today.getDate() === day
+
+                  return (
+                    <div key={i} style={{ minHeight: 64, padding: '5px 4px', borderRight: i % 7 !== 6 ? '1px solid #f0f0f0' : 'none', borderBottom: '1px solid #f0f0f0', background: hasPosts ? '#fefefe' : '#fff' }}>
+                      <div style={{ fontSize: 11, fontWeight: isToday ? 800 : hasPosts ? 600 : 400, color: isToday ? '#fff' : hasPosts ? '#374151' : '#c4c4c0', width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isToday ? cc : 'transparent', marginBottom: 3 }}>
+                        {day}
+                      </div>
+                      {dayPosts.slice(0, 2).map(p => {
+                        const isApproved = p.approval_status === 'aprovado'
+                        const isChanges  = p.approval_status === 'não aprovado'
+                        const dotColor   = isApproved ? '#22c55e' : isChanges ? '#f59e0b' : '#d1d5db'
+                        return (
+                          <button key={p.id}
+                            onClick={() => { setSheetPost(p); setSheetComment(p.approval_comment || '') }}
+                            style={{ display: 'block', width: '100%', marginBottom: 2, background: isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#f3f4f6', border: `1px solid ${isApproved ? '#86efac' : isChanges ? '#fde68a' : '#e5e7eb'}`, borderRadius: 4, padding: '2px 4px', cursor: 'pointer', textAlign: 'left' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <div style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
+                              <span style={{ fontSize: 9, fontWeight: 600, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4, maxWidth: '100%' }}>
+                                {TYPE_EMOJIS[p.post_type]} {p.title}
+                              </span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                      {dayPosts.length > 2 && (
+                        <p style={{ fontSize: 9, color: '#9ca3af', margin: '1px 0 0', paddingLeft: 3 }}>+{dayPosts.length - 2}</p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Posts sem data */}
+            {postsWithoutDate.length > 0 && (
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 10px', textAlign: 'center' }}>
+                  Sem data definida · {postsWithoutDate.length} post{postsWithoutDate.length !== 1 ? 's' : ''}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {postsWithoutDate.map(p => {
+                    const isApproved = p.approval_status === 'aprovado'
+                    const isChanges  = p.approval_status === 'não aprovado'
+                    return (
+                      <button key={p.id}
+                        onClick={() => { setSheetPost(p); setSheetComment(p.approval_comment || '') }}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, background: '#fff', borderRadius: 14, border: `1.5px solid ${isApproved ? '#86efac' : isChanges ? '#fde68a' : '#ebebeb'}`, padding: '12px 14px', cursor: 'pointer', textAlign: 'left', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                        <span style={{ fontSize: 20, flexShrink: 0 }}>{TYPE_EMOJIS[p.post_type] || '📄'}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: '#111', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</p>
+                          <p style={{ fontSize: 11, color: '#9ca3af', margin: '1px 0 0' }}>{TYPE_LABELS[p.post_type]}</p>
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: isApproved ? '#16a34a' : isChanges ? '#b45309' : '#9ca3af', flexShrink: 0 }}>
+                          {isApproved ? '✓ Aprovado' : isChanges ? '⚠ Revisar' : '● Pendente'}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            <p style={{ textAlign: 'center', fontSize: 11, color: '#d1d5db', marginTop: 28 }}>Powered by Bagano Hub</p>
+          </div>
+        )
+      })()}
+
       {/* ── FEED TAB: post approval bottom sheet ────────────────────── */}
-      {tab === 'feed' && sheetPost && (() => {
+      {(tab === 'feed' || tab === 'calendario') && sheetPost && (() => {
         const isApproved      = sheetPost.approval_status === 'aprovado'
         const isChanges       = sheetPost.approval_status === 'não aprovado'
         const isLoading       = submitting === sheetPost.id
