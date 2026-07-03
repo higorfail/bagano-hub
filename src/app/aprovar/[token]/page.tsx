@@ -145,6 +145,24 @@ function ReelFolderPreview({ folderId, folderUrl }: { folderId: string; folderUr
   )
 }
 
+function SheetReelFolderVideo({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
+  const { files, ready } = useFolderFiles(folderId)
+  if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111' }}>{SPINNER}</div>
+  const video = files.find(f => f.mimeType.startsWith('video/'))
+  if (!video) return (
+    <a href={folderUrl} target="_blank" rel="noopener noreferrer"
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '18px 0', background: '#111', fontSize: 14, fontWeight: 600, color: '#fff', textDecoration: 'none' }}>
+      🎬 Assistir reel no Drive
+    </a>
+  )
+  return (
+    <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '56.25%' }}>
+      <iframe src={`https://drive.google.com/file/d/${video.id}/preview`} allow="autoplay" allowFullScreen
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
+    </div>
+  )
+}
+
 function initials(name: string) {
   return (name || '?').split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
 }
@@ -668,6 +686,17 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
       {tab === 'feed' && (
         <div style={{ maxWidth: 600, margin: '0 auto', padding: '24px 16px' }}>
 
+          {/* Tip: posts tab is easier */}
+          <button onClick={() => setTab('posts')}
+            style={{ width: '100%', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 16, background: '#fff', border: '1.5px solid #e5e7eb', cursor: 'pointer', textAlign: 'left' }}>
+            <span style={{ fontSize: 22, flexShrink: 0 }}>✅</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#111', margin: 0, letterSpacing: '-0.01em' }}>Prefere aprovar mais rápido?</p>
+              <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Use a aba <strong style={{ color: '#374151' }}>Aprovar posts</strong> — você vê o texto e aprova um por um, sem precisar navegar pelo feed.</p>
+            </div>
+            <span style={{ fontSize: 18, color: '#9ca3af', flexShrink: 0 }}>›</span>
+          </button>
+
           {/* Stories tip if any */}
           {posts.some(p => p.post_type === 'story' && p.approval_status !== 'aprovado') && (
             <div style={{ background: 'linear-gradient(135deg,#dc2743,#cc2366,#bc1888)', borderRadius: 18, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 6px 24px rgba(220,39,67,0.25)' }}>
@@ -992,28 +1021,48 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
 
       {/* ── FEED TAB: post approval bottom sheet ────────────────────── */}
       {tab === 'feed' && sheetPost && (() => {
-        const isApproved  = sheetPost.approval_status === 'aprovado'
-        const isChanges   = sheetPost.approval_status === 'não aprovado'
-        const isLoading   = submitting === sheetPost.id
-        const driveId     = sheetPost.drive_url?.match(/[-\w]{25,}/)?.[0]
-        const sheetFolder = sheetPost.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
-        const thumbUrl    = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w600` : null
+        const isApproved      = sheetPost.approval_status === 'aprovado'
+        const isChanges       = sheetPost.approval_status === 'não aprovado'
+        const isLoading       = submitting === sheetPost.id
+        const driveId         = sheetPost.drive_url?.match(/[-\w]{25,}/)?.[0]
+        const sheetFolder     = sheetPost.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
+        const thumbUrl        = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w600` : null
+        const isSheetReel     = sheetPost.post_type === 'reels'
         const isSheetCarrossel = sheetPost.post_type === 'carrossel' || sheetPost.post_type === 'carrossel_stories'
+        const closeSheet      = () => { setSheetPost(null); setSheetComment('') }
 
         return (
-          <div onClick={e => { if (e.target === e.currentTarget) { setSheetPost(null); setSheetComment('') } }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 0' }}>
-            <div style={{ background: '#fff', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 480, overflow: 'hidden', maxHeight: '92dvh', display: 'flex', flexDirection: 'column' }}>
+          <div onClick={e => { if (e.target === e.currentTarget) closeSheet() }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+            <div style={{ background: '#fff', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 480, maxHeight: '92dvh', display: 'flex', flexDirection: 'column' }}>
 
-              {/* Drag handle */}
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0', flexShrink: 0 }}>
-                <div style={{ width: 40, height: 4, borderRadius: 2, background: '#e5e7eb' }} />
+              {/* Fixed header — always visible */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 12px', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#555', background: '#f0f0ee', padding: '3px 10px', borderRadius: 100, flexShrink: 0 }}>
+                    {TYPE_EMOJIS[sheetPost.post_type]} {TYPE_LABELS[sheetPost.post_type] || sheetPost.post_type}
+                  </span>
+                  {isApproved && <span style={{ fontSize: 12, fontWeight: 700, color: '#16a34a', flexShrink: 0 }}>✓ Aprovado</span>}
+                  {isChanges  && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', flexShrink: 0 }}>⚠ Alteração pedida</span>}
+                </div>
+                <button onClick={closeSheet}
+                  style={{ width: 36, height: 36, borderRadius: '50%', background: '#f3f4f6', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: '#374151', fontSize: 20, fontWeight: 400 }}>×</button>
               </div>
 
+              {/* Scrollable body */}
               <div style={{ overflowY: 'auto', flex: 1 }}>
-                {/* Media — artwork first, approval below */}
+
+                {/* Media */}
                 {isSheetCarrossel && sheetFolder ? (
                   <CarouselPreview folderId={sheetFolder} folderUrl={sheetPost.drive_folder_url || ''} />
+                ) : isSheetReel && sheetFolder ? (
+                  /* Reel from folder: only video, cover is for the feed only */
+                  <SheetReelFolderVideo folderId={sheetFolder} folderUrl={sheetPost.drive_folder_url || ''} />
+                ) : isSheetReel && driveId ? (
+                  <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '56.25%' }}>
+                    <iframe src={`https://drive.google.com/file/d/${driveId}/preview`} allow="autoplay" allowFullScreen
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
+                  </div>
                 ) : sheetFolder ? (
                   <FolderThumb folderId={sheetFolder} maxHeight={300} />
                 ) : thumbUrl ? (
@@ -1023,22 +1072,8 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   </div>
                 ) : null}
 
-                <div style={{ padding: '16px 20px 24px' }}>
-                  {/* Header */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, gap: 12 }}>
-                    <div>
-                      <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 4px', letterSpacing: '-0.02em', lineHeight: 1.2 }}>{sheetPost.title}</h3>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#555', background: '#f0f0ee', padding: '2px 9px', borderRadius: 100 }}>
-                          {TYPE_EMOJIS[sheetPost.post_type]} {TYPE_LABELS[sheetPost.post_type] || sheetPost.post_type}
-                        </span>
-                        {isApproved && <span style={{ fontSize: 12, fontWeight: 700, color: '#16a34a' }}>✓ Aprovado</span>}
-                        {isChanges  && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>⚠ Alteração pedida</span>}
-                      </div>
-                    </div>
-                    <button onClick={() => { setSheetPost(null); setSheetComment('') }}
-                      style={{ width: 32, height: 32, borderRadius: '50%', background: '#f3f4f6', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: '#6b7280', fontSize: 18 }}>×</button>
-                  </div>
+                <div style={{ padding: '16px 20px 20px' }}>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 14px', letterSpacing: '-0.02em', lineHeight: 1.2 }}>{sheetPost.title}</h3>
 
                   {/* Copy */}
                   {sheetPost.copy && (
@@ -1098,6 +1133,12 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                       {isLoading ? '…' : <><CheckCircle size={17} strokeWidth={2.5} /> Aprovar este post</>}
                     </button>
                   )}
+
+                  {/* Nudge to posts tab */}
+                  <button onClick={() => { closeSheet(); setTab('posts') }}
+                    style={{ width: '100%', marginTop: 12, padding: '12px 0', borderRadius: 14, background: 'transparent', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#6b7280', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    ✅ Ver todos os posts para aprovar
+                  </button>
                 </div>
               </div>
             </div>
