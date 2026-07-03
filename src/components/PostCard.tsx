@@ -517,7 +517,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   const dueDateLabel = (() => {
     if (!form.scheduled_date) return null
-    const diff = Math.ceil((new Date(form.scheduled_date + 'T23:59:59').getTime() - Date.now()) / 86400000)
+    const now = new Date()
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const [fy, fm, fd] = form.scheduled_date.split('-').map(Number)
+    const schedMidnight = new Date(fy, fm - 1, fd)
+    const diff = Math.round((schedMidnight.getTime() - todayMidnight.getTime()) / 86400000)
     const color = diff < 0 ? '#EF4444' : diff <= 2 ? '#F59E0B' : 'var(--color-text-secondary)'
     const suffix = diff < 0 ? ' · atrasado' : diff === 0 ? ' · hoje' : diff === 1 ? ' · amanhã' : ''
     return { text: new Date(form.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) + suffix, color }
