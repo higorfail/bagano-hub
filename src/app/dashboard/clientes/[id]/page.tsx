@@ -519,6 +519,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 followersCount={client.instagram_followers ?? undefined}
                 followingCount={client.instagram_following ?? undefined}
                 instagramUrl={client.instagram_url || undefined}
+                logoUrl={client.logo_url || undefined}
                 onReorder={async (reordered) => {
                   await Promise.all(reordered.map(p => createClient().from('schedules').update({ feed_order: p.feed_order }).eq('id', p.id)))
                 }}

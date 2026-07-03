@@ -57,7 +57,7 @@ const TYPE_SHORT: Record<string, string> = {
   reels: 'Reel', carrossel: 'Carrossel', post: 'Post', story: 'Story', carrossel_stories: 'Crsl/Story',
 }
 
-type Client   = { id: string; name: string; color_hex: string }
+type Client   = { id: string; name: string; color_hex: string; logo_url?: string | null }
 type Schedule = {
   id: string; client_id: string; title: string
   status: string; approval_status: string; post_type: string
@@ -133,7 +133,7 @@ export default function DashboardPage() {
         const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
         const [{ data: cls, error: e1 }, { data: sch }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
           supabase.from(CFG.t.clients)
-            .select('id, name, color_hex')
+            .select('id, name, color_hex, logo_url')
             .eq('status', 'active')
             .order('name'),
           supabase.from(CFG.t.schedules)
@@ -391,6 +391,13 @@ export default function DashboardPage() {
   function ClientAvatar({ clientId, size = 36 }: { clientId: string; size?: number }) {
     const c = clientMap[clientId]
     if (!c) return null
+    if (c.logo_url) return (
+      <img src={c.logo_url} alt={c.name}
+        style={{ width: size, height: size, borderRadius: size / 3 }}
+        className="object-cover flex-shrink-0"
+        onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+      />
+    )
     return (
       <div className="flex items-center justify-center text-white font-bold flex-shrink-0"
         style={{ width: size, height: size, borderRadius: size / 3, fontSize: size / 3, background: c.color_hex }}>
@@ -550,9 +557,10 @@ export default function DashboardPage() {
                   return (
                     <Card key={client.id} hover padded className="cursor-pointer" onClick={() => router.push(`/dashboard/clientes/${client.id}`)}>
                       <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>
-                          {getInitials(client.name)}
-                        </div>
+                        {client.logo_url
+                          ? <img src={client.logo_url} alt={client.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                          : <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+                        }
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-[var(--color-text-primary)] truncate text-sm">{client.name}</p>
                           <p className="text-xs text-[var(--color-text-muted)]">{cpTotal} {pl(cpTotal, 'post', 'posts')} · {allDone ? 'concluído' : cpTotal === 0 ? 'sem posts' : 'em andamento'}</p>

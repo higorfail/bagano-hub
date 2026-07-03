@@ -47,6 +47,7 @@ export interface IPhoneFeedProps {
   followersCount?: number
   followingCount?: number
   instagramUrl?: string
+  logoUrl?: string | null
   onPostClick?: (post: FeedPost) => void
   onReorder?: (posts: FeedPost[]) => void
   readonly?: boolean
@@ -561,6 +562,7 @@ export default function IPhoneFeed({
   followersCount,
   followingCount,
   instagramUrl,
+  logoUrl,
   onPostClick,
   onReorder,
   readonly = false,
@@ -571,7 +573,7 @@ export default function IPhoneFeed({
   const igUsername = instagramUrl
     ? instagramUrl.replace(/https?:\/\/(www\.)?instagram\.com\/?/, '').replace(/\/$/, '')
     : null
-  const avatarUrl = igUsername ? `https://unavatar.io/instagram/${igUsername}` : null
+  const avatarUrl = logoUrl || (igUsername ? `https://unavatar.io/instagram/${igUsername}` : null)
 
   const [posts, setPosts]             = useState<FeedPost[]>([...initialPosts].sort((a, b) => (a.feed_order ?? 999) - (b.feed_order ?? 999)))
   const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null)
