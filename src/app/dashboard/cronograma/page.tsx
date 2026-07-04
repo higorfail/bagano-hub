@@ -98,7 +98,7 @@ function CronogramaPageInner() {
   const clientParam = searchParams.get('client')
   const postParam   = searchParams.get('post')
   const syncKey     = `${clientParam}|${postParam}|${searchParams.get('m')}|${searchParams.get('y')}`
-  const [selectedClient, setSelectedClient] = useState<string>('')
+  const [selectedClient, setSelectedClient] = useState<string>(() => clientParam || '')
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const m = parseInt(searchParams.get('m') || '')
     return !isNaN(m) && m >= 1 && m <= 12 ? m : new Date().getMonth() + 1
@@ -111,8 +111,8 @@ function CronogramaPageInner() {
   const [selected, setSelected] = useState<Post | null>(null)
   const [loading,   setLoading]   = useState(true)
   const [loadError, setLoadError] = useState(false)
-  const [showPostCard,  setShowPostCard]  = useState(false)
-  const [editingPostId, setEditingPostId] = useState<string | null>(null)
+  const [showPostCard,  setShowPostCard]  = useState(() => !!(postParam && clientParam))
+  const [editingPostId, setEditingPostId] = useState<string | null>(() => postParam || null)
   const [dragId,     setDragId]     = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [showApprovalModal, setShowApprovalModal] = useState(false)
