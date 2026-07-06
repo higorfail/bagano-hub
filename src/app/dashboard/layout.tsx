@@ -37,7 +37,7 @@ const contentItems = [
 
 type Notification = {
   id: string
-  type: 'approval' | 'rejection' | 'comment' | 'captacao' | 'deadline' | 'urgente' | 'extra_vencido' | 'cronograma_ok' | 'revisao_interna' | 'mention'
+  type: 'approval' | 'rejection' | 'comment' | 'captacao' | 'deadline' | 'urgente' | 'extra_vencido' | 'cronograma_ok' | 'revisao_interna' | 'mention' | 'criacao_hoje'
   title: string
   subtitle: string
   body?: string
@@ -153,6 +153,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       mentionsRes,
       materialMentionsRes,
       extraMentionsRes,
+      criacaoHojeRes,
     ] = await Promise.all([
       // Aprovações/rejeições do cliente via activity_log (com timestamp real)
       supabase.from('activity_log')
@@ -234,6 +235,22 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             .order('created_at', { ascending: false })
             .limit(10)
         : Promise.resolve({ data: [] }),
+      // Criação hoje: agenda_criacao do dia atual para o membro logado
+      (() => {
+        if (!currentMember) return Promise.resolve({ data: [] })
+        const d = new Date()
+        const dow = d.getDay() // 0=Dom, 1=Seg...5=Sex
+        if (dow === 0 || dow === 6) return Promise.resolve({ data: [] })
+        const monday = new Date(d)
+        monday.setDate(d.getDate() - dow + 1)
+        monday.setHours(0, 0, 0, 0)
+        const weekStart = monday.toISOString().slice(0, 10)
+        return supabase.from('agenda_criacao')
+          .select('id, client_id, member_ids, notes, clients(name, color_hex)')
+          .eq('week_start', weekStart)
+          .eq('day_of_week', dow)
+          .contains('member_ids', [currentMember.id])
+      })(),
     ])
 
     setApprovalsCount((pendingCountRes.count || 0) + (rejectedCountRes.count || 0))
@@ -447,6 +464,22 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         body: d.body || '',
         created_at: d.created_at,
         link: `/dashboard/extras?post=${d.extra_id}`,
+      })
+    })
+
+    // Criação hoje — aparecem no topo (prioridade alta)
+    ;(criacaoHojeRes.data || []).forEach((entry: any) => {
+      const cl = entry.clients as any
+      result.push({
+        id: `criacao-hoje-${entry.id}`,
+        type: 'criacao_hoje' as const,
+        title: 'Criação hoje',
+        subtitle: cl?.name || 'Cliente',
+        client_name: cl?.name,
+        client_color: cl?.color_hex,
+        body: entry.notes || '',
+        created_at: new Date(new Date().setHours(9, 0, 0, 0)).toISOString(),
+        link: '/dashboard/criacao',
       })
     })
 
@@ -708,8 +741,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                         className={`flex items-start gap-3 px-4 py-3.5 border-b border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors cursor-pointer ${!isRead ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
                         {/* Icon */}
                         <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5`} style={{
-                          background: isApproval ? 'var(--ds-success-bg)' : isRejection ? 'var(--ds-error-bg)' : isMention ? 'var(--ds-purple-bg)' : n.type === 'captacao' ? 'var(--ds-purple-bg)' : n.type === 'urgente' ? 'var(--ds-error-bg)' : n.type === 'deadline' || n.type === 'extra_vencido' ? 'var(--ds-warn-bg)' : n.type === 'cronograma_ok' ? 'var(--ds-success-bg)' : n.type === 'revisao_interna' ? 'var(--ds-caution-bg)' : 'var(--ds-info-bg)',
-                          color: isApproval ? 'var(--ds-success-accent)' : isRejection ? 'var(--ds-error-accent)' : isMention ? 'var(--ds-purple-accent)' : n.type === 'captacao' ? 'var(--ds-purple-accent)' : n.type === 'urgente' ? 'var(--ds-error-accent)' : n.type === 'deadline' || n.type === 'extra_vencido' ? 'var(--ds-warn-accent)' : n.type === 'cronograma_ok' ? 'var(--ds-success-accent)' : n.type === 'revisao_interna' ? 'var(--ds-caution-accent)' : 'var(--ds-info-accent)',
+                          background: isApproval ? 'var(--ds-success-bg)' : isRejection ? 'var(--ds-error-bg)' : isMention ? 'var(--ds-purple-bg)' : n.type === 'captacao' ? 'var(--ds-purple-bg)' : n.type === 'urgente' ? 'var(--ds-error-bg)' : n.type === 'deadline' || n.type === 'extra_vencido' ? 'var(--ds-warn-bg)' : n.type === 'cronograma_ok' ? 'var(--ds-success-bg)' : n.type === 'revisao_interna' ? 'var(--ds-caution-bg)' : n.type === 'criacao_hoje' ? 'var(--ds-caution-bg)' : 'var(--ds-info-bg)',
+                          color: isApproval ? 'var(--ds-success-accent)' : isRejection ? 'var(--ds-error-accent)' : isMention ? 'var(--ds-purple-accent)' : n.type === 'captacao' ? 'var(--ds-purple-accent)' : n.type === 'urgente' ? 'var(--ds-error-accent)' : n.type === 'deadline' || n.type === 'extra_vencido' ? 'var(--ds-warn-accent)' : n.type === 'cronograma_ok' ? 'var(--ds-success-accent)' : n.type === 'revisao_interna' ? 'var(--ds-caution-accent)' : n.type === 'criacao_hoje' ? 'var(--ds-caution-accent)' : 'var(--ds-info-accent)',
                         }}>
                           {isApproval              ? <CheckCircle2 size={15} strokeWidth={2} /> :
                            isRejection             ? <XCircle      size={15} strokeWidth={2} /> :
@@ -719,6 +752,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                            n.type === 'revisao_interna' ? <Eye     size={15} strokeWidth={2} /> :
                            n.type === 'extra_vencido' ? <ListChecks size={15} strokeWidth={2} /> :
                            n.type === 'cronograma_ok' ? <CalendarClock size={15} strokeWidth={2} /> :
+                           n.type === 'criacao_hoje' ? <LayoutList   size={15} strokeWidth={2} /> :
                            n.type === 'deadline'   ? <Clock        size={15} strokeWidth={2} /> :
                            <MessageCircle size={15} strokeWidth={2} />}
                         </div>
