@@ -420,7 +420,7 @@ function CronogramaPageInner() {
                     disabled={saving}
                     className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90 disabled:opacity-50"
                     style={{ borderColor: '#f59e0b66', color: '#b45309', background: '#f59e0b18' }}>
-                    🎨 Direto pra Criação
+                    ⚡ Direto pra Criação
                   </button>
                 </div>
               )}
