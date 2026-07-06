@@ -66,6 +66,7 @@ export default function AgendaPage() {
 
   // Agenda entry modal
   const [entryModal,   setEntryModal]   = useState<{ dayIndex: number } | null>(null)
+  const [editingEntry, setEditingEntry] = useState<AgendaEntry | null>(null)
   const [entryClient,  setEntryClient]  = useState('')
   const [entryMembers, setEntryMembers] = useState<string[]>([])
   const [entryNotes,   setEntryNotes]   = useState('')
@@ -156,6 +157,23 @@ export default function AgendaPage() {
     setSavingEntry(false)
   }
 
+  async function updateEntry() {
+    if (!editingEntry || !entryClient) return
+    setSavingEntry(true)
+    const { error } = await supabase.from('agenda_criacao').update({
+      client_id:  entryClient,
+      member_ids: entryMembers.length > 0 ? entryMembers : null,
+      notes:      entryNotes || null,
+    }).eq('id', editingEntry.id)
+    if (dbError(error, toast, 'editar entrada')) { setSavingEntry(false); return }
+    setEntries(prev => prev.map(e => e.id === editingEntry.id
+      ? { ...e, client_id: entryClient, member_ids: entryMembers.length > 0 ? entryMembers : null, notes: entryNotes || null }
+      : e))
+    setEntryModal(null)
+    setEditingEntry(null)
+    setSavingEntry(false)
+  }
+
   async function removeEntry(id: string) {
     const { error } = await supabase.from('agenda_criacao').delete().eq('id', id)
     if (dbError(error, toast, 'remover da agenda')) return
@@ -164,10 +182,10 @@ export default function AgendaPage() {
 
   // ── Captações ──────────────────────────────────────────────────────
   async function saveCapt() {
-    if (!captForm.client_id || !captForm.scheduled_date) return
+    if (!captForm.scheduled_date) return
     setSavingCapt(true)
     const { data, error } = await supabase.from('captacoes').insert({
-      client_id: captForm.client_id,
+      client_id: captForm.client_id || null,
       scheduled_date: captForm.scheduled_date,
       scheduled_time: captForm.scheduled_time || null,
       duration_minutes: captForm.duration_minutes,
@@ -337,7 +355,8 @@ export default function AgendaPage() {
                         draggable
                         onDragStart={() => setDragEntryId(entry.id)}
                         onDragEnd={() => { setDragEntryId(null); setDragOverDay(null) }}
-                        className={`group flex items-start gap-2 bg-[var(--color-bg-page)] rounded-xl p-2.5 relative cursor-grab active:cursor-grabbing active:opacity-50 transition-opacity ${dragEntryId === entry.id ? 'opacity-40' : ''}`}>
+                        onClick={() => { setEditingEntry(entry); setEntryClient(entry.client_id); setEntryMembers(entry.member_ids || []); setEntryNotes(entry.notes || ''); setEntryModal({ dayIndex: entry.day_of_week - 1 }) }}
+                        className={`group flex items-start gap-2 bg-[var(--color-bg-page)] rounded-xl p-2.5 relative cursor-pointer active:opacity-50 transition-opacity ${dragEntryId === entry.id ? 'opacity-40' : ''}`}>
                         <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0"
                           style={{ background: client.color_hex }}>
                           {getInitials(client.name)}
@@ -354,7 +373,7 @@ export default function AgendaPage() {
                           )}
                         </div>
                         <button
-                          onClick={() => removeEntry(entry.id)}
+                          onClick={e => { e.stopPropagation(); removeEntry(entry.id) }}
                           className="absolute top-1 right-1 w-4 h-4 rounded flex items-center justify-center text-[var(--color-text-faint)] opacity-0 group-hover:opacity-100 transition-all" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
                           <X size={10} />
                         </button>
@@ -401,11 +420,11 @@ export default function AgendaPage() {
 
       {/* ── Modal: nova entrada de agenda ────────────────────────────────────── */}
       {entryModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setEntryModal(null)}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => { setEntryModal(null); setEditingEntry(null) }}>
           <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6 w-full max-w-sm animate-scale-in" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <p className="font-semibold text-[var(--color-text-primary)]">Adicionar — {DAYS[entryModal.dayIndex]}</p>
-              <button onClick={() => setEntryModal(null)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)]"><X size={14} /></button>
+              <p className="font-semibold text-[var(--color-text-primary)]">{editingEntry ? 'Editar' : 'Adicionar'} — {DAYS[entryModal.dayIndex]}</p>
+              <button onClick={() => { setEntryModal(null); setEditingEntry(null) }} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)]"><X size={14} /></button>
             </div>
 
             <div className="space-y-4">
@@ -439,10 +458,10 @@ export default function AgendaPage() {
             </div>
 
             <div className="flex gap-2 mt-6">
-              <button onClick={() => setEntryModal(null)} className="flex-1 py-2.5 text-sm border border-[var(--color-border)] rounded-xl text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">Cancelar</button>
-              <button onClick={addEntry} disabled={!entryClient || savingEntry}
+              <button onClick={() => { setEntryModal(null); setEditingEntry(null) }} className="flex-1 py-2.5 text-sm border border-[var(--color-border)] rounded-xl text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">Cancelar</button>
+              <button onClick={editingEntry ? updateEntry : addEntry} disabled={!entryClient || savingEntry}
                 className="flex-1 py-2.5 text-sm bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-xl font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity">
-                {savingEntry ? 'Salvando...' : 'Adicionar'}
+                {savingEntry ? 'Salvando...' : editingEntry ? 'Salvar' : 'Adicionar'}
               </button>
             </div>
           </div>
@@ -461,10 +480,10 @@ export default function AgendaPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Cliente</label>
+                  <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Cliente <span className="text-[var(--color-text-faint)]">(opcional)</span></label>
                   <select value={captForm.client_id} onChange={e => setCaptForm(f => ({ ...f, client_id: e.target.value }))}
                     className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]">
-                    <option value="">Selecione...</option>
+                    <option value="">Sem cliente</option>
                     {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
@@ -474,6 +493,14 @@ export default function AgendaPage() {
                     className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]" />
                 </div>
               </div>
+              {!captForm.client_id && (
+                <div>
+                  <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">O que é essa captação?</label>
+                  <input type="text" value={captForm.notes} onChange={e => setCaptForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="ex: Sessão para evento, teste de produto..."
+                    className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]" />
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
@@ -515,7 +542,7 @@ export default function AgendaPage() {
 
             <div className="flex gap-2 mt-6">
               <button onClick={() => setCaptModal(false)} className="flex-1 py-2.5 text-sm border border-[var(--color-border)] rounded-xl text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">Cancelar</button>
-              <button onClick={saveCapt} disabled={!captForm.client_id || !captForm.scheduled_date || savingCapt}
+              <button onClick={saveCapt} disabled={!captForm.scheduled_date || savingCapt}
                 className="flex-1 py-2.5 text-sm bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-xl font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity">
                 {savingCapt ? 'Salvando...' : 'Agendar'}
               </button>
@@ -532,7 +559,8 @@ function CaptacaoRow({ c, clientMap, memberMap, syncing, calendarOk, onSync, onD
   syncing: boolean; calendarOk: boolean
   onSync: () => void; onDelete: () => void; onStatus: (s: string) => void
 }) {
-  const client  = clientMap[c.client_id]
+  const client  = c.client_id ? clientMap[c.client_id] : null
+  const label   = client?.name || c.notes?.split('\n')[0] || 'Captação avulsa'
   const members = (c.team_member_ids || []).map(mid => memberMap[mid]).filter(Boolean)
   const date    = new Date(c.scheduled_date + 'T12:00:00')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -547,13 +575,13 @@ function CaptacaoRow({ c, clientMap, memberMap, syncing, calendarOk, onSync, onD
         </span>
       </div>
 
-      {/* Client */}
+      {/* Client / label */}
       <div className="flex items-center gap-2 min-w-[140px]">
-        {client && (
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
-            style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
-        )}
-        <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{client?.name || '—'}</span>
+        {client
+          ? <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+          : <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] bg-[var(--color-bg-subtle)] flex-shrink-0"><Camera size={12} /></div>
+        }
+        <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{label}</span>
       </div>
 
       {/* Time + duration */}
