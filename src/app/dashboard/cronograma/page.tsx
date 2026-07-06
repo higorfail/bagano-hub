@@ -1,7 +1,7 @@
 'use client'
 // @ts-nocheck
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import PostCard from '@/components/PostCard'
@@ -115,6 +115,16 @@ function CronogramaPageInner() {
   const [editingPostId, setEditingPostId] = useState<string | null>(() => postParam || null)
   const [dragId,     setDragId]     = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  // Limpa ?post= da URL sempre que o card fecha, independente do caminho de fechamento
+  const prevShowPostCard = useRef(showPostCard)
+  useEffect(() => {
+    const wasOpen = prevShowPostCard.current
+    prevShowPostCard.current = showPostCard
+    if (wasOpen && !showPostCard && selectedClient) {
+      window.history.replaceState(null, '', `?client=${selectedClient}&m=${selectedMonth}&y=${selectedYear}`)
+    }
+  }, [showPostCard, selectedClient, selectedMonth, selectedYear])
+
   const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [approvalLink, setApprovalLink] = useState('')
   const [generatingLink, setGeneratingLink] = useState(false)
@@ -538,7 +548,7 @@ function CronogramaPageInner() {
           month={selectedMonth}
           year={selectedYear}
           postNumber={editingPostId ? undefined : posts.length + 1}
-          onClose={() => { setShowPostCard(false); setEditingPostId(null); window.history.replaceState(null, '', `?client=${selectedClient}&m=${selectedMonth}&y=${selectedYear}`) }}
+          onClose={() => { setShowPostCard(false); setEditingPostId(null) }}
           onSaved={() => { loadPosts() }}
           onDeleted={() => { loadPosts() }}
         />
