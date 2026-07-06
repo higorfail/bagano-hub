@@ -220,6 +220,14 @@ function CronogramaPageInner() {
     setTogglingStatus(false)
   }
 
+  async function sendToCriacao(postId: string) {
+    const supabase = createClient()
+    const { error } = await supabase.from('schedules').update({ status: 'producao' }).eq('id', postId)
+    if (error) { toast('Erro ao enviar pra Criação'); return }
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'producao' } : p))
+    toast('Post enviado pra Criação!')
+  }
+
   async function duplicatePost(post: Post) {
     const supabase = createClient()
     const { title, copy, post_type, drive_url, reference_notes } = post
@@ -502,6 +510,7 @@ function CronogramaPageInner() {
                         selected={selected?.id === post.id}
                         onClick={() => { setEditingPostId(post.id); setShowPostCard(true); window.history.replaceState(null, '', `?client=${selectedClient}&post=${post.id}&m=${selectedMonth}&y=${selectedYear}`) }}
                         onDuplicate={() => duplicatePost(post)}
+                        onSendToCriacao={() => sendToCriacao(post.id)}
                         draggable={!hasFilter}
                         dragging={dragId === post.id}
                         dragOver={dragOverId === post.id && dragId !== post.id}

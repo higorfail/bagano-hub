@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Paperclip, Copy, Package, Play } from 'lucide-react'
+import { Calendar, Paperclip, Copy, Package, Play, Palette } from 'lucide-react'
 
 const TYPE: Record<string, { label: string; color: string }> = {
   carrossel:         { label: 'Carrossel',         color: '#3b82f6' },
@@ -45,6 +45,7 @@ type Props = {
   selected?: boolean
   onClick: () => void
   onDuplicate?: () => void
+  onSendToCriacao?: () => void
   draggable?: boolean
   dragging?: boolean
   dragOver?: boolean
@@ -54,7 +55,7 @@ type Props = {
   onDrop?: () => void
 }
 
-export default function PostMiniCard({ post, clientColor, campaignName, selected, onClick, onDuplicate, draggable, dragging, dragOver, onDragStart, onDragEnd, onDragOver, onDrop }: Props) {
+export default function PostMiniCard({ post, clientColor, campaignName, selected, onClick, onDuplicate, onSendToCriacao, draggable, dragging, dragOver, onDragStart, onDragEnd, onDragOver, onDrop }: Props) {
   const type   = TYPE[post.post_type] || { label: post.post_type || '—', color: 'var(--color-border)' }
   const status = STATUS[post.status]  || { label: post.status, color: '#6b7280' }
   const isRejected  = post.approval_status === 'não aprovado'
@@ -129,12 +130,21 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
             {post.funil && <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">{post.funil}</span>}
             {campaignName && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaignName}</span>}
           </div>
-          {onDuplicate && (
-            <button onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicar"
-              className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] flex items-center justify-center transition-all text-[var(--color-text-muted)] flex-shrink-0">
-              <Copy size={11} />
-            </button>
-          )}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {onSendToCriacao && post.status === 'estrategia' && (
+              <button onClick={e => { e.stopPropagation(); onSendToCriacao() }} title="Mandar pra Criação"
+                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg flex items-center justify-center transition-all flex-shrink-0"
+                style={{ background: '#f59e0b18', color: '#b45309' }}>
+                <Palette size={11} />
+              </button>
+            )}
+            {onDuplicate && (
+              <button onClick={e => { e.stopPropagation(); onDuplicate() }} title="Duplicar"
+                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] flex items-center justify-center transition-all text-[var(--color-text-muted)] flex-shrink-0">
+                <Copy size={11} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Title + copy */}
