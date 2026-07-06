@@ -161,8 +161,8 @@ export default function ClientesPage() {
             </button>
             <div className="flex items-center gap-3 mb-4">
               {client.logo_url
-                ? <img src={client.logo_url} alt={client.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                : <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold text-white flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+                ? <img src={client.logo_url} alt={client.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                : <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
               }
               <div className="min-w-0">
                 <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{client.name}</p>
@@ -200,8 +200,8 @@ export default function ClientesPage() {
                   </button>
                   <div className="flex items-center gap-3 mb-2">
                     {client.logo_url
-                      ? <img src={client.logo_url} alt={client.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                      : <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold text-white flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+                      ? <img src={client.logo_url} alt={client.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                      : <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
                     }
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{client.name}</p>
