@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Paperclip, Copy, Package, Play, Palette } from 'lucide-react'
+import { Calendar, Paperclip, Copy, Package, Play, Zap } from 'lucide-react'
 
 const TYPE: Record<string, { label: string; color: string }> = {
   carrossel:         { label: 'Carrossel',         color: '#3b82f6' },
@@ -135,7 +135,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
               <button onClick={e => { e.stopPropagation(); onSendToCriacao() }} title="Mandar pra Criação"
                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg flex items-center justify-center transition-all flex-shrink-0"
                 style={{ background: '#f59e0b18', color: '#b45309' }}>
-                <Palette size={11} />
+                <Zap size={11} />
               </button>
             )}
             {onDuplicate && (
