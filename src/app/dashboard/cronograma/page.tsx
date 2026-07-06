@@ -322,18 +322,18 @@ function CronogramaPageInner() {
   return (
     <div className="flex h-full">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div>
+        {/* Header — limpo, só navegação */}
+        <div className="px-6 pt-6 pb-4 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="min-w-0">
               <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Cronograma</h1>
-              <p className="text-[var(--color-text-muted)] text-sm mt-0.5">{posts.length} posts · {MONTHS[selectedMonth-1]} {selectedYear}</p>
+              <p className="text-[var(--color-text-muted)] text-sm mt-0.5">{posts.length} post{posts.length !== 1 ? 's' : ''} · {MONTHS[selectedMonth-1]} {selectedYear}</p>
             </div>
-            {/* Finalizado badge */}
             {cronoStatus?.status === 'finalizado' && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border" style={{ background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
-                <Check size={13} style={{ color: 'var(--ds-success-accent)' }} strokeWidth={2.5} />
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border flex-shrink-0" style={{ background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
+                <Check size={11} style={{ color: 'var(--ds-success-accent)' }} strokeWidth={2.5} />
                 <span className="text-xs font-semibold" style={{ color: 'var(--ds-success-text)' }}>
-                  Finalizado{cronoStatus.finalized_by ? ` por ${cronoStatus.finalized_by.split(' ')[0]}` : ''}
+                  Finalizado{cronoStatus.finalized_by ? ` · ${cronoStatus.finalized_by.split(' ')[0]}` : ''}
                 </span>
               </div>
             )}
@@ -358,11 +358,8 @@ function CronogramaPageInner() {
                     </div>
                     <div className="grid grid-cols-3 gap-1.5">
                       {MONTHS.map((m, i) => (
-                        <button
-                          key={m}
-                          onClick={() => { setSelectedMonth(i+1); setShowMonthPicker(false) }}
-                          className={`py-2 rounded-xl text-xs font-medium transition-colors ${selectedMonth === i+1 ? 'bg-[var(--color-text-primary)] text-white' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}
-                        >
+                        <button key={m} onClick={() => { setSelectedMonth(i+1); setShowMonthPicker(false) }}
+                          className={`py-2 rounded-xl text-xs font-medium transition-colors ${selectedMonth === i+1 ? 'bg-[var(--color-text-primary)] text-white' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>
                           {m.slice(0,3)}
                         </button>
                       ))}
@@ -371,43 +368,68 @@ function CronogramaPageInner() {
                 </>
               )}
             </div>
-            {/* Toggle finalizado */}
-            {posts.length > 0 && (
-              <button
-                onClick={toggleFinalized}
-                disabled={togglingStatus}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-all disabled:opacity-50"
-                style={cronoStatus?.status === 'finalizado' ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' } : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
-              >
-                <Check size={13} strokeWidth={2.5} />
-                {cronoStatus?.status === 'finalizado' ? 'Reabrir' : 'Marcar finalizado'}
-              </button>
-            )}
-            {(() => {
-              const cronoPosts  = posts.filter(p => p.status === 'estrategia' || p.status === 'aguardando_aprovacao_crono')
-              const finalPosts  = posts.filter(p => p.status === 'revisao_interna' || p.status === 'aguardando_aprovacao')
-              return (<>
-                <button
-                  onClick={() => openApprovalModal('cronograma')}
-                  className="border rounded-xl px-4 py-2 text-sm font-medium transition-all hover:opacity-90"
-                  style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}
-                  title={cronoPosts.length === 0 ? 'Nenhum post em estratégia para enviar' : `${cronoPosts.length} post${cronoPosts.length !== 1 ? 's' : ''} para aprovação de cronograma`}
-                >
-                  📋 Aprovar cronograma{cronoPosts.length > 0 && <span className="ml-1.5 bg-white/30 text-[10px] font-bold rounded-full px-1.5 py-0.5">{cronoPosts.length}</span>}
-                </button>
-                <button
-                  onClick={() => openApprovalModal('final')}
-                  className="border rounded-xl px-4 py-2 text-sm font-medium transition-all hover:opacity-90"
-                  style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}
-                  title={finalPosts.length === 0 ? 'Nenhum post em revisão para enviar' : `${finalPosts.length} post${finalPosts.length !== 1 ? 's' : ''} para aprovação final`}
-                >
-                  ✅ Aprovação final{finalPosts.length > 0 && <span className="ml-1.5 bg-white/30 text-[10px] font-bold rounded-full px-1.5 py-0.5">{finalPosts.length}</span>}
-                </button>
-              </>)
-            })()}
             <Button variant="dark" onClick={() => { setEditingPostId(null); setShowPostCard(true) }}>+ Novo post</Button>
           </div>
         </div>
+
+        {/* Barra contextual — aparece só quando há ações relevantes */}
+        {posts.length > 0 && (() => {
+          const estrategiaPosts   = posts.filter(p => p.status === 'estrategia')
+          const revisaoPosts      = posts.filter(p => p.status === 'revisao_interna')
+          const hasActions        = estrategiaPosts.length > 0 || revisaoPosts.length > 0
+          const isFinalized       = cronoStatus?.status === 'finalizado'
+          if (!hasActions && !posts.length) return null
+          return (
+            <div className="px-6 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex items-center gap-3 flex-wrap">
+              {estrategiaPosts.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[var(--color-text-muted)] font-medium">{estrategiaPosts.length} post{estrategiaPosts.length !== 1 ? 's' : ''} em estratégia →</span>
+                  <button onClick={() => openApprovalModal('cronograma')}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
+                    style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
+                    📋 Aprovar crono
+                  </button>
+                  <button onClick={async () => {
+                    setSaving(true)
+                    const supabase = createClient()
+                    await Promise.all(estrategiaPosts.map(p =>
+                      supabase.from('schedules').update({ status: 'producao' }).eq('id', p.id)
+                    ))
+                    setPosts(prev => prev.map(p => estrategiaPosts.find(ep => ep.id === p.id) ? { ...p, status: 'producao' } : p))
+                    setSaving(false)
+                    toast(`${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} enviado${estrategiaPosts.length !== 1 ? 's' : ''} para Criação!`)
+                  }}
+                    disabled={saving}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90 disabled:opacity-50"
+                    style={{ borderColor: '#f59e0b66', color: '#b45309', background: '#f59e0b18' }}>
+                    🎨 Direto pra Criação
+                  </button>
+                </div>
+              )}
+              {estrategiaPosts.length > 0 && revisaoPosts.length > 0 && (
+                <div className="w-px h-4 bg-[var(--color-border)]" />
+              )}
+              {revisaoPosts.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[var(--color-text-muted)] font-medium">{revisaoPosts.length} post{revisaoPosts.length !== 1 ? 's' : ''} em revisão →</span>
+                  <button onClick={() => openApprovalModal('final')}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
+                    style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
+                    ✅ Aprovação final
+                  </button>
+                </div>
+              )}
+              <button onClick={toggleFinalized} disabled={togglingStatus}
+                className="ml-auto flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all disabled:opacity-50"
+                style={isFinalized
+                  ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
+                  : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                <Check size={11} strokeWidth={2.5} />
+                {isFinalized ? 'Reabrir' : 'Marcar finalizado'}
+              </button>
+            </div>
+          )
+        })()}
 
         <div className="flex-1 overflow-y-auto p-6">
           {posts.length === 0 ? (
