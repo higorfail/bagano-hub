@@ -435,7 +435,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                     <select
                       value={clientId}
                       onChange={e => { setClientManual(true); setClientId(e.target.value) }}
-                      className="w-full border border-[var(--color-border)] rounded-lg px-2.5 py-2 text-sm bg-[var(--color-bg-card)] outline-none focus:border-[var(--color-brand)]"
+                      className="w-full border border-[var(--color-border)] rounded-lg px-2.5 py-2 text-sm bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]"
                     >
                       <option value="">— avulso —</option>
                       {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -445,7 +445,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                         value={extraClient}
                         onChange={e => setExtraClient(e.target.value)}
                         placeholder="Nome avulso"
-                        className="w-full mt-1.5 border border-[var(--color-border)] rounded-lg px-2.5 py-2 text-sm outline-none focus:border-[var(--color-brand)]"
+                        className="w-full mt-1.5 border border-[var(--color-border)] rounded-lg px-2.5 py-2 text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-card)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)]"
                       />
                     )}
                   </div>
@@ -458,7 +458,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                     list="mc-types"
                     value={type}
                     onChange={e => { setTypeManual(true); setType(e.target.value) }}
-                    className="w-full border border-[var(--color-border)] rounded-lg px-2.5 py-2 text-sm bg-[var(--color-bg-card)] outline-none focus:border-[var(--color-brand)]"
+                    className="w-full border border-[var(--color-border)] rounded-lg px-2.5 py-2 text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-card)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)]"
                   />
                   <datalist id="mc-types">{TYPE_OPTIONS.map(t => <option key={t} value={t} />)}</datalist>
                 </div>
@@ -600,7 +600,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                   value={driveUrl}
                   onChange={e => setDriveUrl(e.target.value)}
                   placeholder="Link do Drive, Figma, WeTransfer…"
-                  className="flex-1 border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-alt)]"
+                  className="flex-1 border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-alt)]"
                 />
                 {driveUrl && (
                   <a
@@ -653,7 +653,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                   onChange={e => setNewCheckText(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') addCheck() }}
                   placeholder="Adicionar item…"
-                  className="flex-1 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[var(--color-brand)]"
+                  className="flex-1 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)]"
                 />
                 <button onClick={addCheck} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">Adicionar</button>
               </div>
@@ -771,7 +771,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                         onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
                         rows={2}
                         placeholder="Escrever um comentário… (⌘Enter)"
-                        className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] resize-none"
+                        className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] resize-none"
                       />
                       {newComment.trim() && (
                         <button onClick={addComment} className="mt-1.5 w-full text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">
@@ -992,11 +992,11 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 <div className="flex gap-2 mb-3">
                   <div className="flex-1">
                     <label className="text-[10px] font-bold uppercase text-[var(--color-text-muted)] mb-1 block">Data</label>
-                    <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-[var(--color-brand)]" />
+                    <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-card)] outline-none focus:border-[var(--color-brand)]" />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold uppercase text-[var(--color-text-muted)] mb-1 block">Hora</label>
-                    <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)} className="w-24 border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-[var(--color-brand)]" />
+                    <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)} className="w-24 border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-card)] outline-none focus:border-[var(--color-brand)]" />
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">

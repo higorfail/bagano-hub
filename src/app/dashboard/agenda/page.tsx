@@ -298,7 +298,7 @@ export default function AgendaPage() {
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Agenda de criação</h2>
             <div className="flex items-center gap-2">
               <button onClick={() => setWeekStart(d => getMonday(addDays(d, -7)))}
-                className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors text-[var(--color-text-secondary)]">
                 <ChevronLeft size={14} />
               </button>
               <span className="text-sm font-medium text-[var(--color-text-primary)] tabular-nums w-40 text-center">
@@ -306,7 +306,7 @@ export default function AgendaPage() {
                 {weekEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
               </span>
               <button onClick={() => setWeekStart(d => getMonday(addDays(d, 7)))}
-                className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors text-[var(--color-text-secondary)]">
                 <ChevronRight size={14} />
               </button>
               <button onClick={() => setWeekStart(getMonday(new Date()))}

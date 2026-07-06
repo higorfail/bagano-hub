@@ -9,7 +9,7 @@ import PostMiniCard from '@/components/PostMiniCard'
 import Button from '@/components/ui/Button'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
-import { Check, Copy, Calendar, Link2, Search, X } from 'lucide-react'
+import { Check, Copy, Calendar, Link2, Search, X, Zap } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 
 type Client = { id: string; name: string; color_hex: string }
@@ -420,7 +420,7 @@ function CronogramaPageInner() {
                     disabled={saving}
                     className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90 disabled:opacity-50"
                     style={{ borderColor: '#f59e0b66', color: '#b45309', background: '#f59e0b18' }}>
-                    🎨 Direto pra Criação
+                    <Zap size={11} /> Direto pra Criação
                   </button>
                 </div>
               )}
