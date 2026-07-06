@@ -132,29 +132,19 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             {onSendToCriacao && post.status === 'estrategia' && (
-              <div className="relative group/zap opacity-0 group-hover:opacity-100 transition-all">
-                <button onClick={e => { e.stopPropagation(); onSendToCriacao() }}
-                  className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-all hover:opacity-70"
-                  style={{ background: '#f59e0b18', color: '#b45309' }}>
-                  <Zap size={11} />
-                </button>
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap opacity-0 group-hover/zap:opacity-100 transition-opacity pointer-events-none z-10"
-                  style={{ background: 'var(--color-text-primary)', color: 'var(--color-bg-card)' }}>
-                  Pra Criação
-                </div>
-              </div>
+              <button onClick={e => { e.stopPropagation(); onSendToCriacao() }}
+                title="Pra Criação"
+                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-all hover:opacity-70"
+                style={{ background: '#f59e0b18', color: '#b45309' }}>
+                <Zap size={11} />
+              </button>
             )}
             {onDuplicate && (
-              <div className="relative group/dup opacity-0 group-hover:opacity-100 transition-all">
-                <button onClick={e => { e.stopPropagation(); onDuplicate() }}
-                  className="w-6 h-6 rounded-lg bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] flex items-center justify-center transition-all text-[var(--color-text-muted)] flex-shrink-0">
-                  <Copy size={11} />
-                </button>
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap opacity-0 group-hover/dup:opacity-100 transition-opacity pointer-events-none z-10"
-                  style={{ background: 'var(--color-text-primary)', color: 'var(--color-bg-card)' }}>
-                  Duplicar
-                </div>
-              </div>
+              <button onClick={e => { e.stopPropagation(); onDuplicate() }}
+                title="Duplicar"
+                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] flex items-center justify-center transition-all text-[var(--color-text-muted)] flex-shrink-0">
+                <Copy size={11} />
+              </button>
             )}
           </div>
         </div>
