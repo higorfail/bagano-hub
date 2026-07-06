@@ -47,7 +47,7 @@ export default function AprovacaoPage() {
           supabase
             .from('schedules')
             .select('id, title, post_type, status, approval_status, approval_comment, scheduled_date, month, year, client_id')
-            .or('status.eq.aguardando_aprovacao,status.eq.ajuste,approval_status.eq.não aprovado,approval_status.eq.aprovado')
+            .or('status.eq.aguardando_aprovacao,status.eq.ajuste,approval_status.eq.aprovado')
             .order('month', { ascending: false }),
           supabase.from('clients').select('id, name, color_hex').eq('status', 'active'),
         ])
@@ -57,7 +57,7 @@ export default function AprovacaoPage() {
         setClients(clientData || [])
         // Auto-expand clients com revisão solicitada
         const urgentClients = new Set<string>()
-        allPosts.forEach(p => { if (p.approval_status === 'não aprovado') urgentClients.add(p.client_id) })
+        allPosts.forEach(p => { if (p.status === 'ajuste') urgentClients.add(p.client_id) })
         setExpanded(urgentClients)
       } catch {
         setLoadError(true)
@@ -75,7 +75,7 @@ export default function AprovacaoPage() {
 
   const filtered = useMemo(() => {
     if (filter === 'aguardando') return posts.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado')
-    if (filter === 'revisao')    return posts.filter(p => p.approval_status === 'não aprovado')
+    if (filter === 'revisao')    return posts.filter(p => p.status === 'ajuste')
     if (filter === 'aprovado')   return posts.filter(p => p.approval_status === 'aprovado')
     return posts.filter(p => p.approval_status !== 'aprovado')
   }, [posts, filter])
@@ -96,7 +96,7 @@ export default function AprovacaoPage() {
   }, [filtered])
 
   const aguardandoCount = posts.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado').length
-  const revisaoCount    = posts.filter(p => p.approval_status === 'não aprovado').length
+  const revisaoCount    = posts.filter(p => p.status === 'ajuste').length
   const aprovadoCount   = posts.filter(p => p.approval_status === 'aprovado').length
 
   function toggle(id: string) {
