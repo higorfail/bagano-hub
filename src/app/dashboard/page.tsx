@@ -393,14 +393,14 @@ export default function DashboardPage() {
     if (!c) return null
     if (c.logo_url) return (
       <img src={c.logo_url} alt={c.name}
-        style={{ width: size, height: size, borderRadius: size / 3 }}
+        style={{ width: size, height: size, borderRadius: '50%' }}
         className="object-cover flex-shrink-0"
         onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
       />
     )
     return (
       <div className="flex items-center justify-center text-white font-bold flex-shrink-0"
-        style={{ width: size, height: size, borderRadius: size / 3, fontSize: size / 3, background: c.color_hex }}>
+        style={{ width: size, height: size, borderRadius: '50%', fontSize: size / 3, background: c.color_hex }}>
         {getInitials(c.name)}
       </div>
     )
@@ -558,8 +558,8 @@ export default function DashboardPage() {
                     <Card key={client.id} hover padded className="cursor-pointer" onClick={() => router.push(`/dashboard/clientes/${client.id}`)}>
                       <div className="flex items-center gap-3 mb-3">
                         {client.logo_url
-                          ? <img src={client.logo_url} alt={client.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                          : <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+                          ? <img src={client.logo_url} alt={client.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                          : <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
                         }
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-[var(--color-text-primary)] truncate text-sm">{client.name}</p>

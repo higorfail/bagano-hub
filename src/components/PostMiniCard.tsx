@@ -134,7 +134,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
             {onSendToCriacao && post.status === 'estrategia' && (
               <div className="relative group/zap opacity-0 group-hover:opacity-100 transition-all">
                 <button onClick={e => { e.stopPropagation(); onSendToCriacao() }}
-                  className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                  className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-all hover:opacity-70"
                   style={{ background: '#f59e0b18', color: '#b45309' }}>
                   <Zap size={11} />
                 </button>

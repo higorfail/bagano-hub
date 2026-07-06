@@ -334,8 +334,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4">
               {client.logo_url
-                ? <img src={client.logo_url} alt={client.name} className="w-12 h-12 rounded-2xl object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                : <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+                ? <img src={client.logo_url} alt={client.name} className="w-12 h-12 rounded-full object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                : <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
               }
               <div>
                 <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">{client.name}</h1>
