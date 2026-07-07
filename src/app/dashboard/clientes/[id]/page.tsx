@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState, Suspense } from 'react'
 import { Copy } from 'lucide-react'
+import { useDarkMode } from '@/lib/useDarkMode'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import IPhoneFeed from '@/components/IPhoneFeed'
@@ -45,6 +46,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const isDark = useDarkMode()
   const { toast } = useToast()
   const [client, setClient] = useState<Client | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
@@ -723,7 +725,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   <iframe
                     src={embedUrl}
                     className="w-full flex-1 rounded-xl border border-[var(--color-border)]"
-                    style={{ minHeight: 'calc(100vh - 220px)' }}
+                    style={{ minHeight: 'calc(100vh - 220px)', filter: isDark ? 'invert(1) hue-rotate(180deg)' : undefined }}
                     title="Google Drive"
                     allow="autoplay"
                   />

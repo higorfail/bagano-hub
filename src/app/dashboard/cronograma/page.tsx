@@ -9,7 +9,7 @@ import PostMiniCard from '@/components/PostMiniCard'
 import Button from '@/components/ui/Button'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
-import { Check, Copy, Calendar, Link2, Search, X, Zap } from 'lucide-react'
+import { Check, Copy, Calendar, Link2, Search, X, Zap, ClipboardCheck } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 
 type Client = { id: string; name: string; color_hex: string }
@@ -405,7 +405,7 @@ function CronogramaPageInner() {
                   <button onClick={() => openApprovalModal('cronograma')}
                     className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
                     style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
-                    📋 Aprovar crono
+                    <ClipboardCheck size={12} /> Aprovar crono
                   </button>
                   <button onClick={async () => {
                     setSaving(true)
@@ -420,7 +420,7 @@ function CronogramaPageInner() {
                     disabled={saving}
                     className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90 disabled:opacity-50"
                     style={{ borderColor: '#f59e0b66', color: '#b45309', background: '#f59e0b18' }}>
-                    ⚡ Direto pra Criação
+                    <Zap size={12} /> Direto pra Criação
                   </button>
                 </div>
               )}
@@ -433,7 +433,7 @@ function CronogramaPageInner() {
                   <button onClick={() => openApprovalModal('final')}
                     className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
                     style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
-                    ✅ Aprovação final
+                    <ClipboardCheck size={12} /> Aprovação final
                   </button>
                 </div>
               )}

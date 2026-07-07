@@ -94,18 +94,20 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className={`group text-left bg-[var(--color-bg-card)] border rounded-2xl flex flex-col transition-all overflow-hidden shadow-card hover:shadow-pop
+      className={`group text-left bg-[var(--color-bg-card)] border rounded-2xl flex flex-col transition-all shadow-card hover:shadow-pop
         ${draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
         ${dragging ? 'opacity-40' : ''}
         ${dragOver ? 'ring-2 ring-[var(--color-accent)]' : ''}
         ${selected ? 'border-transparent' : isRejected ? 'border-[var(--ds-error-border)]' : isRevisao ? 'border-[#8b5cf6]/40' : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'}`}
       style={selected ? { boxShadow: `0 0 0 2px ${clientColor || 'var(--color-accent)'}` } : isRevisao ? { boxShadow: '0 0 0 1px #8b5cf644' } : {}}
     >
-      <div className="h-[3px] w-full flex-shrink-0" style={{ background: isRevisao ? '#8b5cf6' : type.color }} />
+      {/* Top section clipped to rounded corners */}
+      <div className="overflow-hidden rounded-t-2xl flex-shrink-0">
+        <div className="h-[3px] w-full" style={{ background: isRevisao ? '#8b5cf6' : type.color }} />
 
-      {/* Drive thumbnail */}
-      {thumbUrl && (
-        <div className="relative overflow-hidden bg-[var(--color-bg-subtle)] flex-shrink-0"
+        {/* Drive thumbnail */}
+        {thumbUrl && (
+        <div className="relative overflow-hidden bg-[var(--color-bg-subtle)]"
           style={{ height: isVideo ? 140 : 110 }}>
           <img src={thumbUrl} alt={post.title}
             className="w-full h-full object-cover"
@@ -119,6 +121,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
           )}
         </div>
       )}
+      </div>{/* end top section */}
 
       <div className="p-4 flex flex-col gap-3 flex-1">
         {/* Header */}
@@ -133,17 +136,23 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
           <div className="flex items-center gap-1 flex-shrink-0">
             {onSendToCriacao && post.status === 'estrategia' && (
               <button onClick={e => { e.stopPropagation(); onSendToCriacao() }}
-                title="Pra Criação"
-                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-all hover:opacity-70"
+                className="relative group/zap opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-all hover:opacity-70"
                 style={{ background: '#f59e0b18', color: '#b45309' }}>
                 <Zap size={11} />
+                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium whitespace-nowrap opacity-0 group-hover/zap:opacity-100 transition-opacity z-50 shadow-sm"
+                  style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
+                  Pra Criação
+                </span>
               </button>
             )}
             {onDuplicate && (
               <button onClick={e => { e.stopPropagation(); onDuplicate() }}
-                title="Duplicar"
-                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] flex items-center justify-center transition-all text-[var(--color-text-muted)] flex-shrink-0">
+                className="relative group/dup opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] flex items-center justify-center transition-all text-[var(--color-text-muted)] flex-shrink-0">
                 <Copy size={11} />
+                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium whitespace-nowrap opacity-0 group-hover/dup:opacity-100 transition-opacity z-50 shadow-sm"
+                  style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
+                  Duplicar
+                </span>
               </button>
             )}
           </div>

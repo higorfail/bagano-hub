@@ -9,6 +9,7 @@ interface Client {
   id: string
   name: string
   color_hex: string
+  logo_url: string | null
   instagram_url: string | null
   instagram_followers: number | null
   instagram_following: number | null
@@ -29,7 +30,7 @@ export default function FeedPage() {
   const initials = (name: string) => name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
   useEffect(() => {
-    supabase.from('clients').select('id, name, color_hex, instagram_url, instagram_followers, instagram_following').eq('status', 'active').order('name')
+    supabase.from('clients').select('id, name, color_hex, logo_url, instagram_url, instagram_followers, instagram_following').eq('status', 'active').order('name')
       .then(({ data }) => { if (data) setClients(data) })
   }, [])
 
@@ -120,6 +121,7 @@ export default function FeedPage() {
                 clientName={selected.name}
                 clientColor={selected.color_hex}
                 clientInitials={initials(selected.name)}
+                logoUrl={selected.logo_url}
                 instagramUrl={selected.instagram_url || undefined}
                 followersCount={selected.instagram_followers ?? undefined}
                 followingCount={selected.instagram_following ?? undefined}
