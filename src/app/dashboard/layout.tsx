@@ -204,7 +204,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('status', 'aguardando_aprovacao'),
       supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('approval_status', 'não aprovado').not('status', 'in', '(aprovado,agendado,publicado,aguardando_aprovacao)'),
       supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('month', month).eq('year', year),
-      supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('month', month).eq('year', year).eq('approval_status', 'aprovado'),
+      supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('month', month).eq('year', year).in('status', ['aprovado', 'agendado', 'publicado']),
       // Menções ao currentMember nos comentários de posts (14 dias)
       currentMember
         ? supabase.from('schedule_comments')
