@@ -150,8 +150,6 @@ function CronogramaPageInner() {
         setClients(data || [])
         if (clientParam && data?.some(c => c.id === clientParam)) {
           setSelectedClient(clientParam)
-          // If a specific post was requested, PostCard will be opened after loadPosts runs
-          if (!postParam) setTimeout(() => setShowPostCard(true), 100)
         } else if (data && data.length > 0) {
           setSelectedClient(data[0].id)
         }
@@ -172,7 +170,6 @@ function CronogramaPageInner() {
     if (!isNaN(y) && y > 2000) setSelectedYear(y)
     if (clientParam !== selectedClient && clients.some(c => c.id === clientParam)) {
       setSelectedClient(clientParam)
-      if (!postParam) setTimeout(() => setShowPostCard(true), 100)
     }
   }, [syncKey, clients])
 
