@@ -82,6 +82,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   // Múltiplos responsáveis
   const [assignedMembers, setAssignedMembers] = useState<string[]>([])
   const [showMemberPicker, setShowMemberPicker] = useState(false)
+  const memberPickerRef = useRef<HTMLDivElement>(null)
 
   // Sub-entidades
   const [comments,    setComments]    = useState<any[]>([])
@@ -120,6 +121,17 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     setChecklist(chk || [])
     setUploads(ups || [])
   }, [])
+
+  useEffect(() => {
+    if (!showMemberPicker) return
+    function handleClick(e: MouseEvent) {
+      if (memberPickerRef.current && !memberPickerRef.current.contains(e.target as Node)) {
+        setShowMemberPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showMemberPicker])
 
   useEffect(() => {
     if (!materialId) return
@@ -464,7 +476,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 </div>
 
                 {/* RESPONSÁVEIS — múltiplos */}
-                <div className={fixedClientId ? 'col-span-2' : ''}>
+                <div className={fixedClientId ? 'col-span-2' : ''} ref={memberPickerRef}>
                   <label className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5 flex items-center gap-1.5">
                     <User size={12} /> Responsáveis
                   </label>

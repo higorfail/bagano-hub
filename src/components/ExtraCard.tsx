@@ -99,6 +99,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [newAttachTitle, setNewAttachTitle] = useState('')
 
   const [showMemberPicker, setShowMemberPicker] = useState(false)
+  const memberPickerRef = useRef<HTMLDivElement>(null)
   const [showLabelPicker,  setShowLabelPicker]  = useState(false)
   const [showDatePicker,   setShowDatePicker]   = useState(false)
   const [showAttachInput,  setShowAttachInput]  = useState(false)
@@ -130,6 +131,17 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     supabase.from('labels').select('*').order('created_at', { ascending: true })
       .then(({ data }) => { if (data) setGlobalLabels(data) })
   }, [])
+
+  useEffect(() => {
+    if (!showMemberPicker) return
+    function handleClick(e: MouseEvent) {
+      if (memberPickerRef.current && !memberPickerRef.current.contains(e.target as Node)) {
+        setShowMemberPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showMemberPicker])
 
   // Smart auto-detection as the user types the title
   useEffect(() => {
@@ -442,7 +454,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   <User size={13} className="text-[var(--color-text-muted)]" />
                   <span className="text-xs text-[var(--color-text-muted)]">Responsáveis</span>
                 </div>
-                <div className="flex-1">
+                <div className="flex-1" ref={memberPickerRef}>
                   <div className="flex items-center gap-1.5 flex-wrap cursor-pointer" onClick={() => setShowMemberPicker(p => !p)}>
                     {selectedMembersData.length === 0 && (
                       <span className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] px-1">+ Atribuir</span>
