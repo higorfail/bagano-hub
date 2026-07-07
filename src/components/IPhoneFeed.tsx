@@ -654,18 +654,16 @@ export default function IPhoneFeed({
             {/* Profile */}
             <div style={{ padding: '0 16px 12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-                {instagramUrl ? (
-                  <a href={instagramUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, borderRadius: '50%', overflow: 'hidden', width: 48, height: 48, display: 'block', background: clientColor }}>
-                    {avatarUrl && <img src={avatarUrl} alt={igUsername || clientName} width={48} height={48} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                      onError={e => {
-                        const el = e.currentTarget; el.style.display = 'none'
-                        const p = el.parentElement
-                        if (p) { p.style.display = 'flex'; p.style.alignItems = 'center'; p.style.justifyContent = 'center'; p.innerHTML = `<span style="font-size:13px;font-weight:600;color:white">${clientInitials}</span>` }
-                      }} />}
-                  </a>
-                ) : (
-                  <div style={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0, background: clientColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: 'white' }}>{clientInitials}</div>
-                )}
+                {(() => {
+                  const avatarStyle: React.CSSProperties = { flexShrink: 0, borderRadius: '50%', overflow: 'hidden', width: 48, height: 48, background: clientColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }
+                  const inner = avatarUrl
+                    ? <img src={avatarUrl} alt={igUsername || clientName} width={48} height={48} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        onError={e => { const el = e.currentTarget; el.style.display = 'none'; const p = el.parentElement; if (p) { p.style.display = 'flex'; p.style.alignItems = 'center'; p.style.justifyContent = 'center'; p.innerHTML = `<span style="font-size:13px;font-weight:600;color:white">${clientInitials}</span>` } }} />
+                    : <span style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>{clientInitials}</span>
+                  return instagramUrl
+                    ? <a href={instagramUrl} target="_blank" rel="noopener noreferrer" style={{ ...avatarStyle, textDecoration: 'none' }}>{inner}</a>
+                    : <div style={avatarStyle}>{inner}</div>
+                })()}
                 <div style={{ display: 'flex', flex: 1 }}>
                   {[{ num: gridPosts.length, label: 'posts' }, { num: followersCount ?? '—', label: 'seguid.' }, { num: followingCount ?? '—', label: 'seguindo' }].map(({ num, label }) => (
                     <div key={label} style={{ flex: 1, textAlign: 'center' }}>
