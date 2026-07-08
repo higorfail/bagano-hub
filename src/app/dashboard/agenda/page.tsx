@@ -578,7 +578,7 @@ function CaptacaoRow({ c, clientMap, memberMap, syncing, calendarOk, onSync, onD
       {/* Client / label */}
       <div className="flex items-center gap-2 min-w-[140px]">
         {client
-          ? <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+          ? <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 overflow-hidden" style={{ background: client.color_hex }}>{client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}</div>
           : <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] bg-[var(--color-bg-subtle)] flex-shrink-0"><Camera size={12} /></div>
         }
         <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{label}</span>
