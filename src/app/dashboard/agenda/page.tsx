@@ -272,24 +272,9 @@ export default function AgendaPage() {
       <div className="max-w-6xl mx-auto px-8 py-10 space-y-10">
 
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Agenda</h1>
-            <p className="text-sm text-[var(--color-text-muted)] mt-1">Criação semanal e agenda de captações</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {calendarOk === false && (
-              <span className="text-xs px-3 py-1.5 rounded-xl border" style={{ color: 'var(--ds-caution-text)', background: 'var(--ds-caution-bg)', borderColor: 'var(--ds-caution-border)' }}>
-                Google Calendar não configurado
-              </span>
-            )}
-            <button
-              onClick={() => { setCaptForm({ ...BLANK_CAPTACAO, scheduled_date: toLocalISO(new Date()) }); setCaptModal(true) }}
-              className="flex items-center gap-2 bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-xl px-4 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity"
-            >
-              <Camera size={14} /> Nova captação
-            </button>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Agenda</h1>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">Criação semanal e agenda de captações</p>
         </div>
 
         {/* ── AGENDA DE CRIAÇÃO ─────────────────────────────────────────────── */}
@@ -396,7 +381,22 @@ export default function AgendaPage() {
 
         {/* ── CAPTAÇÕES ─────────────────────────────────────────────────────── */}
         <div>
-          <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-4">Captações</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Captações</h2>
+            <div className="flex items-center gap-3">
+              {calendarOk === false && (
+                <span className="text-xs px-3 py-1.5 rounded-xl border" style={{ color: 'var(--ds-caution-text)', background: 'var(--ds-caution-bg)', borderColor: 'var(--ds-caution-border)' }}>
+                  Google Calendar não configurado
+                </span>
+              )}
+              <button
+                onClick={() => { setCaptForm({ ...BLANK_CAPTACAO, scheduled_date: toLocalISO(new Date()) }); setCaptModal(true) }}
+                className="flex items-center gap-2 bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-xl px-4 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
+              >
+                <Camera size={14} /> Nova captação
+              </button>
+            </div>
+          </div>
 
           {upcomingCaptacoes.length === 0 && pastCaptacoes.length === 0 ? (
             <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-10 text-center shadow-card">
