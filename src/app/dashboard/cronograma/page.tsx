@@ -201,28 +201,30 @@ function CronogramaPageInner() {
     const supabase = createClient()
     const isFinalized = cronoStatus?.status === 'finalizado'
 
+    const { data: existing } = await supabase
+      .from('cronograma_status')
+      .select('id')
+      .eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear)
+      .maybeSingle()
+
     if (isFinalized) {
-      // Optimistic update first
       setCronoStatus(s => s ? { ...s, status: 'rascunho', finalized_at: null, finalized_by: null } : null)
+      const payload = { status: 'rascunho', finalized_at: null, finalized_by: null }
+      const { error } = existing
+        ? await supabase.from('cronograma_status').update(payload).eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear)
+        : await supabase.from('cronograma_status').insert({ client_id: selectedClient, month: selectedMonth, year: selectedYear, ...payload })
+      if (error) { toast(`Erro ao reabrir: ${error.message}`); setTogglingStatus(false); return }
       toast('Cronograma reaberto')
-      const { error } = await supabase
-        .from('cronograma_status')
-        .update({ status: 'rascunho', finalized_at: null, finalized_by: null })
-        .eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear)
-      if (error) toast('Erro ao salvar no banco — crie a tabela cronograma_status')
     } else {
       const by = currentMember?.name || null
       const newStatus: CronoStatus = { status: 'finalizado', finalized_at: new Date().toISOString(), finalized_by: by }
-      // Optimistic update first
       setCronoStatus(newStatus)
+      const payload = { status: 'finalizado', finalized_at: newStatus.finalized_at, finalized_by: by }
+      const { error } = existing
+        ? await supabase.from('cronograma_status').update(payload).eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear)
+        : await supabase.from('cronograma_status').insert({ client_id: selectedClient, month: selectedMonth, year: selectedYear, ...payload })
+      if (error) { toast(`Erro ao finalizar: ${error.message}`); setTogglingStatus(false); return }
       toast('Cronograma marcado como finalizado!')
-      const { error } = await supabase
-        .from('cronograma_status')
-        .upsert(
-          { client_id: selectedClient, month: selectedMonth, year: selectedYear, ...newStatus },
-          { onConflict: 'client_id,month,year' }
-        )
-      if (error) toast('Erro ao salvar no banco — crie a tabela cronograma_status')
     }
     setTogglingStatus(false)
   }
