@@ -97,7 +97,11 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       {labels.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {labels.map((l, i) => (
-            <span key={i} className="h-2 w-9 rounded-full flex-shrink-0" style={{ background: l.color }} title={l.text} />
+            <span key={i}
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 max-w-[120px] truncate"
+              style={{ background: l.color + '28', color: l.color, border: `1px solid ${l.color}55` }}>
+              {l.text}
+            </span>
           ))}
         </div>
       )}

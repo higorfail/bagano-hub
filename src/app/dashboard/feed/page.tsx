@@ -78,7 +78,9 @@ export default function FeedPage() {
         <div className="flex-1 overflow-y-auto py-2">
           {filtered.map(client => (
             <button key={client.id} onClick={() => setSelected(client)} className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${selected?.id === client.id ? 'bg-[var(--color-bg-subtle)]' : 'hover:bg-[var(--color-bg-subtle)]'}`}>
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-medium flex-shrink-0" style={{ background: client.color_hex || '#1a1a1a' }}>{initials(client.name)}</div>
+              <div className="w-7 h-7 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center text-white text-[10px] font-medium" style={{ background: client.color_hex || '#1a1a1a' }}>
+                {client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : initials(client.name)}
+              </div>
               <span className="text-sm text-[var(--color-text-primary)] truncate">{client.name}</span>
             </button>
           ))}
@@ -90,7 +92,9 @@ export default function FeedPage() {
           <>
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-medium" style={{ background: selected.color_hex }}>{initials(selected.name)}</div>
+                <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center text-white font-medium" style={{ background: selected.color_hex }}>
+                  {selected.logo_url ? <img src={selected.logo_url} alt={selected.name} className="w-full h-full object-cover" /> : initials(selected.name)}
+                </div>
                 <div>
                   <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">{selected.name}</h1>
                   <p className="text-xs text-[var(--color-text-muted)]">Feed do Instagram</p>
