@@ -59,7 +59,7 @@ export default function CampanhasPage() {
   async function load() {
     const [{ data: camps }, { data: cls }, { data: ps }] = await Promise.all([
       supabase.from('campaigns').select('*, campaign_extras(*)').eq('active', true),
-      supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name'),
+      supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
       supabase.from('schedules').select('id, client_id, post_number, title, post_type, status, campaign_type').not('campaign_type', 'is', null),
     ])
     setCampaigns(camps || [])
@@ -171,7 +171,7 @@ export default function CampanhasPage() {
                     className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--color-bg-alt)] transition-colors"
                     onClick={() => setExpanded(isExp ? null : camp.id)}
                   >
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden" style={{ background: client.color_hex }}>{client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{client.name}</p>
                       <p className="text-xs text-[var(--color-text-secondary)]">{campPosts.length} posts · {extras.length} extras</p>
@@ -264,7 +264,7 @@ export default function CampanhasPage() {
           <div className="flex flex-wrap gap-2">
             {inactiveClients.map(client => (
               <a key={client.id} href={`/dashboard/clientes/${client.id}?tab=campanhas`} className="flex items-center gap-2 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 hover:border-[var(--color-border-hover)] transition-colors">
-                <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-semibold" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+                <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-semibold overflow-hidden" style={{ background: client.color_hex }}>{client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}</div>
                 <span className="text-xs text-[var(--color-text-secondary)]">{client.name}</span>
               </a>
             ))}

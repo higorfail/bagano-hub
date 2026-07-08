@@ -41,7 +41,7 @@ type CronoStatus = {
   production_note: string | null
 }
 
-type Client = { id: string; name: string; color_hex: string }
+type Client = { id: string; name: string; color_hex: string; logo_url: string | null }
 type Member = { id: string; name: string; role: string; color?: string }
 
 type Extra = {
@@ -111,7 +111,7 @@ export default function CriacaoPage() {
       const toStr   = to.toISOString().slice(0, 10)
 
       const [{ data: cl, error: e1 }, { data: mb, error: e2 }, { data: po, error: e3 }, { data: cs }, { data: ex }, { data: ag }, { data: ct }] = await Promise.all([
-        supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name'),
+        supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
         supabase.from('team_members').select('id, name, role, color').order('name'),
         supabase.from('schedules')
           .select('id, title, post_type, scheduled_date, briefing, copy, funil, post_number, month, year, client_id')
@@ -414,9 +414,9 @@ export default function CriacaoPage() {
                 onClick={() => toggleCollapse(clientId)}
                 className="w-full flex items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-[var(--color-bg-subtle)]"
                 style={{ borderLeft: `4px solid ${client.color_hex}`, borderBottom: isCollapsed ? 'none' : '1px solid var(--color-border)' }}>
-                <div className="w-9 h-9 rounded-2xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                <div className="w-9 h-9 rounded-2xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden"
                   style={{ background: client.color_hex }}>
-                  {getInitials(client.name)}
+                  {client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}
                 </div>
                 <div className="flex-1 text-left">
                   <p className="text-sm font-bold text-[var(--color-text-primary)]">{client.name}</p>

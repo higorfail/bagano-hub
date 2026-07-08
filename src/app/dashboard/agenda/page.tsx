@@ -6,7 +6,7 @@ import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import { Plus, ChevronLeft, ChevronRight, Calendar, Camera, X, Check, Loader2, CalendarPlus } from 'lucide-react'
 
-type Client       = { id: string; name: string; color_hex: string }
+type Client       = { id: string; name: string; color_hex: string; logo_url: string | null }
 type Member       = { id: string; name: string; role: string }
 type AgendaEntry  = { id: string; week_start: string; day_of_week: number; client_id: string; member_ids: string[] | null; notes: string | null }
 type Captacao     = {
@@ -115,7 +115,7 @@ export default function AgendaPage() {
     const end   = toLocalISO(addDays(weekStart, 90)) // captações até 90 dias
 
     const [{ data: cl }, { data: mb }, { data: en }, { data: cap }] = await Promise.all([
-      supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name'),
+      supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
       supabase.from('team_members').select('id, name, role').order('name'),
       supabase.from('agenda_criacao').select('*').eq('week_start', start),
       supabase.from('captacoes').select('*').gte('scheduled_date', start).lte('scheduled_date', end).order('scheduled_date'),
@@ -342,9 +342,9 @@ export default function AgendaPage() {
                         onDragEnd={() => { setDragEntryId(null); setDragOverDay(null) }}
                         onClick={() => { setEditingEntry(entry); setEntryClient(entry.client_id); setEntryMembers(entry.member_ids || []); setEntryNotes(entry.notes || ''); setEntryModal({ dayIndex: entry.day_of_week - 1 }) }}
                         className={`group flex items-start gap-2 bg-[var(--color-bg-page)] rounded-xl p-2.5 relative cursor-pointer active:opacity-50 transition-opacity ${dragEntryId === entry.id ? 'opacity-40' : ''}`}>
-                        <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0"
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 overflow-hidden"
                           style={{ background: client.color_hex }}>
-                          {getInitials(client.name)}
+                          {client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold text-[var(--color-text-primary)] leading-snug truncate">{client.name}</p>

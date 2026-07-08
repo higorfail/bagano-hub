@@ -17,7 +17,7 @@ type Post = {
   year: number
   client_id: string
 }
-type Client = { id: string; name: string; color_hex: string }
+type Client = { id: string; name: string; color_hex: string; logo_url: string | null }
 
 const TYPE_LABEL: Record<string, string> = {
   reels: 'Reels', carrossel: 'Carrossel', post: 'Post',
@@ -49,7 +49,7 @@ export default function AprovacaoPage() {
             .select('id, title, post_type, status, approval_status, approval_comment, scheduled_date, month, year, client_id')
             .or('status.eq.aguardando_aprovacao,status.eq.ajuste,approval_status.eq.aprovado')
             .order('month', { ascending: false }),
-          supabase.from('clients').select('id, name, color_hex').eq('status', 'active'),
+          supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active'),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
         const allPosts = postData || []
@@ -222,10 +222,10 @@ export default function AprovacaoPage() {
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                    className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden"
                     style={{ background: client.color_hex }}
                   >
-                    {getInitials(client.name)}
+                    {client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}
                   </div>
                   <div>
                     <span className="font-semibold text-[var(--color-text-primary)] text-sm">{client.name}</span>
