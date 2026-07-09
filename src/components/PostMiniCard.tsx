@@ -44,7 +44,7 @@ type Props = {
   clientColor?: string
   campaignName?: string | null
   selected?: boolean
-  members?: { id: string; name: string }[]
+  members?: { id: string; name: string; color?: string }[]
   onClick: () => void
   onDuplicate?: () => void
   onSendToCriacao?: () => void
@@ -58,7 +58,7 @@ type Props = {
 }
 
 export default function PostMiniCard({ post, clientColor, campaignName, selected, members, onClick, onDuplicate, onSendToCriacao, draggable, dragging, dragOver, onDragStart, onDragEnd, onDragOver, onDrop }: Props) {
-  const assignedData = (post.assigned_members || []).map(id => members?.find(m => m.id === id)).filter(Boolean) as { id: string; name: string }[]
+  const assignedData = (post.assigned_members || []).map(id => members?.find(m => m.id === id)).filter(Boolean) as { id: string; name: string; color?: string }[]
   const type   = TYPE[post.post_type] || { label: post.post_type || '—', color: 'var(--color-border)' }
   const status = STATUS[post.status]  || { label: post.status, color: '#6b7280' }
   const isRejected  = post.approval_status === 'não aprovado'
@@ -189,7 +189,8 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
               <div className="flex -space-x-1.5">
                 {assignedData.slice(0, 3).map(m => (
                   <div key={m.id} title={m.name}
-                    className="w-5 h-5 rounded-full bg-[var(--color-brand)] border-2 border-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-brand-fg)] text-[8px] font-bold">
+                    className="w-5 h-5 rounded-full border-2 border-[var(--color-bg-card)] flex items-center justify-center text-[8px] font-bold text-white"
+                    style={{ background: m.color || 'var(--color-brand)' }}>
                     {m.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
                 ))}
