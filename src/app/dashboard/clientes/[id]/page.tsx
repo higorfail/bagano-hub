@@ -102,7 +102,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
         const found = postData.find((p: any) => p.id === postParam)
         if (found) { setEditingPostId(found.id); setShowPostCard(true) }
       }
-      const { data: membersData } = await supabase.from('team_members').select('id, name, role').order('name')
+      const { data: membersData } = await supabase.from('team_members').select('id, name, role, color').order('name')
       const { data: teamData } = await supabase.from('client_team').select('id, funcao, member_id').eq('client_id', id)
       // Junta manualmente para não depender do join do PostgREST
       const enriched = (teamData || []).map(t => ({
@@ -477,6 +477,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                       key={post.id}
                       post={post}
                       clientColor={client.color_hex}
+                      members={allMembers}
                       campaignName={campaigns.find(c => c.type === post.campaign_type)?.name || null}
                       onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
                       onDuplicate={() => quickDuplicate(post)}
