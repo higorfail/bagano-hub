@@ -36,6 +36,7 @@ export type MiniPost = {
   funil?: string | null
   campaign_type?: string | null
   reference_images?: string[] | null
+  assigned_members?: string[] | null
 }
 
 type Props = {
@@ -43,6 +44,7 @@ type Props = {
   clientColor?: string
   campaignName?: string | null
   selected?: boolean
+  members?: { id: string; name: string }[]
   onClick: () => void
   onDuplicate?: () => void
   onSendToCriacao?: () => void
@@ -55,7 +57,8 @@ type Props = {
   onDrop?: () => void
 }
 
-export default function PostMiniCard({ post, clientColor, campaignName, selected, onClick, onDuplicate, onSendToCriacao, draggable, dragging, dragOver, onDragStart, onDragEnd, onDragOver, onDrop }: Props) {
+export default function PostMiniCard({ post, clientColor, campaignName, selected, members, onClick, onDuplicate, onSendToCriacao, draggable, dragging, dragOver, onDragStart, onDragEnd, onDragOver, onDrop }: Props) {
+  const assignedData = (post.assigned_members || []).map(id => members?.find(m => m.id === id)).filter(Boolean) as { id: string; name: string }[]
   const type   = TYPE[post.post_type] || { label: post.post_type || '—', color: 'var(--color-border)' }
   const status = STATUS[post.status]  || { label: post.status, color: '#6b7280' }
   const isRejected  = post.approval_status === 'não aprovado'
@@ -182,6 +185,21 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
             )}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {assignedData.length > 0 && (
+              <div className="flex -space-x-1.5">
+                {assignedData.slice(0, 3).map(m => (
+                  <div key={m.id} title={m.name}
+                    className="w-5 h-5 rounded-full bg-[var(--color-brand)] border-2 border-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-brand-fg)] text-[8px] font-bold">
+                    {m.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                ))}
+                {assignedData.length > 3 && (
+                  <div className="w-5 h-5 rounded-full bg-[var(--color-bg-subtle)] border-2 border-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-text-muted)] text-[8px] font-bold">
+                    +{assignedData.length - 3}
+                  </div>
+                )}
+              </div>
+            )}
             {delivered
               ? <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}><Package size={10} /> Entregue</span>
               : <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]"><Package size={10} /> Sem entrega</span>}

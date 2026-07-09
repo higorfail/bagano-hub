@@ -373,10 +373,14 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   }
   function setField(field: keyof PostForm, v: any, logMsg?: string) { setForm(f => ({ ...f, [field]: v })); persist({ [field]: v }, logMsg) }
   function toggleMember(id: string) {
-    const next = assignedMembers.includes(id) ? assignedMembers.filter(x => x !== id) : [...assignedMembers, id]
+    const adding = !assignedMembers.includes(id)
+    const next = adding ? [...assignedMembers, id] : assignedMembers.filter(x => x !== id)
     setAssignedMembers(next)
-    const names = next.map(x => members.find(m => m.id === x)?.name).filter(Boolean).join(', ')
-    persist({ assigned_members: next }, next.length ? `${who} atribuiu: ${names}` : `${who} removeu responsáveis`)
+    const memberName = members.find(m => m.id === id)?.name || ''
+    const logMsg = adding
+      ? `${who} adicionou ${memberName} ao post "${formRef.current.title || 'sem título'}"`
+      : `${who} removeu ${memberName} do post "${formRef.current.title || 'sem título'}"`
+    persist({ assigned_members: next }, logMsg, adding ? 'member_assigned' : 'updated')
   }
 
   async function addComment() {

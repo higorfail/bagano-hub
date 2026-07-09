@@ -18,7 +18,7 @@ type Post = {
   post_type: string; scheduled_date: string | null; status: string
   drive_url?: string | null; drive_folder_url?: string | null; reference_notes?: string | null; funil?: string | null
   campaign_type?: string | null; approval_status?: string | null; approval_comment?: string | null
-  reference_images?: string[] | null
+  reference_images?: string[] | null; assigned_members?: string[] | null
 }
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -88,7 +88,7 @@ type CronoStatus = { status: string; finalized_at: string | null; finalized_by: 
 
 function CronogramaPageInner() {
   const { toast } = useToast()
-  const { currentMember } = useUser()
+  const { currentMember, members } = useUser()
   const [clients, setClients] = useState<Client[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   const [campaigns, setCampaigns] = useState<{ id: string; name: string; type: string }[]>([])
@@ -181,7 +181,7 @@ function CronogramaPageInner() {
   async function loadPosts() {
     const supabase = createClient()
     const [{ data: postsData }, { data: statusData }, { data: campaignsData }] = await Promise.all([
-      supabase.from('schedules').select('id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy').eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear).order('post_number'),
+      supabase.from('schedules').select('id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, assigned_members').eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear).order('post_number'),
       supabase.from('cronograma_status').select('status, finalized_at, finalized_by').eq('client_id', selectedClient).eq('month', selectedMonth).eq('year', selectedYear).maybeSingle(),
       supabase.from('campaigns').select('id, name, type').eq('client_id', selectedClient),
     ])
@@ -515,6 +515,7 @@ function CronogramaPageInner() {
                         key={post.id}
                         post={post}
                         clientColor={client?.color_hex}
+                        members={members}
                         campaignName={campaigns.find(c => c.type === post.campaign_type)?.name || null}
                         selected={selected?.id === post.id}
                         onClick={() => { setEditingPostId(post.id); setShowPostCard(true); window.history.replaceState(null, '', `?client=${selectedClient}&post=${post.id}&m=${selectedMonth}&y=${selectedYear}`) }}

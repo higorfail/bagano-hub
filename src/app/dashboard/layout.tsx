@@ -154,6 +154,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       materialMentionsRes,
       extraMentionsRes,
       criacaoHojeRes,
+      memberAssignedRes,
     ] = await Promise.all([
       // Aprovações/rejeições do cliente via activity_log (com timestamp real)
       supabase.from('activity_log')
@@ -251,6 +252,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           .eq('day_of_week', dow)
           .contains('member_ids', [currentMember.id])
       })(),
+      // Atribuições de post ao membro atual (14 dias)
+      currentMember
+        ? supabase.from('activity_log')
+            .select('id, record_id, description, actor_name, created_at, client_id, clients(name, color_hex), schedules(id, title, month, year)')
+            .eq('action', 'member_assigned')
+            .ilike('description', `%${currentMember.name.split(' ')[0]}%`)
+            .gte('created_at', fourteenDaysAgo)
+            .order('created_at', { ascending: false })
+            .limit(10)
+        : Promise.resolve({ data: [] }),
     ])
 
     setApprovalsCount((pendingCountRes.count || 0) + (rejectedCountRes.count || 0))
@@ -464,6 +475,25 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         body: d.body || '',
         created_at: d.created_at,
         link: `/dashboard/extras?post=${d.extra_id}`,
+      })
+    })
+
+    // Atribuições ao membro atual em posts
+    ;(memberAssignedRes.data || []).forEach((d: any) => {
+      const sch = d.schedules as any
+      const mq = sch?.month ? `&m=${sch.month}` : ''
+      const yq = sch?.year  ? `&y=${sch.year}`  : ''
+      result.push({
+        id: `assigned-${d.id}`,
+        type: 'mention' as const,
+        title: `${d.actor_name || 'Alguém'} te adicionou a um post`,
+        subtitle: sch?.title || 'Post',
+        client_name: (d.clients as any)?.name || '',
+        client_color: (d.clients as any)?.color_hex || '',
+        created_at: d.created_at,
+        link: d.client_id
+          ? `/dashboard/cronograma?client=${d.client_id}&post=${d.record_id}${mq}${yq}`
+          : '/dashboard/cronograma',
       })
     })
 
