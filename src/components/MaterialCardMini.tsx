@@ -7,6 +7,7 @@ interface Member {
   id: string
   name: string
   role?: string
+  color?: string
 }
 
 interface MaterialCardMiniProps {
@@ -176,7 +177,8 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
             {assignedData.slice(0, 3).map(mem => (
               <div
                 key={mem.id}
-                className="w-6 h-6 rounded-full bg-[var(--color-brand)] border-2 border-white flex items-center justify-center text-[var(--color-brand-fg)] text-[8px] font-bold"
+                className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-white text-[8px] font-bold"
+                style={{ background: mem.color || 'var(--color-brand)' }}
                 title={mem.name}
               >
                 {initials(mem.name)}

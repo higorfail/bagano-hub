@@ -53,7 +53,7 @@ type Props = {
   initialStatus?: ExtraStatus
   fixedClientId?: string | null
   clients?: { id: string; name: string; color_hex: string }[]
-  members?: { id: string; name: string; role: string }[]
+  members?: { id: string; name: string; role: string; color?: string }[]
   onClose: () => void
   onSaved: (extra: any) => void
   onDeleted?: (id: string) => void
@@ -461,7 +461,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                     )}
                     {selectedMembersData.map((m: any) => (
                       <div key={m.id} className="flex items-center gap-1 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-full pl-1 pr-2 py-0.5">
-                        <div className="w-5 h-5 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[8px] font-bold flex-shrink-0">
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0" style={{ background: m.color || 'var(--color-brand)' }}>
                           {initials(m.name)}
                         </div>
                         <span className="text-xs text-[var(--color-text-primary)] font-medium">{m.name.split(' ')[0]}</span>
@@ -483,7 +483,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                           <button key={m.id}
                             onClick={() => setAssignedMembers(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
                             className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[var(--color-bg-subtle)] transition-colors">
-                            <div className="w-7 h-7 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[9px] font-bold flex-shrink-0">
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ background: m.color || 'var(--color-brand)' }}>
                               {initials(m.name)}
                             </div>
                             <div className="flex-1 text-left">

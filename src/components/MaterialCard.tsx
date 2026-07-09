@@ -486,7 +486,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                     )}
                     {selectedMembersData.map((m: any) => (
                       <div key={m.id} className="flex items-center gap-1 bg-[var(--color-bg-subtle)] rounded-full pl-1 pr-2 py-0.5">
-                        <div className="w-5 h-5 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[8px] font-bold flex-shrink-0">
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0" style={{ background: (m as any).color || 'var(--color-brand)' }}>
                           {initials(m.name)}
                         </div>
                         <span className="text-xs text-[var(--color-text-primary)] font-medium">{m.name.split(' ')[0]}</span>
@@ -519,7 +519,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                             }}
                             className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[var(--color-bg-subtle)] transition-colors"
                           >
-                            <div className="w-7 h-7 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[9px] font-bold flex-shrink-0">
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ background: (m as any).color || 'var(--color-brand)' }}>
                               {initials(m.name)}
                             </div>
                             <div className="flex-1 text-left">
@@ -773,7 +773,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               {sideTab === 'comments' ? (
                 <>
                   <div className="flex gap-2.5 mb-3">
-                    <div className="w-7 h-7 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[9px] font-bold flex-shrink-0 mt-0.5">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5" style={{ background: (currentMember as any)?.color || 'var(--color-brand)' }}>
                       {currentMember ? initials(currentMember.name) : 'VO'}
                     </div>
                     <div className="flex-1">
@@ -798,7 +798,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                     )}
                     {[...comments].reverse().map(c => (
                       <div key={c.id} className="flex gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[9px] font-bold flex-shrink-0">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ background: (members.find((m: any) => m.name === c.author_name) as any)?.color || 'var(--color-brand)' }}>
                           {initials(c.author_name)}
                         </div>
                         <div className="flex-1 min-w-0">

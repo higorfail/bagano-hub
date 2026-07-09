@@ -435,7 +435,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 <div className="flex flex-col gap-2">
                   {team.map(m => (
                     <div key={m.id} className="flex items-center gap-3 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl px-4 py-3">
-                      <div className="w-9 h-9 rounded-full bg-[var(--color-text-primary)] flex items-center justify-center text-[var(--color-bg-page)] text-xs font-semibold flex-shrink-0">
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: m.team_members?.color || 'var(--color-brand)' }}>
                         {getInitials(m.team_members?.name || '?')}
                       </div>
                       <div className="flex-1 min-w-0">
