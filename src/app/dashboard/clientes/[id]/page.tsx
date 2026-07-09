@@ -1,7 +1,6 @@
 'use client'
 
 import { use, useEffect, useState, Suspense } from 'react'
-import { Copy } from 'lucide-react'
 import { useDarkMode } from '@/lib/useDarkMode'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -11,9 +10,8 @@ import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import CampaignsTab from '@/components/CampaignsTab'
+import CronogramaTab, { CRONO_MONTHS } from '@/components/CronogramaTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
-import PostMiniCard from '@/components/PostMiniCard'
-import PostCard from '@/components/PostCard'
 import ExtrasKanban from '@/components/ExtrasKanban'
 import ActivityLog from '@/components/ActivityLog'
 import OnboardingTab from '@/components/OnboardingTab'
@@ -40,8 +38,6 @@ const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel'
 const FUNCAO_LABEL: Record<string,string> = { videos:'Editor', posts:'Designer', estrategia:'Estratégia', social:'Social Media', acompanha:'Acompanha', outro:'Outro' }
 function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }
 
-type CronoStatus = { status: string; finalized_at: string | null; finalized_by: string | null } | null
-
 function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
@@ -59,13 +55,9 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<'list'|'grid'>('grid')
   const [team, setTeam] = useState<any[]>([])
   const [allMembers, setAllMembers] = useState<any[]>([])
   const [showAddMember, setShowAddMember] = useState(false)
-  const [showPostCard, setShowPostCard] = useState(false)
-  const [editingPostId, setEditingPostId] = useState<string | null>(null)
-  const [campaigns, setCampaigns] = useState<{ id: string; name: string; type: string }[]>([])
   const [materials,    setMaterials]    = useState<any[]>([])
   const [matCounts,    setMatCounts]    = useState<Record<string,any>>({})
   const [cardOpen,     setCardOpen]     = useState<string | 'new' | null>(null)
@@ -76,15 +68,6 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [showEditClient, setShowEditClient] = useState(false)
   const [editClientForm, setEditClientForm] = useState({ name: '', color_hex: '', logo_url: '', drive_folder_url: '', sous_chef_url: '', instagram_url: '', instagram_followers: '', instagram_following: '' })
   const [savingClient, setSavingClient] = useState(false)
-  const [dragId, setDragId] = useState<string | null>(null)
-  const [dragOverId, setDragOverId] = useState<string | null>(null)
-  const [cronoStatus, setCronoStatus] = useState<CronoStatus>(null)
-  const [togglingStatus, setTogglingStatus] = useState(false)
-  const [showApprovalModal, setShowApprovalModal] = useState(false)
-  const [approvalLink, setApprovalLink] = useState('')
-  const [generatingLink, setGeneratingLink] = useState(false)
-  const [aiMessage, setAiMessage] = useState('')
-  const [copied, setCopied] = useState(false)
 
   useEffect(() => { document.title = client ? `${client.name} · Bagano Hub` : 'Cliente · Bagano Hub' }, [client])
 
@@ -97,11 +80,6 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
       ])
       setClient(clientData)
       setPosts(postData || [])
-      const postParam = searchParams.get('post')
-      if (postParam && postData) {
-        const found = postData.find((p: any) => p.id === postParam)
-        if (found) { setEditingPostId(found.id); setShowPostCard(true) }
-      }
       const { data: membersData } = await supabase.from('team_members').select('id, name, role, color').order('name')
       const { data: teamData } = await supabase.from('client_team').select('id, funcao, member_id').eq('client_id', id)
       // Junta manualmente para não depender do join do PostgREST
@@ -111,8 +89,6 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
       }))
       setTeam(enriched)
       setAllMembers(membersData || [])
-      const { data: campaignsData } = await supabase.from('campaigns').select('id, name, type').eq('client_id', id)
-      setCampaigns(campaignsData || [])
       const { data: matData } = await supabase.from('materials').select('*').eq('client_id', id).order('created_at', { ascending: false })
       setMaterials(matData || [])
       const [{ data: chk }, { data: cms }, { data: atts }] = await Promise.all([
@@ -126,21 +102,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
       ;(cms || []).forEach((x: any) => { if (mc[x.material_id]) mc[x.material_id].comments++ })
       ;(atts || []).forEach((x: any) => { if (mc[x.material_id]) mc[x.material_id].attachments++ })
       setMatCounts(mc)
-      const { data: statusData } = await supabase.from('cronograma_status').select('*').eq('client_id', id).eq('month', selectedMonth).eq('year', selectedYear).maybeSingle()
-      setCronoStatus(statusData || null)
       setLoading(false)
     }
     load()
   }, [id, selectedMonth, selectedYear])
-
-  async function quickDuplicate(post: any) {
-    const supabase = createClient()
-    const { id: _, ...rest } = post
-    const { error } = await supabase.from('schedules').insert({ ...rest, post_number: posts.length + 1, title: post.title + ' (cópia)', approval_status: 'pendente' })
-    if (dbError(error, toast, 'duplicar post')) return
-    reloadPosts()
-  }
-
 
   async function reloadMaterials() {
     const supabase = createClient()
@@ -169,96 +134,6 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   function handleMatDeleted(matId: string) {
     setMaterials(prev => prev.filter(m => m.id !== matId))
     setCardOpen(null)
-  }
-
-  async function reloadPosts() {
-    const supabase = createClient()
-    const { data } = await supabase.from('schedules').select('*').eq('client_id', id).eq('month', selectedMonth).eq('year', selectedYear).order('post_number')
-    setPosts(data || [])
-  }
-
-  async function reorderPosts(targetId: string) {
-    const from = posts.findIndex(p => p.id === dragId)
-    const to   = posts.findIndex(p => p.id === targetId)
-    setDragId(null); setDragOverId(null)
-    if (from < 0 || to < 0 || from === to) return
-    const arr = [...posts]
-    const [moved] = arr.splice(from, 1)
-    arr.splice(to, 0, moved)
-    const renumbered = arr.map((p, i) => ({ ...p, post_number: i + 1 }))
-    const prev = posts
-    setPosts(renumbered)
-    const supabase = createClient()
-    const changed = renumbered.filter(p => prev.find(o => o.id === p.id)?.post_number !== p.post_number)
-    const results = await Promise.all(changed.map(p => supabase.from('schedules').update({ post_number: p.post_number }).eq('id', p.id)))
-    if (results.some(r => r.error)) { setPosts(prev); toast('Erro ao reordenar') }
-  }
-
-  async function generateApprovalLink(type: 'cronograma' | 'final') {
-    setGeneratingLink(true)
-    const supabase = createClient()
-    const typeLabel = type === 'cronograma' ? 'cronograma' : 'conteúdo final'
-    const monthLabel = MONTHS[selectedMonth - 1]
-
-    if (type === 'cronograma') {
-      const estrategiaPosts = posts.filter(p => p.status === 'estrategia')
-      if (estrategiaPosts.length > 0) {
-        await Promise.all(estrategiaPosts.map(p =>
-          supabase.from('schedules').update({ status: 'aguardando_aprovacao_crono', approval_status: null, approval_comment: null }).eq('id', p.id)
-        ))
-        setPosts(prev => prev.map(p => estrategiaPosts.find(ep => ep.id === p.id) ? { ...p, status: 'aguardando_aprovacao_crono' } : p))
-      }
-    } else {
-      const revisaoPosts = posts.filter(p => p.status === 'revisao_interna')
-      if (revisaoPosts.length > 0) {
-        await Promise.all(revisaoPosts.map(p =>
-          supabase.from('schedules').update({ status: 'aguardando_aprovacao', approval_status: null, approval_comment: null }).eq('id', p.id)
-        ))
-        setPosts(prev => prev.map(p => revisaoPosts.find(rp => rp.id === p.id) ? { ...p, status: 'aguardando_aprovacao' } : p))
-      }
-    }
-
-    const { data: existing } = await supabase
-      .from('approval_tokens').select('token')
-      .eq('client_id', id).eq('month', selectedMonth).eq('year', selectedYear).eq('type', type)
-      .maybeSingle()
-    const token = existing?.token || (
-      await supabase.from('approval_tokens')
-        .insert({ client_id: id, month: selectedMonth, year: selectedYear, type })
-        .select('token').single()
-    ).data?.token
-
-    const link = `${window.location.origin}/aprovar/${token}`
-    setApprovalLink(link)
-    setAiMessage(`Olá! 👋 O ${typeLabel} de ${monthLabel} para ${client?.name} está pronto para aprovação.\n\nAcesse o link abaixo para revisar e aprovar:\n${link}`)
-    setGeneratingLink(false)
-  }
-
-  async function openApprovalModal(type: 'cronograma' | 'final') {
-    setShowApprovalModal(true); setApprovalLink(''); setAiMessage('')
-    await generateApprovalLink(type)
-  }
-
-  function copyLink() { navigator.clipboard.writeText(approvalLink); setCopied(true); setTimeout(() => setCopied(false), 2000) }
-  function openWhatsApp() { window.open(`https://wa.me/?text=${encodeURIComponent(aiMessage || approvalLink)}`, '_blank') }
-
-  async function toggleFinalized() {
-    setTogglingStatus(true)
-    const supabase = createClient()
-    const isFinalized = cronoStatus?.status === 'finalizado'
-    if (isFinalized) {
-      setCronoStatus(s => s ? { ...s, status: 'rascunho', finalized_at: null, finalized_by: null } : null)
-      toast('Cronograma reaberto')
-      const { error } = await supabase.from('cronograma_status').update({ status: 'rascunho', finalized_at: null, finalized_by: null }).eq('client_id', id).eq('month', selectedMonth).eq('year', selectedYear)
-      if (error) toast('Erro ao salvar no banco')
-    } else {
-      const newStatus: Exclude<CronoStatus, null> = { status: 'finalizado', finalized_at: new Date().toISOString(), finalized_by: null }
-      setCronoStatus(newStatus)
-      toast('Cronograma marcado como finalizado!')
-      const { error } = await supabase.from('cronograma_status').upsert({ client_id: id, month: selectedMonth, year: selectedYear, ...newStatus }, { onConflict: 'client_id,month,year' })
-      if (error) toast('Erro ao salvar no banco')
-    }
-    setTogglingStatus(false)
   }
 
   async function addMember() {
@@ -354,7 +229,6 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
               {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Manual</a>}
               {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Drive</a>}
               <button onClick={openEditClient} className="border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Editar</button>
-              <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }} className="bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-xl px-4 py-2 text-sm font-medium">+ Novo post</button>
             </div>
           </div>
 
@@ -368,130 +242,44 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
         <div className="flex-1 overflow-y-auto p-6">
           {tab === 'cronograma' && (
             <div className="flex flex-col gap-4">
+              {/* Month/year nav */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-[var(--color-text-secondary)]">{posts.length} posts em {MONTHS[selectedMonth-1]}</p>
-                  {cronoStatus?.status === 'finalizado' && (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Finalizado</span>
+                <p className="text-sm text-[var(--color-text-secondary)]">{CRONO_MONTHS[selectedMonth-1]} {selectedYear}</p>
+                <div className="relative flex items-center gap-1">
+                  <button onClick={() => setSelectedMonth(m => { const prev = m===1?12:m-1; if (prev===12) setSelectedYear(y=>y-1); return prev })} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
+                  <button onClick={() => setShowMonthPicker(p => !p)} className="text-sm font-medium text-[var(--color-text-primary)] px-2 py-1 rounded-lg hover:bg-[var(--color-bg-subtle)] min-w-[120px] text-center">
+                    {CRONO_MONTHS[selectedMonth-1]} {selectedYear}
+                  </button>
+                  <button onClick={() => setSelectedMonth(m => { const next = m===12?1:m+1; if (next===1) setSelectedYear(y=>y+1); return next })} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
+                  {showMonthPicker && (
+                    <div className="absolute top-full mt-1 right-0 z-50 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-xl p-3 w-56" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-2.5">
+                        <button onClick={() => setSelectedYear(y => y - 1)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] flex items-center justify-center">‹</button>
+                        <span className="text-sm font-semibold text-[var(--color-text-primary)]">{selectedYear}</span>
+                        <button onClick={() => setSelectedYear(y => y + 1)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] flex items-center justify-center">›</button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1">
+                        {CRONO_MONTHS.map((mo, i) => (
+                          <button key={i} onClick={() => { setSelectedMonth(i + 1); setShowMonthPicker(false) }}
+                            className={`text-xs py-1.5 rounded-lg font-medium transition-all ${selectedMonth===i+1 ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]' : 'hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
+                            {mo.slice(0, 3)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
-                  {(() => {
-                    const cronoPosts = posts.filter(p => p.status === 'estrategia' || p.status === 'aguardando_aprovacao_crono')
-                    const finalPosts = posts.filter(p => p.status === 'revisao_interna' || p.status === 'aguardando_aprovacao')
-                    return (<>
-                      <button onClick={() => openApprovalModal('cronograma')}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all"
-                        style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
-                        📋 Aprovar crono{cronoPosts.length > 0 && ` (${cronoPosts.length})`}
-                      </button>
-                      <button onClick={() => openApprovalModal('final')}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all"
-                        style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
-                        ✅ Aprovação final{finalPosts.length > 0 && ` (${finalPosts.length})`}
-                      </button>
-                    </>)
-                  })()}
-                  <button
-                    onClick={toggleFinalized}
-                    disabled={togglingStatus}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all"
-                    style={cronoStatus?.status === 'finalizado'
-                      ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)', borderColor: 'var(--ds-success-border)' }
-                      : { background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}
-                  >
-                    {cronoStatus?.status === 'finalizado' ? '↩ Reabrir' : '✓ Finalizar cronograma'}
-                  </button>
-                  <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
-                    <button onClick={() => setViewMode('list')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
-                    <button onClick={() => setViewMode('grid')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
-                  </div>
-                  <div className="relative flex items-center gap-1">
-                    <button onClick={() => setSelectedMonth(m => { const prev = m===1?12:m-1; if (prev===12) setSelectedYear(y=>y-1); return prev })} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
-                    <button onClick={() => setShowMonthPicker(p => !p)} className="text-sm font-medium text-[var(--color-text-primary)] px-2 py-1 rounded-lg hover:bg-[var(--color-bg-subtle)] min-w-[120px] text-center">
-                      {MONTHS[selectedMonth-1]} {selectedYear}
-                    </button>
-                    <button onClick={() => setSelectedMonth(m => { const next = m===12?1:m+1; if (next===1) setSelectedYear(y=>y+1); return next })} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
-                    {showMonthPicker && (
-                      <div className="absolute top-full mt-1 right-0 z-50 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-xl p-3 w-56" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between mb-2.5">
-                          <button onClick={() => setSelectedYear(y => y - 1)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] flex items-center justify-center">‹</button>
-                          <span className="text-sm font-semibold text-[var(--color-text-primary)]">{selectedYear}</span>
-                          <button onClick={() => setSelectedYear(y => y + 1)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] flex items-center justify-center">›</button>
-                        </div>
-                        <div className="grid grid-cols-3 gap-1">
-                          {MONTHS.map((mo, i) => (
-                            <button key={i} onClick={() => { setSelectedMonth(i + 1); setShowMonthPicker(false) }}
-                              className={`text-xs py-1.5 rounded-lg font-medium transition-all ${selectedMonth===i+1 ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]' : 'hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
-                              {mo.slice(0, 3)}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
-              {posts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center min-h-[360px] text-center gap-6">
-                  <div className="relative">
-                    <div className="w-20 h-20 rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center text-4xl shadow-sm">📅</div>
-                    <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-md" style={{ background: client?.color_hex || 'var(--color-brand)' }}>+</div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <p className="text-[var(--color-text-primary)] font-semibold text-lg">Nenhum post em {MONTHS[selectedMonth-1]}</p>
-                    <p className="text-[var(--color-text-muted)] text-sm max-w-xs">Adicione o primeiro post do mês para montar o cronograma.</p>
-                  </div>
-                  <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
-                    className="flex items-center gap-2 font-semibold px-6 py-3 rounded-xl text-sm transition-opacity hover:opacity-90 shadow-sm text-white"
-                    style={{ background: client?.color_hex || 'var(--color-brand)' }}>
-                    Criar primeiro post
-                  </button>
-                </div>
-              ) : viewMode === 'list' ? (
-                <div className="flex flex-col gap-2">
-                  {posts.map(post => {
-                    const campaign = campaigns.find(c => c.type === post.campaign_type)
-                    return (
-                      <button key={post.id} onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
-                        className="w-full text-left bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl px-4 py-3 flex items-center gap-4 hover:border-[var(--color-border-hover)] transition-all"
-                        style={{ borderLeftWidth: 3, borderLeftColor: client.color_hex }}>
-                        <span className="text-xs font-bold text-[var(--color-text-muted)] w-8">#{post.post_number}</span>
-                        <span className={`text-xs font-semibold px-2 py-1 rounded-full w-28 text-center flex-shrink-0 ${typeColor[post.post_type]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{TYPE_LABEL[post.post_type]||post.post_type||'—'}</span>
-                        <span className="text-sm font-medium text-[var(--color-text-primary)] flex-1 truncate">{post.title}</span>
-                        {campaign && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
-                        <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0">{post.scheduled_date?new Date(post.scheduled_date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}):'—'}</span>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {post.approval_status==='não aprovado'&&<span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>✗</span>}
-                          {post.approval_status==='aprovado'&&<span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓</span>}
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status]||'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{STATUS_LABEL[post.status]||post.status}</span>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-4">
-                  {posts.map(post => (
-                    <PostMiniCard
-                      key={post.id}
-                      post={post}
-                      clientColor={client.color_hex}
-                      members={allMembers}
-                      campaignName={campaigns.find(c => c.type === post.campaign_type)?.name || null}
-                      onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
-                      onDuplicate={() => quickDuplicate(post)}
-                      draggable
-                      dragging={dragId === post.id}
-                      dragOver={dragOverId === post.id && dragId !== post.id}
-                      onDragStart={() => setDragId(post.id)}
-                      onDragEnd={() => { setDragId(null); setDragOverId(null) }}
-                      onDragOver={e => { e.preventDefault(); setDragOverId(post.id) }}
-                      onDrop={() => reorderPosts(post.id)}
-                    />
-                  ))}
-                </div>
-              )}
+              <CronogramaTab
+                key={`${id}-${selectedMonth}-${selectedYear}`}
+                clientId={id}
+                clientName={client?.name}
+                clientColor={client?.color_hex}
+                month={selectedMonth}
+                year={selectedYear}
+                postParam={searchParams.get('post')}
+                showViewToggle
+              />
             </div>
           )}
 
@@ -760,64 +548,6 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           )}
         </div>
       </div>
-
-      {showPostCard && client && (
-        <PostCard
-          postId={editingPostId || undefined}
-          clientId={id}
-          clientName={client.name}
-          clientColor={client.color_hex}
-          month={selectedMonth}
-          year={selectedYear}
-          postNumber={editingPostId ? undefined : posts.length + 1}
-          onClose={() => { setShowPostCard(false); setEditingPostId(null) }}
-          onSaved={reloadPosts}
-          onDeleted={reloadPosts}
-        />
-      )}
-
-      {/* Modal editar cliente */}
-      {showApprovalModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Enviar para aprovação</h2>
-                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{client?.name} · {MONTHS[selectedMonth-1]} {selectedYear}</p>
-              </div>
-              <button onClick={() => setShowApprovalModal(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-lg leading-none">×</button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-              {generatingLink ? (
-                <div className="flex items-center justify-center py-8"><p className="text-sm text-[var(--color-text-muted)]">Gerando link...</p></div>
-              ) : (
-                <>
-                  <div className="bg-[var(--color-bg-subtle)] rounded-xl p-3"><span className="text-xs text-[var(--color-text-secondary)] break-all">{approvalLink}</span></div>
-                  <div className="border border-[var(--color-border)] rounded-xl p-4 flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-[var(--color-text-primary)] text-white text-xs flex items-center justify-center font-bold flex-shrink-0">1</span>
-                      <div><p className="text-sm font-semibold text-[var(--color-text-primary)]">Copiar link e enviar manualmente</p><p className="text-xs text-[var(--color-text-muted)]">Cole no WhatsApp, e-mail ou onde preferir</p></div>
-                    </div>
-                    <button onClick={copyLink} className="w-full py-2.5 rounded-xl border border-[var(--color-text-primary)] text-sm font-semibold text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] flex items-center justify-center gap-2">
-                      <Copy size={14} />{copied ? 'Copiado!' : 'Copiar link'}
-                    </button>
-                  </div>
-                  <div className="border border-[#25D366] rounded-xl p-4 flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-[#25D366] text-white text-xs flex items-center justify-center font-bold flex-shrink-0">2</span>
-                      <div><p className="text-sm font-semibold text-[var(--color-text-primary)]">Enviar pelo WhatsApp</p><p className="text-xs text-[var(--color-text-muted)]">Edite a mensagem se quiser</p></div>
-                    </div>
-                    <div className="rounded-xl p-3 min-h-[80px]" style={{ background: 'var(--ds-success-bg)' }}>
-                      <textarea value={aiMessage} onChange={e => setAiMessage(e.target.value)} rows={5} className="w-full text-xs text-[var(--color-text-primary)] bg-transparent outline-none resize-none" />
-                    </div>
-                    <button onClick={openWhatsApp} className="w-full py-2.5 rounded-xl bg-[#25D366] text-sm font-semibold text-white hover:bg-[#20BD5A] transition-colors">Abrir WhatsApp</button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {showEditClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
