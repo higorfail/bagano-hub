@@ -32,6 +32,7 @@ type Post = {
   month: number
   year: number
   client_id: string
+  assigned_members: string[] | null
 }
 
 type CronoStatus = {
@@ -114,7 +115,7 @@ export default function CriacaoPage() {
         supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
         supabase.from('team_members').select('id, name, role, color').order('name'),
         supabase.from('schedules')
-          .select('id, title, post_type, scheduled_date, briefing, copy, funil, post_number, month, year, client_id')
+          .select('id, title, post_type, scheduled_date, briefing, copy, funil, post_number, month, year, client_id, assigned_members')
           .in('status', ['producao', 'captacao'])
           .order('scheduled_date', { ascending: true, nullsFirst: false }),
         supabase.from('cronograma_status')
@@ -249,7 +250,7 @@ export default function CriacaoPage() {
   const filteredPosts = posts.filter(p => {
     if (filterClient && p.client_id !== filterClient) return false
     if (filterType   && p.post_type !== filterType)   return false
-    if (filterMember && !memberCoversPost(p.client_id, filterMember, p.post_type)) return false
+    if (filterMember && !memberCoversPost(p.client_id, filterMember, p.post_type) && !(p.assigned_members || []).includes(filterMember)) return false
     return true
   })
 

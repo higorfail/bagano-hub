@@ -196,6 +196,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   const [form,           setForm]           = useState<PostForm>(EMPTY)
   const [approvalStatus, setApprovalStatus] = useState<string>('')
+  const [assignedMembers, setAssignedMembers] = useState<string[]>([])
   const formRef = useRef(form); formRef.current = form
   const [showCal,  setShowCal]  = useState(false)
   const [calMonth, setCalMonth] = useState(() => ({ y: year, m: month - 1 }))
@@ -277,6 +278,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           reference_images: Array.isArray(data.reference_images) ? data.reference_images : [],
         })
         setApprovalStatus(data.approval_status || '')
+        setAssignedMembers(Array.isArray(data.assigned_members) ? data.assigned_members : [])
       }
       setLoading(false)
     }
@@ -370,6 +372,12 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     persist(clearRejection ? { status: v, approval_status: null } : { status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
   }
   function setField(field: keyof PostForm, v: any, logMsg?: string) { setForm(f => ({ ...f, [field]: v })); persist({ [field]: v }, logMsg) }
+  function toggleMember(id: string) {
+    const next = assignedMembers.includes(id) ? assignedMembers.filter(x => x !== id) : [...assignedMembers, id]
+    setAssignedMembers(next)
+    const names = next.map(x => members.find(m => m.id === x)?.name).filter(Boolean).join(', ')
+    persist({ assigned_members: next }, next.length ? `${who} atribuiu: ${names}` : `${who} removeu responsáveis`)
+  }
 
   async function addComment() {
     const body = newComment.trim(); if (!body) return
@@ -763,6 +771,21 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               </div>
             </div>
           )}
+          {/* Responsáveis */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Responsáveis</span>
+            <div className="flex flex-wrap gap-1">
+              {members.map(m => {
+                const sel = assignedMembers.includes(m.id)
+                return (
+                  <button key={m.id} onClick={() => toggleMember(m.id)}
+                    className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${sel ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)] border-transparent' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'}`}>
+                    {m.name.split(' ')[0]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
 
         {/* BODY */}
