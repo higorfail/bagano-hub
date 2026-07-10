@@ -9,7 +9,7 @@ import { useToast } from '@/lib/ToastContext'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import {
-  X, Plus, Calendar, Tag, CheckSquare, Paperclip,
+  X, Calendar, Tag, CheckSquare, Paperclip,
   Trash2, Link2, MessageSquare, User, AlignLeft, Check,
   FileText, Bell, ChevronRight, Package, ExternalLink
 } from 'lucide-react'
@@ -103,8 +103,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [newAttachUrl,   setNewAttachUrl]   = useState('')
   const [newAttachTitle, setNewAttachTitle] = useState('')
 
-  const [showMemberPicker, setShowMemberPicker] = useState(false)
-  const memberPickerRef = useRef<HTMLDivElement>(null)
   const [showLabelPicker,  setShowLabelPicker]  = useState(false)
   const [showDatePicker,   setShowDatePicker]   = useState(false)
   const [showAttachInput,  setShowAttachInput]  = useState(false)
@@ -119,7 +117,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const score = (m: any) => (m.role === 'designer' ? 0 : m.role === 'editor' ? 1 : 2)
     return score(a) - score(b)
   })
-  const selectedMembersData = assignedMembers.map(mid => members.find(m => m.id === mid)).filter(Boolean)
 
   const loadSub = useCallback(async (eid: string) => {
     const [{ data: chk }, { data: cms }, { data: atts }] = await Promise.all([
@@ -137,16 +134,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       .then(({ data }) => { if (data) setGlobalLabels(data) })
   }, [])
 
-  useEffect(() => {
-    if (!showMemberPicker) return
-    function handleClick(e: MouseEvent) {
-      if (memberPickerRef.current && !memberPickerRef.current.contains(e.target as Node)) {
-        setShowMemberPicker(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [showMemberPicker])
 
   // Smart auto-detection as the user types the title
   useEffect(() => {
@@ -477,48 +464,21 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   <User size={13} className="text-[var(--color-text-muted)]" />
                   <span className="text-xs text-[var(--color-text-muted)]">Responsáveis</span>
                 </div>
-                <div className="flex-1" ref={memberPickerRef}>
-                  <div className="flex items-center gap-1.5 flex-wrap cursor-pointer" onClick={() => setShowMemberPicker(p => !p)}>
-                    {selectedMembersData.length === 0 && (
-                      <span className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] px-1">+ Atribuir</span>
-                    )}
-                    {selectedMembersData.map((m: any) => (
-                      <div key={m.id} className="flex items-center gap-1 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-full pl-1 pr-2 py-0.5">
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0" style={{ background: m.color || 'var(--color-brand)' }}>
+                <div className="flex-1 flex flex-wrap gap-1">
+                  {orderedMembers.map(m => {
+                    const sel = assignedMembers.includes(m.id)
+                    return (
+                      <button key={m.id}
+                        onClick={() => setAssignedMembers(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
+                        className={`flex items-center gap-1 text-[11px] pl-1 pr-2 py-0.5 rounded-full border transition-colors ${sel ? 'text-white border-transparent' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'}`}
+                        style={sel ? { background: m.color || 'var(--color-brand)' } : {}}>
+                        <span className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold flex-shrink-0" style={{ background: sel ? 'rgba(255,255,255,0.25)' : (m.color || 'var(--color-brand)'), color: 'white' }}>
                           {initials(m.name)}
-                        </div>
-                        <span className="text-xs text-[var(--color-text-primary)] font-medium">{m.name.split(' ')[0]}</span>
-                        <button onClick={e => { e.stopPropagation(); setAssignedMembers(prev => prev.filter(x => x !== m.id)) }}
-                          className="text-[var(--color-text-muted)] ml-0.5 leading-none transition-colors" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}><X size={10} /></button>
-                      </div>
-                    ))}
-                    {selectedMembersData.length > 0 && (
-                      <button className="w-5 h-5 rounded-full border border-dashed border-[var(--color-border-hover)] flex items-center justify-center text-[var(--color-text-muted)] hover:border-[var(--color-brand)]">
-                        <Plus size={10} />
+                        </span>
+                        {m.name.split(' ')[0]}
                       </button>
-                    )}
-                  </div>
-                  {showMemberPicker && (
-                    <div className="mt-1.5 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-lg py-1 max-h-48 overflow-y-auto z-10">
-                      {orderedMembers.map(m => {
-                        const sel = assignedMembers.includes(m.id)
-                        return (
-                          <button key={m.id}
-                            onClick={() => setAssignedMembers(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[var(--color-bg-subtle)] transition-colors">
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ background: m.color || 'var(--color-brand)' }}>
-                              {initials(m.name)}
-                            </div>
-                            <div className="flex-1 text-left">
-                              <p className="text-sm text-[var(--color-text-primary)] font-medium">{m.name}</p>
-                              <p className="text-[10px] text-[var(--color-text-muted)] capitalize">{m.role}</p>
-                            </div>
-                            {sel && <Check size={14} className="text-[#22C55E] flex-shrink-0" />}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
+                    )
+                  })}
                 </div>
               </div>
 

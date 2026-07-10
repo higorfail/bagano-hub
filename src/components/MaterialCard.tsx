@@ -84,8 +84,6 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
 
   // Múltiplos responsáveis
   const [assignedMembers, setAssignedMembers] = useState<string[]>([])
-  const [showMemberPicker, setShowMemberPicker] = useState(false)
-  const memberPickerRef = useRef<HTMLDivElement>(null)
 
   // Sub-entidades
   const [comments,    setComments]    = useState<any[]>([])
@@ -126,16 +124,6 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     setUploads(ups || [])
   }, [])
 
-  useEffect(() => {
-    if (!showMemberPicker) return
-    function handleClick(e: MouseEvent) {
-      if (memberPickerRef.current && !memberPickerRef.current.contains(e.target as Node)) {
-        setShowMemberPicker(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [showMemberPicker])
 
   useEffect(() => {
     if (!materialId) return
@@ -370,11 +358,6 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   const clientName = clients.find(c => c.id === clientId)?.name
   const statusObj  = STATUS_OPTIONS.find(s => s.value === status)
 
-  const selectedMembersData = useMemo(
-    () => assignedMembers.map(mid => members.find(m => m.id === mid)).filter(Boolean),
-    [assignedMembers, members]
-  )
-
   if (loading) return (
     <div className="fixed inset-0 bg-black/40 z-[70] flex items-center justify-center">
       <div className="bg-[var(--color-bg-card)] rounded-2xl px-6 py-4 text-sm text-[var(--color-text-muted)]">Carregando…</div>
@@ -495,62 +478,26 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 </div>
 
                 {/* RESPONSÁVEIS — múltiplos */}
-                <div className={fixedClientId ? 'col-span-2' : ''} ref={memberPickerRef}>
+                <div className={fixedClientId ? 'col-span-2' : ''}>
                   <label className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5 flex items-center gap-1.5">
                     <User size={12} /> Responsáveis
                   </label>
-                  <div className="flex items-center gap-1.5 flex-wrap min-h-[36px] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 bg-[var(--color-bg-card)] cursor-pointer hover:border-[var(--color-border-hover)]" onClick={() => setShowMemberPicker(p => !p)}>
-                    {selectedMembersData.length === 0 && (
-                      <span className="text-sm text-[var(--color-text-muted)]">Ninguém</span>
-                    )}
-                    {selectedMembersData.map((m: any) => (
-                      <div key={m.id} className="flex items-center gap-1 bg-[var(--color-bg-subtle)] rounded-full pl-1 pr-2 py-0.5">
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0" style={{ background: (m as any).color || 'var(--color-brand)' }}>
-                          {initials(m.name)}
-                        </div>
-                        <span className="text-xs text-[var(--color-text-primary)] font-medium">{m.name.split(' ')[0]}</span>
-                        <button
-                          onClick={e => { e.stopPropagation(); setAssignedMembers(prev => prev.filter(x => x !== m.id)) }}
-                          className="text-[var(--color-text-muted)] ml-0.5 transition-colors"
-                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')}
-                          onMouseLeave={e => (e.currentTarget.style.color = '')}
-                        >
-                          <X size={10} />
+                  <div className="flex flex-wrap gap-1">
+                    {orderedMembers.map(m => {
+                      const sel = assignedMembers.includes(m.id)
+                      return (
+                        <button key={m.id}
+                          onClick={() => setAssignedMembers(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
+                          className={`flex items-center gap-1 text-[11px] pl-1 pr-2 py-0.5 rounded-full border transition-colors ${sel ? 'text-white border-transparent' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'}`}
+                          style={sel ? { background: (m as any).color || 'var(--color-brand)' } : {}}>
+                          <span className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold flex-shrink-0" style={{ background: sel ? 'rgba(255,255,255,0.25)' : ((m as any).color || 'var(--color-brand)'), color: 'white' }}>
+                            {initials(m.name)}
+                          </span>
+                          {m.name.split(' ')[0]}
                         </button>
-                      </div>
-                    ))}
-                    <button className="w-5 h-5 rounded-full border border-dashed border-[var(--color-border-hover)] flex items-center justify-center text-[var(--color-text-muted)] hover:border-[var(--color-brand)] hover:text-[var(--color-text-primary)] ml-auto flex-shrink-0">
-                      <Plus size={10} />
-                    </button>
+                      )
+                    })}
                   </div>
-                  {/* Picker de membros */}
-                  {showMemberPicker && (
-                    <div className="mt-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-lg z-10 py-1 max-h-52 overflow-y-auto">
-                      {orderedMembers.map(m => {
-                        const selected = assignedMembers.includes(m.id)
-                        return (
-                          <button
-                            key={m.id}
-                            onClick={() => {
-                              setAssignedMembers(prev =>
-                                selected ? prev.filter(x => x !== m.id) : [...prev, m.id]
-                              )
-                            }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[var(--color-bg-subtle)] transition-colors"
-                          >
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ background: (m as any).color || 'var(--color-brand)' }}>
-                              {initials(m.name)}
-                            </div>
-                            <div className="flex-1 text-left">
-                              <p className="text-sm text-[var(--color-text-primary)] font-medium">{m.name}</p>
-                              <p className="text-[10px] text-[var(--color-text-muted)] capitalize">{m.role}</p>
-                            </div>
-                            {selected && <Check size={14} className="text-[#22C55E] flex-shrink-0" />}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
                 </div>
 
                 <div>
