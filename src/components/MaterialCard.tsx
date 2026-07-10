@@ -9,10 +9,11 @@ import { useToast } from '@/lib/ToastContext'
 import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
+import EditableField from '@/components/EditableField'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, ChevronDown,
-  AlignLeft, Upload, File, ExternalLink, Check
+  Upload, File, ExternalLink, Check
 } from 'lucide-react'
 
 const TYPE_OPTIONS = ['Menu', 'Cardápio', 'Arte avulsa', 'Logo', 'Manual', 'Placa', 'Cartão', 'Sacola', 'Sousplat', 'Story', 'Capas destaque', 'Fundos', 'Outro']
@@ -540,17 +541,18 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
           {/* ESQUERDA */}
           <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto px-7 py-5">
 
-            {/* DESCRIÇÃO */}
-            <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4">
-              <SectionTitle icon={AlignLeft}>Descrição / Briefing</SectionTitle>
-              <textarea
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={7}
-                placeholder="Especificações, dimensões, instruções, referências…"
-                className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-xl px-4 py-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)] resize-none leading-relaxed min-h-[120px]"
-              />
-            </div>
+            {/* DESCRIÇÃO — clique-para-editar (padrão cronograma) */}
+            <EditableField
+              label="Briefing"
+              hint="· especificações, dimensões, instruções"
+              placeholder="Especificações, dimensões, instruções, referências…"
+              value={description}
+              minH={90}
+              onCommit={async v => {
+                setDescription(v)
+                if (id) await supabase.from('materials').update({ description: v }).eq('id', id)
+              }}
+            />
 
             {/* CHECKLIST */}
             <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4">

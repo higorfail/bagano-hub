@@ -5,7 +5,9 @@
 /* ── Animations ─────────────────────────────────────────────────────────── */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  /* "none" no fim: um transform retido (fill-mode both) faz o elemento virar
+     containing block e prende overlays position:fixed dentro do <main> */
+  to   { opacity: 1; transform: none; }
 }
 @keyframes fadeIn {
   from { opacity: 0; }

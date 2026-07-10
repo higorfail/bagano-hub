@@ -8,9 +8,10 @@ import ActivityLog from '@/components/ActivityLog'
 import { useToast } from '@/lib/ToastContext'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
+import EditableField from '@/components/EditableField'
 import {
   X, Calendar, CheckSquare, Paperclip,
-  Trash2, Link2, AlignLeft, Check,
+  Trash2, Link2, Check,
   FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink
 } from 'lucide-react'
 
@@ -513,18 +514,18 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           {/* LEFT — main content */}
           <div className="flex-1 min-w-0 flex flex-col gap-0 overflow-y-auto">
 
-            {/* DESCRIPTION */}
+            {/* DESCRIPTION — clique-para-editar (padrão cronograma) */}
             <div className="px-7 py-5 border-b border-[var(--color-border)]">
-              <div className="flex items-center gap-2 mb-3">
-                <AlignLeft size={14} className="text-[var(--color-text-muted)]" />
-                <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Descrição</span>
-              </div>
-              <textarea
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={7}
+              <EditableField
+                label="Descrição"
+                hint="· contexto, instruções, links"
                 placeholder="Adicione uma descrição, contexto, links…"
-                className="w-full bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)] resize-none leading-relaxed placeholder:text-[var(--color-text-faint)] min-h-[120px]"
+                value={description}
+                minH={90}
+                onCommit={async v => {
+                  setDescription(v)
+                  if (id) await supabase.from('extras').update({ description: v }).eq('id', id)
+                }}
               />
             </div>
 
