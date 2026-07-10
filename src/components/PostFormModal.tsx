@@ -6,6 +6,7 @@ import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
+import ModalPortal from '@/components/ModalPortal'
 import { X } from 'lucide-react'
 
 const POST_TYPES = [
@@ -89,6 +90,7 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
   const inputCls = "w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)] transition-colors"
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh] shadow-pop">
 
@@ -190,5 +192,6 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { useToast } from '@/lib/ToastContext'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
+import ModalPortal from '@/components/ModalPortal'
 
 const TYPE_OPTIONS = ['Menu', 'Cardápio', 'Arte avulsa', 'Logo', 'Manual', 'Placa', 'Cartão', 'Sacola', 'Sousplat', 'Story', 'Capas destaque', 'Fundos', 'Outro']
 const LABEL_PRESETS = [
@@ -100,6 +101,7 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
   }
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh] shadow-pop">
         <div className="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
@@ -155,5 +157,6 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

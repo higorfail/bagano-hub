@@ -10,6 +10,7 @@ import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import EditableField from '@/components/EditableField'
+import ModalPortal from '@/components/ModalPortal'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, ChevronDown,
@@ -362,9 +363,11 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   const statusObj  = STATUS_OPTIONS.find(s => s.value === status)
 
   if (loading) return (
-    <div className="fixed inset-0 bg-black/40 z-[70] flex items-center justify-center">
-      <div className="bg-[var(--color-bg-card)] rounded-2xl px-6 py-4 text-sm text-[var(--color-text-muted)]">Carregando…</div>
-    </div>
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black/40 z-[70] flex items-center justify-center">
+        <div className="bg-[var(--color-bg-card)] rounded-2xl px-6 py-4 text-sm text-[var(--color-text-muted)]">Carregando…</div>
+      </div>
+    </ModalPortal>
   )
 
   const SectionTitle = ({ icon: Icon, children, right }: any) => (
@@ -378,6 +381,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   )
 
   return (
+    <ModalPortal>
     <div
       className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-6 px-4"
       onClick={e => { if (e.target === e.currentTarget) { handleSaveMain(); onClose() } }}
@@ -992,5 +996,6 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         })()}
       </div>
     </div>
+    </ModalPortal>
   )
 }

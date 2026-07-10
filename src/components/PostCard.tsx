@@ -10,6 +10,7 @@ import { moveToTrash } from '@/lib/trash'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
+import ModalPortal from '@/components/ModalPortal'
 
 const POST_TYPES = [
   { value: 'carrossel',         label: 'Carrossel',         color: '#3b82f6' },
@@ -504,9 +505,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   })()
 
   if (loading) return (
-    <div className="fixed inset-0 bg-black/40 z-[70] flex items-center justify-center">
-      <div className="bg-[var(--color-bg-card)] rounded-2xl px-6 py-4 text-sm text-[var(--color-text-muted)]">Carregando…</div>
-    </div>
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black/40 z-[70] flex items-center justify-center">
+        <div className="bg-[var(--color-bg-card)] rounded-2xl px-6 py-4 text-sm text-[var(--color-text-muted)]">Carregando…</div>
+      </div>
+    </ModalPortal>
   )
 
   const fieldEditCls = 'w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none resize-none leading-relaxed'
@@ -575,6 +578,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   }
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-4 px-4"
       onMouseDown={e => { backdropDown.current = e.target === e.currentTarget }}
       onMouseUp={e => { if (backdropDown.current && e.target === e.currentTarget) onClose(); backdropDown.current = false }}
@@ -1104,5 +1108,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
       </div>
     </div>
+    </ModalPortal>
   )
 }
