@@ -80,6 +80,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   const [dueDate,     setDueDate]     = useState('')
   const [dueTime,     setDueTime]     = useState('')
   const [driveUrl,    setDriveUrl]    = useState('')
+  const [createdAt,   setCreatedAt]   = useState<string | null>(null)
   const [labels,      setLabels]      = useState<{ text: string; color: string }[]>([])
 
   // Múltiplos responsáveis
@@ -139,6 +140,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         setDescription(data.description || '')
         setDueDate(data.due_date || '')
         setDriveUrl(data.drive_url || '')
+        setCreatedAt(data.created_at || null)
         setLabels(Array.isArray(data.labels) ? data.labels : [])
         // Múltiplos responsáveis: lê assigned_members, fallback para assigned_to legado
         const am = Array.isArray(data.assigned_members) && data.assigned_members.length > 0
@@ -743,7 +745,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
 
             {sideTab === 'history' ? (
               <div className="flex-1 overflow-y-auto px-5 py-4">
-                <ActivityLog tableName="materials" recordId={id || materialId || ''} refreshKey={activityKey} />
+                <ActivityLog tableName="materials" recordId={id || materialId || ''} refreshKey={activityKey} createdAt={createdAt} />
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">

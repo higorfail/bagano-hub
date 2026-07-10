@@ -138,7 +138,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [mentionPos,       setMentionPos]        = useState<{ top: number; left: number; width: number } | null>(null)
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
-  const [showDetails,  setShowDetails]  = useState(false)
+  const [createdAt,    setCreatedAt]    = useState<string | null>(null)
+  const [showDetails,  setShowDetails]  = useState(true)
   const [emojiOpen,    setEmojiOpen]    = useState<TextField | null>(null)
   const [clientList,   setClientList]   = useState<{ id: string; name: string; color_hex: string }[]>([])
   const [moveOpen,     setMoveOpen]     = useState(false)
@@ -231,6 +232,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         })
         setApprovalStatus(data.approval_status || '')
         setAssignedMembers(Array.isArray(data.assigned_members) ? data.assigned_members : [])
+        setCreatedAt(data.created_at || null)
       }
       setLoading(false)
     }
@@ -482,6 +484,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const feed: FeedItem[] = [
     ...comments.map(c => ({ kind: 'comment' as const, id: 'c' + c.id, cid: c.id, at: c.created_at, author: c.author_name, body: c.body })),
     ...activities.map(a => ({ kind: 'activity' as const, id: 'a' + a.id, at: a.created_at, action: a.action, author: a.actor_name, body: a.description })),
+    // Garante uma entrada de criação mesmo em posts antigos (que não logavam)
+    ...(createdAt && !activities.some(a => a.action === 'created')
+      ? [{ kind: 'activity' as const, id: '__created__', at: createdAt, action: 'created', author: null, body: 'Card criado' }]
+      : []),
   ].sort((x, y) => new Date(y.at).getTime() - new Date(x.at).getTime())
   const visibleFeed = showDetails ? feed : feed.filter(f => f.kind === 'comment')
 

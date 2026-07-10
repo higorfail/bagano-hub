@@ -89,6 +89,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [dueDate,         setDueDate]         = useState('')
   const [dueTime,         setDueTime]         = useState('')
   const [driveUrl,        setDriveUrl]        = useState('')
+  const [createdAt,       setCreatedAt]       = useState<string | null>(null)
   const [labels,          setLabels]          = useState<{ text: string; color: string }[]>([])
   const [assignedMembers, setAssignedMembers] = useState<string[]>([])
 
@@ -170,6 +171,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         setDueDate(data.due_date || '')
         setDueTime(data.due_time || '')
         setDriveUrl(data.drive_url || '')
+        setCreatedAt(data.created_at || null)
         setLabels(Array.isArray(data.labels) ? data.labels : [])
         setNeedsClientApproval(data.needs_client_approval || false)
         const am = Array.isArray(data.assigned_members) && data.assigned_members.length > 0
@@ -669,7 +671,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
 
             {sideTab === 'history' ? (
               <div className="flex-1 overflow-y-auto px-5 py-4">
-                <ActivityLog tableName="extras" recordId={id || extraId || ''} refreshKey={activityKey} />
+                <ActivityLog tableName="extras" recordId={id || extraId || ''} refreshKey={activityKey} createdAt={createdAt} />
               </div>
             ) : (
             <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">

@@ -35,12 +35,13 @@ const ACTION_DOT: Record<string, string> = {
   updated:        'bg-[var(--ds-caution-accent)]',
 }
 
-type Props =
+type Props = (
   | { clientId: string; tableName?: never; recordId?: never; refreshKey?: number }
   | { tableName: string; recordId: string; clientId?: never; refreshKey?: number }
+) & { createdAt?: string | null; creatorName?: string | null }
 
 export default function ActivityLog(props: Props) {
-  const { refreshKey } = props
+  const { refreshKey, createdAt, creatorName } = props
   const [entries, setEntries] = useState<Entry[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -62,8 +63,23 @@ export default function ActivityLog(props: Props) {
       return
     }
 
-    q.then(({ data }) => { setEntries(data || []); setLoading(false) })
-  }, ['clientId' in props ? props.clientId : props.recordId, refreshKey])
+    q.then(({ data }) => {
+      let rows = data || []
+      // Garante uma entrada de criação: se o log não tem "created" e temos a
+      // data de criação do registro, sintetiza uma (cards antigos não logavam).
+      if (createdAt && !rows.some(r => r.action === 'created')) {
+        rows = [...rows, {
+          id: '__created__',
+          action: 'created',
+          actor_name: creatorName || null,
+          description: creatorName ? `${creatorName} criou o card` : 'Card criado',
+          created_at: createdAt,
+        }]
+      }
+      setEntries(rows)
+      setLoading(false)
+    })
+  }, ['clientId' in props ? props.clientId : props.recordId, refreshKey, createdAt, creatorName])
 
   if (loading) return <p className="text-xs text-[var(--color-text-faint)] py-4 text-center">Carregando...</p>
 
