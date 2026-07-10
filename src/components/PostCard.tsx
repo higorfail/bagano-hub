@@ -64,6 +64,9 @@ function relTime(iso: string) {
   const hrs = Math.floor(mins / 60); if (hrs < 24) return `${hrs}h`
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
+function fullDateTime(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
 function hostOf(url: string) { try { return new URL(url).hostname.replace('www.', '') } catch { return url } }
 // markdown leve: **negrito**, *itálico* e "- " bullets (escapa HTML antes)
 function renderMd(text: string) {
@@ -1013,7 +1016,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-1">
                         <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{item.author || 'Alguém'}</span>
-                        <span className="text-[10px] text-[var(--color-text-faint)]">{relTime(item.at)}</span>
+                        <span className="text-[10px] text-[var(--color-text-faint)]" title={fullDateTime(item.at)}>{fullDateTime(item.at)} · {relTime(item.at)}</span>
                         {editingCommentId !== item.cid && (
                           <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => { setEditingCommentId(item.cid); setEditCommentText(item.body) }} title="Editar"
@@ -1044,7 +1047,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                       style={{ background: av.color }}>{av.initials}</div>
                     <p className="text-[11px] text-[var(--color-text-muted)] leading-snug flex-1 pt-0.5">
                       {item.body}
-                      <span className="text-[var(--color-text-faint)]"> · {relTime(item.at)}</span>
+                      <span className="text-[var(--color-text-faint)]" title={fullDateTime(item.at)}> · {fullDateTime(item.at)}</span>
                     </p>
                   </div>
                 )

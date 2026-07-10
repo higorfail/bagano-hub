@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import ActivityLog from '@/components/ActivityLog'
 import { useToast } from '@/lib/ToastContext'
+import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import {
   X, Plus, Calendar, Tag, CheckSquare, Paperclip,
   Trash2, Link2, MessageSquare, User, AlignLeft, Check,
@@ -70,6 +71,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [id,      setId]      = useState<string | undefined>(extraId)
   const [linkCopied, setLinkCopied] = useState(false)
   const originalStatusRef = useRef<ExtraStatus>(initialStatus ?? 'backlog')
+  const snapshotRef = useRef<string>('')
   const [sideTab,     setSideTab]     = useState<'comments' | 'history'>('comments')
   const [activityKey, setActivityKey] = useState(0)
 
@@ -94,6 +96,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [newCheckText,   setNewCheckText]   = useState('')
   const [comments,       setComments]       = useState<any[]>([])
   const [newComment,     setNewComment]     = useState('')
+  const mentions = useMentions(newComment, setNewComment, members)
   const [attachments,    setAttachments]    = useState<any[]>([])
   const [newAttachUrl,   setNewAttachUrl]   = useState('')
   const [newAttachTitle, setNewAttachTitle] = useState('')
@@ -182,6 +185,13 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         const am = Array.isArray(data.assigned_members) && data.assigned_members.length > 0
           ? data.assigned_members : data.assigned_member_id ? [data.assigned_member_id] : []
         setAssignedMembers(am)
+        snapshotRef.current = JSON.stringify({
+          title: data.title || '', type: data.type || 'todo', priority: data.priority || 'normal',
+          clientId: data.client_id || '', description: data.description || '',
+          dueDate: data.due_date || '', dueTime: data.due_time || '',
+          labels: Array.isArray(data.labels) ? data.labels : [],
+          needsClientApproval: data.needs_client_approval || false, assignedMembers: am,
+        })
       }
       await loadSub(extraId)
       setLoading(false)
@@ -248,6 +258,16 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         originalStatusRef.current = status as ExtraStatus
         setActivityKey(k => k + 1)
       }
+      const nextSnapshot = JSON.stringify({
+        title, type, priority, clientId: fixedClientId || clientId || '', description,
+        dueDate: dueDate || '', dueTime: dueTime || '', labels,
+        needsClientApproval, assignedMembers,
+      })
+      if (snapshotRef.current && nextSnapshot !== snapshotRef.current) {
+        await logActivity({ tableName: 'extras', recordId: id, clientId: fixedClientId || clientId || null, action: 'updated', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} editou "${title}"` })
+        setActivityKey(k => k + 1)
+      }
+      snapshotRef.current = nextSnapshot
       const { data } = await supabase.from('extras').update(payload).eq('id', id).select('*').single()
       savedData = data ? withRelations(data) : null
     }
@@ -673,7 +693,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                         {new Date(c.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </p>
-                    <p className="text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl px-3 py-2 whitespace-pre-wrap leading-relaxed">{c.body}</p>
+                    <p className="text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl px-3 py-2 whitespace-pre-wrap leading-relaxed">{renderWithMentions(c.body)}</p>
                   </div>
                 </div>
               ))}
@@ -687,13 +707,16 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 </div>
                 <div className="flex-1">
                   <textarea
+                    ref={mentions.textareaRef}
                     value={newComment}
-                    onChange={e => setNewComment(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
+                    onChange={mentions.handleChange}
+                    onKeyDown={e => { if (mentions.handleKeyDown(e)) return; if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
+                    onBlur={mentions.handleBlur}
                     rows={2}
-                    placeholder="Comentar… (⌘Enter)"
+                    placeholder="Comentar… @ para mencionar  (⌘Enter)"
                     className="w-full bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] resize-none transition-colors"
                   />
+                  {mentions.dropdown}
                   {newComment.trim() && (
                     <button onClick={addComment} className="mt-1.5 w-full text-xs font-semibold px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">
                       Comentar

@@ -23,6 +23,10 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
+function fullDateTime(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
 const ACTION_DOT: Record<string, string> = {
   created:        'bg-[var(--ds-success-accent)]',
   deleted:        'bg-[var(--ds-error-accent)]',
@@ -79,11 +83,12 @@ export default function ActivityLog(props: Props) {
           <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1.5 ${ACTION_DOT[e.action] || 'bg-[var(--color-text-faint)]'}`} />
           <div className="flex-1 min-w-0">
             <p className="text-xs text-[var(--color-text-primary)] leading-snug">{e.description}</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap" title={fullDateTime(e.created_at)}>
               {e.actor_name && (
                 <span className="text-[10px] font-medium text-[var(--color-text-secondary)]">{e.actor_name}</span>
               )}
-              <span className="text-[10px] text-[var(--color-text-faint)]">{timeAgo(e.created_at)}</span>
+              <span className="text-[10px] text-[var(--color-text-faint)]">{fullDateTime(e.created_at)}</span>
+              <span className="text-[10px] text-[var(--color-text-faint)]">· {timeAgo(e.created_at)}</span>
             </div>
           </div>
         </div>

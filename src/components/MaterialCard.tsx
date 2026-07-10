@@ -7,6 +7,7 @@ import { logActivity } from '@/lib/activity'
 import ActivityLog from '@/components/ActivityLog'
 import { useToast } from '@/lib/ToastContext'
 import { moveToTrash } from '@/lib/trash'
+import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import {
   X, Plus, Calendar, Tag, CheckSquare, Paperclip,
   Trash2, Link2, MessageSquare, User, Briefcase,
@@ -56,6 +57,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const originalStatusRef = useRef('')
+  const snapshotRef = useRef<string>('')
   const [sideTab,      setSideTab]      = useState<'comments' | 'history'>('comments')
   const [activityKey,  setActivityKey]  = useState(0)
 
@@ -87,6 +89,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   // Sub-entidades
   const [comments,    setComments]    = useState<any[]>([])
   const [newComment,  setNewComment]  = useState('')
+  const mentions = useMentions(newComment, setNewComment, members)
   const [attachments, setAttachments] = useState<any[]>([])
   const [uploads,     setUploads]     = useState<any[]>([])
   const [newAttachUrl,   setNewAttachUrl]   = useState('')
@@ -153,6 +156,12 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
           ? data.assigned_members
           : data.assigned_to ? [data.assigned_to] : []
         setAssignedMembers(am)
+        snapshotRef.current = JSON.stringify({
+          title: data.title || '', type: data.type || 'Arte avulsa', clientId: data.client_id || '',
+          extraClient: data.extra_client || '', description: data.description || '',
+          dueDate: data.due_date || '', driveUrl: data.drive_url || '',
+          labels: Array.isArray(data.labels) ? data.labels : [], assignedMembers: am,
+        })
       }
       await loadSub(materialId)
       setLoading(false)
@@ -236,6 +245,15 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         originalStatusRef.current = status
         setActivityKey(k => k + 1)
       }
+      const nextSnapshot = JSON.stringify({
+        title, type, clientId: fixedClientId || clientId || '', extraClient,
+        description, dueDate: dueDate || '', driveUrl: driveUrl || '', labels, assignedMembers,
+      })
+      if (snapshotRef.current && nextSnapshot !== snapshotRef.current) {
+        await logActivity({ tableName: 'materials', recordId: id, action: 'updated', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} editou "${title}"` })
+        setActivityKey(k => k + 1)
+      }
+      snapshotRef.current = nextSnapshot
       await supabase.from('materials').update(payload).eq('id', id)
     }
     setSaving(false)
@@ -791,7 +809,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                           {new Date(c.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </p>
-                      <p className="text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 whitespace-pre-wrap">{c.body}</p>
+                      <p className="text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 whitespace-pre-wrap">{renderWithMentions(c.body)}</p>
                     </div>
                   </div>
                 ))}
@@ -806,13 +824,16 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                   </div>
                   <div className="flex-1">
                     <textarea
+                      ref={mentions.textareaRef}
                       value={newComment}
-                      onChange={e => setNewComment(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
+                      onChange={mentions.handleChange}
+                      onKeyDown={e => { if (mentions.handleKeyDown(e)) return; if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
+                      onBlur={mentions.handleBlur}
                       rows={2}
-                      placeholder="Escrever um comentário… (⌘Enter)"
+                      placeholder="Escrever um comentário… @ menciona  (⌘Enter)"
                       className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] resize-none"
                     />
+                    {mentions.dropdown}
                     {newComment.trim() && (
                       <button onClick={addComment} className="mt-1.5 w-full text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">
                         Comentar
