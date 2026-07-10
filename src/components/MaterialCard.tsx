@@ -8,6 +8,7 @@ import ActivityLog from '@/components/ActivityLog'
 import { useToast } from '@/lib/ToastContext'
 import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
+import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import {
   X, Plus, Calendar, Tag, CheckSquare, Paperclip,
   Trash2, Link2, MessageSquare, User, Briefcase,
@@ -615,7 +616,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               />
             </div>
 
-            {/* ENTREGA DO DESIGNER */}
+            {/* ENTREGA DO CONTEÚDO */}
             <div
               className="rounded-2xl p-4 transition-colors"
               style={driveUrl
@@ -623,8 +624,13 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 : { background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
             >
               <SectionTitle icon={Link2}>
-                {driveUrl ? '✓ Entrega do designer' : 'Entrega do designer'}
+                {driveUrl ? '✓ Entrega do conteúdo' : 'Entrega do conteúdo'}
               </SectionTitle>
+              {driveUrl && (
+                /\/folders\//.test(driveUrl)
+                  ? <FolderThumbnail folderUrl={driveUrl} />
+                  : <DriveThumbnail driveUrl={driveUrl} isVideo={/reel|video|vídeo|\.mp4/i.test(type + ' ' + driveUrl)} />
+              )}
               <div className="flex gap-2">
                 <input
                   value={driveUrl}
