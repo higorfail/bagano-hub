@@ -377,10 +377,10 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-6 px-4"
       onClick={e => { if (e.target === e.currentTarget) { handleSaveMain(); onClose() } }}
     >
-      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
+      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[1040px] max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
 
         {/* HEADER */}
-        <div className="flex items-center justify-between px-6 py-4 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+        <div className="flex items-center justify-between px-7 py-4 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
           <div className="flex items-center gap-3">
             <span className="w-2.5 h-2.5 rounded-full" style={{ background: statusObj?.color }} />
             <select
@@ -414,7 +414,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         </div>
 
         {/* TÍTULO */}
-        <div className="px-6 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+        <div className="px-7 pt-6 pb-4 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
           <input
             value={title}
             onChange={e => onTitleChange(e.target.value)}
@@ -431,10 +431,10 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         </div>
 
         {/* CORPO */}
-        <div className="flex gap-5 px-6 py-5 overflow-y-auto flex-1">
+        <div className="flex overflow-hidden flex-1 divide-x divide-[var(--color-border)]">
 
           {/* ESQUERDA */}
-          <div className="flex-1 min-w-0 flex flex-col gap-4">
+          <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto px-7 py-5">
 
             {/* PROPRIEDADES */}
             <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4">
@@ -758,71 +758,75 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
           </div>
 
           {/* DIREITA — comentários / histórico */}
-          <div className="w-72 flex-shrink-0">
-            <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 sticky top-4">
-              {/* Tab toggle */}
-              <div className="flex rounded-lg bg-[var(--color-bg-subtle)] p-0.5 mb-4">
+          <div className="w-80 flex-shrink-0 flex flex-col bg-[var(--color-bg-card)]">
+            <div className="px-5 py-3.5 border-b border-[var(--color-border)]">
+              <div className="flex rounded-lg bg-[var(--color-bg-subtle)] p-0.5">
                 <button onClick={() => setSideTab('comments')} className={`flex-1 text-xs font-medium py-1 rounded-md transition-all ${sideTab === 'comments' ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'}`}>
-                  Comentários
+                  Comentários {comments.length > 0 ? `(${comments.length})` : ''}
                 </button>
                 <button onClick={() => setSideTab('history')} className={`flex-1 text-xs font-medium py-1 rounded-md transition-all ${sideTab === 'history' ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'}`}>
                   Histórico
                 </button>
               </div>
-
-              {sideTab === 'comments' ? (
-                <>
-                  <div className="flex gap-2.5 mb-3">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5" style={{ background: (currentMember as any)?.color || 'var(--color-brand)' }}>
-                      {currentMember ? initials(currentMember.name) : 'VO'}
-                    </div>
-                    <div className="flex-1">
-                      <textarea
-                        value={newComment}
-                        onChange={e => setNewComment(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
-                        rows={2}
-                        placeholder="Escrever um comentário… (⌘Enter)"
-                        className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] resize-none"
-                      />
-                      {newComment.trim() && (
-                        <button onClick={addComment} className="mt-1.5 w-full text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">
-                          Comentar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-4 max-h-72 overflow-y-auto">
-                    {comments.length === 0 && (
-                      <p className="text-xs text-[var(--color-text-faint)] text-center py-4">Nenhum comentário ainda.</p>
-                    )}
-                    {[...comments].reverse().map(c => (
-                      <div key={c.id} className="flex gap-2.5">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ background: (members.find((m: any) => m.name === c.author_name) as any)?.color || 'var(--color-brand)' }}>
-                          {initials(c.author_name)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs mb-1">
-                            <span className="font-semibold text-[var(--color-text-primary)]">{c.author_name}</span>{' '}
-                            <span className="text-[var(--color-text-muted)]">
-                              {new Date(c.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </p>
-                          <p className="text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 whitespace-pre-wrap">{c.body}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <ActivityLog tableName="materials" recordId={id || materialId || ''} refreshKey={activityKey} />
-              )}
             </div>
+
+            {sideTab === 'history' ? (
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <ActivityLog tableName="materials" recordId={id || materialId || ''} refreshKey={activityKey} />
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
+                {comments.length === 0 && (
+                  <p className="text-xs text-[var(--color-text-faint)] text-center py-6">Nenhum comentário ainda.</p>
+                )}
+                {[...comments].reverse().map(c => (
+                  <div key={c.id} className="flex gap-2.5">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ background: (members.find((m: any) => m.name === c.author_name) as any)?.color || 'var(--color-brand)' }}>
+                      {initials(c.author_name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs mb-1">
+                        <span className="font-semibold text-[var(--color-text-primary)]">{c.author_name}</span>{' '}
+                        <span className="text-[var(--color-text-muted)]">
+                          {new Date(c.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </p>
+                      <p className="text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 whitespace-pre-wrap">{c.body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {sideTab === 'comments' && (
+              <div className="px-5 py-4 border-t border-[var(--color-border)]">
+                <div className="flex gap-2.5">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5" style={{ background: (currentMember as any)?.color || 'var(--color-brand)' }}>
+                    {currentMember ? initials(currentMember.name) : 'VO'}
+                  </div>
+                  <div className="flex-1">
+                    <textarea
+                      value={newComment}
+                      onChange={e => setNewComment(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
+                      rows={2}
+                      placeholder="Escrever um comentário… (⌘Enter)"
+                      className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] resize-none"
+                    />
+                    {newComment.trim() && (
+                      <button onClick={addComment} className="mt-1.5 w-full text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">
+                        Comentar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* FOOTER */}
-        <div className="px-6 py-4 border-t border-[var(--color-border)] flex items-center justify-between gap-3 bg-[var(--color-bg-card)]">
+        <div className="px-7 py-3.5 border-t border-[var(--color-border)] flex items-center justify-between gap-3 bg-[var(--color-bg-card)]">
           {/* Delete */}
           {materialId && !confirmDelete && (
             <button onClick={() => setConfirmDelete(true)}
