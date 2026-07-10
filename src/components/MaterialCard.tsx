@@ -559,46 +559,10 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               <textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                rows={5}
+                rows={7}
                 placeholder="Especificações, dimensões, instruções, referências…"
-                className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-xl px-4 py-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)] resize-none leading-relaxed"
+                className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-xl px-4 py-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)] resize-none leading-relaxed min-h-[120px]"
               />
-            </div>
-
-            {/* ENTREGA DO CONTEÚDO */}
-            <div
-              className="rounded-2xl p-4 transition-colors"
-              style={driveUrl
-                ? { background: 'var(--ds-success-bg)', border: '1px solid var(--ds-success-border)' }
-                : { background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
-            >
-              <SectionTitle icon={Link2}>
-                {driveUrl ? '✓ Entrega do conteúdo' : 'Entrega do conteúdo'}
-              </SectionTitle>
-              {driveUrl && (
-                /\/folders\//.test(driveUrl)
-                  ? <FolderThumbnail folderUrl={driveUrl} />
-                  : <DriveThumbnail driveUrl={driveUrl} isVideo={/reel|video|vídeo|\.mp4/i.test(type + ' ' + driveUrl)} />
-              )}
-              <div className="flex gap-2">
-                <input
-                  value={driveUrl}
-                  onChange={e => setDriveUrl(e.target.value)}
-                  placeholder="Link do Drive, Figma, WeTransfer…"
-                  className="flex-1 border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-alt)]"
-                />
-                {driveUrl && (
-                  <a
-                    href={driveUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-xl border"
-                    style={{ color: 'var(--ds-success-text)', borderColor: 'var(--ds-success-border)' }}
-                  >
-                    <ExternalLink size={13} /> Abrir
-                  </a>
-                )}
-              </div>
             </div>
 
             {/* CHECKLIST */}
@@ -725,6 +689,42 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                       <button onClick={addAttachment} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">Anexar</button>
                     </div>
                   </div>
+                )}
+              </div>
+            </div>
+
+            {/* ENTREGA DO CONTEÚDO — fim da coluna */}
+            <div
+              className="rounded-2xl p-4 transition-colors"
+              style={driveUrl
+                ? { background: 'var(--ds-success-bg)', border: '1px solid var(--ds-success-border)' }
+                : { background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+            >
+              <SectionTitle icon={Link2}>
+                {driveUrl ? '✓ Entrega do conteúdo' : 'Entrega do conteúdo'}
+              </SectionTitle>
+              {driveUrl && (
+                /\/folders\//.test(driveUrl)
+                  ? <FolderThumbnail folderUrl={driveUrl} />
+                  : <DriveThumbnail driveUrl={driveUrl} isVideo={/reel|video|vídeo|\.mp4/i.test(type + ' ' + driveUrl)} />
+              )}
+              <div className="flex gap-2">
+                <input
+                  value={driveUrl}
+                  onChange={e => setDriveUrl(e.target.value)}
+                  placeholder="Link do Drive, Figma, WeTransfer…"
+                  className="flex-1 border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-alt)]"
+                />
+                {driveUrl && (
+                  <a
+                    href={driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-xl border"
+                    style={{ color: 'var(--ds-success-text)', borderColor: 'var(--ds-success-border)' }}
+                  >
+                    <ExternalLink size={13} /> Abrir
+                  </a>
                 )}
               </div>
             </div>
