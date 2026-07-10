@@ -7,10 +7,11 @@ import { logActivity } from '@/lib/activity'
 import ActivityLog from '@/components/ActivityLog'
 import { useToast } from '@/lib/ToastContext'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
+import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import {
   X, Plus, Calendar, Tag, CheckSquare, Paperclip,
   Trash2, Link2, MessageSquare, User, AlignLeft, Check,
-  FileText, Bell, ChevronRight
+  FileText, Bell, ChevronRight, Package, ExternalLink
 } from 'lucide-react'
 
 type ExtraType     = 'todo' | 'note' | 'reminder'
@@ -87,6 +88,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [description,     setDescription]     = useState('')
   const [dueDate,         setDueDate]         = useState('')
   const [dueTime,         setDueTime]         = useState('')
+  const [driveUrl,        setDriveUrl]        = useState('')
   const [labels,          setLabels]          = useState<{ text: string; color: string }[]>([])
   const [assignedMembers, setAssignedMembers] = useState<string[]>([])
 
@@ -180,6 +182,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         setDescription(data.description || '')
         setDueDate(data.due_date || '')
         setDueTime(data.due_time || '')
+        setDriveUrl(data.drive_url || '')
         setLabels(Array.isArray(data.labels) ? data.labels : [])
         setNeedsClientApproval(data.needs_client_approval || false)
         const am = Array.isArray(data.assigned_members) && data.assigned_members.length > 0
@@ -188,7 +191,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         snapshotRef.current = JSON.stringify({
           title: data.title || '', type: data.type || 'todo', priority: data.priority || 'normal',
           clientId: data.client_id || '', description: data.description || '',
-          dueDate: data.due_date || '', dueTime: data.due_time || '',
+          dueDate: data.due_date || '', dueTime: data.due_time || '', driveUrl: data.drive_url || '',
           labels: Array.isArray(data.labels) ? data.labels : [],
           needsClientApproval: data.needs_client_approval || false, assignedMembers: am,
         })
@@ -205,7 +208,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const payload = {
       title, type, status, priority,
       client_id: fixedClientId || clientId || null,
-      description, due_date: dueDate || null, due_time: dueTime || null,
+      description, due_date: dueDate || null, due_time: dueTime || null, drive_url: driveUrl || null,
       assigned_members: assignedMembers, assigned_member_id: assignedMembers[0] || null, labels,
     }
     const { data, error } = await supabase.from('extras').insert(payload).select('*').single()
@@ -220,7 +223,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const payload: any = {
       title, type, status, priority,
       client_id: fixedClientId || clientId || null,
-      description, due_date: dueDate || null, due_time: dueTime || null,
+      description, due_date: dueDate || null, due_time: dueTime || null, drive_url: driveUrl || null,
       assigned_members: assignedMembers, assigned_member_id: assignedMembers[0] || null, labels,
       needs_client_approval: needsClientApproval,
     }
@@ -260,7 +263,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       }
       const nextSnapshot = JSON.stringify({
         title, type, priority, clientId: fixedClientId || clientId || '', description,
-        dueDate: dueDate || '', dueTime: dueTime || '', labels,
+        dueDate: dueDate || '', dueTime: dueTime || '', driveUrl: driveUrl || '', labels,
         needsClientApproval, assignedMembers,
       })
       if (snapshotRef.current && nextSnapshot !== snapshotRef.current) {
@@ -585,6 +588,38 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 placeholder="Adicione uma descrição, contexto, links…"
                 className="w-full bg-transparent text-sm text-[var(--color-text-primary)] outline-none resize-none leading-relaxed placeholder:text-[var(--color-text-faint)]"
               />
+            </div>
+
+            {/* ENTREGA DO CONTEÚDO */}
+            <div className="px-7 py-5 border-b border-[var(--color-border)]">
+              <div className="rounded-2xl p-4 transition-colors" style={driveUrl
+                ? { background: 'var(--ds-success-bg)', border: '1px solid var(--ds-success-border)' }
+                : { background: 'var(--ds-info-bg)', border: '1px solid var(--ds-info-border)' }}>
+                <div className="flex items-center gap-1.5 mb-3">
+                  <Package size={15} style={{ color: driveUrl ? 'var(--ds-success-accent)' : 'var(--ds-info-accent)' }} />
+                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: driveUrl ? 'var(--ds-success-text)' : 'var(--ds-info-text)' }}>Entrega do conteúdo</span>
+                </div>
+                {driveUrl && (
+                  /\/folders\//.test(driveUrl)
+                    ? <FolderThumbnail folderUrl={driveUrl} />
+                    : <DriveThumbnail driveUrl={driveUrl} isVideo={/reel|video|vídeo|\.mp4/i.test(type + ' ' + driveUrl)} />
+                )}
+                <div className="flex gap-2">
+                  <input
+                    value={driveUrl}
+                    onChange={e => setDriveUrl(e.target.value)}
+                    placeholder="Link do Drive, Figma, WeTransfer…"
+                    className="flex-1 border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]"
+                  />
+                  {driveUrl && (
+                    <a href={driveUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-xl border"
+                      style={{ color: 'var(--ds-success-text)', borderColor: 'var(--ds-success-border)' }}>
+                      <ExternalLink size={13} /> Abrir
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* CHECKLIST */}
