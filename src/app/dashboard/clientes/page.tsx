@@ -45,6 +45,60 @@ export default function ClientesPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [pullingIg, setPullingIg] = useState(false)
+
+  // Sobe um arquivo de imagem para o Storage e devolve a URL pública estável
+  async function uploadLogo(file: Blob, ext: string): Promise<string | null> {
+    const supabase = createClient()
+    const path = `client-logos/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+    const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false, contentType: file.type || undefined })
+    if (error) { toast('Erro no upload: ' + error.message); return null }
+    const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
+    return publicUrl
+  }
+
+  async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) {
+      setUploadingLogo(true)
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+      const url = await uploadLogo(file, ext)
+      if (url) setForm(f => ({ ...f, logo_url: url }))
+      setUploadingLogo(false)
+    }
+    e.target.value = ''
+  }
+
+  async function pullFromInstagram() {
+    if (!form.instagram_url.trim()) { toast('Preencha o link do Instagram primeiro'); return }
+    setPullingIg(true)
+    try {
+      const res = await fetch('/api/instagram-avatar', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ instagram_url: form.instagram_url }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast(data.error || 'Não foi possível puxar do Instagram'); return }
+      // converte o dataUrl em Blob e re-hospeda no Storage
+      const blob = await (await fetch(data.dataUrl)).blob()
+      const ext = (data.contentType?.split('/')[1] || 'jpg').split(';')[0]
+      const url = await uploadLogo(blob, ext)
+      if (!url) return
+      setForm(f => ({
+        ...f,
+        logo_url: url,
+        instagram_followers: data.followers != null ? String(data.followers) : f.instagram_followers,
+        instagram_following: data.following != null ? String(data.following) : f.instagram_following,
+      }))
+      toast('Foto atualizada a partir do Instagram')
+    } catch {
+      toast('Erro ao puxar do Instagram')
+    } finally {
+      setPullingIg(false)
+    }
+  }
 
   useEffect(() => {
     load()
@@ -275,14 +329,24 @@ export default function ClientesPage() {
               </div>
 
               <div>
-                <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Foto / Logo (URL)</label>
+                <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Foto / Logo</label>
+                <div className="flex items-center gap-2">
+                  <label className={`inline-flex items-center gap-2 px-3 py-2.5 rounded-xl border border-[var(--color-border)] text-sm cursor-pointer hover:bg-[var(--color-bg-subtle)] ${uploadingLogo ? 'opacity-60 pointer-events-none' : ''}`}>
+                    {uploadingLogo ? 'Enviando…' : 'Subir imagem'}
+                    <input type="file" accept="image/*" onChange={handleLogoFile} className="hidden" />
+                  </label>
+                  {form.logo_url && (
+                    <button type="button" onClick={() => setForm(f => ({ ...f, logo_url: '' }))} className="text-xs text-[var(--color-text-muted)] hover:underline">Remover</button>
+                  )}
+                </div>
                 <input
                   type="url"
                   value={form.logo_url}
                   onChange={e => setForm(f => ({ ...f, logo_url: e.target.value }))}
-                  placeholder="https://… (foto do Instagram, logo, etc.)"
-                  className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]"
+                  placeholder="…ou cole uma URL de imagem"
+                  className="w-full mt-2 border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]"
                 />
+                <p className="text-[11px] text-[var(--color-text-muted)] mt-1">Dica: URLs do Instagram expiram. Prefira subir a imagem ou usar “Puxar do Instagram”.</p>
               </div>
 
               <div>
@@ -309,13 +373,23 @@ export default function ClientesPage() {
 
               <div>
                 <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Instagram</label>
-                <input
-                  type="url"
-                  value={form.instagram_url}
-                  onChange={e => setForm(f => ({ ...f, instagram_url: e.target.value }))}
-                  placeholder="https://instagram.com/perfil"
-                  className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    value={form.instagram_url}
+                    onChange={e => setForm(f => ({ ...f, instagram_url: e.target.value }))}
+                    placeholder="https://instagram.com/perfil"
+                    className="flex-1 border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={pullFromInstagram}
+                    disabled={pullingIg || !form.instagram_url.trim()}
+                    className="whitespace-nowrap px-3 py-2.5 rounded-xl border border-[var(--color-border)] text-sm hover:bg-[var(--color-bg-subtle)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {pullingIg ? 'Puxando…' : 'Puxar foto'}
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-3">
