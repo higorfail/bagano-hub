@@ -9,9 +9,9 @@ import { useToast } from '@/lib/ToastContext'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import {
-  X, Calendar, Tag, CheckSquare, Paperclip,
-  Trash2, Link2, MessageSquare, User, AlignLeft, Check,
-  FileText, Bell, ChevronRight, Package, ExternalLink
+  X, Calendar, CheckSquare, Paperclip,
+  Trash2, Link2, AlignLeft, Check,
+  FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink
 } from 'lucide-react'
 
 type ExtraType     = 'todo' | 'note' | 'reminder'
@@ -337,7 +337,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const checkPct   = checklist.length ? Math.round((checkDone / checklist.length) * 100) : 0
   const typeObj     = TYPE_OPTIONS.find(t => t.value === type)!
   const statusObj   = STATUS_OPTIONS.find(s => s.value === status)!
-  const TypeIcon    = typeObj.icon
+  const priorityObj = PRIORITY_OPTIONS.find(p => p.value === priority)!
   const clientName  = clients.find(c => c.id === clientId)?.name
 
   if (loading) return (
@@ -364,62 +364,147 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         {/* Colored accent bar */}
         <div className="h-[3px] flex-shrink-0 rounded-t-2xl" style={{ background: typeObj.color }} />
 
-        {/* HEADER */}
-        <div className="flex items-center justify-between px-7 py-3.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
-          <div className="flex items-center gap-1.5">
-            <TypeIcon size={14} strokeWidth={2} style={{ color: typeObj.color, flexShrink: 0 }} />
-            <span className="text-xs font-semibold mr-3" style={{ color: typeObj.color }}>{typeObj.label}</span>
-            <div className="w-px h-4 bg-[var(--color-border)] mx-1" />
-            {STATUS_OPTIONS.map(s => (
-              <button key={s.value} onClick={() => { setStatus(s.value) }}
-                className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
-                style={status === s.value ? { background: s.color + '22', color: s.color } : { color: 'var(--color-text-faint)' }}>
-                {s.label}
-              </button>
-            ))}
-            <div className="w-px h-4 bg-[var(--color-border)] mx-1" />
-            {PRIORITY_OPTIONS.map(p => (
-              <button key={p.value} onClick={() => { setPriority(p.value) }}
-                className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
-                style={priority === p.value ? { background: p.color + '22', color: p.color } : { color: 'var(--color-text-faint)' }}>
-                {p.label}
-              </button>
-            ))}
+        {/* HEADER — título (padrão cronograma) */}
+        <div className="flex items-start justify-between gap-4 px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+          <div className="flex-1 min-w-0">
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Sem título…"
+              autoFocus={!extraId}
+              className="w-full text-2xl font-bold text-[var(--color-text-primary)] bg-transparent outline-none placeholder:text-[var(--color-text-faint)] leading-tight"
+            />
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">
+              {clientName ? <>em <span className="font-semibold text-[var(--color-text-secondary)]">{clientName}</span></> : 'sem cliente'}
+              <span className="mx-1.5 text-[var(--color-text-faint)]">·</span>{typeObj.label}
+            </p>
           </div>
-          {id && (
-            <button
-              onClick={() => {
-                const url = `${window.location.origin}/dashboard/extras?post=${id}`
-                navigator.clipboard.writeText(url)
-                setLinkCopied(true)
-                setTimeout(() => setLinkCopied(false), 2000)
-              }}
-              title="Copiar link do card"
-              className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-colors"
-              style={{ color: linkCopied ? 'var(--ds-success-text)' : 'var(--color-text-secondary)' }}>
-              {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {id && (
+              <button
+                onClick={() => {
+                  const url = `${window.location.origin}/dashboard/extras?post=${id}`
+                  navigator.clipboard.writeText(url)
+                  setLinkCopied(true)
+                  setTimeout(() => setLinkCopied(false), 2000)
+                }}
+                title="Copiar link do card"
+                className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-colors"
+                style={{ color: linkCopied ? 'var(--ds-success-text)' : 'var(--color-text-secondary)' }}>
+                {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
+              </button>
+            )}
+            <button onClick={() => { handleSaveMain(); onClose() }}
+              className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] transition-colors">
+              <X size={16} />
             </button>
-          )}
-          <button onClick={() => { handleSaveMain(); onClose() }}
-            className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] transition-colors">
-            <X size={16} />
-          </button>
+          </div>
         </div>
 
-        {/* TITLE */}
-        <div className="px-7 pt-6 pb-4 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
-          <input
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="Sem título…"
-            autoFocus={!extraId}
-            className="w-full text-2xl font-bold text-[var(--color-text-primary)] bg-transparent outline-none placeholder:text-[var(--color-text-faint)] leading-tight"
-          />
-          {(clientName || (!fixedClientId && !clientId)) && (
-            <p className="text-xs text-[var(--color-text-muted)] mt-1.5">
-              {clientName ? <>em <span className="font-semibold text-[var(--color-text-secondary)]">{clientName}</span></> : 'sem cliente'}
-            </p>
+        {/* PROPRIEDADES — barra horizontal no topo (padrão cronograma) */}
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-2.5 px-7 py-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+          {/* Tipo */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Tipo</span>
+            <div className="relative">
+              <select value={type} onChange={e => { setType(e.target.value as ExtraType); setTypeManuallySet(true) }}
+                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
+                style={{ background: typeObj.color + '18', color: typeObj.color, borderColor: typeObj.color + '44' }}>
+                {TYPE_OPTIONS.map(t => <option key={t.value} value={t.value} style={{ color: 'var(--color-text-primary)' }}>{t.label}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: typeObj.color }} />
+            </div>
+          </div>
+          {/* Status */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Status</span>
+            <div className="relative">
+              <select value={status} onChange={e => setStatus(e.target.value as ExtraStatus)}
+                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
+                style={{ background: statusObj.color + '18', color: statusObj.color, borderColor: statusObj.color + '44' }}>
+                {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj.color }} />
+            </div>
+          </div>
+          {/* Prioridade */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Prioridade</span>
+            <div className="relative">
+              <select value={priority} onChange={e => setPriority(e.target.value as ExtraPriority)}
+                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
+                style={{ background: priorityObj.color + '18', color: priorityObj.color, borderColor: priorityObj.color + '44' }}>
+                {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value} style={{ color: 'var(--color-text-primary)' }}>{p.label}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: priorityObj.color }} />
+            </div>
+          </div>
+          {/* Data */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Data</span>
+            <button onClick={() => setShowDatePicker(true)}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors"
+              style={{ color: dueDateLabel ? dueDateLabel.color : 'var(--color-text-muted)' }}>
+              <Calendar size={12} /> {dueDateLabel ? dueDateLabel.text : 'Definir'}
+            </button>
+          </div>
+          {/* Cliente (global only) */}
+          {!fixedClientId && clients.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Cliente</span>
+              <div className="relative">
+                <select value={clientId} onChange={e => { setClientId(e.target.value); setClientManuallySet(true) }}
+                  className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
+                  <option value="">— nenhum —</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+              </div>
+            </div>
           )}
+          {/* Aprovação */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Aprovação</span>
+            <button
+              onClick={() => setNeedsClientApproval(v => !v)}
+              className="rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-all"
+              style={needsClientApproval
+                ? { background: '#3b82f618', color: '#3b82f6', borderColor: '#3b82f644' }
+                : { color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}>
+              {needsClientApproval ? '✓ Cliente aprova' : 'Não precisa'}
+            </button>
+          </div>
+          {/* Responsáveis */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Responsáveis</span>
+            <div className="flex flex-wrap gap-1">
+              {orderedMembers.map(m => {
+                const sel = assignedMembers.includes(m.id)
+                return (
+                  <button key={m.id} onClick={() => setAssignedMembers(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
+                    className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${sel ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)] border-transparent' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'}`}>
+                    {m.name.split(' ')[0]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          {/* Etiquetas */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Etiquetas</span>
+            <div className="flex flex-wrap gap-1.5 items-center">
+              {labels.map((l, i) => (
+                <span key={i} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md text-white" style={{ background: l.color }}>
+                  {l.text}
+                  <button onClick={() => setLabels(ls => ls.filter((_, idx) => idx !== i))}><X size={9} /></button>
+                </span>
+              ))}
+              <button onClick={() => setShowLabelPicker(true)}
+                className="text-[11px] px-2 py-0.5 rounded-full border border-dashed border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-strong)] transition-colors">
+                + Etiqueta
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* BODY */}
@@ -427,115 +512,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
 
           {/* LEFT — main content */}
           <div className="flex-1 min-w-0 flex flex-col gap-0 overflow-y-auto">
-
-            {/* PROPERTIES — Linear-style rows */}
-            <div className="px-7 py-5 flex flex-col gap-0 border-b border-[var(--color-border)]">
-              {/* Tipo */}
-              <div className="flex items-center gap-3 py-2">
-                <div className="flex items-center gap-2 w-36 flex-shrink-0">
-                  <Tag size={13} className="text-[var(--color-text-muted)]" />
-                  <span className="text-xs text-[var(--color-text-muted)]">Tipo</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  {TYPE_OPTIONS.map(t => { const TIcon = t.icon; return (
-                    <button key={t.value} onClick={() => { setType(t.value); setTypeManuallySet(true) }}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
-                      style={type === t.value ? { background: t.color + '20', color: t.color } : { color: 'var(--color-text-muted)' }}>
-                      <TIcon size={11} /> {t.label}
-                    </button>
-                  )})}
-                </div>
-              </div>
-
-              {/* Data limite */}
-              <div className="flex items-center gap-3 py-2">
-                <div className="flex items-center gap-2 w-36 flex-shrink-0">
-                  <Calendar size={13} className="text-[var(--color-text-muted)]" />
-                  <span className="text-xs text-[var(--color-text-muted)]">Data limite</span>
-                </div>
-                <button onClick={() => setShowDatePicker(true)}
-                  className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-medium transition-all hover:bg-[var(--color-bg-subtle)]"
-                  style={{ color: dueDateLabel ? dueDateLabel.color : 'var(--color-text-muted)' }}>
-                  {dueDateLabel ? dueDateLabel.text : '+ Definir data'}
-                </button>
-              </div>
-
-              {/* Responsáveis */}
-              <div className="flex items-start gap-3 py-2">
-                <div className="flex items-center gap-2 w-36 flex-shrink-0 mt-1">
-                  <User size={13} className="text-[var(--color-text-muted)]" />
-                  <span className="text-xs text-[var(--color-text-muted)]">Responsáveis</span>
-                </div>
-                <div className="flex-1 flex flex-wrap gap-1">
-                  {orderedMembers.map(m => {
-                    const sel = assignedMembers.includes(m.id)
-                    return (
-                      <button key={m.id}
-                        onClick={() => setAssignedMembers(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
-                        className={`flex items-center gap-1 text-[11px] pl-1 pr-2 py-0.5 rounded-full border transition-colors ${sel ? 'text-white border-transparent' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'}`}
-                        style={sel ? { background: m.color || 'var(--color-brand)' } : {}}>
-                        <span className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold flex-shrink-0" style={{ background: sel ? 'rgba(255,255,255,0.25)' : (m.color || 'var(--color-brand)'), color: 'white' }}>
-                          {initials(m.name)}
-                        </span>
-                        {m.name.split(' ')[0]}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Cliente (global only) */}
-              {!fixedClientId && clients.length > 0 && (
-                <div className="flex items-center gap-3 py-2">
-                  <div className="flex items-center gap-2 w-36 flex-shrink-0">
-                    <span className="text-[13px] text-[var(--color-text-muted)]">🏢</span>
-                    <span className="text-xs text-[var(--color-text-muted)]">Cliente</span>
-                  </div>
-                  <select value={clientId} onChange={e => { setClientId(e.target.value); setClientManuallySet(true) }}
-                    className="text-xs font-medium bg-transparent border-none outline-none text-[var(--color-text-secondary)] cursor-pointer">
-                    <option value="">— nenhum —</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-              )}
-
-              {/* Aprovação do cliente */}
-              <div className="flex items-center gap-3 py-2">
-                <div className="flex items-center gap-2 w-36 flex-shrink-0">
-                  <span className="text-[13px] text-[var(--color-text-muted)]">✅</span>
-                  <span className="text-xs text-[var(--color-text-muted)]">Aprovação</span>
-                </div>
-                <button
-                  onClick={() => setNeedsClientApproval(v => !v)}
-                  className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
-                  style={needsClientApproval
-                    ? { background: '#3b82f620', color: '#3b82f6' }
-                    : { color: 'var(--color-text-muted)' }}
-                >
-                  {needsClientApproval ? '✓ Cliente precisa aprovar' : 'Não precisa de aprovação'}
-                </button>
-              </div>
-
-              {/* Etiquetas */}
-              <div className="flex items-start gap-3 py-2">
-                <div className="flex items-center gap-2 w-36 flex-shrink-0 mt-0.5">
-                  <Tag size={13} className="text-[var(--color-text-muted)]" />
-                  <span className="text-xs text-[var(--color-text-muted)]">Etiquetas</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5 items-center">
-                  {labels.map((l, i) => (
-                    <span key={i} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md text-white" style={{ background: l.color }}>
-                      {l.text}
-                      <button onClick={() => setLabels(ls => ls.filter((_, idx) => idx !== i))}><X size={9} /></button>
-                    </span>
-                  ))}
-                  <button onClick={() => setShowLabelPicker(true)}
-                    className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] px-1 py-0.5 rounded transition-colors">
-                    + Etiqueta
-                  </button>
-                </div>
-              </div>
-            </div>
 
             {/* DESCRIPTION */}
             <div className="px-7 py-5 border-b border-[var(--color-border)]">

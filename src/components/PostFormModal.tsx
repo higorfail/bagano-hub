@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
+import { useUser } from '@/lib/UserContext'
+import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
 import { X } from 'lucide-react'
 
@@ -46,6 +48,7 @@ type Props = {
 
 export default function PostFormModal({ clientId, clientName, month, year, nextPostNumber, onClose, onSaved }: Props) {
   const { toast } = useToast()
+  const { currentMember } = useUser()
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [campaigns, setCampaigns] = useState<any[]>([])
@@ -63,14 +66,15 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
     if (!form.title.trim()) return
     setSaving(true)
     const supabase = createClient()
-    const { error } = await supabase.from('schedules').insert({
+    const { data, error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year, post_number: nextPostNumber,
       ...form,
       scheduled_date: form.scheduled_date || null,
       campaign_type: form.campaign_type || null,
-    })
+    }).select('id').single()
     setSaving(false)
     if (dbError(error, toast, 'criar post')) return
+    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${form.title}"` })
     onSaved()
     onClose()
   }

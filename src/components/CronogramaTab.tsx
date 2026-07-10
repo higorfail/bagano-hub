@@ -10,6 +10,7 @@ import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import { Check, Copy, Search, X, Zap, ClipboardCheck } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
+import { logActivity } from '@/lib/activity'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -183,14 +184,15 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
 
   async function duplicatePost(post: Post) {
     const { title, copy, post_type, drive_url, reference_notes, funil, campaign_type } = post as any
-    const { error } = await supabase.from('schedules').insert({
+    const { data, error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year,
       post_number: posts.length + 1,
       title: `${title} (cópia)`, copy, post_type, drive_url, reference_notes,
       funil, campaign_type,
       status: 'estrategia', scheduled_date: null,
-    })
+    }).select('id').single()
     if (error) { toast('Erro ao duplicar post'); return }
+    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title} (cópia)" (duplicado)` })
     await loadPosts()
     toast('Post duplicado!')
   }

@@ -10,8 +10,8 @@ import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import {
-  X, Plus, Calendar, Tag, CheckSquare, Paperclip,
-  Trash2, Link2, MessageSquare, User, Briefcase,
+  X, Calendar, CheckSquare, Paperclip,
+  Trash2, Link2, ChevronDown,
   AlignLeft, Upload, File, ExternalLink, Check
 } from 'lucide-react'
 
@@ -383,54 +383,154 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     >
       <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[1040px] max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
 
-        {/* HEADER */}
-        <div className="flex items-center justify-between px-7 py-4 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
-          <div className="flex items-center gap-3">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: statusObj?.color }} />
-            <select
-              value={status}
-              onChange={e => setStatus(e.target.value)}
-              className="text-sm font-semibold px-3 py-1.5 rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none cursor-pointer border-none"
-            >
-              {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+        {/* HEADER — título (padrão cronograma) */}
+        <div className="flex items-start justify-between gap-4 px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+          <div className="flex-1 min-w-0">
+            <input
+              value={title}
+              onChange={e => onTitleChange(e.target.value)}
+              placeholder="Nome do material…"
+              className="w-full text-2xl font-bold text-[var(--color-text-primary)] bg-transparent outline-none placeholder-[var(--color-text-faint)] leading-tight"
+            />
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">
+              {(clientName || extraClient)
+                ? <>em <span className="font-semibold text-[var(--color-text-secondary)]">{clientName || extraClient}</span></>
+                : 'sem cliente'}
+              <span className="mx-1.5 text-[var(--color-text-faint)]">·</span>{type}
+            </p>
           </div>
-          {id && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {id && (
+              <button
+                onClick={() => {
+                  const url = `${window.location.origin}/dashboard/materiais?post=${id}`
+                  navigator.clipboard.writeText(url)
+                  setLinkCopied(true)
+                  setTimeout(() => setLinkCopied(false), 2000)
+                }}
+                title="Copiar link do card"
+                className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-colors"
+                style={{ color: linkCopied ? 'var(--ds-success-text)' : 'var(--color-text-secondary)' }}>
+                {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
+              </button>
+            )}
             <button
-              onClick={() => {
-                const url = `${window.location.origin}/dashboard/materiais?post=${id}`
-                navigator.clipboard.writeText(url)
-                setLinkCopied(true)
-                setTimeout(() => setLinkCopied(false), 2000)
-              }}
-              title="Copiar link do card"
-              className="w-9 h-9 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-colors"
-              style={{ color: linkCopied ? 'var(--ds-success-text)' : 'var(--color-text-secondary)' }}>
-              {linkCopied ? <Check size={16} /> : <Link2 size={16} />}
+              onClick={() => { handleSaveMain(); onClose() }}
+              className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] transition-colors"
+            >
+              <X size={16} />
             </button>
-          )}
-          <button
-            onClick={() => { handleSaveMain(); onClose() }}
-            className="w-9 h-9 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]"
-          >
-            <X size={18} />
-          </button>
+          </div>
         </div>
 
-        {/* TÍTULO */}
-        <div className="px-7 pt-6 pb-4 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
-          <input
-            value={title}
-            onChange={e => onTitleChange(e.target.value)}
-            placeholder="Nome do material…"
-            className="w-full text-[22px] font-bold text-[var(--color-text-primary)] bg-transparent outline-none placeholder-[var(--color-text-faint)] leading-tight"
-          />
-          <div className="flex items-center gap-2 mt-2 text-sm text-[var(--color-text-secondary)]">
-            {(clientName || extraClient)
-              ? <span>em <span className="font-semibold text-[var(--color-text-primary)]">{clientName || extraClient}</span></span>
-              : <span className="text-[var(--color-text-muted)]">sem cliente</span>}
-            <span className="text-[var(--color-text-faint)]">·</span>
-            <span className="font-medium">{type}</span>
+        {/* PROPRIEDADES — barra horizontal no topo (padrão cronograma) */}
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-2.5 px-7 py-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+          {/* Tipo */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Tipo</span>
+            <input
+              list="mc-types"
+              value={type}
+              onChange={e => { setTypeManual(true); setType(e.target.value) }}
+              className="w-36 border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] outline-none focus:border-[var(--color-brand)]"
+            />
+            <datalist id="mc-types">{TYPE_OPTIONS.map(t => <option key={t} value={t} />)}</datalist>
+          </div>
+          {/* Status */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Status</span>
+            <div className="relative">
+              <select value={status} onChange={e => setStatus(e.target.value)}
+                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
+                style={{ background: (statusObj?.color || '#6b7280') + '18', color: statusObj?.color || '#6b7280', borderColor: (statusObj?.color || '#6b7280') + '44' }}>
+                {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj?.color || '#6b7280' }} />
+            </div>
+          </div>
+          {/* Data */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Data</span>
+            <button
+              onClick={() => setShowDatePicker(true)}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors"
+            >
+              {(() => {
+                if (!dueDate) return <><Calendar size={12} className="text-[var(--color-text-muted)]" /><span className="text-[var(--color-text-muted)]">Definir</span></>
+                const due = new Date(dueDate + 'T23:59:59')
+                const diff = Math.ceil((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                const color = diff < 0 ? '#EF4444' : diff <= 2 ? '#F59E0B' : 'var(--color-text-secondary)'
+                return (
+                  <>
+                    <Calendar size={12} style={{ color }} />
+                    <span style={{ color }} className="font-medium">
+                      {new Date(dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                      {dueTime ? ` · ${dueTime}` : ''}
+                      {diff < 0 ? ' · atrasado' : diff === 0 ? ' · hoje' : diff === 1 ? ' · amanhã' : ''}
+                    </span>
+                  </>
+                )
+              })()}
+            </button>
+          </div>
+          {/* Cliente (global only) */}
+          {!fixedClientId && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Cliente</span>
+              <div className="flex items-center gap-1.5">
+                <div className="relative">
+                  <select
+                    value={clientId}
+                    onChange={e => { setClientManual(true); setClientId(e.target.value) }}
+                    className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
+                    <option value="">— avulso —</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+                </div>
+                {!clientId && (
+                  <input
+                    value={extraClient}
+                    onChange={e => setExtraClient(e.target.value)}
+                    placeholder="Nome avulso"
+                    className="w-28 border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] bg-[var(--color-bg-card)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)]"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+          {/* Responsáveis */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Responsáveis</span>
+            <div className="flex flex-wrap gap-1">
+              {orderedMembers.map(m => {
+                const sel = assignedMembers.includes(m.id)
+                return (
+                  <button key={m.id}
+                    onClick={() => setAssignedMembers(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
+                    className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${sel ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)] border-transparent' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'}`}>
+                    {m.name.split(' ')[0]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          {/* Etiquetas */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Etiquetas</span>
+            <div className="flex flex-wrap gap-1.5 items-center">
+              {labels.map((l, i) => (
+                <span key={i} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md text-white" style={{ background: l.color }}>
+                  {l.text}
+                  <button onClick={() => setLabels(ls => ls.filter((_, idx) => idx !== i))}><X size={9} /></button>
+                </span>
+              ))}
+              <button
+                onClick={() => setShowLabelPicker(true)}
+                className="text-[11px] px-2 py-0.5 rounded-full border border-dashed border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-strong)] transition-colors">
+                + Etiqueta
+              </button>
+            </div>
           </div>
         </div>
 
@@ -439,119 +539,6 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
 
           {/* ESQUERDA */}
           <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto px-7 py-5">
-
-            {/* PROPRIEDADES */}
-            <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4">
-              <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                {!fixedClientId && (
-                  <div>
-                    <label className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5 flex items-center gap-1.5">
-                      <Briefcase size={12} /> Cliente
-                    </label>
-                    <select
-                      value={clientId}
-                      onChange={e => { setClientManual(true); setClientId(e.target.value) }}
-                      className="w-full border border-[var(--color-border)] rounded-lg px-2.5 py-2 text-sm bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]"
-                    >
-                      <option value="">— avulso —</option>
-                      {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    {!clientId && (
-                      <input
-                        value={extraClient}
-                        onChange={e => setExtraClient(e.target.value)}
-                        placeholder="Nome avulso"
-                        className="w-full mt-1.5 border border-[var(--color-border)] rounded-lg px-2.5 py-2 text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-card)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)]"
-                      />
-                    )}
-                  </div>
-                )}
-                <div>
-                  <label className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5 flex items-center gap-1.5">
-                    <Tag size={12} /> Tipo
-                  </label>
-                  <input
-                    list="mc-types"
-                    value={type}
-                    onChange={e => { setTypeManual(true); setType(e.target.value) }}
-                    className="w-full border border-[var(--color-border)] rounded-lg px-2.5 py-2 text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-card)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)]"
-                  />
-                  <datalist id="mc-types">{TYPE_OPTIONS.map(t => <option key={t} value={t} />)}</datalist>
-                </div>
-
-                {/* RESPONSÁVEIS — múltiplos */}
-                <div className={fixedClientId ? 'col-span-2' : ''}>
-                  <label className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5 flex items-center gap-1.5">
-                    <User size={12} /> Responsáveis
-                  </label>
-                  <div className="flex flex-wrap gap-1">
-                    {orderedMembers.map(m => {
-                      const sel = assignedMembers.includes(m.id)
-                      return (
-                        <button key={m.id}
-                          onClick={() => setAssignedMembers(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
-                          className={`flex items-center gap-1 text-[11px] pl-1 pr-2 py-0.5 rounded-full border transition-colors ${sel ? 'text-white border-transparent' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'}`}
-                          style={sel ? { background: (m as any).color || 'var(--color-brand)' } : {}}>
-                          <span className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold flex-shrink-0" style={{ background: sel ? 'rgba(255,255,255,0.25)' : ((m as any).color || 'var(--color-brand)'), color: 'white' }}>
-                            {initials(m.name)}
-                          </span>
-                          {m.name.split(' ')[0]}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5 flex items-center gap-1.5">
-                    <Calendar size={12} /> Entrega
-                  </label>
-                  <button
-                    onClick={() => setShowDatePicker(true)}
-                    className="w-full border border-[var(--color-border)] rounded-lg px-2.5 py-2 text-sm text-left bg-[var(--color-bg-card)] hover:border-[var(--color-border-hover)] flex items-center gap-2"
-                  >
-                    {(() => {
-                      if (!dueDate) return <><Calendar size={13} className="text-[var(--color-text-muted)]" /><span className="text-[var(--color-text-muted)]">Definir</span></>
-                      const due = new Date(dueDate + 'T23:59:59')
-                      const now = new Date()
-                      const diff = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-                      const color = diff < 0 ? '#EF4444' : diff <= 2 ? '#F59E0B' : 'var(--color-text-secondary)'
-                      return (
-                        <>
-                          <Calendar size={13} style={{ color }} />
-                          <span style={{ color }} className="font-medium">
-                            {new Date(dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                            {dueTime ? ` · ${dueTime}` : ''}
-                            {diff < 0 ? ' · atrasado' : diff === 0 ? ' · hoje' : diff === 1 ? ' · amanhã' : diff <= 2 ? ` · ${diff}d` : ''}
-                          </span>
-                        </>
-                      )
-                    })()}
-                  </button>
-                </div>
-              </div>
-
-              {/* Etiquetas */}
-              <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
-                <label className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-text-muted)] mb-2 flex items-center gap-1.5">
-                  <Tag size={12} /> Etiquetas
-                </label>
-                <div className="flex flex-wrap gap-1.5 items-center">
-                  {labels.map((l, i) => (
-                    <span key={i} className="text-[11px] font-bold uppercase tracking-wide px-2.5 py-1 rounded text-white flex items-center gap-1" style={{ background: l.color }}>
-                      {l.text}
-                      <button onClick={() => setLabels(ls => ls.filter((_, idx) => idx !== i))}><X size={11} /></button>
-                    </span>
-                  ))}
-                  <button
-                    onClick={() => setShowLabelPicker(true)}
-                    className="w-7 h-7 rounded-lg border border-dashed border-[var(--color-border-hover)] flex items-center justify-center text-[var(--color-text-muted)] hover:border-[var(--color-brand)] hover:text-[var(--color-text-primary)]"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-              </div>
-            </div>
 
             {/* DESCRIÇÃO */}
             <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4">
