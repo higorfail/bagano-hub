@@ -40,7 +40,7 @@ function MateriaisContent() {
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filterClient, setFilterClient] = useState('')
-  const [counts, setCounts] = useState<Record<string, {checklist:number, checkDone:number, comments:number, attachments:number}>>({})
+  const [counts, setCounts] = useState<Record<string, {checklist:number, checkDone:number, comments:number, attachments:number, preview:string|null}>>({})
   const [cardOpen,    setCardOpen]    = useState<string | 'new' | null>(() => searchParams.get('post'))
   const [draggingId,  setDraggingId]  = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
@@ -59,16 +59,18 @@ function MateriaisContent() {
       ])
       setMaterials(mats || [])
       setClients(cls || [])
-      const [{ data: chk }, { data: cms }, { data: atts }] = await Promise.all([
+      const [{ data: chk }, { data: cms }, { data: atts }, { data: ups }] = await Promise.all([
         supabase.from('material_checklist').select('material_id, done'),
         supabase.from('material_comments').select('material_id'),
         supabase.from('material_attachments').select('material_id'),
+        supabase.from('material_uploads').select('material_id, file_url, created_at').order('created_at', { ascending: true }),
       ])
       const c: Record<string, any> = {}
-      ;(mats || []).forEach((m: any) => { c[m.id] = { checklist: 0, checkDone: 0, comments: 0, attachments: 0 } })
+      ;(mats || []).forEach((m: any) => { c[m.id] = { checklist: 0, checkDone: 0, comments: 0, attachments: 0, preview: null } })
       ;(chk || []).forEach((x: any) => { if (c[x.material_id]) { c[x.material_id].checklist++; if (x.done) c[x.material_id].checkDone++ } })
       ;(cms || []).forEach((x: any) => { if (c[x.material_id]) c[x.material_id].comments++ })
       ;(atts || []).forEach((x: any) => { if (c[x.material_id]) c[x.material_id].attachments++ })
+      ;(ups || []).forEach((x: any) => { if (c[x.material_id] && !c[x.material_id].preview && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(x.file_url || '')) c[x.material_id].preview = x.file_url })
       setCounts(c)
       setLoading(false)
     }
@@ -151,11 +153,11 @@ function MateriaisContent() {
               </div>
               <div className={`flex flex-col gap-2.5 flex-1 rounded-xl transition-colors ${isDragOver ? 'bg-[var(--color-brand)]10 ring-2 ring-[var(--color-brand)] ring-dashed' : ''}`}>
                 {items.map(m => {
-                  const ct = counts[m.id] || { checklist: 0, checkDone: 0, comments: 0, attachments: 0 }
+                  const ct = counts[m.id] || { checklist: 0, checkDone: 0, comments: 0, attachments: 0, preview: null }
                   return (
                     <MaterialCardMini
                       key={m.id}
-                      material={{ ...m, _checkTotal: ct.checklist, _checkDone: ct.checkDone, _comments: ct.comments, _attachments: ct.attachments }}
+                      material={{ ...m, _checkTotal: ct.checklist, _checkDone: ct.checkDone, _comments: ct.comments, _attachments: ct.attachments, _preview: ct.preview }}
                       members={members}
                       onClick={() => { setCardOpen(m.id); window.history.replaceState(null, '', `?post=${m.id}`) }}
                       draggable={true}

@@ -91,16 +91,18 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
       setAllMembers(membersData || [])
       const { data: matData } = await supabase.from('materials').select('*').eq('client_id', id).order('created_at', { ascending: false })
       setMaterials(matData || [])
-      const [{ data: chk }, { data: cms }, { data: atts }] = await Promise.all([
+      const [{ data: chk }, { data: cms }, { data: atts }, { data: ups }] = await Promise.all([
         supabase.from('material_checklist').select('material_id, done'),
         supabase.from('material_comments').select('material_id'),
         supabase.from('material_attachments').select('material_id'),
+        supabase.from('material_uploads').select('material_id, file_url, created_at').order('created_at', { ascending: true }),
       ])
       const mc: Record<string,any> = {}
-      ;(matData || []).forEach((m: any) => { mc[m.id] = { checklist: 0, checkDone: 0, comments: 0, attachments: 0 } })
+      ;(matData || []).forEach((m: any) => { mc[m.id] = { checklist: 0, checkDone: 0, comments: 0, attachments: 0, preview: null } })
       ;(chk || []).forEach((x: any) => { if (mc[x.material_id]) { mc[x.material_id].checklist++; if (x.done) mc[x.material_id].checkDone++ } })
       ;(cms || []).forEach((x: any) => { if (mc[x.material_id]) mc[x.material_id].comments++ })
       ;(atts || []).forEach((x: any) => { if (mc[x.material_id]) mc[x.material_id].attachments++ })
+      ;(ups || []).forEach((x: any) => { if (mc[x.material_id] && !mc[x.material_id].preview && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(x.file_url || '')) mc[x.material_id].preview = x.file_url })
       setMatCounts(mc)
       setLoading(false)
     }
@@ -365,7 +367,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                               const ct = matCounts[m.id] || {}
                               return (
                                 <MaterialCardMini key={m.id}
-                                  material={{ ...m, _checkTotal: ct.checklist||0, _checkDone: ct.checkDone||0, _comments: ct.comments||0, _attachments: ct.attachments||0 }}
+                                  material={{ ...m, _checkTotal: ct.checklist||0, _checkDone: ct.checkDone||0, _comments: ct.comments||0, _attachments: ct.attachments||0, _preview: ct.preview||null }}
                                   members={allMembers}
                                   onClick={() => setCardOpen(m.id)}
                                   draggable={true}

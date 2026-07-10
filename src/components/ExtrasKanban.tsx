@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Plus, CheckSquare, FileText, Bell, Calendar, User, AlertCircle } from 'lucide-react'
+import { Plus, CheckSquare, FileText, Bell, Calendar, AlertCircle } from 'lucide-react'
 import ExtraCard from './ExtraCard'
 
 type ExtraType     = 'todo' | 'note' | 'reminder'
@@ -18,6 +18,7 @@ interface Extra {
   status: ExtraStatus
   priority: ExtraPriority
   due_date?: string | null
+  drive_url?: string | null
   assigned_member_id?: string | null
   assigned_members?: string[] | null
   labels?: { text: string; color: string }[] | null
@@ -86,6 +87,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   // Drag and drop
   const [draggingId,   setDraggingId]   = useState<string | null>(null)
   const [dragOverCol,  setDragOverCol]  = useState<ExtraStatus | null>(null)
+  const [checkCounts,  setCheckCounts]  = useState<Record<string, { done: number; total: number }>>({})
 
   async function load() {
     setLoading(true)
@@ -102,6 +104,16 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
     // Always load clients for name lookup (even in non-global mode)
     const { data: cl } = await supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name')
     if (cl) setClients(cl)
+
+    // Progresso do checklist por extra
+    const { data: chk } = await supabase.from('extra_checklist').select('extra_id, done')
+    const cc: Record<string, { done: number; total: number }> = {}
+    ;(chk || []).forEach((x: any) => {
+      if (!cc[x.extra_id]) cc[x.extra_id] = { done: 0, total: 0 }
+      cc[x.extra_id].total++
+      if (x.done) cc[x.extra_id].done++
+    })
+    setCheckCounts(cc)
 
     setLoading(false)
   }
@@ -208,9 +220,12 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                 {colExtras.map(extra => {
                   const TypeIcon = TYPE_CONFIG[extra.type].icon
                   const overdue  = isOverdue(extra.due_date, extra.status)
-                  const memberNames = extra.assigned_members
-                    ? members.filter(m => extra.assigned_members!.includes(m.id)).map(m => m.name.split(' ')[0])
+                  const assignedData = extra.assigned_members
+                    ? members.filter(m => extra.assigned_members!.includes(m.id))
                     : []
+                  const chk = checkCounts[extra.id]
+                  const driveId = extra.drive_url ? extra.drive_url.match(/[-\w]{25,}/)?.[0] : null
+                  const previewUrl = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w480` : null
                   const isDragging = draggingId === extra.id
 
                   return (
@@ -227,8 +242,17 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                       style={{
                         borderLeft: `3px solid ${PRIORITY_BORDER[extra.priority]}`,
                         opacity: isDragging ? 0.4 : 1,
+                        overflow: 'hidden',
                       }}
                     >
+                      {/* Preview da entrega */}
+                      {previewUrl && (
+                        <div className="-mx-3 -mt-3 mb-2 h-24 overflow-hidden bg-[var(--color-bg-subtle)]">
+                          <img src={previewUrl} alt={extra.title} className="w-full h-full object-cover"
+                            onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
+                        </div>
+                      )}
+
                       {/* Labels strip */}
                       {extra.labels && extra.labels.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-2">
@@ -269,10 +293,26 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                             {formatDue(extra.due_date)}
                           </span>
                         )}
-                        {memberNames.length > 0 && (
-                          <span className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
-                            <User size={9} />
-                            {memberNames.join(', ')}
+                        {chk && chk.total > 0 && (
+                          <span className="flex items-center gap-1 text-[10px] font-medium" style={chk.done === chk.total ? { color: 'var(--ds-success-text)' } : { color: 'var(--color-text-muted)' }}>
+                            <CheckSquare size={9} /> {chk.done}/{chk.total}
+                          </span>
+                        )}
+                        {extra.drive_url && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]">✓ Entregue</span>
+                        )}
+                        {assignedData.length > 0 && (
+                          <span className="flex -space-x-1.5 ml-auto">
+                            {assignedData.slice(0, 3).map(m => (
+                              <span key={m.id} title={m.name}
+                                className="w-5 h-5 rounded-full border-2 border-[var(--color-bg-card)] flex items-center justify-center text-white text-[8px] font-bold"
+                                style={{ background: (m as any).color || 'var(--color-brand)' }}>
+                                {m.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                              </span>
+                            ))}
+                            {assignedData.length > 3 && (
+                              <span className="w-5 h-5 rounded-full bg-[var(--color-bg-subtle)] border-2 border-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-text-muted)] text-[8px] font-bold">+{assignedData.length - 3}</span>
+                            )}
                           </span>
                         )}
                         {globalMode && extra.client_id && clientMap[extra.client_id] && (

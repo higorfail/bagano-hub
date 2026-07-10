@@ -67,6 +67,10 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
     .map(id => members.find(x => x.id === id))
     .filter(Boolean) as Member[]
 
+  const driveId = typeof m.drive_url === 'string' ? m.drive_url.match(/[-\w]{25,}/)?.[0] : null
+  const previewUrl: string | null = m._preview || (driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w480` : null)
+  const delivered = !!m.drive_url
+
   const labels: { text: string; color: string }[] = Array.isArray(m.labels) ? m.labels : []
   const checkTotal = m._checkTotal ?? 0
   const checkDone = m._checkDone ?? 0
@@ -94,6 +98,15 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
           )}
         </div>
       )}
+      {/* Preview do arquivo/entrega */}
+      {previewUrl && (
+        <div className="-mx-3 -mt-3 mb-1 h-28 overflow-hidden bg-[var(--color-bg-subtle)] rounded-t-xl">
+          <img src={previewUrl} alt={m.title}
+            className="w-full h-full object-cover"
+            onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
+        </div>
+      )}
+
       {/* Etiquetas coloridas */}
       {labels.length > 0 && (
         <div className="flex flex-wrap gap-1">
@@ -119,6 +132,9 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLOR[m.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
             {STATUS_LABEL[m.status] || m.status}
           </span>
+        )}
+        {delivered && (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]">✓ Entregue</span>
         )}
       </div>
 
