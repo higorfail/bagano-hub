@@ -51,7 +51,7 @@ export default function ClientesPage() {
   // Sobe um arquivo de imagem para o Storage e devolve a URL pública estável
   async function uploadLogo(file: Blob, ext: string): Promise<string | null> {
     const supabase = createClient()
-    const path = `client-logos/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+    const path = `posts/client-logos/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
     const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false, contentType: file.type || undefined })
     if (error) { toast('Erro no upload: ' + error.message); return null }
     const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
