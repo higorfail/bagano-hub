@@ -638,8 +638,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           </div>
         </div>
 
-        {/* PROPRIEDADES — barra no topo, vista primeiro */}
-        <div className="flex flex-wrap items-end gap-x-3 gap-y-2 px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+        {/* PROPRIEDADES — 2 linhas deliberadas: selects compactos | chips largos */}
+        <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-2">
+          <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
           {/* Tipo */}
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Tipo</span>
@@ -742,10 +743,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               </div>
             </div>
           )}
-          {/* Responsáveis */}
-          <div className="flex flex-col gap-1.5">
+          </div>
+          {/* Linha 2 — grupos largos (chips) */}
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1.5">
             <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Responsáveis</span>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 flex-1 min-w-0">
               {members.map(m => {
                 const sel = assignedMembers.includes(m.id)
                 return (

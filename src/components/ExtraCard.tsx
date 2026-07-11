@@ -435,8 +435,23 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           </div>
         </div>
 
-        {/* PROPRIEDADES — barra horizontal no topo (padrão cronograma) */}
-        <div className="flex flex-wrap items-end gap-x-3 gap-y-2 px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+        {/* PROPRIEDADES — 2 linhas deliberadas: selects compactos | chips largos */}
+        <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-2">
+          <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+          {/* Cliente (global only) — primeiro na ordem de UX */}
+          {!fixedClientId && clients.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Cliente</span>
+              <div className="relative">
+                <select value={clientId} onChange={e => { setClientId(e.target.value); setClientManuallySet(true) }}
+                  className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
+                  <option value="">— nenhum —</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+              </div>
+            </div>
+          )}
           {/* Tipo */}
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Tipo</span>
@@ -482,20 +497,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               <Calendar size={12} /> {dueDateLabel ? dueDateLabel.text : 'Definir'}
             </button>
           </div>
-          {/* Cliente (global only) */}
-          {!fixedClientId && clients.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Cliente</span>
-              <div className="relative">
-                <select value={clientId} onChange={e => { setClientId(e.target.value); setClientManuallySet(true) }}
-                  className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
-                  <option value="">— nenhum —</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
-              </div>
-            </div>
-          )}
           {/* Aprovação */}
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Aprovação</span>
@@ -508,10 +509,11 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               {needsClientApproval ? '✓ Cliente aprova' : 'Não precisa'}
             </button>
           </div>
-          {/* Responsáveis */}
-          <div className="flex flex-col gap-1.5">
+          </div>
+          {/* Linha 2 — grupos largos (chips) */}
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1.5">
             <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Responsáveis</span>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 min-w-0">
               {orderedMembers.map(m => {
                 const sel = assignedMembers.includes(m.id)
                 return (
@@ -522,11 +524,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 )
               })}
             </div>
-          </div>
-          {/* Etiquetas */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Etiquetas</span>
-            <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider ml-2">Etiquetas</span>
+            <div className="flex flex-wrap gap-1.5 items-center min-w-0">
               {labels.map((l, i) => (
                 <span key={i} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md text-white" style={{ background: l.color }}>
                   {l.text}
