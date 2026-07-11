@@ -444,51 +444,48 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
             <PropertyPill label="Cliente">
               <div className="relative min-w-0">
                 <select value={clientId} onChange={e => { setClientId(e.target.value); setClientManuallySet(true) }}
-                  className={pillSelectCls} style={{ color: clientId ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
-                  <option value="">—</option>
+                  className={pillSelectCls + ' bg-[var(--color-bg-card)] border-[var(--color-border)]'} style={{ color: clientId ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+                  <option value="">Cliente</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
               </div>
             </PropertyPill>
           )}
           {/* Tipo */}
           <PropertyPill label="Tipo">
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: typeObj.color }} />
             <div className="relative min-w-0">
               <select value={type} onChange={e => { setType(e.target.value as ExtraType); setTypeManuallySet(true) }}
-                className={pillSelectCls} style={{ color: typeObj.color }}>
+                className={pillSelectCls} style={{ background: typeObj.color + '18', color: typeObj.color, borderColor: typeObj.color + '44' }}>
                 {TYPE_OPTIONS.map(t => <option key={t.value} value={t.value} style={{ color: 'var(--color-text-primary)' }}>{t.label}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: typeObj.color }} />
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: typeObj.color }} />
             </div>
           </PropertyPill>
           {/* Status */}
           <PropertyPill label="Status">
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusObj.color }} />
             <div className="relative min-w-0">
               <select value={status} onChange={e => setStatus(e.target.value as ExtraStatus)}
-                className={pillSelectCls} style={{ color: statusObj.color }}>
+                className={pillSelectCls} style={{ background: statusObj.color + '18', color: statusObj.color, borderColor: statusObj.color + '44' }}>
                 {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj.color }} />
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj.color }} />
             </div>
           </PropertyPill>
           {/* Prioridade */}
           <PropertyPill label="Prioridade">
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: priorityObj.color }} />
             <div className="relative min-w-0">
               <select value={priority} onChange={e => setPriority(e.target.value as ExtraPriority)}
-                className={pillSelectCls} style={{ color: priorityObj.color }}>
+                className={pillSelectCls} style={{ background: priorityObj.color + '18', color: priorityObj.color, borderColor: priorityObj.color + '44' }}>
                 {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value} style={{ color: 'var(--color-text-primary)' }}>{p.label}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: priorityObj.color }} />
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: priorityObj.color }} />
             </div>
           </PropertyPill>
           {/* Data */}
           <PropertyPill label="Data">
             <button onClick={() => setShowDatePicker(true)}
-              className="flex items-center gap-1 text-xs font-semibold py-0.5 pl-1 pr-1 truncate"
+              className="w-full flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors truncate"
               style={{ color: dueDateLabel ? dueDateLabel.color : 'var(--color-text-muted)' }}>
               <Calendar size={12} className="flex-shrink-0" /> <span className="truncate">{dueDateLabel ? dueDateLabel.text : 'Definir'}</span>
             </button>
@@ -497,8 +494,10 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           <PropertyPill label="Aprovação">
             <button
               onClick={() => setNeedsClientApproval(v => !v)}
-              className="text-xs font-semibold py-0.5 pl-1 pr-1 truncate"
-              style={{ color: needsClientApproval ? '#3b82f6' : 'var(--color-text-muted)' }}>
+              className="w-full rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-all truncate"
+              style={needsClientApproval
+                ? { background: '#3b82f618', color: '#3b82f6', borderColor: '#3b82f644' }
+                : { color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}>
               {needsClientApproval ? '✓ Cliente aprova' : 'Não precisa'}
             </button>
           </PropertyPill>

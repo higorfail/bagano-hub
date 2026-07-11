@@ -644,31 +644,29 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           <div className="grid grid-cols-3 gap-x-3 gap-y-2">
           {/* Tipo */}
           <PropertyPill label="Tipo">
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: typeObj.color }} />
             <div className="relative min-w-0">
               <select value={form.post_type} onChange={e => changeType(e.target.value)}
-                className={pillSelectCls} style={{ color: typeObj.color }}>
+                className={pillSelectCls} style={{ background: typeObj.color + '18', color: typeObj.color, borderColor: typeObj.color + '44' }}>
                 {POST_TYPES.map(t => <option key={t.value} value={t.value} style={{ color: 'var(--color-text-primary)' }}>{t.label}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: typeObj.color }} />
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: typeObj.color }} />
             </div>
           </PropertyPill>
           {/* Status */}
           <PropertyPill label="Status">
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusObj.color }} />
             <div className="relative min-w-0">
               <select value={form.status} onChange={e => changeStatus(e.target.value)}
-                className={pillSelectCls} style={{ color: statusObj.color }}>
+                className={pillSelectCls} style={{ background: statusObj.color + '18', color: statusObj.color, borderColor: statusObj.color + '44' }}>
                 {STATUSES.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj.color }} />
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj.color }} />
             </div>
           </PropertyPill>
           {/* Data */}
           <div className="relative min-w-0">
             <PropertyPill label="Data">
               <button onClick={() => setShowCal(v => !v)}
-                className="flex items-center gap-1 text-xs font-semibold py-0.5 pl-1 pr-1 truncate"
+                className="w-full flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors truncate"
                 style={{ color: dueDateLabel ? dueDateLabel.color : 'var(--color-text-muted)' }}>
                 <Calendar size={12} className="flex-shrink-0" /> <span className="truncate">{dueDateLabel ? dueDateLabel.text : 'Definir'}</span>
               </button>
@@ -721,11 +719,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           <PropertyPill label="Funil">
             <div className="relative min-w-0">
               <select value={form.funil} onChange={e => setField('funil', e.target.value, e.target.value ? `${who} definiu o funil: ${e.target.value}` : `${who} removeu o funil`)}
-                className={pillSelectCls} style={{ color: form.funil ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
-                <option value="">—</option>
+                className={pillSelectCls + ' bg-[var(--color-bg-card)] border-[var(--color-border)]'} style={{ color: form.funil ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+                <option value="">Funil</option>
                 {FUNIL_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
             </div>
           </PropertyPill>
           {/* Campanha */}
@@ -733,11 +731,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             <PropertyPill label="Campanha">
               <div className="relative min-w-0">
                 <select value={form.campaign_type} onChange={e => { const nm = campaigns.find(c => c.type === e.target.value)?.name; setField('campaign_type', e.target.value, e.target.value ? `${who} definiu a campanha: ${nm || ''}` : `${who} removeu a campanha`) }}
-                  className={pillSelectCls} style={{ color: form.campaign_type ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
-                  <option value="">—</option>
+                  className={pillSelectCls + ' bg-[var(--color-bg-card)] border-[var(--color-border)]'} style={{ color: form.campaign_type ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+                  <option value="">Campanha</option>
                   {campaigns.map(c => <option key={c.type} value={c.type}>{c.name}</option>)}
                 </select>
-                <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
               </div>
             </PropertyPill>
           )}

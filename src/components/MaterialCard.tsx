@@ -458,11 +458,11 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 <select
                   value={clientId}
                   onChange={e => { setClientManual(true); setClientId(e.target.value) }}
-                  className={pillSelectCls} style={{ color: clientId ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
-                  <option value="">—</option>
+                  className={pillSelectCls + ' bg-[var(--color-bg-card)] border-[var(--color-border)]'} style={{ color: clientId ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+                  <option value="">Sem cliente</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
               </div>
             </PropertyPill>
           )}
@@ -471,28 +471,27 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
             <input
               list="mc-types"
               value={type}
-              placeholder="—"
+              placeholder="Tipo"
               onChange={e => { setTypeManual(true); setType(e.target.value) }}
-              className="w-full bg-transparent text-right pr-1 pl-1 py-0.5 text-xs font-semibold text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none"
+              className="w-full bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] truncate"
             />
             <datalist id="mc-types">{TYPE_OPTIONS.map(t => <option key={t} value={t} />)}</datalist>
           </PropertyPill>
           {/* Status */}
           <PropertyPill label="Status">
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusObj?.color || '#6b7280' }} />
             <div className="relative min-w-0">
               <select value={status} onChange={e => setStatus(e.target.value)}
-                className={pillSelectCls} style={{ color: statusObj?.color || '#6b7280' }}>
+                className={pillSelectCls} style={{ background: (statusObj?.color || '#6b7280') + '18', color: statusObj?.color || '#6b7280', borderColor: (statusObj?.color || '#6b7280') + '44' }}>
                 {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj?.color || '#6b7280' }} />
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj?.color || '#6b7280' }} />
             </div>
           </PropertyPill>
           {/* Data */}
           <PropertyPill label="Data">
             <button
               onClick={() => setShowDatePicker(true)}
-              className="flex items-center gap-1 text-xs font-semibold py-0.5 pl-1 pr-1 truncate"
+              className="w-full flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors truncate"
             >
               {(() => {
                 if (!dueDate) return <><Calendar size={12} className="text-[var(--color-text-muted)] flex-shrink-0" /><span className="text-[var(--color-text-muted)]">Definir</span></>
