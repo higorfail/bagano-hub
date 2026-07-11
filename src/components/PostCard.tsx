@@ -11,6 +11,7 @@ import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import ModalPortal from '@/components/ModalPortal'
+import DeliverySection from '@/components/DeliverySection'
 
 const POST_TYPES = [
   { value: 'carrossel',         label: 'Carrossel',         color: '#3b82f6' },
@@ -638,7 +639,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         </div>
 
         {/* PROPRIEDADES — barra no topo, vista primeiro */}
-        <div className="flex flex-wrap items-end gap-x-5 gap-y-2.5 px-7 py-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-2 px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
           {/* Tipo */}
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Tipo</span>
@@ -820,84 +821,20 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               )}
             </div>
 
-            {/* 📦 Entrega */}
-            {(() => {
-              const isCarrossel = form.post_type === 'carrossel' || form.post_type === 'carrossel_stories'
-              const isReel      = form.post_type === 'reels'
-              const driveLink   = form.drive_folder_url || form.drive_url
-              const hasDelivery = !!driveLink
-              const isFolder    = /\/folders\//.test(driveLink)
-
-              function startDriveEdit() {
-                editOriginal.current = driveLink
-                setForm(f => ({ ...f, drive_url: driveLink }))
-                setEditingField('drive_url')
-              }
-
-              function commitDriveLink() {
-                if (discardRef.current) { discardRef.current = false; return }
-                setEditingField(null)
-                const value = (formRef.current.drive_url || '').trim()
-                if (value === editOriginal.current) {
-                  if (/\/folders\//.test(editOriginal.current)) setForm(f => ({ ...f, drive_url: '' }))
-                  return
-                }
-                if (/\/folders\//.test(value)) {
-                  setForm(f => ({ ...f, drive_folder_url: value, drive_url: '' }))
-                  persist({ drive_folder_url: value || null, drive_url: null }, `${who} editou o link do Drive`)
+            {/* 📦 Entrega — padrão design system */}
+            <DeliverySection
+              value={form.drive_folder_url || form.drive_url}
+              isVideo={form.post_type === 'reels'}
+              onCommit={v => {
+                if (/\/folders\//.test(v)) {
+                  setForm(f => ({ ...f, drive_folder_url: v, drive_url: '' }))
+                  persist({ drive_folder_url: v || null, drive_url: null }, `${who} editou o link do Drive`)
                 } else {
-                  setForm(f => ({ ...f, drive_url: value, drive_folder_url: '' }))
-                  persist({ drive_url: value || null, drive_folder_url: null }, `${who} editou o link do Drive`)
+                  setForm(f => ({ ...f, drive_url: v, drive_folder_url: '' }))
+                  persist({ drive_url: v || null, drive_folder_url: null }, `${who} editou o link do Drive`)
                 }
-              }
-
-              return (
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
-                      <Package size={13} style={{ color: hasDelivery ? 'var(--ds-success-accent)' : 'var(--color-text-muted)' }} /> Entrega do conteúdo
-                    </span>
-                    {hasDelivery && <span className="text-[10px] font-semibold" style={{ color: 'var(--ds-success-text)' }}>✓ entregue</span>}
-                  </div>
-                  <div>
-                    {editingField === 'drive_url' ? (
-                      <input autoFocus value={form.drive_url}
-                        onChange={e => setForm(f => ({ ...f, drive_url: e.target.value }))}
-                        onBlur={commitDriveLink}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') e.currentTarget.blur()
-                          else if (e.key === 'Escape') {
-                            e.preventDefault()
-                            discardRef.current = true
-                            setForm(f => ({ ...f, drive_url: /\/folders\//.test(editOriginal.current) ? '' : editOriginal.current }))
-                            setEditingField(null)
-                          }
-                        }}
-                        placeholder="https://drive.google.com/…"
-                        className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-success-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
-                    ) : driveLink ? (
-                      <>
-                        {isFolder ? <FolderThumbnail folderUrl={driveLink} /> : <DriveThumbnail driveUrl={driveLink} isVideo={isReel} />}
-                        <div className="flex items-center gap-2">
-                          <a href={driveLink} target="_blank" rel="noopener noreferrer"
-                            className="flex-1 flex items-center gap-2 bg-[var(--color-bg-card)] rounded-lg px-3 py-2 text-sm font-semibold truncate hover:opacity-90 transition-opacity" style={{ color: 'var(--ds-success-text)' }}>
-                            <ExternalLink size={13} className="flex-shrink-0" />
-                            <span className="truncate">✓ {isFolder ? 'Abrir pasta no Drive' : 'Conteúdo entregue — Abrir no Drive'}</span>
-                          </a>
-                          <button onClick={startDriveEdit} className="text-[11px] hover:underline flex-shrink-0" style={{ color: 'var(--ds-success-text)' }}>editar</button>
-                        </div>
-                      </>
-                    ) : (
-                      <button onClick={startDriveEdit}
-                        className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border-2 border-dashed transition-colors"
-                        style={{ borderColor: 'var(--ds-info-border)', color: 'var(--ds-info-text)' }}>
-                        <Link2 size={14} /> + Colar link do Drive
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })()}
+              }}
+            />
           </div>
           </div>
 

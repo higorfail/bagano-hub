@@ -9,6 +9,7 @@ import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
+import DeliverySection from '@/components/DeliverySection'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, Check,
@@ -435,7 +436,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         </div>
 
         {/* PROPRIEDADES — barra horizontal no topo (padrão cronograma) */}
-        <div className="flex flex-wrap items-end gap-x-5 gap-y-2.5 px-7 py-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-2 px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
           {/* Tipo */}
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Tipo</span>
@@ -624,35 +625,15 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               )}
             </div>
 
-            {/* ENTREGA DO CONTEÚDO */}
-            <div className="flex flex-col gap-2">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
-                  <Package size={13} style={{ color: driveUrl ? 'var(--ds-success-accent)' : 'var(--color-text-muted)' }} /> Entrega do conteúdo
-                </span>
-                {driveUrl && <span className="text-[10px] font-semibold" style={{ color: 'var(--ds-success-text)' }}>✓ entregue</span>}
-              </div>
-              {driveUrl && (
-                /\/folders\//.test(driveUrl)
-                  ? <FolderThumbnail folderUrl={driveUrl} />
-                  : <DriveThumbnail driveUrl={driveUrl} isVideo={/reel|video|vídeo|\.mp4/i.test(type + ' ' + driveUrl)} />
-              )}
-              <div className="flex gap-2">
-                <input
-                  value={driveUrl}
-                  onChange={e => setDriveUrl(e.target.value)}
-                  placeholder="Link do Drive, Figma, WeTransfer…"
-                  className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]"
-                />
-                {driveUrl && (
-                  <a href={driveUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border"
-                    style={{ color: 'var(--ds-success-text)', borderColor: 'var(--ds-success-border)' }}>
-                    <ExternalLink size={13} /> Abrir
-                  </a>
-                )}
-              </div>
-            </div>
+            {/* ENTREGA DO CONTEÚDO — padrão design system */}
+            <DeliverySection
+              value={driveUrl}
+              isVideo={/reel|video|vídeo|\.mp4/i.test(type + ' ' + driveUrl)}
+              onCommit={async v => {
+                setDriveUrl(v)
+                if (id) await supabase.from('extras').update({ drive_url: v || null }).eq('id', id)
+              }}
+            />
           </div>
           </div>
 
