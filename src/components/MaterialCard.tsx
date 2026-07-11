@@ -11,6 +11,7 @@ import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
+import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, ChevronDown, Users, Tag,
@@ -447,60 +448,61 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
           </div>
         </div>
 
-        {/* PROPRIEDADES — 2 linhas deliberadas: selects compactos | chips largos */}
+        {/* PROPRIEDADES — grid de pills com label embutido (encaixe determinístico) */}
         <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
           {/* Cliente (global only) — primeiro na ordem de UX */}
           {!fixedClientId && (
-            <div className="relative" title="Cliente">
-              <select
-                value={clientId}
-                onChange={e => { setClientManual(true); setClientId(e.target.value) }}
-                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
-                <option value="">Sem cliente</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
-            </div>
+            <PropertyPill label="Cliente">
+              <div className="relative min-w-0">
+                <select
+                  value={clientId}
+                  onChange={e => { setClientManual(true); setClientId(e.target.value) }}
+                  className={pillSelectCls} style={{ color: clientId ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+                  <option value="">—</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+              </div>
+            </PropertyPill>
           )}
           {/* Tipo */}
-          <div>
+          <PropertyPill label="Tipo">
             <input
               list="mc-types"
               value={type}
-              placeholder="Tipo"
-              title="Tipo"
+              placeholder="—"
               onChange={e => { setTypeManual(true); setType(e.target.value) }}
-              className="w-28 border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)]"
+              className="w-full bg-transparent text-right pr-1 pl-1 py-0.5 text-xs font-semibold text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none"
             />
             <datalist id="mc-types">{TYPE_OPTIONS.map(t => <option key={t} value={t} />)}</datalist>
-          </div>
+          </PropertyPill>
           {/* Status */}
-          <div>
-            <div className="relative">
+          <PropertyPill label="Status">
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusObj?.color || '#6b7280' }} />
+            <div className="relative min-w-0">
               <select value={status} onChange={e => setStatus(e.target.value)}
-                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
-                style={{ background: (statusObj?.color || '#6b7280') + '18', color: statusObj?.color || '#6b7280', borderColor: (statusObj?.color || '#6b7280') + '44' }}>
+                className={pillSelectCls} style={{ color: statusObj?.color || '#6b7280' }}>
                 {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj?.color || '#6b7280' }} />
+              <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj?.color || '#6b7280' }} />
             </div>
-          </div>
+          </PropertyPill>
           {/* Data */}
-          <div>
+          <PropertyPill label="Data">
             <button
               onClick={() => setShowDatePicker(true)}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors"
+              className="flex items-center gap-1 text-xs font-semibold py-0.5 pl-1 pr-1 truncate"
             >
               {(() => {
-                if (!dueDate) return <><Calendar size={12} className="text-[var(--color-text-muted)]" /><span className="text-[var(--color-text-muted)]">Definir</span></>
+                if (!dueDate) return <><Calendar size={12} className="text-[var(--color-text-muted)] flex-shrink-0" /><span className="text-[var(--color-text-muted)]">Definir</span></>
                 const due = new Date(dueDate + 'T23:59:59')
                 const diff = Math.ceil((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
                 const color = diff < 0 ? '#EF4444' : diff <= 2 ? '#F59E0B' : 'var(--color-text-secondary)'
                 return (
                   <>
-                    <Calendar size={12} style={{ color }} />
-                    <span style={{ color }} className="font-medium">
+                    <Calendar size={12} style={{ color }} className="flex-shrink-0" />
+                    <span style={{ color }} className="truncate">
                       {new Date(dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                       {dueTime ? ` · ${dueTime}` : ''}
                       {diff < 0 ? ' · atrasado' : diff === 0 ? ' · hoje' : diff === 1 ? ' · amanhã' : ''}
@@ -509,7 +511,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 )
               })()}
             </button>
-          </div>
+          </PropertyPill>
           </div>
           {/* Linha 2 — grupos largos (chips) */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">

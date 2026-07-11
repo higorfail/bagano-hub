@@ -10,6 +10,7 @@ import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
+import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, Check,
@@ -435,74 +436,72 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           </div>
         </div>
 
-        {/* PROPRIEDADES — 2 linhas deliberadas: selects compactos | chips largos */}
+        {/* PROPRIEDADES — grid de pills com label embutido (encaixe determinístico) */}
         <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
           {/* Cliente (global only) — primeiro na ordem de UX */}
           {!fixedClientId && clients.length > 0 && (
-            <div>
-              <div className="relative">
+            <PropertyPill label="Cliente">
+              <div className="relative min-w-0">
                 <select value={clientId} onChange={e => { setClientId(e.target.value); setClientManuallySet(true) }}
-                  className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
-                  <option value="">Cliente</option>
+                  className={pillSelectCls} style={{ color: clientId ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+                  <option value="">—</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+                <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
               </div>
-            </div>
+            </PropertyPill>
           )}
           {/* Tipo */}
-          <div>
-            <div className="relative">
+          <PropertyPill label="Tipo">
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: typeObj.color }} />
+            <div className="relative min-w-0">
               <select value={type} onChange={e => { setType(e.target.value as ExtraType); setTypeManuallySet(true) }}
-                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
-                style={{ background: typeObj.color + '18', color: typeObj.color, borderColor: typeObj.color + '44' }}>
+                className={pillSelectCls} style={{ color: typeObj.color }}>
                 {TYPE_OPTIONS.map(t => <option key={t.value} value={t.value} style={{ color: 'var(--color-text-primary)' }}>{t.label}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: typeObj.color }} />
+              <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: typeObj.color }} />
             </div>
-          </div>
+          </PropertyPill>
           {/* Status */}
-          <div>
-            <div className="relative">
+          <PropertyPill label="Status">
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusObj.color }} />
+            <div className="relative min-w-0">
               <select value={status} onChange={e => setStatus(e.target.value as ExtraStatus)}
-                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
-                style={{ background: statusObj.color + '18', color: statusObj.color, borderColor: statusObj.color + '44' }}>
+                className={pillSelectCls} style={{ color: statusObj.color }}>
                 {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj.color }} />
+              <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj.color }} />
             </div>
-          </div>
+          </PropertyPill>
           {/* Prioridade */}
-          <div>
-            <div className="relative">
+          <PropertyPill label="Prioridade">
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: priorityObj.color }} />
+            <div className="relative min-w-0">
               <select value={priority} onChange={e => setPriority(e.target.value as ExtraPriority)}
-                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
-                style={{ background: priorityObj.color + '18', color: priorityObj.color, borderColor: priorityObj.color + '44' }}>
+                className={pillSelectCls} style={{ color: priorityObj.color }}>
                 {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value} style={{ color: 'var(--color-text-primary)' }}>{p.label}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: priorityObj.color }} />
+              <ChevronDown size={12} className="absolute right-0.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: priorityObj.color }} />
             </div>
-          </div>
+          </PropertyPill>
           {/* Data */}
-          <div>
+          <PropertyPill label="Data">
             <button onClick={() => setShowDatePicker(true)}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors"
+              className="flex items-center gap-1 text-xs font-semibold py-0.5 pl-1 pr-1 truncate"
               style={{ color: dueDateLabel ? dueDateLabel.color : 'var(--color-text-muted)' }}>
-              <Calendar size={12} /> {dueDateLabel ? dueDateLabel.text : 'Definir'}
+              <Calendar size={12} className="flex-shrink-0" /> <span className="truncate">{dueDateLabel ? dueDateLabel.text : 'Definir'}</span>
             </button>
-          </div>
-          {/* Aprovação */}
-          <div>
+          </PropertyPill>
+          {/* Aprovação do cliente */}
+          <PropertyPill label="Aprovação">
             <button
               onClick={() => setNeedsClientApproval(v => !v)}
-              className="rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-all"
-              style={needsClientApproval
-                ? { background: '#3b82f618', color: '#3b82f6', borderColor: '#3b82f644' }
-                : { color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}>
+              className="text-xs font-semibold py-0.5 pl-1 pr-1 truncate"
+              style={{ color: needsClientApproval ? '#3b82f6' : 'var(--color-text-muted)' }}>
               {needsClientApproval ? '✓ Cliente aprova' : 'Não precisa'}
             </button>
-          </div>
+          </PropertyPill>
           </div>
           {/* Linha 2 — grupos largos (chips) */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
