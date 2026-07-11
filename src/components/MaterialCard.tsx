@@ -13,7 +13,7 @@ import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
 import {
   X, Calendar, CheckSquare, Paperclip,
-  Trash2, Link2, ChevronDown,
+  Trash2, Link2, ChevronDown, Users, Tag,
   Upload, File, ExternalLink, Check, Package, Send
 } from 'lucide-react'
 
@@ -448,48 +448,35 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         </div>
 
         {/* PROPRIEDADES — 2 linhas deliberadas: selects compactos | chips largos */}
-        <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-2">
-          <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+        <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
           {/* Cliente (global only) — primeiro na ordem de UX */}
           {!fixedClientId && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Cliente</span>
-              <div className="flex items-center gap-1.5">
-                <div className="relative">
-                  <select
-                    value={clientId}
-                    onChange={e => { setClientManual(true); setClientId(e.target.value) }}
-                    className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
-                    <option value="">— avulso —</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
-                </div>
-                {!clientId && (
-                  <input
-                    value={extraClient}
-                    onChange={e => setExtraClient(e.target.value)}
-                    placeholder="Nome avulso"
-                    className="w-28 border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] bg-[var(--color-bg-card)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)]"
-                  />
-                )}
-              </div>
+            <div className="relative" title="Cliente">
+              <select
+                value={clientId}
+                onChange={e => { setClientManual(true); setClientId(e.target.value) }}
+                className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
+                <option value="">Sem cliente</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
             </div>
           )}
           {/* Tipo */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Tipo</span>
+          <div>
             <input
               list="mc-types"
               value={type}
+              placeholder="Tipo"
+              title="Tipo"
               onChange={e => { setTypeManual(true); setType(e.target.value) }}
-              className="w-32 border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] outline-none focus:border-[var(--color-brand)]"
+              className="w-28 border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)]"
             />
             <datalist id="mc-types">{TYPE_OPTIONS.map(t => <option key={t} value={t} />)}</datalist>
           </div>
           {/* Status */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Status</span>
+          <div>
             <div className="relative">
               <select value={status} onChange={e => setStatus(e.target.value)}
                 className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
@@ -500,8 +487,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
             </div>
           </div>
           {/* Data */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Data</span>
+          <div>
             <button
               onClick={() => setShowDatePicker(true)}
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors"
@@ -526,8 +512,8 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
           </div>
           </div>
           {/* Linha 2 — grupos largos (chips) */}
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1.5">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Responsáveis</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            <Users size={12} className="text-[var(--color-text-muted)] flex-shrink-0" />
             <div className="flex flex-wrap gap-1 min-w-0">
               {orderedMembers.map(m => {
                 const sel = assignedMembers.includes(m.id)
@@ -540,7 +526,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 )
               })}
             </div>
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider ml-2">Etiquetas</span>
+            <Tag size={12} className="text-[var(--color-text-muted)] flex-shrink-0 ml-2" />
             <div className="flex flex-wrap gap-1.5 items-center min-w-0">
               {labels.map((l, i) => (
                 <span key={i} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md text-white" style={{ background: l.color }}>

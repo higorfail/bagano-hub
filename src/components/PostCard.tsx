@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
@@ -639,11 +639,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         </div>
 
         {/* PROPRIEDADES — 2 linhas deliberadas: selects compactos | chips largos */}
-        <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-2">
-          <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+        <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
           {/* Tipo */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Tipo</span>
+          <div>
             <div className="relative">
               <select value={form.post_type} onChange={e => changeType(e.target.value)}
                 className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
@@ -654,8 +653,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             </div>
           </div>
           {/* Status */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Status</span>
+          <div>
             <div className="relative">
               <select value={form.status} onChange={e => changeStatus(e.target.value)}
                 className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
@@ -666,8 +664,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             </div>
           </div>
           {/* Data */}
-          <div className="flex flex-col gap-1 relative">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Data</span>
+          <div className="relative">
             <button onClick={() => setShowCal(v => !v)}
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors"
               style={{ color: dueDateLabel ? dueDateLabel.color : 'var(--color-text-muted)' }}>
@@ -718,12 +715,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             })()}
           </div>
           {/* Funil */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Funil</span>
+          <div>
             <div className="relative">
               <select value={form.funil} onChange={e => setField('funil', e.target.value, e.target.value ? `${who} definiu o funil: ${e.target.value}` : `${who} removeu o funil`)}
                 className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
-                <option value="">—</option>
+                <option value="">Funil</option>
                 {FUNIL_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
               <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
@@ -731,12 +727,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           </div>
           {/* Campanha */}
           {campaigns.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Campanha</span>
+            <div>
               <div className="relative">
                 <select value={form.campaign_type} onChange={e => { const nm = campaigns.find(c => c.type === e.target.value)?.name; setField('campaign_type', e.target.value, e.target.value ? `${who} definiu a campanha: ${nm || ''}` : `${who} removeu a campanha`) }}
                   className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
-                  <option value="">Nenhuma</option>
+                  <option value="">Campanha</option>
                   {campaigns.map(c => <option key={c.type} value={c.type}>{c.name}</option>)}
                 </select>
                 <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
@@ -745,8 +740,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           )}
           </div>
           {/* Linha 2 — grupos largos (chips) */}
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1.5">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Responsáveis</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            <Users size={12} className="text-[var(--color-text-muted)] flex-shrink-0" />
             <div className="flex flex-wrap gap-1 flex-1 min-w-0">
               {members.map(m => {
                 const sel = assignedMembers.includes(m.id)

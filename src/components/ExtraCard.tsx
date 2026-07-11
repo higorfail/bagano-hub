@@ -13,7 +13,7 @@ import DeliverySection from '@/components/DeliverySection'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, Check,
-  FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink, Send
+  FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag
 } from 'lucide-react'
 
 type ExtraType     = 'todo' | 'note' | 'reminder'
@@ -436,16 +436,15 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         </div>
 
         {/* PROPRIEDADES — 2 linhas deliberadas: selects compactos | chips largos */}
-        <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-2">
-          <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+        <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
           {/* Cliente (global only) — primeiro na ordem de UX */}
           {!fixedClientId && clients.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Cliente</span>
+            <div>
               <div className="relative">
                 <select value={clientId} onChange={e => { setClientId(e.target.value); setClientManuallySet(true) }}
                   className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-medium text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] outline-none cursor-pointer">
-                  <option value="">— nenhum —</option>
+                  <option value="">Cliente</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
                 <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
@@ -453,8 +452,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
             </div>
           )}
           {/* Tipo */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Tipo</span>
+          <div>
             <div className="relative">
               <select value={type} onChange={e => { setType(e.target.value as ExtraType); setTypeManuallySet(true) }}
                 className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
@@ -465,8 +463,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
             </div>
           </div>
           {/* Status */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Status</span>
+          <div>
             <div className="relative">
               <select value={status} onChange={e => setStatus(e.target.value as ExtraStatus)}
                 className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
@@ -477,8 +474,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
             </div>
           </div>
           {/* Prioridade */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Prioridade</span>
+          <div>
             <div className="relative">
               <select value={priority} onChange={e => setPriority(e.target.value as ExtraPriority)}
                 className="appearance-none rounded-lg pl-2.5 pr-7 py-1.5 text-xs font-semibold outline-none cursor-pointer border"
@@ -489,8 +485,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
             </div>
           </div>
           {/* Data */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Data</span>
+          <div>
             <button onClick={() => setShowDatePicker(true)}
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors"
               style={{ color: dueDateLabel ? dueDateLabel.color : 'var(--color-text-muted)' }}>
@@ -498,8 +493,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
             </button>
           </div>
           {/* Aprovação */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Aprovação</span>
+          <div>
             <button
               onClick={() => setNeedsClientApproval(v => !v)}
               className="rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-all"
@@ -511,8 +505,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           </div>
           </div>
           {/* Linha 2 — grupos largos (chips) */}
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1.5">
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Responsáveis</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            <Users size={12} className="text-[var(--color-text-muted)] flex-shrink-0" />
             <div className="flex flex-wrap gap-1 min-w-0">
               {orderedMembers.map(m => {
                 const sel = assignedMembers.includes(m.id)
@@ -524,7 +518,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 )
               })}
             </div>
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider ml-2">Etiquetas</span>
+            <Tag size={12} className="text-[var(--color-text-muted)] flex-shrink-0 ml-2" />
             <div className="flex flex-wrap gap-1.5 items-center min-w-0">
               {labels.map((l, i) => (
                 <span key={i} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md text-white" style={{ background: l.color }}>
