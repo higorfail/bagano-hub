@@ -641,7 +641,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
         {/* PROPRIEDADES — grid de pills com label embutido (encaixe determinístico) */}
         <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-2">
           {/* Tipo */}
           <PropertyPill label="Tipo">
             <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: typeObj.color }} />

@@ -450,7 +450,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
 
         {/* PROPRIEDADES — grid de pills com label embutido (encaixe determinístico) */}
         <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-2">
           {/* Cliente (global only) — primeiro na ordem de UX */}
           {!fixedClientId && (
             <PropertyPill label="Cliente">
