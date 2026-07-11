@@ -587,6 +587,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
         <div className="h-[3px] flex-shrink-0 rounded-t-2xl" style={{ background: clientColor || typeObj.color }} />
 
+        {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total */}
+        <div className="flex flex-1 overflow-hidden divide-x divide-[var(--color-border)]">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+
         {/* HEADER — título */}
         <div className="flex items-start justify-between gap-4 px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
           <div className="flex-1 min-w-0">
@@ -754,9 +758,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           </div>
         </div>
 
-        {/* BODY */}
-        <div className="flex gap-0 overflow-hidden flex-1 divide-x divide-[var(--color-border)]">
-
           {/* LEFT — campos + referências + entrega */}
           <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-7 py-5 gap-5">
 
@@ -851,10 +852,12 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               }
 
               return (
-                <div className="rounded-2xl p-4 transition-colors flex flex-col gap-3" style={hasDelivery ? { background: 'var(--ds-success-bg)', border: '1px solid var(--ds-success-border)' } : { background: 'var(--ds-info-bg)', border: '1px solid var(--ds-info-border)' }}>
-                  <div className="flex items-center gap-1.5">
-                    <Package size={15} style={{ color: hasDelivery ? 'var(--ds-success-accent)' : 'var(--ds-info-accent)' }} />
-                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: hasDelivery ? 'var(--ds-success-text)' : 'var(--ds-info-text)' }}>Entrega do conteúdo</span>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
+                      <Package size={13} style={{ color: hasDelivery ? 'var(--ds-success-accent)' : 'var(--color-text-muted)' }} /> Entrega do conteúdo
+                    </span>
+                    {hasDelivery && <span className="text-[10px] font-semibold" style={{ color: 'var(--ds-success-text)' }}>✓ entregue</span>}
                   </div>
                   <div>
                     {editingField === 'drive_url' ? (
@@ -895,6 +898,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 </div>
               )
             })()}
+          </div>
           </div>
 
           {/* RIGHT — comentários + atividade (feed único, tipo Trello) */}

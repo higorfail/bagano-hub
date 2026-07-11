@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
-import ActivityLog from '@/components/ActivityLog'
 import { useToast } from '@/lib/ToastContext'
 import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
@@ -14,7 +13,7 @@ import ModalPortal from '@/components/ModalPortal'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, ChevronDown,
-  Upload, File, ExternalLink, Check
+  Upload, File, ExternalLink, Check, Package, Send
 } from 'lucide-react'
 
 const TYPE_OPTIONS = ['Menu', 'Cardápio', 'Arte avulsa', 'Logo', 'Manual', 'Placa', 'Cartão', 'Sacola', 'Sousplat', 'Story', 'Capas destaque', 'Fundos', 'Outro']
@@ -61,8 +60,9 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const originalStatusRef = useRef('')
   const snapshotRef = useRef<string>('')
-  const [sideTab,      setSideTab]      = useState<'comments' | 'history'>('comments')
+  const [showDetails,  setShowDetails]  = useState(true)
   const [activityKey,  setActivityKey]  = useState(0)
+  const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
 
   const [loading,       setLoading]       = useState(!!materialId)
   const [saving,        setSaving]        = useState(false)
@@ -90,6 +90,16 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
 
   // Sub-entidades
   const [comments,    setComments]    = useState<any[]>([])
+
+  // Atividades do card (feed único comentários+atividade, padrão cronograma)
+  useEffect(() => {
+    const rid = id || materialId
+    if (!rid) { setActivities([]); return }
+    supabase.from('activity_log').select('id, action, actor_name, description, created_at')
+      .eq('table_name', 'materials').eq('record_id', rid).order('created_at', { ascending: false })
+      .then(({ data }) => setActivities(data || []))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, materialId, activityKey])
   const [newComment,  setNewComment]  = useState('')
   const mentions = useMentions(newComment, setNewComment, members)
   const [attachments, setAttachments] = useState<any[]>([])
@@ -370,15 +380,19 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     </ModalPortal>
   )
 
-  const SectionTitle = ({ icon: Icon, children, right }: any) => (
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2">
-        <Icon size={16} className="text-[var(--color-text-secondary)]" />
-        <p className="text-sm font-bold text-[var(--color-text-primary)]">{children}</p>
-      </div>
-      {right}
-    </div>
-  )
+  // Feed único (comentários + atividades), padrão cronograma
+  const fullDateTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  type FeedItem =
+    | { kind: 'comment'; id: string; at: string; author: string | null; body: string }
+    | { kind: 'activity'; id: string; at: string; author: string | null; body: string }
+  const feed: FeedItem[] = [
+    ...comments.map(c => ({ kind: 'comment' as const, id: 'c' + c.id, at: c.created_at, author: c.author_name, body: c.body })),
+    ...activities.map(a => ({ kind: 'activity' as const, id: 'a' + a.id, at: a.created_at, author: a.actor_name, body: a.description })),
+    ...(createdAt && !activities.some(a => a.action === 'created')
+      ? [{ kind: 'activity' as const, id: '__created__', at: createdAt, author: null, body: 'Card criado' }]
+      : []),
+  ].sort((x, y) => new Date(y.at).getTime() - new Date(x.at).getTime())
+  const visibleFeed = showDetails ? feed : feed.filter(f => f.kind === 'comment')
 
   return (
     <ModalPortal>
@@ -387,6 +401,10 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       onClick={e => { if (e.target === e.currentTarget) { handleSaveMain(); onClose() } }}
     >
       <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[1040px] max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
+
+        {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total */}
+        <div className="flex flex-1 overflow-hidden divide-x divide-[var(--color-border)]">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* HEADER — título (padrão cronograma) */}
         <div className="flex items-start justify-between gap-4 px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
@@ -539,11 +557,8 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
           </div>
         </div>
 
-        {/* CORPO */}
-        <div className="flex overflow-hidden flex-1 divide-x divide-[var(--color-border)]">
-
-          {/* ESQUERDA */}
-          <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto px-7 py-5">
+          {/* ESQUERDA — conteúdo livre (estilo Trello, sem caixas) */}
+          <div className="flex-1 min-w-0 flex flex-col gap-5 overflow-y-auto px-7 py-5">
 
             {/* DESCRIÇÃO — clique-para-editar (padrão cronograma) */}
             <EditableField
@@ -559,15 +574,13 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
             />
 
             {/* CHECKLIST */}
-            <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4">
-              <SectionTitle
-                icon={CheckSquare}
-                right={checklist.length > 0 && (
-                  <span className="text-xs font-semibold text-[var(--color-text-secondary)]">{checkDone}/{checklist.length} · {checkPct}%</span>
+            <div>
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Checklist</span>
+                {checklist.length > 0 && (
+                  <span className="text-[10px] text-[var(--color-text-faint)]">{checkDone}/{checklist.length} · {checkPct}%</span>
                 )}
-              >
-                Checklist
-              </SectionTitle>
+              </div>
               {checklist.length > 0 && (
                 <div className="w-full h-1.5 bg-[var(--color-bg-subtle)] rounded-full mb-3 overflow-hidden">
                   <div className="h-full bg-[#22C55E] transition-all" style={{ width: `${checkPct}%` }} />
@@ -602,8 +615,11 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
             </div>
 
             {/* ANEXOS & UPLOADS */}
-            <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4">
-              <SectionTitle icon={Paperclip}>Anexos & Arquivos</SectionTitle>
+            <div>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Anexos & Arquivos</span>
+                <span className="text-[10px] text-[var(--color-text-faint)]">· uploads e links</span>
+              </div>
 
               {/* Arquivos enviados */}
               {uploads.length > 0 && (
@@ -686,16 +702,14 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               </div>
             </div>
 
-            {/* ENTREGA DO CONTEÚDO — fim da coluna */}
-            <div
-              className="rounded-2xl p-4 transition-colors"
-              style={driveUrl
-                ? { background: 'var(--ds-success-bg)', border: '1px solid var(--ds-success-border)' }
-                : { background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
-            >
-              <SectionTitle icon={Link2}>
-                {driveUrl ? '✓ Entrega do conteúdo' : 'Entrega do conteúdo'}
-              </SectionTitle>
+            {/* ENTREGA DO CONTEÚDO */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
+                  <Package size={13} style={{ color: driveUrl ? 'var(--ds-success-accent)' : 'var(--color-text-muted)' }} /> Entrega do conteúdo
+                </span>
+                {driveUrl && <span className="text-[10px] font-semibold" style={{ color: 'var(--ds-success-text)' }}>✓ entregue</span>}
+              </div>
               {driveUrl && (
                 /\/folders\//.test(driveUrl)
                   ? <FolderThumbnail folderUrl={driveUrl} />
@@ -706,14 +720,14 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                   value={driveUrl}
                   onChange={e => setDriveUrl(e.target.value)}
                   placeholder="Link do Drive, Figma, WeTransfer…"
-                  className="flex-1 border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-alt)]"
+                  className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-alt)]"
                 />
                 {driveUrl && (
                   <a
                     href={driveUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-xl border"
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border"
                     style={{ color: 'var(--ds-success-text)', borderColor: 'var(--ds-success-border)' }}
                   >
                     <ExternalLink size={13} /> Abrir
@@ -722,75 +736,69 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               </div>
             </div>
           </div>
+          </div>
 
-          {/* DIREITA — comentários / histórico */}
-          <div className="w-80 flex-shrink-0 flex flex-col bg-[var(--color-bg-card)]">
-            <div className="px-5 py-3.5 border-b border-[var(--color-border)]">
-              <div className="flex rounded-lg bg-[var(--color-bg-subtle)] p-0.5">
-                <button onClick={() => setSideTab('comments')} className={`flex-1 text-xs font-medium py-1 rounded-md transition-all ${sideTab === 'comments' ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'}`}>
-                  Comentários {comments.length > 0 ? `(${comments.length})` : ''}
-                </button>
-                <button onClick={() => setSideTab('history')} className={`flex-1 text-xs font-medium py-1 rounded-md transition-all ${sideTab === 'history' ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'}`}>
-                  Histórico
-                </button>
-              </div>
+          {/* DIREITA — comentários + atividade (feed único, tipo Trello) */}
+          <div className="w-[340px] flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
+              <span className="text-xs font-bold text-[var(--color-text-primary)]">Comentários e atividade</span>
+              <button onClick={() => setShowDetails(v => !v)} className="text-[11px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
+                {showDetails ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+              </button>
             </div>
 
-            {sideTab === 'history' ? (
-              <div className="flex-1 overflow-y-auto px-5 py-4">
-                <ActivityLog tableName="materials" recordId={id || materialId || ''} refreshKey={activityKey} createdAt={createdAt} />
+            {/* Campo de comentário */}
+            <div className="px-3 py-3 border-b border-[var(--color-border)] flex items-end gap-2">
+              <div className="flex-1">
+                <textarea
+                  ref={mentions.textareaRef}
+                  value={newComment}
+                  onChange={mentions.handleChange}
+                  onKeyDown={e => { if (mentions.handleKeyDown(e)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment() } }}
+                  onBlur={mentions.handleBlur}
+                  placeholder="Comentar… @ para mencionar  (Enter envia · Shift+Enter quebra linha)" rows={2}
+                  className="w-full bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)]"
+                />
+                {mentions.dropdown}
               </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
-                {comments.length === 0 && (
-                  <p className="text-xs text-[var(--color-text-faint)] text-center py-6">Nenhum comentário ainda.</p>
-                )}
-                {[...comments].reverse().map(c => (
-                  <div key={c.id} className="flex gap-2.5">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ background: (members.find((m: any) => m.name === c.author_name) as any)?.color || 'var(--color-brand)' }}>
-                      {initials(c.author_name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs mb-1">
-                        <span className="font-semibold text-[var(--color-text-primary)]">{c.author_name}</span>{' '}
-                        <span className="text-[var(--color-text-muted)]">
-                          {new Date(c.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </p>
-                      <p className="text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 whitespace-pre-wrap">{renderWithMentions(c.body)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+              <button onClick={addComment} disabled={!newComment.trim()}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 flex-shrink-0" style={{ background: 'var(--color-accent)' }}>
+                <Send size={14} />
+              </button>
+            </div>
 
-            {sideTab === 'comments' && (
-              <div className="px-5 py-4 border-t border-[var(--color-border)]">
-                <div className="flex gap-2.5">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5" style={{ background: (currentMember as any)?.color || 'var(--color-brand)' }}>
-                    {currentMember ? initials(currentMember.name) : 'VO'}
+            {/* Feed */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+              {visibleFeed.length === 0 ? (
+                <p className="text-xs text-[var(--color-text-faint)] text-center py-8">Nada ainda. Comente mudanças, dúvidas, ajustes…</p>
+              ) : visibleFeed.map(item => {
+                const memberMatch = item.author ? members.find((x: any) => x.name === item.author) : null
+                const av = {
+                  initials: item.author ? initials(item.author) : '?',
+                  color: (memberMatch as any)?.color || '#9ca3af',
+                }
+                return item.kind === 'comment' ? (
+                  <div key={item.id} className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5" style={{ background: av.color }}>{av.initials}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{item.author || 'Alguém'}</span>
+                        <span className="text-[10px] text-[var(--color-text-faint)]" title={fullDateTime(item.at)}>{fullDateTime(item.at)}</span>
+                      </div>
+                      <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{renderWithMentions(item.body)}</div>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <textarea
-                      ref={mentions.textareaRef}
-                      value={newComment}
-                      onChange={mentions.handleChange}
-                      onKeyDown={e => { if (mentions.handleKeyDown(e)) return; if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
-                      onBlur={mentions.handleBlur}
-                      rows={2}
-                      placeholder="Escrever um comentário… @ menciona  (⌘Enter)"
-                      className="w-full bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] resize-none"
-                    />
-                    {mentions.dropdown}
-                    {newComment.trim() && (
-                      <button onClick={addComment} className="mt-1.5 w-full text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">
-                        Comentar
-                      </button>
-                    )}
+                ) : (
+                  <div key={item.id} className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5 opacity-80" style={{ background: av.color }}>{av.initials}</div>
+                    <p className="text-[11px] text-[var(--color-text-muted)] leading-snug flex-1 pt-0.5">
+                      {item.body}
+                      <span className="text-[var(--color-text-faint)]" title={fullDateTime(item.at)}> · {fullDateTime(item.at)}</span>
+                    </p>
                   </div>
-                </div>
-              </div>
-            )}
+                )
+              })}
+            </div>
           </div>
         </div>
 

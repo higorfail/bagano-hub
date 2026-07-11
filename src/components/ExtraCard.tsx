@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
-import ActivityLog from '@/components/ActivityLog'
 import { useToast } from '@/lib/ToastContext'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
@@ -13,7 +12,7 @@ import ModalPortal from '@/components/ModalPortal'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, Check,
-  FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink
+  FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink, Send
 } from 'lucide-react'
 
 type ExtraType     = 'todo' | 'note' | 'reminder'
@@ -75,8 +74,9 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [linkCopied, setLinkCopied] = useState(false)
   const originalStatusRef = useRef<ExtraStatus>(initialStatus ?? 'backlog')
   const snapshotRef = useRef<string>('')
-  const [sideTab,     setSideTab]     = useState<'comments' | 'history'>('comments')
+  const [showDetails, setShowDetails] = useState(true)
   const [activityKey, setActivityKey] = useState(0)
+  const [activities,  setActivities]  = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
 
   // Track manual overrides so auto-detect doesn't fight the user
   const [typeManuallySet,   setTypeManuallySet]   = useState(!!extraId)
@@ -100,6 +100,16 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [checklist,      setChecklist]      = useState<any[]>([])
   const [newCheckText,   setNewCheckText]   = useState('')
   const [comments,       setComments]       = useState<any[]>([])
+
+  // Atividades do card (feed único comentários+atividade, padrão cronograma)
+  useEffect(() => {
+    const rid = id || extraId
+    if (!rid) { setActivities([]); return }
+    supabase.from('activity_log').select('id, action, actor_name, description, created_at')
+      .eq('table_name', 'extras').eq('record_id', rid).order('created_at', { ascending: false })
+      .then(({ data }) => setActivities(data || []))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, extraId, activityKey])
   const [newComment,     setNewComment]     = useState('')
   const mentions = useMentions(newComment, setNewComment, members)
   const [attachments,    setAttachments]    = useState<any[]>([])
@@ -358,6 +368,20 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     return { text: new Date(dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) + (dueTime ? ` · ${dueTime}` : '') + (label ? ` · ${label}` : ''), color }
   })()
 
+  // Feed único (comentários + atividades), padrão cronograma
+  const fullDateTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  type FeedItem =
+    | { kind: 'comment'; id: string; at: string; author: string | null; body: string }
+    | { kind: 'activity'; id: string; at: string; author: string | null; body: string }
+  const feed: FeedItem[] = [
+    ...comments.map(c => ({ kind: 'comment' as const, id: 'c' + c.id, at: c.created_at, author: c.author_name, body: c.body })),
+    ...activities.map(a => ({ kind: 'activity' as const, id: 'a' + a.id, at: a.created_at, author: a.actor_name, body: a.description })),
+    ...(createdAt && !activities.some(a => a.action === 'created')
+      ? [{ kind: 'activity' as const, id: '__created__', at: createdAt, author: null, body: 'Card criado' }]
+      : []),
+  ].sort((x, y) => new Date(y.at).getTime() - new Date(x.at).getTime())
+  const visibleFeed = showDetails ? feed : feed.filter(f => f.kind === 'comment')
+
   return (
     <ModalPortal>
     <div
@@ -368,6 +392,10 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
 
         {/* Colored accent bar */}
         <div className="h-[3px] flex-shrink-0 rounded-t-2xl" style={{ background: typeObj.color }} />
+
+        {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total */}
+        <div className="flex flex-1 overflow-hidden divide-x divide-[var(--color-border)]">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* HEADER — título (padrão cronograma) */}
         <div className="flex items-start justify-between gap-4 px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
@@ -512,15 +540,11 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           </div>
         </div>
 
-        {/* BODY */}
-        <div className="flex gap-0 overflow-y-auto flex-1 divide-x divide-[var(--color-border)]">
-
-          {/* LEFT — main content */}
-          <div className="flex-1 min-w-0 flex flex-col gap-0 overflow-y-auto">
+          {/* LEFT — conteúdo livre (estilo Trello, sem caixas) */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-7 py-5 gap-5">
 
             {/* DESCRIPTION — clique-para-editar (padrão cronograma) */}
-            <div className="px-7 py-5 border-b border-[var(--color-border)]">
-              <EditableField
+            <EditableField
                 label="Descrição"
                 hint="· contexto, instruções, links"
                 placeholder="Adicione uma descrição, contexto, links…"
@@ -531,16 +555,12 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   if (id) await supabase.from('extras').update({ description: v }).eq('id', id)
                 }}
               />
-            </div>
 
             {/* CHECKLIST */}
-            <div className="px-7 py-5 border-b border-[var(--color-border)]">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <CheckSquare size={14} className="text-[var(--color-text-muted)]" />
-                  <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Checklist</span>
-                  {checklist.length > 0 && <span className="text-[10px] text-[var(--color-text-faint)]">{checkDone}/{checklist.length}</span>}
-                </div>
+            <div>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Checklist</span>
+                {checklist.length > 0 && <span className="text-[10px] text-[var(--color-text-faint)]">· {checkDone}/{checklist.length}</span>}
               </div>
               {checklist.length > 0 && (
                 <div className="w-full h-1 bg-[var(--color-bg-subtle)] rounded-full mb-3 overflow-hidden">
@@ -568,10 +588,10 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
             </div>
 
             {/* ATTACHMENTS */}
-            <div className="px-7 py-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Paperclip size={14} className="text-[var(--color-text-muted)]" />
-                <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Anexos</span>
+            <div>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Anexos</span>
+                <span className="text-[10px] text-[var(--color-text-faint)]">· links de apoio</span>
               </div>
               {attachments.length > 0 && (
                 <div className="flex flex-col gap-2 mb-3">
@@ -604,105 +624,99 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               )}
             </div>
 
-            {/* ENTREGA DO CONTEÚDO — fim da coluna */}
-            <div className="px-7 py-5 border-t border-[var(--color-border)] mt-auto">
-              <div className="rounded-2xl p-4 transition-colors" style={driveUrl
-                ? { background: 'var(--ds-success-bg)', border: '1px solid var(--ds-success-border)' }
-                : { background: 'var(--ds-info-bg)', border: '1px solid var(--ds-info-border)' }}>
-                <div className="flex items-center gap-1.5 mb-3">
-                  <Package size={15} style={{ color: driveUrl ? 'var(--ds-success-accent)' : 'var(--ds-info-accent)' }} />
-                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: driveUrl ? 'var(--ds-success-text)' : 'var(--ds-info-text)' }}>Entrega do conteúdo</span>
-                </div>
+            {/* ENTREGA DO CONTEÚDO */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-baseline gap-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
+                  <Package size={13} style={{ color: driveUrl ? 'var(--ds-success-accent)' : 'var(--color-text-muted)' }} /> Entrega do conteúdo
+                </span>
+                {driveUrl && <span className="text-[10px] font-semibold" style={{ color: 'var(--ds-success-text)' }}>✓ entregue</span>}
+              </div>
+              {driveUrl && (
+                /\/folders\//.test(driveUrl)
+                  ? <FolderThumbnail folderUrl={driveUrl} />
+                  : <DriveThumbnail driveUrl={driveUrl} isVideo={/reel|video|vídeo|\.mp4/i.test(type + ' ' + driveUrl)} />
+              )}
+              <div className="flex gap-2">
+                <input
+                  value={driveUrl}
+                  onChange={e => setDriveUrl(e.target.value)}
+                  placeholder="Link do Drive, Figma, WeTransfer…"
+                  className="flex-1 border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]"
+                />
                 {driveUrl && (
-                  /\/folders\//.test(driveUrl)
-                    ? <FolderThumbnail folderUrl={driveUrl} />
-                    : <DriveThumbnail driveUrl={driveUrl} isVideo={/reel|video|vídeo|\.mp4/i.test(type + ' ' + driveUrl)} />
+                  <a href={driveUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border"
+                    style={{ color: 'var(--ds-success-text)', borderColor: 'var(--ds-success-border)' }}>
+                    <ExternalLink size={13} /> Abrir
+                  </a>
                 )}
-                <div className="flex gap-2">
-                  <input
-                    value={driveUrl}
-                    onChange={e => setDriveUrl(e.target.value)}
-                    placeholder="Link do Drive, Figma, WeTransfer…"
-                    className="flex-1 border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]"
-                  />
-                  {driveUrl && (
-                    <a href={driveUrl} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-xl border"
-                      style={{ color: 'var(--ds-success-text)', borderColor: 'var(--ds-success-border)' }}>
-                      <ExternalLink size={13} /> Abrir
-                    </a>
-                  )}
-                </div>
               </div>
             </div>
           </div>
+          </div>
 
-          {/* RIGHT — comentários / histórico */}
-          <div className="w-80 flex-shrink-0 flex flex-col bg-[var(--color-bg-card)]">
-            <div className="px-5 py-3.5 border-b border-[var(--color-border)]">
-              <div className="flex rounded-lg bg-[var(--color-bg-subtle)] p-0.5">
-                <button onClick={() => setSideTab('comments')} className={`flex-1 text-xs font-medium py-1 rounded-md transition-all ${sideTab === 'comments' ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'}`}>
-                  Comentários {comments.length > 0 ? `(${comments.length})` : ''}
-                </button>
-                <button onClick={() => setSideTab('history')} className={`flex-1 text-xs font-medium py-1 rounded-md transition-all ${sideTab === 'history' ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'}`}>
-                  Histórico
-                </button>
-              </div>
+          {/* RIGHT — comentários + atividade (feed único, tipo Trello) */}
+          <div className="w-[340px] flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
+              <span className="text-xs font-bold text-[var(--color-text-primary)]">Comentários e atividade</span>
+              <button onClick={() => setShowDetails(v => !v)} className="text-[11px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
+                {showDetails ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+              </button>
             </div>
 
-            {sideTab === 'history' ? (
-              <div className="flex-1 overflow-y-auto px-5 py-4">
-                <ActivityLog tableName="extras" recordId={id || extraId || ''} refreshKey={activityKey} createdAt={createdAt} />
+            {/* Campo de comentário */}
+            <div className="px-3 py-3 border-b border-[var(--color-border)] flex items-end gap-2">
+              <div className="flex-1">
+                <textarea
+                  ref={mentions.textareaRef}
+                  value={newComment}
+                  onChange={mentions.handleChange}
+                  onKeyDown={e => { if (mentions.handleKeyDown(e)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment() } }}
+                  onBlur={mentions.handleBlur}
+                  placeholder="Comentar… @ para mencionar  (Enter envia · Shift+Enter quebra linha)" rows={2}
+                  className="w-full bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)]"
+                />
+                {mentions.dropdown}
               </div>
-            ) : (
-            <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
-              {comments.length === 0 && (
-                <p className="text-xs text-[var(--color-text-faint)] text-center py-6">Nenhum comentário.</p>
-              )}
-              {[...comments].reverse().map(c => (
-                <div key={c.id} className="flex gap-2.5">
-                  <div className="w-6 h-6 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[8px] font-bold flex-shrink-0 mt-0.5">
-                    {initials(c.author_name)}
+              <button onClick={addComment} disabled={!newComment.trim()}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 flex-shrink-0" style={{ background: 'var(--color-accent)' }}>
+                <Send size={14} />
+              </button>
+            </div>
+
+            {/* Feed */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+              {visibleFeed.length === 0 ? (
+                <p className="text-xs text-[var(--color-text-faint)] text-center py-8">Nada ainda. Comente mudanças, dúvidas, ajustes…</p>
+              ) : visibleFeed.map(item => {
+                const memberMatch = item.author ? members.find(x => x.name === item.author) : null
+                const av = {
+                  initials: item.author ? initials(item.author) : '?',
+                  color: (memberMatch as any)?.color || '#9ca3af',
+                }
+                return item.kind === 'comment' ? (
+                  <div key={item.id} className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5" style={{ background: av.color }}>{av.initials}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{item.author || 'Alguém'}</span>
+                        <span className="text-[10px] text-[var(--color-text-faint)]" title={fullDateTime(item.at)}>{fullDateTime(item.at)}</span>
+                      </div>
+                      <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{renderWithMentions(item.body)}</div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] mb-1">
-                      <span className="font-semibold text-[var(--color-text-secondary)]">{c.author_name}</span>
-                      <span className="text-[var(--color-text-faint)] ml-1.5">
-                        {new Date(c.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                ) : (
+                  <div key={item.id} className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5 opacity-80" style={{ background: av.color }}>{av.initials}</div>
+                    <p className="text-[11px] text-[var(--color-text-muted)] leading-snug flex-1 pt-0.5">
+                      {item.body}
+                      <span className="text-[var(--color-text-faint)]" title={fullDateTime(item.at)}> · {fullDateTime(item.at)}</span>
                     </p>
-                    <p className="text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl px-3 py-2 whitespace-pre-wrap leading-relaxed">{renderWithMentions(c.body)}</p>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
-            )}
-            {/* Comment input — só quando na aba comentários */}
-            {sideTab === 'comments' && <div className="px-5 py-4 border-t border-[var(--color-border)]">
-              <div className="flex gap-2.5">
-                <div className="w-6 h-6 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-brand-fg)] text-[8px] font-bold flex-shrink-0 mt-0.5">
-                  {currentMember ? initials(currentMember.name) : 'VO'}
-                </div>
-                <div className="flex-1">
-                  <textarea
-                    ref={mentions.textareaRef}
-                    value={newComment}
-                    onChange={mentions.handleChange}
-                    onKeyDown={e => { if (mentions.handleKeyDown(e)) return; if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
-                    onBlur={mentions.handleBlur}
-                    rows={2}
-                    placeholder="Comentar… @ para mencionar  (⌘Enter)"
-                    className="w-full bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] resize-none transition-colors"
-                  />
-                  {mentions.dropdown}
-                  {newComment.trim() && (
-                    <button onClick={addComment} className="mt-1.5 w-full text-xs font-semibold px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">
-                      Comentar
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>}
           </div>
         </div>
 
