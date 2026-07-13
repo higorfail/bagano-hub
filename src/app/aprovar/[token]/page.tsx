@@ -239,7 +239,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     if (!cl) { setError('Cliente não encontrado.'); setLoading(false); return }
     setClient(cl)
     const baseQuery = supabase.from('schedules')
-      .select('id, title, post_type, status, drive_url, drive_folder_url, copy, briefing, scheduled_date, feed_order, post_number, approval_comment, approval_status, funil, campaign_type')
+      .select('id, title, post_type, status, drive_url, drive_folder_url, copy, briefing, scheduled_date, post_number, approval_comment, approval_status, funil, campaign_type')
       .eq('client_id', tk.client_id)
       .eq('month', tk.month)
       .eq('year',  tk.year)
@@ -268,7 +268,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
   const feedPosts: FeedPost[] = posts.map(p => ({
     id: p.id, title: p.title, type: mapType(p.post_type), status: mapStatus(p),
     drive_url: (p as any).drive_url, drive_folder_url: (p as any).drive_folder_url,
-    copy: p.copy, scheduled_date: p.scheduled_date, feed_order: (p as any).feed_order,
+    copy: p.copy, scheduled_date: p.scheduled_date, post_number: (p as any).post_number,
   }))
 
   // ── Actions ────────────────────────────────────────────────────────────────

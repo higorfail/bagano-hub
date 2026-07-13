@@ -20,7 +20,20 @@ export interface FeedPost {
   drive_folder_url?: string
   copy?: string
   scheduled_date?: string
-  feed_order?: number
+  post_number?: number
+}
+
+// Ordem estilo Instagram: mais recente primeiro (topo). Posts com data usam a
+// data (mais nova na frente); sem data, caem pro nº do post (mais alto = mais recente).
+// Datados sempre vêm antes dos sem data, já que ganhar uma data normalmente
+// significa que o post está mais adiantado no fluxo.
+function compareFeedPosts(a: FeedPost, b: FeedPost): number {
+  if (a.scheduled_date && b.scheduled_date) {
+    return new Date(b.scheduled_date).getTime() - new Date(a.scheduled_date).getTime()
+  }
+  if (a.scheduled_date && !b.scheduled_date) return -1
+  if (!a.scheduled_date && b.scheduled_date) return 1
+  return (b.post_number ?? 0) - (a.post_number ?? 0)
 }
 
 interface DriveFile {
@@ -585,7 +598,7 @@ export default function IPhoneFeed({
     : null
   const avatarUrl = logoUrl || (igUsername ? `https://unavatar.io/instagram/${igUsername}` : null)
 
-  const [posts, setPosts]             = useState<FeedPost[]>([...initialPosts].sort((a, b) => (a.feed_order ?? 999) - (b.feed_order ?? 999)))
+  const [posts, setPosts]             = useState<FeedPost[]>([...initialPosts].sort(compareFeedPosts))
   const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null)
   const [activeStory, setActiveStory]   = useState<FeedPost | null>(null)
   const [seenStories, setSeenStories]   = useState<Set<string>>(new Set())
@@ -594,7 +607,7 @@ export default function IPhoneFeed({
   const dragSrcId = useRef<string | null>(null)
 
   useEffect(() => {
-    setPosts([...initialPosts].sort((a, b) => (a.feed_order ?? 999) - (b.feed_order ?? 999)))
+    setPosts([...initialPosts].sort(compareFeedPosts))
   }, [initialPosts])
 
   const handleDrop = useCallback((targetId: string) => {
@@ -606,7 +619,8 @@ export default function IPhoneFeed({
       const ti = arr.findIndex(p => p.id === targetId)
       const [moved] = arr.splice(si, 1)
       arr.splice(ti, 0, moved)
-      const reordered = arr.map((p, i) => ({ ...p, feed_order: i }))
+      // Topo da lista (índice 0) é o mais recente → maior nº de post
+      const reordered = arr.map((p, i) => ({ ...p, post_number: arr.length - i }))
       onReorder?.(reordered)
       return reordered
     })

@@ -305,6 +305,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   drive_folder_url: p.drive_folder_url,
                   copy: p.copy,
                   scheduled_date: p.scheduled_date,
+                  post_number: p.post_number,
                 }))}
                 clientName={client.name}
                 clientColor={client.color_hex}
@@ -314,7 +315,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 instagramUrl={client.instagram_url || undefined}
                 logoUrl={client.logo_url || undefined}
                 onReorder={async (reordered) => {
-                  await Promise.all(reordered.map(p => createClient().from('schedules').update({ feed_order: p.feed_order }).eq('id', p.id)))
+                  await Promise.all(reordered.map(p => createClient().from('schedules').update({ post_number: p.post_number }).eq('id', p.id)))
                 }}
               />
             </div>

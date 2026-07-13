@@ -37,7 +37,8 @@ export default function FeedPage() {
   useEffect(() => {
     if (!selected) return
     setLoading(true)
-    supabase.from('schedules').select('id, title, post_type, status, approval_status, drive_url, drive_folder_url, copy, scheduled_date, feed_order').eq('client_id', selected.id).order('feed_order', { ascending: true })
+    supabase.from('schedules').select('id, title, post_type, status, approval_status, drive_url, drive_folder_url, copy, scheduled_date, post_number')
+      .eq('client_id', selected.id).eq('month', month).eq('year', year).order('post_number', { ascending: true })
       .then(({ data }) => {
         if (data) {
           setPosts(data.map(s => ({
@@ -49,7 +50,7 @@ export default function FeedPage() {
             drive_folder_url: s.drive_folder_url,
             copy: s.copy,
             scheduled_date: s.scheduled_date,
-            feed_order: s.feed_order,
+            post_number: s.post_number,
           })))
         }
         setLoading(false)
@@ -57,7 +58,7 @@ export default function FeedPage() {
   }, [selected, month, year])
 
   const handleReorder = async (reordered: FeedPost[]) => {
-    await Promise.all(reordered.map(p => supabase.from('schedules').update({ feed_order: p.feed_order }).eq('id', p.id)))
+    await Promise.all(reordered.map(p => supabase.from('schedules').update({ post_number: p.post_number }).eq('id', p.id)))
   }
 
   const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
