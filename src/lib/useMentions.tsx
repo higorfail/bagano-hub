@@ -1,17 +1,61 @@
 'use client'
 
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { Link2, Folder } from 'lucide-react'
 
 type Member = { id: string; name: string; color?: string | null }
 
-// Renderiza o corpo de um comentário destacando as @menções (igual ao cronograma)
-export function renderWithMentions(body: string) {
-  return body.split(/(@\S+)/g).map((part, i) =>
-    /^@\S+/.test(part)
-      ? <strong key={i} style={{ color: 'var(--color-accent)' }}>{part}</strong>
-      : <span key={i}>{part}</span>
+const URL_SPLIT_RE = /(https?:\/\/[^\s]+)/g
+const URL_TEST_RE = /^https?:\/\/[^\s]+$/
+const DRIVE_TEST_RE = /^https?:\/\/(drive|docs)\.google\.com\//
+
+function extractDriveFileId(url: string): string | null {
+  const folder = url.match(/\/folders\/([-\w]{25,})/)
+  if (folder) return folder[1]
+  const file = url.match(/[-\w]{25,}/)
+  return file ? file[0] : null
+}
+
+// Link do Drive colado num comentário vira um chip com nome do arquivo (igual anexo do Trello)
+function DriveLinkChip({ url }: { url: string }) {
+  const [name, setName] = useState<string | null>(null)
+  const isFolder = /\/folders\//.test(url)
+  useEffect(() => {
+    const id = extractDriveFileId(url)
+    const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
+    if (!id || !key) return
+    fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name&key=${key}`)
+      .then(r => r.json())
+      .then(d => { if (d.name) setName(d.name) })
+      .catch(() => {})
+  }, [url])
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+      className="inline-flex items-center gap-1.5 max-w-full align-bottom px-2 py-1 my-0.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+      style={{ borderColor: 'var(--color-border)', color: 'var(--ds-info-text)', background: 'var(--color-bg-card)' }}>
+      {isFolder ? <Folder size={12} className="flex-shrink-0" /> : <Link2 size={12} className="flex-shrink-0" />}
+      <span className="truncate">{name || (isFolder ? 'Pasta do Drive' : 'Abrir no Drive')}</span>
+    </a>
   )
+}
+
+// Renderiza o corpo de um comentário destacando @menções e transformando links
+// (em especial do Drive, com chip de nome de arquivo) em algo clicável.
+export function renderWithMentions(body: string) {
+  return body.split(URL_SPLIT_RE).map((part, i) => {
+    if (URL_TEST_RE.test(part)) {
+      return DRIVE_TEST_RE.test(part)
+        ? <DriveLinkChip key={i} url={part} />
+        : <a key={i} href={part} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+            className="underline break-all" style={{ color: 'var(--ds-info-text)' }}>{part}</a>
+    }
+    return part.split(/(@\S+)/g).map((sub, j) =>
+      /^@\S+/.test(sub)
+        ? <strong key={`${i}-${j}`} style={{ color: 'var(--color-accent)' }}>{sub}</strong>
+        : <span key={`${i}-${j}`}>{sub}</span>
+    )
+  })
 }
 
 function memberInitials(name: string) {

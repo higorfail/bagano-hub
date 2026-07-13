@@ -10,6 +10,7 @@ import { moveToTrash } from '@/lib/trash'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
+import { renderWithMentions } from '@/lib/useMentions'
 import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
@@ -370,15 +371,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       const p = start + firstName.length + 2
       ta?.setSelectionRange(p, p)
     })
-  }
-
-  function renderCommentWithMentions(body: string) {
-    const parts = body.split(/(@\S+)/g)
-    return parts.map((part, i) =>
-      /^@\S+/.test(part)
-        ? <strong key={i} style={{ color: 'var(--color-accent)' }}>{part}</strong>
-        : <span key={i}>{part}</span>
-    )
   }
 
   async function saveEditComment(cid: string) {
@@ -938,7 +930,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                           </div>
                         </div>
                       ) : (
-                        <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line">{renderCommentWithMentions(item.body)}</div>
+                        <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line break-words">{renderWithMentions(item.body)}</div>
                       )}
                     </div>
                   </div>
