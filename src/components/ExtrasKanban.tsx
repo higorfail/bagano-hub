@@ -245,21 +245,21 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                       }}
                       onDragEnd={() => { setDraggingId(null); setDragOverCol(null) }}
                       onClick={() => { if (!draggingId) { setOpenExtraId(extra.id); window.history.replaceState(null, '', `?post=${extra.id}`) } }}
-                      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 cursor-grab active:cursor-grabbing shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 relative"
+                      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl flex cursor-grab active:cursor-grabbing shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 relative overflow-hidden"
                       style={{
                         borderLeft: `3px solid ${PRIORITY_BORDER[extra.priority]}`,
                         opacity: isDragging ? 0.4 : 1,
-                        overflow: 'hidden',
                       }}
                     >
-                      {/* Preview da entrega */}
+                      {/* Preview da entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
                       {previewUrl && (
-                        <div className="-mx-3 -mt-3 mb-2 h-24 overflow-hidden bg-[var(--color-bg-subtle)]">
+                        <div className="relative w-28 flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
                           <img src={previewUrl} alt={extra.title} className="w-full h-full object-cover"
                             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
                         </div>
                       )}
 
+                      <div className="flex-1 min-w-0 p-3">
                       {/* Labels strip */}
                       {extra.labels && extra.labels.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-2">
@@ -336,6 +336,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                         {globalMode && !extra.client_id && (
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]">Global</span>
                         )}
+                      </div>
                       </div>
                     </div>
                   )

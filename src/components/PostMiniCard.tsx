@@ -111,10 +111,10 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
     >
       <div className="h-[3px] w-full flex-shrink-0" style={{ background: isRevisao ? '#8b5cf6' : type.color }} />
 
-      {/* Drive thumbnail */}
+      <div className="flex flex-1 min-h-0">
+      {/* Drive thumbnail — preview vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
       {thumbUrl && (
-        <div className="relative overflow-hidden bg-[var(--color-bg-subtle)] flex-shrink-0"
-          style={{ height: isThumbVideo ? 140 : 110 }}>
+        <div className="relative w-28 flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={thumbUrl} alt={post.title}
             className="w-full h-full object-cover"
             onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
@@ -128,7 +128,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         </div>
       )}
 
-      <div className="p-4 flex flex-col gap-3 flex-1">
+      <div className="p-4 flex flex-col gap-3 flex-1 min-w-0">
         {/* Header */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -218,6 +218,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
             {isApproved && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓</span>}
           </div>
         </div>
+      </div>
       </div>
     </div>
   )
