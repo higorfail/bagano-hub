@@ -55,6 +55,30 @@
   color-scheme: dark;
 }
 
+/* ── Scrollbars seguem o tema (claro/escuro) ─────────────────────────────── */
+:root { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; }
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-muted);
+  background-clip: content-box;
+}
+
 /* ── Border-radius scale ─────────────────────────────────────────────────── */
 .rounded-lg   { border-radius: 0.625rem; }  /* 10px  (era 8px)  */
 .rounded-xl   { border-radius: 0.875rem; }  /* 14px  (era 12px) */
