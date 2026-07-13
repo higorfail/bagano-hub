@@ -91,6 +91,13 @@ function pickCover(files: DriveFile[]): DriveFile | undefined {
   const images = files.filter(f => f.mimeType.startsWith('image/'))
   return images.find(f => /^capa\./i.test(f.name)) ?? images[0]
 }
+// Se não houver foto de capa na pasta, usa o frame de um vídeo como fallback.
+function pickCoverOrVideo(files: DriveFile[]): { file?: DriveFile; isVideo: boolean } {
+  const cover = pickCover(files)
+  if (cover) return { file: cover, isVideo: false }
+  const video = files.find(f => f.mimeType.startsWith('video/'))
+  return { file: video, isVideo: true }
+}
 
 async function fetchFolderFiles(folderId: string): Promise<DriveFile[]> {
   try {
@@ -114,15 +121,18 @@ async function resolveMedia(post: FeedPost): Promise<ResolvedMedia> {
         const cover = pickCover(files)
         const videos = files.filter(f => f.mimeType.startsWith('video/'))
         if (post.type === 'reel') {
-          return { thumbnailUrl: cover ? driveIdToThumbnail(cover.id) : undefined, videoEmbedUrl: videos[0] ? driveIdToEmbed(videos[0].id) : undefined, folderLink: folderUrl }
+          const thumb = cover ? driveIdToThumbnail(cover.id) : videos[0] ? driveIdToThumbnail(videos[0].id) : undefined
+          return { thumbnailUrl: thumb, videoEmbedUrl: videos[0] ? driveIdToEmbed(videos[0].id) : undefined, folderLink: folderUrl }
         }
         if (post.type === 'carousel' || post.type === 'story') {
           const images = files.filter(f => f.mimeType.startsWith('image/'))
           const sorted = images.sort((a, b) => a.name.localeCompare(b.name))
           const urls = sorted.map(f => driveIdToThumbnail(f.id, 600))
-          return { thumbnailUrl: cover ? driveIdToThumbnail(cover.id, 600) : urls[0], carouselImages: urls, folderLink: folderUrl }
+          const fallback = urls[0] ?? (videos[0] ? driveIdToThumbnail(videos[0].id, 600) : undefined)
+          return { thumbnailUrl: cover ? driveIdToThumbnail(cover.id, 600) : fallback, carouselImages: urls.length > 0 ? urls : fallback ? [fallback] : [], folderLink: folderUrl }
         }
-        return { thumbnailUrl: cover ? driveIdToThumbnail(cover.id) : undefined, folderLink: folderUrl }
+        const photoThumb = cover ? driveIdToThumbnail(cover.id) : videos[0] ? driveIdToThumbnail(videos[0].id) : undefined
+        return { thumbnailUrl: photoThumb, folderLink: folderUrl }
       }
     }
   }
@@ -153,8 +163,8 @@ function StoryCircle({ post, clientColor, clientInitials, avatarUrl, seen, appro
         const folderId = extractDriveId(post.drive_folder_url)
         if (folderId) {
           const files = await fetchFolderFiles(folderId)
-          const img = pickCover(files)
-          if (img) { setThumbUrl(driveIdToThumbnail(img.id, 200)); return }
+          const { file } = pickCoverOrVideo(files)
+          if (file) { setThumbUrl(driveIdToThumbnail(file.id, 200)); return }
         }
       }
       const id = extractDriveId(post.drive_url)
@@ -443,8 +453,8 @@ function PostThumb({ post, onClick, dragging, dragOver }: {
         const folderId = extractDriveId(post.drive_folder_url)
         if (folderId) {
           const files = await fetchFolderFiles(folderId)
-          const img = pickCover(files)
-          if (img) { setThumbUrl(driveIdToThumbnail(img.id, 300)); return }
+          const { file } = pickCoverOrVideo(files)
+          if (file) { setThumbUrl(driveIdToThumbnail(file.id, 300)); return }
         }
       }
       const id = extractDriveId(post.drive_url)

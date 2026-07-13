@@ -72,6 +72,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
     const id = post.drive_url?.match(/[-\w]{25,}/)?.[0]
     return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w480` : null
   })
+  const [isThumbVideo, setIsThumbVideo] = useState(isVideo)
 
   useEffect(() => {
     if (!post.drive_folder_url) return
@@ -82,9 +83,12 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
     fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType)&orderBy=name&key=${key}`)
       .then(r => r.json())
       .then(d => {
-        const images: { id: string; name: string; mimeType: string }[] = (d.files || []).filter((f: { id: string; name: string; mimeType: string }) => f.mimeType.startsWith('image/'))
-        const img = images.find(f => /^capa\./i.test(f.name)) ?? images[0]
-        if (img) setThumbUrl(`https://drive.google.com/thumbnail?id=${img.id}&sz=w480`)
+        const files: { id: string; name: string; mimeType: string }[] = d.files || []
+        const images = files.filter(f => f.mimeType.startsWith('image/'))
+        const cover = images.find(f => /^capa\./i.test(f.name)) ?? images[0]
+        if (cover) { setThumbUrl(`https://drive.google.com/thumbnail?id=${cover.id}&sz=w480`); setIsThumbVideo(false); return }
+        const video = files.find(f => f.mimeType.startsWith('video/'))
+        if (video) { setThumbUrl(`https://drive.google.com/thumbnail?id=${video.id}&sz=w480`); setIsThumbVideo(true) }
       })
       .catch(() => {})
   }, [post.drive_folder_url])
@@ -109,11 +113,11 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
       {/* Drive thumbnail */}
       {thumbUrl && (
         <div className="relative overflow-hidden bg-[var(--color-bg-subtle)] flex-shrink-0"
-          style={{ height: isVideo ? 140 : 110 }}>
+          style={{ height: isThumbVideo ? 140 : 110 }}>
           <img src={thumbUrl} alt={post.title}
             className="w-full h-full object-cover"
             onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
-          {isVideo && (
+          {isThumbVideo && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
               <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
                 <Play size={16} className="text-[#111] ml-0.5" fill="currentColor" />
