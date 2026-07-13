@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
 import { Search, ChevronDown } from 'lucide-react'
@@ -15,24 +16,55 @@ interface Client {
   instagram_following: number | null
 }
 
-export default function FeedPage() {
+function FeedPageInner() {
   useEffect(() => { document.title = 'Feed · Bagano Hub' }, [])
   const supabase = createClient()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const clientParam = searchParams.get('client')
   const [clients, setClients] = useState<Client[]>([])
   const [selected, setSelected] = useState<Client | null>(null)
   const [posts, setPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
-  const [month, setMonth] = useState(new Date().getMonth() + 1)
-  const [year, setYear] = useState(new Date().getFullYear())
+  const [month, setMonth] = useState(() => {
+    const m = parseInt(searchParams.get('m') || '')
+    return !isNaN(m) && m >= 1 && m <= 12 ? m : new Date().getMonth() + 1
+  })
+  const [year, setYear] = useState(() => {
+    const y = parseInt(searchParams.get('y') || '')
+    return !isNaN(y) && y > 2000 ? y : new Date().getFullYear()
+  })
 
   const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
   const initials = (name: string) => name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
   useEffect(() => {
     supabase.from('clients').select('id, name, color_hex, logo_url, instagram_url, instagram_followers, instagram_following').eq('status', 'active').order('name')
-      .then(({ data }) => { if (data) setClients(data) })
+      .then(({ data }) => {
+        if (!data) return
+        setClients(data)
+        if (clientParam) {
+          const match = data.find(c => c.id === clientParam)
+          if (match) setSelected(match)
+        }
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Mantém cliente/mês/ano na URL, pra dar pra copiar e colar o link
+  useEffect(() => {
+    if (!selected) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('client', selected.id)
+    params.set('m', String(month))
+    params.set('y', String(year))
+    if (params.toString() !== searchParams.toString()) {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, month, year])
 
   useEffect(() => {
     if (!selected) return
@@ -147,4 +179,8 @@ export default function FeedPage() {
       </main>
     </div>
   )
+}
+
+export default function FeedPage() {
+  return <Suspense><FeedPageInner /></Suspense>
 }

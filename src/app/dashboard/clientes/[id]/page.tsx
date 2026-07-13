@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState, Suspense } from 'react'
 import { useDarkMode } from '@/lib/useDarkMode'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import IPhoneFeed from '@/components/IPhoneFeed'
 import MaterialCard from '@/components/MaterialCard'
@@ -42,17 +42,22 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
   const isDark = useDarkMode()
   const { toast } = useToast()
   const [client, setClient] = useState<Client | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
-  const [tab, setTab] = useState('cronograma')
+  const [tab, setTab] = useState(() => searchParams.get('tab') || 'cronograma')
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const mParam = searchParams.get('m')
     const m = mParam ? parseInt(mParam) : NaN
     return !isNaN(m) && m >= 1 && m <= 12 ? m : new Date().getMonth() + 1
   })
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState(() => {
+    const yParam = searchParams.get('y')
+    const y = yParam ? parseInt(yParam) : NaN
+    return !isNaN(y) && y > 2000 ? y : new Date().getFullYear()
+  })
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [loading, setLoading] = useState(true)
   const [team, setTeam] = useState<any[]>([])
@@ -70,6 +75,18 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [savingClient, setSavingClient] = useState(false)
 
   useEffect(() => { document.title = client ? `${client.name} · Bagano Hub` : 'Cliente · Bagano Hub' }, [client])
+
+  // Mantém aba/mês/ano na URL, pra dar pra copiar e colar o link e cair direto na mesma view
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', tab)
+    params.set('m', String(selectedMonth))
+    params.set('y', String(selectedYear))
+    if (params.toString() !== searchParams.toString()) {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, selectedMonth, selectedYear])
 
   useEffect(() => {
     async function load() {
