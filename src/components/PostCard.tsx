@@ -447,14 +447,14 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const pid = await ensurePostId(); if (!pid) { toast('Adicione um título primeiro'); return }
     const f = formRef.current
     const { count } = await supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('client_id', clientId).eq('month', month).eq('year', year)
-    const { error } = await supabase.from('schedules').insert({
+    const { data, error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year, post_number: (count || 0) + 1,
       title: (f.title || 'Post') + ' (cópia)', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
       post_type: f.post_type, status: 'estrategia', scheduled_date: null, drive_url: f.drive_url, drive_folder_url: f.drive_folder_url || null,
       reference_notes: f.reference_notes, funil: f.funil, campaign_type: f.campaign_type || null, reference_images: f.reference_images,
-    })
+    }).select().single()
     if (dbError(error, toast, 'duplicar')) return
-    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, description: `${who} duplicou este post` })
+    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, description: `${who} duplicou de "${f.title}"` })
     toast('Post duplicado!'); onSaved(); onClose()
   }
 

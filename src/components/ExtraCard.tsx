@@ -216,7 +216,18 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     }
     const { data, error } = await supabase.from('extras').insert(payload).select('*').single()
     if (error) console.error('ensureId error:', error)
-    if (data) { setId(data.id); return data.id }
+    if (data) {
+      setId(data.id)
+      originalStatusRef.current = status
+      snapshotRef.current = JSON.stringify({
+        title, type, priority, clientId: fixedClientId || clientId || '', description,
+        dueDate: dueDate || '', dueTime: dueTime || '', driveUrl: driveUrl || '', labels,
+        needsClientApproval, assignedMembers,
+      })
+      await logActivity({ tableName: 'extras', recordId: data.id, clientId: fixedClientId || clientId || null, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
+      setActivityKey(k => k + 1)
+      return data.id
+    }
     return undefined
   }
 

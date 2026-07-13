@@ -215,7 +215,17 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       drive_url: driveUrl,
     }
     const { data } = await supabase.from('materials').insert(payload).select().single()
-    if (data) { setId(data.id); return data.id }
+    if (data) {
+      setId(data.id)
+      originalStatusRef.current = status
+      snapshotRef.current = JSON.stringify({
+        title, type, clientId: fixedClientId || clientId || '', extraClient,
+        description, dueDate: dueDate || '', driveUrl: driveUrl || '', labels, assignedMembers,
+      })
+      await logActivity({ tableName: 'materials', recordId: data.id, clientId: fixedClientId || clientId || null, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
+      setActivityKey(k => k + 1)
+      return data.id
+    }
     return undefined
   }
 
