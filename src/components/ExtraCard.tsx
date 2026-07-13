@@ -66,6 +66,7 @@ type Props = {
 
 export default function ExtraCard({ extraId, initialStatus, fixedClientId, clients = [], members: membersProp, onClose, onSaved, onDeleted }: Props) {
   const { members: ctxMembers, currentMember } = useUser()
+  const who = currentMember?.name || 'Alguém'
   const { toast } = useToast()
   const members = membersProp ?? ctxMembers
   const supabase = createClient()
@@ -76,6 +77,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [linkCopied, setLinkCopied] = useState(false)
   const originalStatusRef = useRef<ExtraStatus>(initialStatus ?? 'backlog')
   const snapshotRef = useRef<string>('')
+  const titleOriginal = useRef<string | null>(null)
   const [showDetails, setShowDetails] = useState(true)
   const [activityKey, setActivityKey] = useState(0)
   const [activities,  setActivities]  = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
@@ -234,6 +236,51 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     return undefined
   }
 
+  // Salva um campo específico imediatamente e registra no histórico com mensagem detalhada (padrão cronograma)
+  async function persist(patch: Record<string, any>, logMsg?: string, action = 'updated') {
+    const eid = await ensureId()
+    if (!eid) return
+    const { error } = await supabase.from('extras').update(patch).eq('id', eid)
+    if (error) { toast('Erro ao salvar'); return }
+    if (logMsg) {
+      await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, description: logMsg })
+      setActivityKey(k => k + 1)
+    }
+  }
+  async function logExt(eid: string, description: string, action = 'updated') {
+    await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, description })
+    setActivityKey(k => k + 1)
+  }
+
+  const STATUS_LABEL: Record<ExtraStatus,string> = { backlog: 'A fazer', doing: 'Em andamento', done: 'Concluído' }
+  function changeStatus(v: ExtraStatus) {
+    const old = STATUS_LABEL[status]
+    setStatus(v)
+    originalStatusRef.current = v
+    persist({ status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v]}"`, 'status_changed')
+  }
+  function changeType(v: ExtraType) {
+    const oldLabel = TYPE_OPTIONS.find(t => t.value === type)?.label || type
+    const newLabel = TYPE_OPTIONS.find(t => t.value === v)?.label || v
+    setType(v); setTypeManuallySet(true)
+    persist({ type: v }, `${who} mudou o tipo de "${oldLabel}" para "${newLabel}"`)
+  }
+  function changePriority(v: ExtraPriority) {
+    const newLabel = PRIORITY_OPTIONS.find(p => p.value === v)?.label || v
+    setPriority(v)
+    persist({ priority: v }, `${who} definiu a prioridade: ${newLabel}`)
+  }
+  function changeClient(v: string) {
+    setClientId(v); setClientManuallySet(true)
+    const name = v ? (clients.find(c => c.id === v)?.name || '') : 'sem cliente'
+    persist({ client_id: v || null }, `${who} definiu o cliente: ${name}`)
+  }
+  function changeApproval() {
+    const next = !needsClientApproval
+    setNeedsClientApproval(next)
+    persist({ needs_client_approval: next }, next ? `${who} marcou que precisa de aprovação do cliente` : `${who} removeu a necessidade de aprovação do cliente`)
+  }
+
   async function handleSaveMain() {
     if (!title.trim()) return
     setSaving(true)
@@ -270,24 +317,9 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       await logActivity({ tableName: 'extras', recordId: data.id, clientId: resolvedClientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
       setActivityKey(k => k + 1)
     } else {
-      const statusLabels: Record<string,string> = { backlog: 'A fazer', doing: 'Em andamento', done: 'Concluído' }
-      if (status !== originalStatusRef.current) {
-        const oldLabel = statusLabels[originalStatusRef.current] || originalStatusRef.current
-        const newLabel = statusLabels[status] || status
-        await logActivity({ tableName: 'extras', recordId: id, clientId: fixedClientId || clientId || null, action: 'status_changed', actorName: currentMember?.name, field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
-        originalStatusRef.current = status as ExtraStatus
-        setActivityKey(k => k + 1)
-      }
-      const nextSnapshot = JSON.stringify({
-        title, type, priority, clientId: fixedClientId || clientId || '', description,
-        dueDate: dueDate || '', dueTime: dueTime || '', driveUrl: driveUrl || '', labels,
-        needsClientApproval, assignedMembers,
-      })
-      if (snapshotRef.current && nextSnapshot !== snapshotRef.current) {
-        await logActivity({ tableName: 'extras', recordId: id, clientId: fixedClientId || clientId || null, action: 'updated', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} editou "${title}"` })
-        setActivityKey(k => k + 1)
-      }
-      snapshotRef.current = nextSnapshot
+      // Rede de segurança: garante que tudo esteja persistido ao fechar.
+      // O histórico detalhado por campo já é registrado nos handlers granulares (persist()),
+      // então aqui não logamos nada — evita duplicar/generalizar o que já foi registrado.
       const { data } = await supabase.from('extras').update(payload).eq('id', id).select('*').single()
       savedData = data ? withRelations(data) : null
     }
@@ -307,15 +339,22 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     if (!newCheckText.trim()) return
     const eid = await ensureId(); if (!eid) return
     const { data } = await supabase.from('extra_checklist').insert({ extra_id: eid, text: newCheckText, position: checklist.length }).select().single()
-    if (data) setChecklist(c => [...c, data]); setNewCheckText('')
+    if (data) setChecklist(c => [...c, data])
+    await logExt(eid, `${who} adicionou "${newCheckText}" na checklist`)
+    setNewCheckText('')
   }
   async function toggleCheck(item: any) {
     await supabase.from('extra_checklist').update({ done: !item.done }).eq('id', item.id)
     setChecklist(c => c.map(x => x.id === item.id ? { ...x, done: !x.done } : x))
+    const eid = id || extraId
+    if (eid) await logExt(eid, item.done ? `${who} desmarcou "${item.text}"` : `${who} marcou "${item.text}" como concluído`)
   }
   async function removeCheck(cid: string) {
+    const item = checklist.find(c => c.id === cid)
     await supabase.from('extra_checklist').delete().eq('id', cid)
     setChecklist(c => c.filter(x => x.id !== cid))
+    const eid = id || extraId
+    if (eid) await logExt(eid, `${who} removeu "${item?.text || ''}" da checklist`)
   }
 
   async function addComment() {
@@ -333,13 +372,18 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   async function addAttachment() {
     if (!newAttachUrl.trim()) return
     const eid = await ensureId(); if (!eid) return
-    const { data } = await supabase.from('extra_attachments').insert({ extra_id: eid, url: newAttachUrl, title: newAttachTitle || newAttachUrl }).select().single()
+    const attachTitle = newAttachTitle || newAttachUrl
+    const { data } = await supabase.from('extra_attachments').insert({ extra_id: eid, url: newAttachUrl, title: attachTitle }).select().single()
     if (data) setAttachments(a => [...a, data])
     setNewAttachUrl(''); setNewAttachTitle(''); setShowAttachInput(false)
+    await logExt(eid, `${who} anexou "${attachTitle}"`)
   }
   async function removeAttachment(aid: string) {
+    const att = attachments.find(a => a.id === aid)
     await supabase.from('extra_attachments').delete().eq('id', aid)
     setAttachments(a => a.filter(x => x.id !== aid))
+    const eid = id || extraId
+    if (eid) await logExt(eid, `${who} removeu o anexo "${att?.title || ''}"`)
   }
 
   async function createGlobalLabel(text: string, color: string) {
@@ -418,7 +462,15 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           <div className="flex-1 min-w-0">
             <input
               value={title}
+              onFocus={() => { if (titleOriginal.current === null) titleOriginal.current = title }}
               onChange={e => setTitle(e.target.value)}
+              onBlur={() => {
+                const orig = titleOriginal.current
+                titleOriginal.current = null
+                if (orig === null || orig === title || !title.trim()) return
+                if (!id) persist({ title })
+                else persist({ title }, `${who} renomeou "${orig}" para "${title}"`)
+              }}
               placeholder="Sem título…"
               autoFocus={!extraId}
               className="w-full text-2xl font-bold text-[var(--color-text-primary)] bg-transparent outline-none placeholder:text-[var(--color-text-faint)] leading-tight"
@@ -457,7 +509,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           {!fixedClientId && clients.length > 0 && (
             <PropertyPill label="Cliente">
               <div className="relative min-w-0">
-                <select value={clientId} onChange={e => { setClientId(e.target.value); setClientManuallySet(true) }}
+                <select value={clientId} onChange={e => changeClient(e.target.value)}
                   className={pillSelectCls + ' bg-[var(--color-bg-card)] border-[var(--color-border)]'} style={{ color: clientId ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
                   <option value="">Cliente</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -469,7 +521,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           {/* Tipo */}
           <PropertyPill label="Tipo">
             <div className="relative min-w-0">
-              <select value={type} onChange={e => { setType(e.target.value as ExtraType); setTypeManuallySet(true) }}
+              <select value={type} onChange={e => changeType(e.target.value as ExtraType)}
                 className={pillSelectCls} style={{ background: typeObj.color + '18', color: typeObj.color, borderColor: typeObj.color + '44' }}>
                 {TYPE_OPTIONS.map(t => <option key={t.value} value={t.value} style={{ color: 'var(--color-text-primary)' }}>{t.label}</option>)}
               </select>
@@ -479,7 +531,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           {/* Status */}
           <PropertyPill label="Status">
             <div className="relative min-w-0">
-              <select value={status} onChange={e => setStatus(e.target.value as ExtraStatus)}
+              <select value={status} onChange={e => changeStatus(e.target.value as ExtraStatus)}
                 className={pillSelectCls} style={{ background: statusObj.color + '18', color: statusObj.color, borderColor: statusObj.color + '44' }}>
                 {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
               </select>
@@ -489,7 +541,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           {/* Prioridade */}
           <PropertyPill label="Prioridade">
             <div className="relative min-w-0">
-              <select value={priority} onChange={e => setPriority(e.target.value as ExtraPriority)}
+              <select value={priority} onChange={e => changePriority(e.target.value as ExtraPriority)}
                 className={pillSelectCls} style={{ background: priorityObj.color + '18', color: priorityObj.color, borderColor: priorityObj.color + '44' }}>
                 {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value} style={{ color: 'var(--color-text-primary)' }}>{p.label}</option>)}
               </select>
@@ -507,7 +559,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           {/* Aprovação do cliente */}
           <PropertyPill label="Aprovação">
             <button
-              onClick={() => setNeedsClientApproval(v => !v)}
+              onClick={changeApproval}
               className="w-full rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-all truncate"
               style={needsClientApproval
                 ? { background: '#3b82f618', color: '#3b82f6', borderColor: '#3b82f644' }
@@ -523,7 +575,12 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               {orderedMembers.map(m => {
                 const sel = assignedMembers.includes(m.id)
                 return (
-                  <button key={m.id} onClick={() => setAssignedMembers(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
+                  <button key={m.id} onClick={() => {
+                    const next = sel ? assignedMembers.filter(x => x !== m.id) : [...assignedMembers, m.id]
+                    setAssignedMembers(next)
+                    const logMsg = sel ? `${who} removeu ${m.name} de "${title}"` : `${who} adicionou ${m.name} a "${title}"`
+                    persist({ assigned_members: next, assigned_member_id: next[0] || null }, logMsg, sel ? 'updated' : 'member_assigned')
+                  }}
                     className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${sel ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)] border-transparent' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'}`}>
                     {m.name.split(' ')[0]}
                   </button>
@@ -535,7 +592,11 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               {labels.map((l, i) => (
                 <span key={i} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md text-white" style={{ background: l.color }}>
                   {l.text}
-                  <button onClick={() => setLabels(ls => ls.filter((_, idx) => idx !== i))}><X size={9} /></button>
+                  <button onClick={() => {
+                    const next = labels.filter((_, idx) => idx !== i)
+                    setLabels(next)
+                    persist({ labels: next }, `${who} removeu a etiqueta "${l.text}"`)
+                  }}><X size={9} /></button>
                 </span>
               ))}
               <button onClick={() => setShowLabelPicker(true)}
@@ -557,8 +618,9 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 value={description}
                 minH={90}
                 onCommit={async v => {
+                  const hadId = !!id
                   setDescription(v)
-                  if (id) await supabase.from('extras').update({ description: v }).eq('id', id)
+                  persist({ description: v }, hadId ? `${who} editou a descrição` : undefined)
                 }}
               />
 
@@ -635,8 +697,10 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               value={driveUrl}
               isVideo={/reel|video|vídeo|\.mp4/i.test(type + ' ' + driveUrl)}
               onCommit={async v => {
+                const hadValue = !!driveUrl
                 setDriveUrl(v)
-                if (id) await supabase.from('extras').update({ drive_url: v || null }).eq('id', id)
+                const logMsg = !v ? `${who} removeu a entrega do conteúdo` : hadValue ? `${who} atualizou a entrega do conteúdo` : `${who} marcou o conteúdo como entregue`
+                persist({ drive_url: v || null }, logMsg)
               }}
             />
           </div>
@@ -750,7 +814,13 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   )
                   return (
                     <div key={gl.id} className="flex items-center gap-1.5 group">
-                      <button onClick={() => applied ? setLabels(ls => ls.filter(l => !(l.text === gl.text && l.color === gl.color))) : setLabels(ls => [...ls, { text: gl.text, color: gl.color }])}
+                      <button onClick={() => {
+                        const next = applied
+                          ? labels.filter(l => !(l.text === gl.text && l.color === gl.color))
+                          : [...labels, { text: gl.text, color: gl.color }]
+                        setLabels(next)
+                        persist({ labels: next }, applied ? `${who} removeu a etiqueta "${gl.text}"` : `${who} adicionou a etiqueta "${gl.text}"`)
+                      }}
                         className="flex-1 flex items-center gap-2 min-w-0">
                         <span className="flex-1 text-left text-[11px] font-bold uppercase tracking-wide px-2.5 py-1.5 rounded text-white truncate" style={{ background: gl.color }}>{gl.text}</span>
                         {applied && <Check size={14} className="text-[var(--color-text-primary)] flex-shrink-0" />}
@@ -772,7 +842,15 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 {LABEL_PALETTE.map(p => <button key={p.color} onClick={() => setLabelDraft(d => ({ ...d, color: p.color }))}
                   className={`w-7 h-7 rounded-lg ${labelDraft.color === p.color ? 'ring-2 ring-offset-1 ring-[var(--color-brand)]' : ''}`} style={{ background: p.color }} />)}
               </div>
-              <button onClick={async () => { if (labelDraft.text.trim()) { await createGlobalLabel(labelDraft.text, labelDraft.color); setLabels(ls => [...ls, { ...labelDraft }]); setLabelDraft({ text: '', color: '#3B82F6' }) } }}
+              <button onClick={async () => {
+                if (labelDraft.text.trim()) {
+                  await createGlobalLabel(labelDraft.text, labelDraft.color)
+                  const next = [...labels, { ...labelDraft }]
+                  setLabels(next)
+                  persist({ labels: next }, `${who} criou e aplicou a etiqueta "${labelDraft.text}"`)
+                  setLabelDraft({ text: '', color: '#3B82F6' })
+                }
+              }}
                 className="w-full py-2 text-sm font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Criar e aplicar</button>
             </div>
           </div>
@@ -788,7 +866,10 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         const cells: (number|null)[] = [...Array(startWeekday).fill(null), ...Array.from({length: daysInMonth}, (_, i) => i+1)]
         function pick(d: number) {
           const mm = String(calMonth.m + 1).padStart(2,'0'), dd = String(d).padStart(2,'0')
-          setDueDate(`${calMonth.y}-${mm}-${dd}`)
+          const iso = `${calMonth.y}-${mm}-${dd}`
+          setDueDate(iso)
+          const label = new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+          persist({ due_date: iso }, `${who} definiu o prazo para ${label}`)
         }
         return (
           <div className="fixed inset-0 z-[80] flex items-center justify-center" onClick={() => setShowDatePicker(false)}>
@@ -830,7 +911,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               </div>
               <div className="flex flex-col gap-2">
                 <button onClick={() => setShowDatePicker(false)} className="w-full py-2 text-sm font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Confirmar</button>
-                {dueDate && <button onClick={() => { setDueDate(''); setDueTime(''); setShowDatePicker(false) }} className="w-full py-2 text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">Remover data</button>}
+                {dueDate && <button onClick={() => { setDueDate(''); setDueTime(''); setShowDatePicker(false); persist({ due_date: null }, `${who} removeu o prazo`) }} className="w-full py-2 text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">Remover data</button>}
               </div>
             </div>
           </div>

@@ -57,11 +57,14 @@ type Props = {
 
 export default function MaterialCard({ materialId, fixedClientId, clients = [], onClose, onSaved, onDeleted }: Props) {
   const { members, currentMember } = useUser()
+  const who = currentMember?.name || 'Alguém'
   const { toast } = useToast()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const originalStatusRef = useRef('')
   const snapshotRef = useRef<string>('')
+  const titleOriginal = useRef<string | null>(null)
+  const typeOriginal = useRef<string | null>(null)
   const [showDetails,  setShowDetails]  = useState(true)
   const [activityKey,  setActivityKey]  = useState(0)
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
@@ -232,6 +235,38 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     return undefined
   }
 
+  // Salva um campo específico imediatamente e registra no histórico com mensagem detalhada (padrão cronograma)
+  async function persist(patch: Record<string, any>, logMsg?: string, action = 'updated') {
+    const mid = await ensureId()
+    if (!mid) return
+    const { error } = await supabase.from('materials').update(patch).eq('id', mid)
+    if (error) { toast('Erro ao salvar'); return }
+    if (logMsg) {
+      await logActivity({ tableName: 'materials', recordId: mid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, description: logMsg })
+      setActivityKey(k => k + 1)
+    }
+    onSaved()
+  }
+
+  async function logMat(mid: string, description: string, action = 'updated') {
+    await logActivity({ tableName: 'materials', recordId: mid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, description })
+    setActivityKey(k => k + 1)
+  }
+
+  const STATUS_LABEL: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', ajuste: 'Ajuste solicitado', finalizado: 'Finalizado' }
+  function changeStatus(v: string) {
+    const old = STATUS_LABEL[status] || status
+    setStatus(v)
+    originalStatusRef.current = v
+    persist({ status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
+  }
+  function changeClient(v: string) {
+    setClientManual(true)
+    setClientId(v)
+    const name = v ? (clients.find(c => c.id === v)?.name || '') : 'sem cliente'
+    persist({ client_id: v || null }, `${who} definiu o cliente: ${name}`)
+  }
+
   async function handleSaveMain() {
     if (!title.trim()) return
     setSaving(true)
@@ -255,23 +290,9 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         setActivityKey(k => k + 1)
       }
     } else {
-      const statusLabels: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', ajuste: 'Ajuste solicitado', finalizado: 'Finalizado' }
-      if (status !== originalStatusRef.current) {
-        const oldLabel = statusLabels[originalStatusRef.current] || originalStatusRef.current
-        const newLabel = statusLabels[status] || status
-        await logActivity({ tableName: 'materials', recordId: id, action: 'status_changed', actorName: currentMember?.name, field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
-        originalStatusRef.current = status
-        setActivityKey(k => k + 1)
-      }
-      const nextSnapshot = JSON.stringify({
-        title, type, clientId: fixedClientId || clientId || '', extraClient,
-        description, dueDate: dueDate || '', driveUrl: driveUrl || '', labels, assignedMembers,
-      })
-      if (snapshotRef.current && nextSnapshot !== snapshotRef.current) {
-        await logActivity({ tableName: 'materials', recordId: id, action: 'updated', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} editou "${title}"` })
-        setActivityKey(k => k + 1)
-      }
-      snapshotRef.current = nextSnapshot
+      // Rede de segurança: garante que tudo esteja persistido ao fechar.
+      // O histórico detalhado por campo já é registrado nos handlers granulares (persist()),
+      // então aqui não logamos nada — evita duplicar/generalizar o que já foi registrado.
       await supabase.from('materials').update(payload).eq('id', id)
     }
     setSaving(false)
@@ -301,13 +322,17 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     if (row) setUploads(u => [...u, row])
     setUploading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
+    await logMat(mid, `${who} enviou o arquivo "${file.name}"`)
   }
 
   async function removeUpload(uid: string, fileUrl: string) {
+    const upload = uploads.find(u => u.id === uid)
     const path = fileUrl.split('/bagano-materiais/')[1]
     if (path) await supabase.storage.from('bagano-materiais').remove([path])
     await supabase.from('material_uploads').delete().eq('id', uid)
     setUploads(u => u.filter(x => x.id !== uid))
+    const mid = id || materialId
+    if (mid) await logMat(mid, `${who} removeu o arquivo "${upload?.filename || ''}"`)
   }
 
   // Comentários
@@ -330,15 +355,20 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     if (!newAttachUrl.trim()) return
     const mid = await ensureId()
     if (!mid) return
+    const attachTitle = newAttachTitle || newAttachUrl
     const { data } = await supabase.from('material_attachments').insert({
-      material_id: mid, url: newAttachUrl, title: newAttachTitle || newAttachUrl,
+      material_id: mid, url: newAttachUrl, title: attachTitle,
     }).select().single()
     if (data) setAttachments(a => [...a, data])
     setNewAttachUrl(''); setNewAttachTitle(''); setShowAttachInput(false)
+    await logMat(mid, `${who} anexou "${attachTitle}"`)
   }
   async function removeAttachment(aid: string) {
+    const att = attachments.find(a => a.id === aid)
     await supabase.from('material_attachments').delete().eq('id', aid)
     setAttachments(a => a.filter(x => x.id !== aid))
+    const mid = id || materialId
+    if (mid) await logMat(mid, `${who} removeu o anexo "${att?.title || ''}"`)
   }
 
   // Checklist
@@ -350,15 +380,21 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       material_id: mid, text: newCheckText, position: checklist.length,
     }).select().single()
     if (data) setChecklist(c => [...c, data])
+    await logMat(mid, `${who} adicionou "${newCheckText}" na checklist`)
     setNewCheckText('')
   }
   async function toggleCheck(item: any) {
     await supabase.from('material_checklist').update({ done: !item.done }).eq('id', item.id)
     setChecklist(c => c.map(x => x.id === item.id ? { ...x, done: !x.done } : x))
+    const mid = id || materialId
+    if (mid) await logMat(mid, item.done ? `${who} desmarcou "${item.text}"` : `${who} marcou "${item.text}" como concluído`)
   }
   async function removeCheck(cid: string) {
+    const item = checklist.find(c => c.id === cid)
     await supabase.from('material_checklist').delete().eq('id', cid)
     setChecklist(c => c.filter(x => x.id !== cid))
+    const mid = id || materialId
+    if (mid) await logMat(mid, `${who} removeu "${item?.text || ''}" da checklist`)
   }
 
   // Etiquetas globais
@@ -426,7 +462,15 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
           <div className="flex-1 min-w-0">
             <input
               value={title}
+              onFocus={() => { if (titleOriginal.current === null) titleOriginal.current = title }}
               onChange={e => onTitleChange(e.target.value)}
+              onBlur={() => {
+                const orig = titleOriginal.current
+                titleOriginal.current = null
+                if (orig === null || orig === title || !title.trim()) return
+                if (!id) persist({ title })
+                else persist({ title }, `${who} renomeou "${orig}" para "${title}"`)
+              }}
               placeholder="Nome do material…"
               className="w-full text-2xl font-bold text-[var(--color-text-primary)] bg-transparent outline-none placeholder-[var(--color-text-faint)] leading-tight"
             />
@@ -470,7 +514,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               <div className="relative min-w-0">
                 <select
                   value={clientId}
-                  onChange={e => { setClientManual(true); setClientId(e.target.value) }}
+                  onChange={e => changeClient(e.target.value)}
                   className={pillSelectCls + ' bg-[var(--color-bg-card)] border-[var(--color-border)]'} style={{ color: clientId ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
                   <option value="">Sem cliente</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -485,7 +529,15 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               list="mc-types"
               value={type}
               placeholder="Tipo"
+              onFocus={() => { if (typeOriginal.current === null) typeOriginal.current = type }}
               onChange={e => { setTypeManual(true); setType(e.target.value) }}
+              onBlur={() => {
+                const orig = typeOriginal.current
+                typeOriginal.current = null
+                if (orig === null || orig === type) return
+                if (!id) persist({ type })
+                else persist({ type }, `${who} mudou o tipo de "${orig}" para "${type}"`)
+              }}
               className="w-full bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] truncate"
             />
             <datalist id="mc-types">{TYPE_OPTIONS.map(t => <option key={t} value={t} />)}</datalist>
@@ -493,7 +545,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
           {/* Status */}
           <PropertyPill label="Status">
             <div className="relative min-w-0">
-              <select value={status} onChange={e => setStatus(e.target.value)}
+              <select value={status} onChange={e => changeStatus(e.target.value)}
                 className={pillSelectCls} style={{ background: (statusObj?.color || '#6b7280') + '18', color: statusObj?.color || '#6b7280', borderColor: (statusObj?.color || '#6b7280') + '44' }}>
                 {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
               </select>
@@ -533,7 +585,12 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 const sel = assignedMembers.includes(m.id)
                 return (
                   <button key={m.id}
-                    onClick={() => setAssignedMembers(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
+                    onClick={() => {
+                      const next = sel ? assignedMembers.filter(x => x !== m.id) : [...assignedMembers, m.id]
+                      setAssignedMembers(next)
+                      const logMsg = sel ? `${who} removeu ${m.name} de "${title}"` : `${who} adicionou ${m.name} a "${title}"`
+                      persist({ assigned_members: next, assigned_to: next[0] || null }, logMsg, sel ? 'updated' : 'member_assigned')
+                    }}
                     className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${sel ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)] border-transparent' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'}`}>
                     {m.name.split(' ')[0]}
                   </button>
@@ -545,7 +602,11 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               {labels.map((l, i) => (
                 <span key={i} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md text-white" style={{ background: l.color }}>
                   {l.text}
-                  <button onClick={() => setLabels(ls => ls.filter((_, idx) => idx !== i))}><X size={9} /></button>
+                  <button onClick={() => {
+                    const next = labels.filter((_, idx) => idx !== i)
+                    setLabels(next)
+                    persist({ labels: next }, `${who} removeu a etiqueta "${l.text}"`)
+                  }}><X size={9} /></button>
                 </span>
               ))}
               <button
@@ -568,8 +629,9 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               value={description}
               minH={90}
               onCommit={async v => {
+                const hadId = !!id
                 setDescription(v)
-                if (id) await supabase.from('materials').update({ description: v }).eq('id', id)
+                persist({ description: v }, hadId ? `${who} editou o briefing` : undefined)
               }}
             />
 
@@ -707,8 +769,10 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               value={driveUrl}
               isVideo={/reel|video|vídeo|\.mp4/i.test(type + ' ' + driveUrl)}
               onCommit={async v => {
+                const hadValue = !!driveUrl
                 setDriveUrl(v)
-                if (id) await supabase.from('materials').update({ drive_url: v || null }).eq('id', id)
+                const logMsg = !v ? `${who} removeu a entrega do conteúdo` : hadValue ? `${who} atualizou a entrega do conteúdo` : `${who} marcou o conteúdo como entregue`
+                persist({ drive_url: v || null }, logMsg)
               }}
             />
           </div>
@@ -857,8 +921,11 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                       <div key={gl.id} className="flex items-center gap-1.5 group">
                         <button
                           onClick={() => {
-                            if (applied) setLabels(ls => ls.filter(l => !(l.text === gl.text && l.color === gl.color)))
-                            else setLabels(ls => [...ls, { text: gl.text, color: gl.color }])
+                            const next = applied
+                              ? labels.filter(l => !(l.text === gl.text && l.color === gl.color))
+                              : [...labels, { text: gl.text, color: gl.color }]
+                            setLabels(next)
+                            persist({ labels: next }, applied ? `${who} removeu a etiqueta "${gl.text}"` : `${who} adicionou a etiqueta "${gl.text}"`)
                           }}
                           className="flex-1 flex items-center gap-2 min-w-0"
                         >
@@ -896,7 +963,9 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                   onClick={async () => {
                     if (labelDraft.text.trim()) {
                       await createGlobalLabel(labelDraft.text, labelDraft.color)
-                      setLabels(ls => [...ls, { ...labelDraft }])
+                      const next = [...labels, { ...labelDraft }]
+                      setLabels(next)
+                      persist({ labels: next }, `${who} criou e aplicou a etiqueta "${labelDraft.text}"`)
                       setLabelDraft({ text: '', color: '#3B82F6' })
                     }
                   }}
@@ -922,7 +991,10 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
           function pick(d: number) {
             const mm = String(calMonth.m + 1).padStart(2, '0')
             const dd = String(d).padStart(2, '0')
-            setDueDate(`${calMonth.y}-${mm}-${dd}`)
+            const iso = `${calMonth.y}-${mm}-${dd}`
+            setDueDate(iso)
+            const label = new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+            persist({ due_date: iso }, `${who} definiu o prazo para ${label}`)
           }
           return (
             <div className="fixed inset-0 z-[80] flex items-center justify-center" onClick={() => setShowDatePicker(false)}>
@@ -971,7 +1043,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 <div className="flex flex-col gap-2">
                   <button onClick={() => setShowDatePicker(false)} className="w-full py-2 text-sm font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Confirmar</button>
                   {dueDate && (
-                    <button onClick={() => { setDueDate(''); setDueTime(''); setShowDatePicker(false) }} className="w-full py-2 text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">Remover data</button>
+                    <button onClick={() => { setDueDate(''); setDueTime(''); setShowDatePicker(false); persist({ due_date: null }, `${who} removeu o prazo`) }} className="w-full py-2 text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">Remover data</button>
                   )}
                 </div>
               </div>
