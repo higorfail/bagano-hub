@@ -2,7 +2,7 @@
 // @ts-nocheck
 
 import { useEffect, useState, useRef, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import CronogramaTab, { CRONO_MONTHS } from '@/components/CronogramaTab'
 import Button from '@/components/ui/Button'
@@ -17,6 +17,8 @@ function CronogramaPageInner() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
   const clientParam = searchParams.get('client')
   const postParam = searchParams.get('post')
   const syncKey = `${clientParam}|${postParam}|${searchParams.get('m')}|${searchParams.get('y')}`
@@ -69,6 +71,19 @@ function CronogramaPageInner() {
       setSelectedClient(clientParam)
     }
   }, [syncKey, clients])
+
+  // Mantém a URL sincronizada com a seleção atual, pra um refresh voltar pro mesmo cliente/mês/ano
+  useEffect(() => {
+    if (!selectedClient) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('client', selectedClient)
+    params.set('m', String(selectedMonth))
+    params.set('y', String(selectedYear))
+    if (params.toString() !== searchParams.toString()) {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClient, selectedMonth, selectedYear])
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
