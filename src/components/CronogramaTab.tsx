@@ -121,8 +121,8 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     loadPosts()
   }, [clientId, month, year])
 
-  async function loadPosts() {
-    setLoading(true)
+  async function loadPosts(opts: { silent?: boolean } = {}) {
+    if (!opts.silent) setLoading(true)
     const [{ data: postsData }, { data: statusData }, { data: campaignsData }] = await Promise.all([
       supabase.from('schedules')
         .select('id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, assigned_members')
@@ -145,7 +145,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
       setEditingPostId(postParam)
       setShowPostCard(true)
     }
-    setLoading(false)
+    if (!opts.silent) setLoading(false)
   }
 
   async function toggleFinalized() {
@@ -457,8 +457,8 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
           year={year}
           postNumber={editingPostId ? undefined : posts.length + 1}
           onClose={() => { setShowPostCard(false); setEditingPostId(null) }}
-          onSaved={loadPosts}
-          onDeleted={loadPosts}
+          onSaved={() => loadPosts({ silent: true })}
+          onDeleted={() => loadPosts({ silent: true })}
         />
       )}
 
