@@ -36,10 +36,17 @@ type Props = {
 export default function EditableField({ label, hint, placeholder, value, onCommit, minH = 60 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const [editH, setEditH] = useState<number | undefined>(undefined)
   const discardRef = useRef(false)
   const taRef = useRef<HTMLTextAreaElement>(null)
 
-  function startEdit() { setDraft(value); discardRef.current = false; setEditing(true) }
+  function startEdit(h?: number) { setDraft(value); discardRef.current = false; if (h) setEditH(h); setEditing(true) }
+  // Não entra em modo de edição se o clique foi pra soltar uma seleção de texto (copiar)
+  function handleDisplayClick(e: React.MouseEvent<HTMLDivElement>) {
+    const sel = window.getSelection()
+    if (sel && sel.toString().length > 0) return
+    startEdit(e.currentTarget.offsetHeight)
+  }
   function commit() {
     if (discardRef.current) { discardRef.current = false; setEditing(false); return }
     setEditing(false)
@@ -88,7 +95,7 @@ export default function EditableField({ label, hint, placeholder, value, onCommi
             onBlur={commit} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discard() } }}
             placeholder={placeholder}
             className="w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none resize-none leading-relaxed"
-            style={{ minHeight: minH }} />
+            style={{ minHeight: Math.max(minH, editH || 0) }} />
           <div className="flex items-center gap-2 mt-1.5">
             <button onMouseDown={e => { e.preventDefault(); commit() }}
               className="text-xs font-semibold px-3 py-1 rounded-lg text-white" style={{ background: 'var(--color-accent)' }}>Salvar</button>
@@ -98,7 +105,7 @@ export default function EditableField({ label, hint, placeholder, value, onCommi
           </div>
         </div>
       ) : (
-        <div onClick={startEdit}
+        <div onClick={handleDisplayClick}
           className="cursor-text text-sm text-[var(--color-text-primary)] leading-relaxed rounded-lg hover:bg-[var(--color-bg-subtle)] -mx-2 px-2 py-1.5 transition-colors md-content"
           style={{ minHeight: minH }}>
           {value

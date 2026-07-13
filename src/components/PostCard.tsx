@@ -166,6 +166,14 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const editOriginal = useRef('')
   const backdropDown = useRef(false)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const [editH, setEditH] = useState<number | undefined>(undefined)
+
+  // Não entra em modo de edição se o clique foi pra soltar uma seleção de texto (copiar)
+  function selectionGuardClick(field: TextField, e: React.MouseEvent<HTMLElement>) {
+    const sel = window.getSelection()
+    if (sel && sel.toString().length > 0) return
+    startEdit(field, e.currentTarget.offsetHeight)
+  }
 
   // Envolve a seleção do textarea com um marcador (** ou *)
   function wrapSelection(field: TextField, marker: string) {
@@ -318,7 +326,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (v === editOriginal.current) return  // nada mudou → não salva/registra
     persist({ [field]: v }, `${who} editou ${FIELD_LABEL[field]}`)
   }
-  function startEdit(field: TextField) { editOriginal.current = String(formRef.current[field] || ''); setEditingField(field) }
+  function startEdit(field: TextField, h?: number) { editOriginal.current = String(formRef.current[field] || ''); if (h) setEditH(h); setEditingField(field) }
   function discardEdit(field: TextField) { discardRef.current = true; setForm(f => ({ ...f, [field]: editOriginal.current })); setEditingField(null) }
   function blurCommit(field: TextField) { if (discardRef.current) { discardRef.current = false; return } commitText(field) }
   function changeType(v: string) {
@@ -554,7 +562,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             </div>
             <textarea ref={editTextareaRef} autoFocus value={form[field] as string} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
               onBlur={() => blurCommit(field)} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discardEdit(field) } }}
-              placeholder={placeholder} className={fieldEditCls} style={{ minHeight: minH }} />
+              placeholder={placeholder} className={fieldEditCls} style={{ minHeight: Math.max(minH, editH || 0) }} />
             <div className="flex items-center gap-2 mt-1.5">
               <button onMouseDown={e => { e.preventDefault(); commitText(field) }}
                 className="text-xs font-semibold px-3 py-1 rounded-lg text-white" style={{ background: 'var(--color-accent)' }}>Salvar</button>
@@ -564,7 +572,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             </div>
           </div>
         ) : (
-          <div onClick={() => startEdit(field)} className={mdViewCls} style={{ minHeight: minH }}>
+          <div onClick={e => selectionGuardClick(field, e)} className={mdViewCls} style={{ minHeight: minH }}>
             {(form[field] as string)
               ? <div dangerouslySetInnerHTML={{ __html: renderMd(form[field] as string) }} />
               : <span className="text-[var(--color-text-faint)]">{placeholder}</span>}
@@ -598,7 +606,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 placeholder="Título do post…"
                 className="w-full text-2xl font-bold text-[var(--color-text-primary)] bg-transparent outline-none placeholder:text-[var(--color-text-faint)] leading-tight" />
             ) : (
-              <div onClick={() => startEdit('title')} className="cursor-text text-2xl font-bold text-[var(--color-text-primary)] leading-tight hover:opacity-80 transition-opacity">
+              <div onClick={e => selectionGuardClick('title', e)} className="cursor-text text-2xl font-bold text-[var(--color-text-primary)] leading-tight hover:opacity-80 transition-opacity">
                 {form.title || <span className="text-[var(--color-text-faint)]">Título do post…</span>}
               </div>
             )}
@@ -777,9 +785,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 <textarea autoFocus value={form.reference_notes} onChange={e => setForm(f => ({ ...f, reference_notes: e.target.value }))}
                   onBlur={() => blurCommit('reference_notes')} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discardEdit('reference_notes') } }}
                   placeholder="Cole links de referência, observações…"
-                  className={fieldEditCls} style={{ minHeight: 60 }} />
+                  className={fieldEditCls} style={{ minHeight: Math.max(60, editH || 0) }} />
               ) : (
-                <div onClick={() => startEdit('reference_notes')} className={fieldViewCls} style={{ minHeight: 40 }}>
+                <div onClick={e => selectionGuardClick('reference_notes', e)} className={fieldViewCls} style={{ minHeight: 40 }}>
                   {form.reference_notes || <span className="text-[var(--color-text-faint)]">Clique para adicionar links/observações…</span>}
                 </div>
               )}
