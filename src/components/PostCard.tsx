@@ -252,7 +252,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (!currentId) { setActivities([]); return }
     supabase.from('activity_log').select('id, action, actor_name, description, created_at')
       .eq('table_name', 'schedules').eq('record_id', currentId).order('created_at', { ascending: false })
-      .then(({ data }) => setActivities(data || []))
+      .then(({ data, error }) => {
+        if (error) console.error('activity_log fetch error (schedules):', error)
+        setActivities(data || [])
+      })
   }, [currentId, activityKey])
 
   useEffect(() => () => {

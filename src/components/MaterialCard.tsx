@@ -99,7 +99,10 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     if (!rid) { setActivities([]); return }
     supabase.from('activity_log').select('id, action, actor_name, description, created_at')
       .eq('table_name', 'materials').eq('record_id', rid).order('created_at', { ascending: false })
-      .then(({ data }) => setActivities(data || []))
+      .then(({ data, error }) => {
+        if (error) console.error('activity_log fetch error (materials):', error)
+        setActivities(data || [])
+      })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, materialId, activityKey])
   const [newComment,  setNewComment]  = useState('')
