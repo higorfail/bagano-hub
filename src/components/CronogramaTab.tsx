@@ -134,7 +134,13 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
         .maybeSingle(),
       supabase.from('campaigns').select('id, name, type').eq('client_id', clientId),
     ])
-    const loaded = postsData || []
+    let loaded = postsData || []
+    if (loaded.length > 0) {
+      const { data: cms } = await supabase.from('schedule_comments').select('schedule_id').in('schedule_id', loaded.map((p: any) => p.id))
+      const cmc: Record<string, number> = {}
+      ;(cms || []).forEach((x: any) => { cmc[x.schedule_id] = (cmc[x.schedule_id] || 0) + 1 })
+      loaded = loaded.map((p: any) => ({ ...p, comments_count: cmc[p.id] || 0 }))
+    }
     setPosts(loaded)
     setCronoStatus(statusData || null)
     setCampaigns(campaignsData || [])

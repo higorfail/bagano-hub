@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Plus, CheckSquare, FileText, Bell, Calendar, AlertCircle } from 'lucide-react'
+import { Plus, CheckSquare, FileText, Bell, Calendar, AlertCircle, MessageSquare } from 'lucide-react'
 import ExtraCard from './ExtraCard'
 
 type ExtraType     = 'todo' | 'note' | 'reminder'
@@ -88,6 +88,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   const [draggingId,   setDraggingId]   = useState<string | null>(null)
   const [dragOverCol,  setDragOverCol]  = useState<ExtraStatus | null>(null)
   const [checkCounts,  setCheckCounts]  = useState<Record<string, { done: number; total: number }>>({})
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
 
   async function load() {
     setLoading(true)
@@ -114,6 +115,12 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
       if (x.done) cc[x.extra_id].done++
     })
     setCheckCounts(cc)
+
+    // Nº de comentários por extra
+    const { data: cms } = await supabase.from('extra_comments').select('extra_id')
+    const cmc: Record<string, number> = {}
+    ;(cms || []).forEach((x: any) => { cmc[x.extra_id] = (cmc[x.extra_id] || 0) + 1 })
+    setCommentCounts(cmc)
 
     setLoading(false)
   }
@@ -296,6 +303,11 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                         {chk && chk.total > 0 && (
                           <span className="flex items-center gap-1 text-[10px] font-medium" style={chk.done === chk.total ? { color: 'var(--ds-success-text)' } : { color: 'var(--color-text-muted)' }}>
                             <CheckSquare size={9} /> {chk.done}/{chk.total}
+                          </span>
+                        )}
+                        {commentCounts[extra.id] > 0 && (
+                          <span className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-text-muted)]">
+                            <MessageSquare size={9} /> {commentCounts[extra.id]}
                           </span>
                         )}
                         {extra.drive_url && (

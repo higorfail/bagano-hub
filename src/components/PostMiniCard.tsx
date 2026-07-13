@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Paperclip, Copy, Package, Play, Zap } from 'lucide-react'
+import { Calendar, Paperclip, Copy, Package, Play, Zap, MessageSquare } from 'lucide-react'
 
 const TYPE: Record<string, { label: string; color: string }> = {
   carrossel:         { label: 'Carrossel',         color: '#3b82f6' },
@@ -37,6 +37,7 @@ export type MiniPost = {
   campaign_type?: string | null
   reference_images?: string[] | null
   assigned_members?: string[] | null
+  comments_count?: number
 }
 
 type Props = {
@@ -185,6 +186,11 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
             {refs > 0 && (
               <span className="flex items-center gap-0.5 text-xs text-[var(--color-text-muted)] flex-shrink-0" title={`${refs} referência(s)`}>
                 <Paperclip size={11} /> {refs}
+              </span>
+            )}
+            {!!post.comments_count && post.comments_count > 0 && (
+              <span className="flex items-center gap-0.5 text-xs text-[var(--color-text-muted)] flex-shrink-0" title={`${post.comments_count} comentário(s)`}>
+                <MessageSquare size={11} /> {post.comments_count}
               </span>
             )}
           </div>

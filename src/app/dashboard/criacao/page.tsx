@@ -122,7 +122,7 @@ export default function CriacaoPage() {
           .select('client_id, month, year, production_note')
           .gte('year', year - 1),
         supabase.from('extras')
-          .select('id, title, type, due_date, client_id, description, assigned_members')
+          .select('id, title, type, due_date, client_id, description, assigned_members, assigned_member_id')
           .neq('status', 'done')
           .order('due_date', { ascending: true, nullsFirst: false })
           .limit(50),
@@ -139,7 +139,12 @@ export default function CriacaoPage() {
       setMembers(mb || [])
       setPosts(po || [])
       setCronoNotes(cs || [])
-      setExtras(ex || [])
+      setExtras((ex || []).map(e => ({
+        ...e,
+        assigned_members: Array.isArray(e.assigned_members) && e.assigned_members.length > 0
+          ? e.assigned_members
+          : (e as any).assigned_member_id ? [(e as any).assigned_member_id] : [],
+      })))
       setAgendaEntries(ag || [])
       setClientTeam(ct || [])
 
