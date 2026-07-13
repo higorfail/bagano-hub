@@ -114,7 +114,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
       <div className="flex flex-1 min-h-0">
       {/* Drive thumbnail — preview vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
       {thumbUrl && (
-        <div className="relative w-28 flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 aspect-[4/5] flex-shrink-0 self-start overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={thumbUrl} alt={post.title}
             className="w-full h-full object-cover"
             onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />

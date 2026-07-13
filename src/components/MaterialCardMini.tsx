@@ -100,7 +100,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       )}
       {/* Preview do arquivo/entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
       {previewUrl && (
-        <div className="relative w-28 flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 aspect-[4/5] flex-shrink-0 self-start overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={previewUrl} alt={m.title}
             className="w-full h-full object-cover"
             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
