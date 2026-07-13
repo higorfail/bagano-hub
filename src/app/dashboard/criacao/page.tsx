@@ -7,6 +7,7 @@ import { useUser } from '@/lib/UserContext'
 import { useToast } from '@/lib/ToastContext'
 import { CheckCircle2, Loader2, Pencil, X, Check, Filter, ChevronDown } from 'lucide-react'
 import PostCard from '@/components/PostCard'
+import MaterialCard from '@/components/MaterialCard'
 
 const POST_TYPES: Record<string, { label: string; emoji: string; color: string }> = {
   carrossel:         { label: 'Carrossel',         emoji: '🎠', color: '#3b82f6' },
@@ -55,6 +56,16 @@ type Extra = {
   assigned_members: string[] | null
 }
 
+type Material = {
+  id: string
+  title: string
+  type: string
+  status: string
+  due_date: string | null
+  client_id: string | null
+  assigned_members: string[] | null
+}
+
 type AgendaEntry   = { client_id: string; member_ids: string[] | null }
 type ClientTeamRow = { client_id: string; member_id: string; funcao: string }
 
@@ -81,6 +92,7 @@ export default function CriacaoPage() {
   const [posts,        setPosts]        = useState<Post[]>([])
   const [cronoNotes,   setCronoNotes]   = useState<CronoStatus[]>([])
   const [extras,       setExtras]       = useState<Extra[]>([])
+  const [materials,    setMaterials]    = useState<Material[]>([])
   const [agendaEntries,setAgendaEntries]= useState<AgendaEntry[]>([])
   const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
   const [loading,      setLoading]      = useState(true)
@@ -99,6 +111,7 @@ export default function CriacaoPage() {
   const [showPostCard, setShowPostCard] = useState(false)
   const [editingPostId,setEditingPostId]= useState<string | null>(null)
   const [editingPostCtx, setEditingPostCtx] = useState<{ clientId: string; clientName: string; clientColor: string; month: number; year: number } | null>(null)
+  const [openMaterialId, setOpenMaterialId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoadError(false)
@@ -111,7 +124,7 @@ export default function CriacaoPage() {
       const fromStr = from.toISOString().slice(0, 10)
       const toStr   = to.toISOString().slice(0, 10)
 
-      const [{ data: cl, error: e1 }, { data: mb, error: e2 }, { data: po, error: e3 }, { data: cs }, { data: ex }, { data: ag }, { data: ct }] = await Promise.all([
+      const [{ data: cl, error: e1 }, { data: mb, error: e2 }, { data: po, error: e3 }, { data: cs }, { data: ex }, { data: mat }, { data: ag }, { data: ct }] = await Promise.all([
         supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
         supabase.from('team_members').select('id, name, role, color').order('name'),
         supabase.from('schedules')
@@ -124,6 +137,11 @@ export default function CriacaoPage() {
         supabase.from('extras')
           .select('id, title, type, due_date, client_id, description, assigned_members, assigned_member_id')
           .neq('status', 'done')
+          .order('due_date', { ascending: true, nullsFirst: false })
+          .limit(50),
+        supabase.from('materials')
+          .select('id, title, type, status, due_date, client_id, assigned_members, assigned_to')
+          .neq('status', 'finalizado')
           .order('due_date', { ascending: true, nullsFirst: false })
           .limit(50),
         supabase.from('agenda_criacao')
@@ -145,6 +163,12 @@ export default function CriacaoPage() {
           ? e.assigned_members
           : (e as any).assigned_member_id ? [(e as any).assigned_member_id] : [],
       })))
+      setMaterials((mat || []).map(m => ({
+        ...m,
+        assigned_members: Array.isArray(m.assigned_members) && m.assigned_members.length > 0
+          ? m.assigned_members
+          : (m as any).assigned_to ? [(m as any).assigned_to] : [],
+      })))
       setAgendaEntries(ag || [])
       setClientTeam(ct || [])
 
@@ -154,6 +178,7 @@ export default function CriacaoPage() {
         const orderedIds = [...new Set([
           ...(po || []).map(p => p.client_id),
           ...(ex || []).filter(e => e.client_id).map(e => e.client_id!),
+          ...(mat || []).filter(m => m.client_id).map(m => m.client_id!),
         ])]
         if (orderedIds.length > 1) {
           setCollapsedClients(new Set(orderedIds.slice(1)))
@@ -266,6 +291,12 @@ export default function CriacaoPage() {
     return true
   })
 
+  const filteredMaterials = materials.filter(m => {
+    if (filterClient && m.client_id !== filterClient) return false
+    if (filterMember && !(m.assigned_members || []).includes(filterMember)) return false
+    return true
+  })
+
   // Group filtered posts by client+month+year
   type GroupKey = { clientId: string; month: number; year: number; posts: Post[] }
   const groups: GroupKey[] = []
@@ -284,16 +315,26 @@ export default function CriacaoPage() {
     extrasByClient[cid].push(e)
   })
 
-  // All client IDs shown (union of posts + extras)
+  // Group materials by client
+  const materialsByClient: Record<string, Material[]> = {}
+  filteredMaterials.forEach(m => {
+    const cid = m.client_id || '__sem_cliente__'
+    if (!materialsByClient[cid]) materialsByClient[cid] = []
+    materialsByClient[cid].push(m)
+  })
+
+  // All client IDs shown (union of posts + extras + materiais)
   const activeClientIds = [...new Set([
     ...groups.map(g => g.clientId),
     ...filteredExtras.filter(e => e.client_id).map(e => e.client_id!),
+    ...filteredMaterials.filter(m => m.client_id).map(m => m.client_id!),
   ])]
 
   // "Limpar" só aparece quando o usuário aplicou filtro além do padrão (membro logado)
   const hasFilter = !!(filterClient || filterType || (filterMember && filterMember !== currentMember?.id))
-  const totalPosts  = filteredPosts.length
-  const totalExtras = filteredExtras.length
+  const totalPosts     = filteredPosts.length
+  const totalExtras    = filteredExtras.length
+  const totalMaterials = filteredMaterials.length
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -321,14 +362,18 @@ export default function CriacaoPage() {
           <div>
             <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Criação</h1>
             <p className="text-sm text-[var(--color-text-muted)] mt-1">
-              {totalPosts === 0 && totalExtras === 0
+              {totalPosts === 0 && totalExtras === 0 && totalMaterials === 0
                 ? 'Tudo em dia — nada para criar agora'
-                : [totalPosts > 0 && `${totalPosts} post${totalPosts !== 1 ? 's' : ''} para criar`, totalExtras > 0 && `${totalExtras} extra${totalExtras !== 1 ? 's' : ''} pendente${totalExtras !== 1 ? 's' : ''}`].filter(Boolean).join(' · ')}
+                : [
+                    totalPosts > 0 && `${totalPosts} post${totalPosts !== 1 ? 's' : ''} para criar`,
+                    totalMaterials > 0 && `${totalMaterials} material${totalMaterials !== 1 ? 'is' : ''} pendente${totalMaterials !== 1 ? 's' : ''}`,
+                    totalExtras > 0 && `${totalExtras} extra${totalExtras !== 1 ? 's' : ''} pendente${totalExtras !== 1 ? 's' : ''}`,
+                  ].filter(Boolean).join(' · ')}
             </p>
           </div>
 
           {/* Filters */}
-          {(totalPosts > 0 || totalExtras > 0) && (
+          {(totalPosts > 0 || totalExtras > 0 || totalMaterials > 0) && (
             <div className="flex items-center gap-2 flex-wrap">
               <Filter size={13} className="text-[var(--color-text-muted)] flex-shrink-0" />
 
@@ -336,7 +381,7 @@ export default function CriacaoPage() {
               <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
                 className="text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
                 <option value="">Todos os clientes</option>
-                {clients.filter(c => posts.some(p => p.client_id === c.id) || extras.some(e => e.client_id === c.id)).map(c => (
+                {clients.filter(c => posts.some(p => p.client_id === c.id) || extras.some(e => e.client_id === c.id) || materials.some(m => m.client_id === c.id)).map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
@@ -370,7 +415,7 @@ export default function CriacaoPage() {
         </div>
 
         {/* Empty state */}
-        {totalPosts === 0 && totalExtras === 0 && (
+        {totalPosts === 0 && totalExtras === 0 && totalMaterials === 0 && (
           <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
             <div className="w-16 h-16 rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center text-3xl shadow-sm">⚡</div>
             <div>
@@ -381,18 +426,18 @@ export default function CriacaoPage() {
         )}
 
         {/* Filtered / member-has-no-work empty state */}
-        {activeClientIds.length === 0 && (posts.length > 0 || extras.length > 0) && (
+        {activeClientIds.length === 0 && (posts.length > 0 || extras.length > 0 || materials.length > 0) && (
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
             <div className="w-12 h-12 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center text-2xl shadow-sm">🎉</div>
             <div>
               <p className="text-[var(--color-text-primary)] font-semibold">
                 {filterMember === currentMember?.id && !filterClient && !filterType
-                  ? 'Nenhum post para você agora'
+                  ? 'Nada pendente para você agora'
                   : 'Nenhum resultado'}
               </p>
               <p className="text-[var(--color-text-muted)] text-sm mt-1">
                 {filterMember === currentMember?.id && !filterClient && !filterType
-                  ? 'Verifique se você está na equipe dos clientes no cronograma.'
+                  ? 'Verifique se você está atribuído como responsável nos posts, materiais ou extras.'
                   : 'Ajuste os filtros acima.'}
               </p>
             </div>
@@ -406,7 +451,8 @@ export default function CriacaoPage() {
 
           const clientGroups = groups.filter(g => g.clientId === clientId)
           const clientExtras = extrasByClient[clientId] || []
-          if (clientGroups.length === 0 && clientExtras.length === 0) return null
+          const clientMaterials = materialsByClient[clientId] || []
+          if (clientGroups.length === 0 && clientExtras.length === 0 && clientMaterials.length === 0) return null
 
           const totalForClient = clientGroups.reduce((s, g) => s + g.posts.length, 0)
 
@@ -430,6 +476,7 @@ export default function CriacaoPage() {
                     {[
                       clientGroups.length > 0 && clientGroups.map(g => MONTHS[g.month - 1]).join(', '),
                       totalForClient > 0 && `${totalForClient} post${totalForClient !== 1 ? 's' : ''}`,
+                      clientMaterials.length > 0 && `${clientMaterials.length} material${clientMaterials.length !== 1 ? 'is' : ''}`,
                       clientExtras.length > 0 && `${clientExtras.length} extra${clientExtras.length !== 1 ? 's' : ''}`,
                     ].filter(Boolean).join(' · ')}
                   </p>
@@ -592,6 +639,39 @@ export default function CriacaoPage() {
                 )
               })}
 
+              {/* Materials for this client */}
+              {clientMaterials.length > 0 && (
+                <div className="border-t border-[var(--color-border)]">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] px-5 pt-3 pb-1">Materiais</p>
+                  <div className="divide-y divide-[var(--color-border)]">
+                    {clientMaterials.map(material => {
+                      const assigned = (material.assigned_members || []).map(mid => memberMap[mid]).filter(Boolean)
+                      return (
+                        <button key={material.id} onClick={() => setOpenMaterialId(material.id)}
+                          className="w-full flex items-start gap-3 px-5 py-3 text-left hover:bg-[var(--color-bg-subtle)] transition-colors">
+                          <span className="text-base flex-shrink-0 mt-0.5">🎨</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{material.title}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-[10px] text-[var(--color-text-muted)]">{material.type}</span>
+                              {assigned.map(m => m && (
+                                <span key={m.id} className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+                                  style={{ background: (m.color || '#6b7280') + '22', color: m.color || '#6b7280' }}>
+                                  {m.name.split(' ')[0]}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          {material.due_date && (
+                            <span className="text-[11px] text-[var(--color-text-muted)] flex-shrink-0 mt-0.5">📅 {formatDate(material.due_date)}</span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Extras for this client */}
               {clientExtras.length > 0 && (
                 <div className="border-t border-[var(--color-border)]">
@@ -649,6 +729,17 @@ export default function CriacaoPage() {
         onClose={() => { setShowPostCard(false); setEditingPostId(null); setEditingPostCtx(null) }}
         onSaved={() => load()}
         onDeleted={() => { setShowPostCard(false); setEditingPostId(null); setEditingPostCtx(null); load() }}
+      />
+    )}
+
+    {/* Full MaterialCard modal — same as materiais/cliente */}
+    {openMaterialId && (
+      <MaterialCard
+        materialId={openMaterialId}
+        clients={clients}
+        onClose={() => setOpenMaterialId(null)}
+        onSaved={() => load()}
+        onDeleted={() => { setOpenMaterialId(null); load() }}
       />
     )}
     </>
