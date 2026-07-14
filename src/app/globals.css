@@ -79,6 +79,15 @@
   background-clip: content-box;
 }
 
+/* ── Corrige o preflight (img,video{height:auto}) vencendo h-full ────────────
+   Nas miniaturas de preview (Drive), a imagem tem object-cover + h-full pra
+   preencher a caixa do container. Mas o preflight do Tailwind seta
+   height:auto pra todo <img>, e como essa regra concorre em especificidade
+   parecida, às vezes ela vencia — a imagem ignorava o container e renderizava
+   na proporção natural dela (ex: arte de Stories, que já nasce vertical),
+   fazendo o preview parecer "aspect ratio errado" mesmo com o container certo. */
+img.h-full { height: 100% !important; }
+
 /* ── Border-radius scale ─────────────────────────────────────────────────── */
 .rounded-lg   { border-radius: 0.625rem; }  /* 10px  (era 8px)  */
 .rounded-xl   { border-radius: 0.875rem; }  /* 14px  (era 12px) */
