@@ -83,7 +83,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       draggable={draggable}
       onDragStart={onDragStart}
       className="group relative bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl flex overflow-hidden shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer"
-      style={previewUrl ? { minHeight: 140 } : undefined}
+      style={previewUrl ? { height: 140 } : undefined}
     >
       {/* Move arrows — aparecem no hover */}
       {(onMovePrev || onMoveNext) && (

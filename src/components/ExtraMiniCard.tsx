@@ -77,11 +77,12 @@ export default function ExtraMiniCard({
       style={{
         borderLeft: `3px solid ${priorityColor}`,
         opacity: dragging ? 0.4 : 1,
-        ...(thumbUrl ? { minHeight: 140 } : {}),
+        ...(thumbUrl ? { height: 140 } : {}),
       }}
     >
       {/* Preview da entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16).
-          Imagem 4:5 como piso (min-height no card), não teto — cresce junto com o texto se precisar. */}
+          Altura travada em 140 (não mínima) com overflow-hidden no card inteiro — nada
+          consegue estourar além disso, custe o que custar em conteúdo cortado. */}
       {thumbUrl && (
         <div className="relative w-28 self-stretch flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={thumbUrl} alt={extra.title} className="w-full h-full object-cover" style={{ height: '100%' }}

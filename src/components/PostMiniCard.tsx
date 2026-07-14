@@ -114,9 +114,9 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
     >
       <div className="h-[3px] w-full flex-shrink-0" style={{ background: isRevisao ? '#8b5cf6' : type.color }} />
 
-      {/* Imagem 4:5 como piso (min-height), não teto — se o texto precisar de mais espaço
-          (muita badge/avatar), o card e a imagem crescem juntos, sem cortar nem sobrar vão. */}
-      <div className="flex flex-1 min-h-0" style={thumbUrl ? { minHeight: 140 } : undefined}>
+      {/* Altura travada em 140 (não mínima) com overflow-hidden — nada consegue estourar
+          além disso, custe o que custar em conteúdo cortado. */}
+      <div className="flex flex-1 min-h-0 overflow-hidden" style={thumbUrl ? { height: 140 } : undefined}>
       {/* Drive thumbnail — preview vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
       {thumbUrl && (
         <div className="relative w-28 self-stretch flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
