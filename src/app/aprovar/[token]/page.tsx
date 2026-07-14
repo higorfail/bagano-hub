@@ -17,27 +17,11 @@ const TYPE_EMOJIS: Record<string, string> = {
   reels: '🎬', carrossel: '📸', post: '🖼️', story: '⭕', carrossel_stories: '🔁',
 }
 
-// Streaming direto do Drive (sem passar pelo nosso servidor, sem contar na cota da
-// API — é o link clássico de download, não o endpoint da API) — usado numa <video>
-// nativa em vez do iframe /preview, que no iOS empilha os controles nativos do
-// Safari por cima dos controles do próprio player do Drive.
-// Só não funciona pra arquivos >100MB (o Drive mostra a tela de "não foi possível
-// verificar vírus" em vez do vídeo) — nesse caso o onError do <video> cai pro link.
+// Streaming direto da API do Drive (sem passar pelo nosso servidor) — usado numa
+// <video> nativa em vez do iframe /preview, que no iOS empilha os controles nativos
+// do Safari por cima dos controles do próprio player do Drive.
 function driveStreamUrl(id: string) {
-  return `https://drive.google.com/uc?export=download&id=${id}`
-}
-
-// Vídeo do Drive com fallback: se o streaming direto falhar (ex: arquivo >100MB),
-// cai pra um link "abrir no Drive" em vez de deixar a tela preta.
-function DriveVideo({ id, folderUrl, style }: { id: string; folderUrl?: string; style: React.CSSProperties }) {
-  const [failed, setFailed] = useState(false)
-  if (failed) return (
-    <a href={folderUrl || `https://drive.google.com/file/d/${id}/view`} target="_blank" rel="noopener noreferrer"
-      style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#111', fontSize: 14, fontWeight: 600, color: '#fff', textDecoration: 'none' }}>
-      🎬 Assistir no Drive
-    </a>
-  )
-  return <video src={driveStreamUrl(id)} controls playsInline onError={() => setFailed(true)} style={style} />
+  return `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
 }
 
 function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
@@ -83,8 +67,12 @@ function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl:
     <div style={{ position: 'relative', background: '#111', userSelect: 'none' }}>
       <div style={{ position: 'relative', paddingTop: '100%', overflow: 'hidden' }}>
         {current.isVideo ? (
-          <DriveVideo key={current.id} id={current.id} folderUrl={folderUrl}
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
+          <video
+            key={current.id}
+            src={driveStreamUrl(current.id)}
+            controls playsInline
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
+          />
         ) : (
           <img
             key={current.id}
@@ -154,7 +142,7 @@ function ReelFolderPreview({ folderId, folderUrl }: { folderId: string; folderUr
   // Mostra só o vídeo — a capa da pasta não entra aqui pra não sobrepor o player.
   return video ? (
     <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '177.78%', maxHeight: '80vh', overflow: 'hidden' }}>
-      <DriveVideo id={video.id} folderUrl={folderUrl}
+      <video src={driveStreamUrl(video.id)} controls playsInline
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
     </div>
   ) : (
@@ -177,7 +165,7 @@ function SheetReelFolderVideo({ folderId, folderUrl }: { folderId: string; folde
   )
   return (
     <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '177.78%', maxHeight: '80vh', overflow: 'hidden' }}>
-      <DriveVideo id={video.id} folderUrl={folderUrl}
+      <video src={driveStreamUrl(video.id)} controls playsInline
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
     </div>
   )
@@ -817,6 +805,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   const folderId    = post.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
                   const isVideoPost = post.post_type === 'reels'
                   const thumbUrl    = driveId && !isVideoPost && !isCarrossel ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w800` : null
+                  const embedUrl    = driveId && isVideoPost  ? driveStreamUrl(driveId) : null
 
                   const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
                   const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#fafafa'
@@ -843,11 +832,11 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                       </div>
 
                       {/* Drive media */}
-                      {driveId && isVideoPost ? (
+                      {embedUrl ? (
                         <div>
                           {folderId && <FolderThumb folderId={folderId} />}
                           <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '177.78%', maxHeight: '80vh', overflow: 'hidden' }}>
-                            <DriveVideo id={driveId} folderUrl={post.drive_url}
+                            <video src={embedUrl} controls playsInline
                               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
                           </div>
                         </div>
@@ -1205,7 +1194,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   <SheetReelFolderVideo folderId={sheetFolder} folderUrl={sheetPost.drive_folder_url || ''} />
                 ) : isSheetReel && driveId ? (
                   <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '177.78%', maxHeight: '80vh', overflow: 'hidden' }}>
-                    <DriveVideo id={driveId} folderUrl={sheetPost.drive_url}
+                    <video src={driveStreamUrl(driveId)} controls playsInline
                       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
                   </div>
                 ) : sheetFolder ? (
