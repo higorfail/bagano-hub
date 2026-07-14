@@ -83,6 +83,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       draggable={draggable}
       onDragStart={onDragStart}
       className="group relative bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl flex overflow-hidden shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer"
+      style={previewUrl ? { height: 140 } : undefined}
     >
       {/* Move arrows — aparecem no hover */}
       {(onMovePrev || onMoveNext) && (
@@ -100,14 +101,14 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       )}
       {/* Preview do arquivo/entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
       {previewUrl && (
-        <div className="relative w-28 aspect-[4/5] flex-shrink-0 self-start overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 h-full flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={previewUrl} alt={m.title}
             className="w-full h-full object-cover"
             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
         </div>
       )}
 
-      <div className="flex-1 min-w-0 p-3 flex flex-col gap-2">
+      <div className="flex-1 min-w-0 p-3 flex flex-col gap-2 overflow-hidden">
       {/* Etiquetas coloridas */}
       {labels.length > 0 && (
         <div className="flex flex-wrap gap-1">

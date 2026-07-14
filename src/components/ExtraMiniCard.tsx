@@ -75,11 +75,12 @@ export default function ExtraMiniCard({
       style={{
         borderLeft: `3px solid ${priorityColor}`,
         opacity: dragging ? 0.4 : 1,
+        ...(thumbUrl ? { height: 140 } : {}),
       }}
     >
       {/* Preview da entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
       {thumbUrl && (
-        <div className="relative w-28 aspect-[4/5] flex-shrink-0 self-start overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 h-full flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={thumbUrl} alt={extra.title} className="w-full h-full object-cover"
             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
           {isThumbVideo && (
@@ -92,7 +93,7 @@ export default function ExtraMiniCard({
         </div>
       )}
 
-      <div className="flex-1 min-w-0 p-3 flex flex-col">
+      <div className="flex-1 min-w-0 p-3 flex flex-col overflow-hidden">
         {/* Labels strip */}
         {extra.labels && extra.labels.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">

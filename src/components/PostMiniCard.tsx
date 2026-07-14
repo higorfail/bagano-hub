@@ -112,10 +112,12 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
     >
       <div className="h-[3px] w-full flex-shrink-0" style={{ background: isRevisao ? '#8b5cf6' : type.color }} />
 
-      <div className="flex flex-1 min-h-0">
+      {/* Quando tem preview, o card inteiro trava na altura da imagem 4:5 (w-28=112px -> 140px)
+          pra nunca sobrar vão embaixo dela — o texto se ajusta a essa altura, não o contrário. */}
+      <div className="flex flex-1 min-h-0" style={thumbUrl ? { height: 140 } : undefined}>
       {/* Drive thumbnail — preview vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
       {thumbUrl && (
-        <div className="relative w-28 aspect-[4/5] flex-shrink-0 self-start overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 h-full flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={thumbUrl} alt={post.title}
             className="w-full h-full object-cover"
             onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
@@ -129,7 +131,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         </div>
       )}
 
-      <div className="p-4 flex flex-col gap-3 flex-1 min-w-0">
+      <div className="p-4 flex flex-col gap-3 flex-1 min-w-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 flex-wrap">
