@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Plus, CheckSquare, FileText, Bell, Calendar, AlertCircle, MessageSquare } from 'lucide-react'
+import { Plus, CheckSquare, FileText, Bell } from 'lucide-react'
 import ExtraCard from './ExtraCard'
+import ExtraMiniCard from './ExtraMiniCard'
 
 type ExtraType     = 'todo' | 'note' | 'reminder'
 type ExtraStatus   = 'backlog' | 'doing' | 'done'
@@ -225,120 +226,31 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
               {/* Cards */}
               <div className={`flex flex-col gap-2 min-h-[80px] rounded-xl transition-colors ${isDragTarget ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
                 {colExtras.map(extra => {
-                  const TypeIcon = TYPE_CONFIG[extra.type].icon
-                  const overdue  = isOverdue(extra.due_date, extra.status)
                   const assignedData = extra.assigned_members
                     ? members.filter(m => extra.assigned_members!.includes(m.id))
                     : []
-                  const chk = checkCounts[extra.id]
-                  const driveId = extra.drive_url ? extra.drive_url.match(/[-\w]{25,}/)?.[0] : null
-                  const previewUrl = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w480` : null
-                  const isDragging = draggingId === extra.id
-
                   return (
-                    <div
+                    <ExtraMiniCard
                       key={extra.id}
-                      draggable
+                      extra={extra}
+                      TypeIcon={TYPE_CONFIG[extra.type].icon}
+                      typeColor={TYPE_CONFIG[extra.type].color}
+                      priorityColor={PRIORITY_BORDER[extra.priority]}
+                      overdue={isOverdue(extra.due_date, extra.status)}
+                      assignedData={assignedData}
+                      chk={checkCounts[extra.id]}
+                      commentCount={commentCounts[extra.id] || 0}
+                      clientBadge={globalMode && extra.client_id && clientMap[extra.client_id] ? { name: clientMap[extra.client_id].name, color: clientMap[extra.client_id].color_hex } : null}
+                      showGlobalBadge={globalMode && !extra.client_id}
+                      formatDue={formatDue}
+                      dragging={draggingId === extra.id}
                       onDragStart={e => {
                         e.dataTransfer.setData('extraId', extra.id)
                         setDraggingId(extra.id)
                       }}
                       onDragEnd={() => { setDraggingId(null); setDragOverCol(null) }}
                       onClick={() => { if (!draggingId) { setOpenExtraId(extra.id); window.history.replaceState(null, '', `?post=${extra.id}`) } }}
-                      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl flex cursor-grab active:cursor-grabbing shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 relative overflow-hidden"
-                      style={{
-                        borderLeft: `3px solid ${PRIORITY_BORDER[extra.priority]}`,
-                        opacity: isDragging ? 0.4 : 1,
-                      }}
-                    >
-                      {/* Preview da entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
-                      {previewUrl && (
-                        <div className="relative w-28 aspect-[4/5] flex-shrink-0 self-start overflow-hidden bg-[var(--color-bg-subtle)]">
-                          <img src={previewUrl} alt={extra.title} className="w-full h-full object-cover"
-                            onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
-                        </div>
-                      )}
-
-                      <div className="flex-1 min-w-0 p-3">
-                      {/* Labels strip */}
-                      {extra.labels && extra.labels.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {extra.labels.map((l, i) => (
-                            <span key={i} className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: l.color }}>
-                              {l.text}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Type icon + title */}
-                      <div className="flex items-start gap-2">
-                        <TypeIcon size={13} strokeWidth={1.75}
-                          style={{ color: TYPE_CONFIG[extra.type].color, flexShrink: 0, marginTop: 1.5 }} />
-                        <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-1 min-w-0 break-words"
-                          style={{
-                            textDecoration: extra.status === 'done' ? 'line-through' : 'none',
-                            opacity:        extra.status === 'done' ? 0.5 : 1,
-                          }}>
-                          {extra.title}
-                        </p>
-                      </div>
-
-                      {/* Description snippet */}
-                      {extra.description && (
-                        <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 ml-5 line-clamp-2 leading-relaxed">
-                          {extra.description}
-                        </p>
-                      )}
-
-                      {/* Meta row */}
-                      <div className="flex flex-wrap items-center gap-2 mt-2 ml-5">
-                        {extra.due_date && (
-                          <span className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${overdue ? '' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`} style={overdue ? { background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' } : {}}>
-                            {overdue && <AlertCircle size={9} />}
-                            <Calendar size={9} />
-                            {formatDue(extra.due_date)}
-                          </span>
-                        )}
-                        {chk && chk.total > 0 && (
-                          <span className="flex items-center gap-1 text-[10px] font-medium" style={chk.done === chk.total ? { color: 'var(--ds-success-text)' } : { color: 'var(--color-text-muted)' }}>
-                            <CheckSquare size={9} /> {chk.done}/{chk.total}
-                          </span>
-                        )}
-                        {commentCounts[extra.id] > 0 && (
-                          <span className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-text-muted)]">
-                            <MessageSquare size={9} /> {commentCounts[extra.id]}
-                          </span>
-                        )}
-                        {extra.drive_url && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]">✓ Entregue</span>
-                        )}
-                        {assignedData.length > 0 && (
-                          <span className="flex -space-x-1.5 ml-auto">
-                            {assignedData.slice(0, 3).map(m => (
-                              <span key={m.id} title={m.name}
-                                className="w-5 h-5 rounded-full border-2 border-[var(--color-bg-card)] flex items-center justify-center text-white text-[8px] font-bold"
-                                style={{ background: (m as any).color || 'var(--color-brand)' }}>
-                                {m.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                              </span>
-                            ))}
-                            {assignedData.length > 3 && (
-                              <span className="w-5 h-5 rounded-full bg-[var(--color-bg-subtle)] border-2 border-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-text-muted)] text-[8px] font-bold">+{assignedData.length - 3}</span>
-                            )}
-                          </span>
-                        )}
-                        {globalMode && extra.client_id && clientMap[extra.client_id] && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white"
-                            style={{ background: clientMap[extra.client_id].color_hex }}>
-                            {clientMap[extra.client_id].name}
-                          </span>
-                        )}
-                        {globalMode && !extra.client_id && (
-                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]">Global</span>
-                        )}
-                      </div>
-                      </div>
-                    </div>
+                    />
                   )
                 })}
 
