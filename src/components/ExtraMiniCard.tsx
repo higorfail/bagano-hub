@@ -124,7 +124,7 @@ export default function ExtraMiniCard({
         {/* Description snippet — preenche o espaço que sobrar (a imagem cresce junto se precisar) */}
         {(extra.ai_summary || extra.description) && (
           <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 ml-5 leading-relaxed flex-1 min-h-0 overflow-hidden"
-            style={{ WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
+            style={{ maxHeight: '6.5em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
             {extra.ai_summary || extra.description}
           </p>
         )}
