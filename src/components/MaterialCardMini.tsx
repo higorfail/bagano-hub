@@ -104,7 +104,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       {previewUrl && (
         <div className="relative w-28 self-stretch flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={previewUrl} alt={m.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover" style={{ height: '100%' }}
             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
         </div>
       )}

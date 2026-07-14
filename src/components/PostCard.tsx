@@ -815,7 +815,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 <div className="grid grid-cols-4 gap-2 mt-2.5">
                   {form.reference_images.map((url, i) => (
                     <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-[var(--color-border)]">
-                      <img src={url} alt={`Referência ${i + 1}`} className="w-full h-full object-cover" />
+                      <img src={url} alt={`Referência ${i + 1}`} className="w-full h-full object-cover" style={{ height: '100%' }} />
                       <button onClick={() => removeRefImage(url)} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5">
                         <XCircle size={14} className="text-white" />
                       </button>
