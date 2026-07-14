@@ -18,13 +18,13 @@ Texto: ${text}`
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 120, temperature: 0.3 },
+          generationConfig: { maxOutputTokens: 200, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } },
         }),
       }
     )
