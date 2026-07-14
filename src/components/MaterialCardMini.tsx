@@ -103,8 +103,10 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
           Imagem 4:5 como piso (min-height no card), não teto — cresce junto com o texto se precisar. */}
       {previewUrl && (
         <div className="relative w-28 self-stretch flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+          {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a
+              dependência circular (img 100% ← container ← card ← tamanho natural da img) */}
           <img src={previewUrl} alt={m.title}
-            className="w-full h-full object-cover" style={{ height: '100%' }}
+            className="absolute inset-0 w-full h-full object-cover"
             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
         </div>
       )}

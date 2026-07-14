@@ -120,8 +120,10 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
       {/* Drive thumbnail — preview vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
       {thumbUrl && (
         <div className="relative w-28 self-stretch flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+          {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a
+              dependência circular (img 100% ← container ← card ← tamanho natural da img) */}
           <img src={thumbUrl} alt={post.title}
-            className="w-full h-full object-cover" style={{ height: '100%' }}
+            className="absolute inset-0 w-full h-full object-cover"
             onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
           {isThumbVideo && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">

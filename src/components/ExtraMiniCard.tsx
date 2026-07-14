@@ -85,7 +85,9 @@ export default function ExtraMiniCard({
           consegue estourar além disso, custe o que custar em conteúdo cortado. */}
       {thumbUrl && (
         <div className="relative w-28 self-stretch flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
-          <img src={thumbUrl} alt={extra.title} className="w-full h-full object-cover" style={{ height: '100%' }}
+          {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a
+              dependência circular (img 100% ← container ← card ← tamanho natural da img) */}
+          <img src={thumbUrl} alt={extra.title} className="absolute inset-0 w-full h-full object-cover"
             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
           {isThumbVideo && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
