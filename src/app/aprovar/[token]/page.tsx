@@ -130,31 +130,19 @@ function FolderThumb({ folderId, maxHeight = 220 }: { folderId: string; maxHeigh
 function ReelFolderPreview({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
   const { files, ready } = useFolderFiles(folderId)
   if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111' }}>{SPINNER}</div>
-  const images = files.filter(f => f.mimeType.startsWith('image/'))
   const videos = files.filter(f => f.mimeType.startsWith('video/'))
-  const cover  = pickCover(images)
   const video  = videos[0]
-  return (
-    <div>
-      {cover && (
-        <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>
-          <img src={`https://drive.google.com/thumbnail?id=${cover.id}&sz=w800`} alt=""
-            style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 220 }}
-            onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
-        </div>
-      )}
-      {video ? (
-        <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '56.25%' }}>
-          <iframe src={`https://drive.google.com/file/d/${video.id}/preview`} allow="autoplay" allowFullScreen
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
-        </div>
-      ) : (
-        <a href={folderUrl} target="_blank" rel="noopener noreferrer"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
-          🎬 Abrir reel no Drive
-        </a>
-      )}
+  // Mostra só o vídeo — a capa da pasta não entra aqui pra não sobrepor o player.
+  return video ? (
+    <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '56.25%' }}>
+      <iframe src={`https://drive.google.com/file/d/${video.id}/preview`} allow="autoplay" allowFullScreen
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
     </div>
+  ) : (
+    <a href={folderUrl} target="_blank" rel="noopener noreferrer"
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
+      🎬 Abrir reel no Drive
+    </a>
   )
 }
 
