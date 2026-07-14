@@ -102,8 +102,11 @@ function extractDriveId(url?: string): string | null {
 function driveIdToThumbnail(id: string, size = 400) {
   return `https://drive.google.com/thumbnail?id=${id}&sz=w${size}`
 }
+// Streaming direto da API do Drive (sem passar pelo nosso servidor) — usado numa
+// <video> nativa em vez do iframe /preview, que no iOS empilha os controles nativos
+// do Safari por cima dos controles do próprio player do Drive.
 function driveIdToEmbed(id: string) {
-  return `https://drive.google.com/file/d/${id}/preview`
+  return `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
 }
 function pickCover(files: DriveFile[]): DriveFile | undefined {
   const images = files.filter(f => f.mimeType.startsWith('image/'))
@@ -355,7 +358,8 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
             <Loader2 size={28} color="white" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
         ) : slides.length > 0 && isVideoSlide && videoEmbedUrl ? (
-          <iframe src={videoEmbedUrl} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} allow="autoplay" allowFullScreen />
+          <video key={videoEmbedUrl} src={videoEmbedUrl} controls autoPlay playsInline
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : slides.length > 0 ? (
           <img src={slides[slide]} alt={post.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
@@ -557,11 +561,13 @@ function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
         {loading ? (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={20} color="#ccc" style={{ animation: 'spin 1s linear infinite' }} /></div>
         ) : isReel && media?.videoEmbedUrl ? (
-          <iframe src={media.videoEmbedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" allowFullScreen />
+          <video key={media.videoEmbedUrl} src={media.videoEmbedUrl} controls playsInline
+            style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : slides.length > 0 ? (
           <>
             {isVideoSlide && videoEmbedUrl ? (
-              <iframe src={videoEmbedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" allowFullScreen />
+              <video key={videoEmbedUrl} src={videoEmbedUrl} controls playsInline
+                style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
             ) : (
               <img src={slides[slide]} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             )}
