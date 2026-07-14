@@ -9,6 +9,7 @@ import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
+import { autoGrow } from '@/lib/autoGrow'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import { renderWithMentions } from '@/lib/useMentions'
 import { generateAiSummary } from '@/lib/aiSummary'
@@ -365,6 +366,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (dbError(error, toast, 'comentar')) return
     if (data) setComments(c => [...c, data])
     setNewComment('')
+    requestAnimationFrame(() => { if (commentTextareaRef.current) autoGrow(commentTextareaRef.current) })
     await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'commented', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} comentou` })
     setActivityKey(k => k + 1)
   }
@@ -880,6 +882,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                   onChange={e => {
                     const val = e.target.value
                     setNewComment(val)
+                    autoGrow(e.currentTarget)
                     const pos = e.target.selectionStart
                     const before = val.slice(0, pos)
                     const m = before.match(/@(\w*)$/)
@@ -935,7 +938,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                       </div>
                       {editingCommentId === item.cid ? (
                         <div>
-                          <textarea autoFocus value={editCommentText} onChange={e => setEditCommentText(e.target.value)}
+                          <textarea autoFocus value={editCommentText} ref={el => { if (el) autoGrow(el) }}
+                            onChange={e => { setEditCommentText(e.target.value); autoGrow(e.currentTarget) }}
                             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditComment(item.cid) } else if (e.key === 'Escape') { setEditingCommentId(null) } }}
                             rows={2} className="w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none" />
                           <div className="flex items-center gap-2 mt-1">

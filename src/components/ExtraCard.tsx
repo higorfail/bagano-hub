@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
+import { autoGrow } from '@/lib/autoGrow'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import EditableField from '@/components/EditableField'
@@ -15,7 +16,7 @@ import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, Check,
-  FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag
+  FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag, Pencil
 } from 'lucide-react'
 
 type ExtraType     = 'todo' | 'note' | 'reminder'
@@ -119,6 +120,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, extraId, activityKey])
   const [newComment,     setNewComment]     = useState('')
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [editCommentText,  setEditCommentText]  = useState('')
   const mentions = useMentions(newComment, setNewComment, members)
   const [attachments,    setAttachments]    = useState<any[]>([])
   const [newAttachUrl,   setNewAttachUrl]   = useState('')
@@ -367,8 +370,23 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const { data } = await supabase.from('extra_comments').insert({ extra_id: eid, body, author_name: authorName }).select().single()
     if (data) setComments(c => [...c, data])
     setNewComment('')
+    requestAnimationFrame(() => { if (mentions.textareaRef.current) autoGrow(mentions.textareaRef.current) })
     await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action: 'commented', actorName: authorName, description: `${authorName} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
+  }
+
+  async function saveEditComment(cid: string) {
+    const body = editCommentText.trim(); if (!body) return
+    const { error } = await supabase.from('extra_comments').update({ body }).eq('id', cid)
+    if (!error) setComments(cs => cs.map(c => c.id === cid ? { ...c, body } : c))
+    setEditingCommentId(null)
+  }
+
+  async function deleteComment(cid: string) {
+    const prev = comments
+    setComments(cs => cs.filter(c => c.id !== cid))
+    const { error } = await supabase.from('extra_comments').delete().eq('id', cid)
+    if (error) setComments(prev)
   }
 
   async function addAttachment() {
@@ -433,10 +451,10 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   // Feed único (comentários + atividades), padrão cronograma
   const fullDateTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   type FeedItem =
-    | { kind: 'comment'; id: string; at: string; author: string | null; body: string }
+    | { kind: 'comment'; id: string; cid: string; at: string; author: string | null; body: string }
     | { kind: 'activity'; id: string; at: string; author: string | null; body: string }
   const feed: FeedItem[] = [
-    ...comments.map(c => ({ kind: 'comment' as const, id: 'c' + c.id, at: c.created_at, author: c.author_name, body: c.body })),
+    ...comments.map(c => ({ kind: 'comment' as const, id: 'c' + c.id, cid: c.id, at: c.created_at, author: c.author_name, body: c.body })),
     ...activities.map(a => ({ kind: 'activity' as const, id: 'a' + a.id, at: a.created_at, author: a.actor_name, body: a.description })),
     ...(createdAt && !activities.some(a => a.action === 'created')
       ? [{ kind: 'activity' as const, id: '__created__', at: createdAt, author: null, body: 'Card criado' }]
@@ -728,6 +746,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   ref={mentions.textareaRef}
                   value={newComment}
                   onChange={mentions.handleChange}
+                  onInput={e => autoGrow(e.currentTarget)}
                   onKeyDown={e => { if (mentions.handleKeyDown(e)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment() } }}
                   onBlur={mentions.handleBlur}
                   placeholder="Comentar… @ para mencionar  (Enter envia · Shift+Enter quebra linha)" rows={2}
@@ -752,14 +771,35 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   color: (memberMatch as any)?.color || '#9ca3af',
                 }
                 return item.kind === 'comment' ? (
-                  <div key={item.id} className="flex items-start gap-2.5">
+                  <div key={item.id} className="flex items-start gap-2.5 group">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5" style={{ background: av.color }}>{av.initials}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-1">
                         <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{item.author || 'Alguém'}</span>
                         <span className="text-[10px] text-[var(--color-text-faint)]" title={fullDateTime(item.at)}>{fullDateTime(item.at)}</span>
+                        {editingCommentId !== item.cid && (
+                          <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => { setEditingCommentId(item.cid); setEditCommentText(item.body) }} title="Editar"
+                              className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-page)] transition-colors"><Pencil size={11} /></button>
+                            <button onClick={() => deleteComment(item.cid)} title="Excluir"
+                              className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--ds-error-text)] hover:bg-[var(--color-bg-page)] transition-colors"><Trash2 size={11} /></button>
+                          </div>
+                        )}
                       </div>
-                      <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line break-words">{renderWithMentions(item.body)}</div>
+                      {editingCommentId === item.cid ? (
+                        <div>
+                          <textarea autoFocus value={editCommentText} ref={el => { if (el) autoGrow(el) }}
+                            onChange={e => { setEditCommentText(e.target.value); autoGrow(e.currentTarget) }}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditComment(item.cid) } else if (e.key === 'Escape') { setEditingCommentId(null) } }}
+                            rows={2} className="w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none" />
+                          <div className="flex items-center gap-2 mt-1">
+                            <button onClick={() => saveEditComment(item.cid)} className="text-[11px] font-semibold px-2.5 py-1 rounded-md text-white" style={{ background: 'var(--color-accent)' }}>Salvar</button>
+                            <button onClick={() => setEditingCommentId(null)} className="text-[11px] px-2.5 py-1 rounded-md text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line break-words">{renderWithMentions(item.body)}</div>
+                      )}
                     </div>
                   </div>
                 ) : (
