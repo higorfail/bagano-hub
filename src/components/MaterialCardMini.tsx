@@ -102,7 +102,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       {/* Preview do arquivo/entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16).
           Imagem 4:5 como piso (min-height no card), não teto — cresce junto com o texto se precisar. */}
       {previewUrl && (
-        <div className="relative w-28 h-full flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 self-stretch flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={previewUrl} alt={m.title}
             className="w-full h-full object-cover"
             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
