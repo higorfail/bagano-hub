@@ -11,6 +11,7 @@ import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import { renderWithMentions } from '@/lib/useMentions'
+import { generateAiSummary } from '@/lib/aiSummary'
 import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
@@ -300,31 +301,36 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     return undefined
   }
 
-  async function persist(patch: Record<string, any>, logMsg?: string, action = 'updated') {
+  async function persist(patch: Record<string, any>, logMsg?: string, action = 'updated'): Promise<string | undefined> {
     const hadId = !!currentId
     const pid = await ensurePostId()
-    if (!pid) { if (!formRef.current.title.trim()) toast('Adicione um título primeiro'); return }
+    if (!pid) { if (!formRef.current.title.trim()) toast('Adicione um título primeiro'); return undefined }
     const dbPatch: Record<string, any> = { ...patch }
     if ('scheduled_date' in dbPatch) dbPatch.scheduled_date = dbPatch.scheduled_date || null
     if ('campaign_type' in dbPatch) dbPatch.campaign_type = dbPatch.campaign_type || null
     const { error } = await supabase.from('schedules').update(dbPatch).eq('id', pid)
-    if (dbError(error, toast, 'salvar')) return
+    if (dbError(error, toast, 'salvar')) return undefined
     if (hadId) flashSaved()
     if (logMsg) {
       await logActivity({ tableName: 'schedules', recordId: pid, clientId, action, actorName: currentMember?.name, description: logMsg })
       setActivityKey(k => k + 1)
     }
     onSaved()
+    return pid
   }
 
   const who = currentMember?.name || 'Alguém'
   const FIELD_LABEL: Record<TextField, string> = { title: 'o título', briefing: 'o briefing', copy: 'a copy', legenda: 'a legenda', reference_notes: 'as referências', drive_url: 'o link do Drive', drive_folder_url: 'a pasta do carrossel' }
 
-  function commitText(field: TextField) {
+  async function commitText(field: TextField) {
     setEditingField(null)
     const v = formRef.current[field]
     if (v === editOriginal.current) return  // nada mudou → não salva/registra
-    persist({ [field]: v }, `${who} editou ${FIELD_LABEL[field]}`)
+    const pid = await persist({ [field]: v }, `${who} editou ${FIELD_LABEL[field]}`)
+    if (field === 'copy' && pid) {
+      const summary = await generateAiSummary(v, formRef.current.title)
+      if (summary != null) await supabase.from('schedules').update({ ai_summary: summary }).eq('id', pid)
+    }
   }
   function startEdit(field: TextField, h?: number) { editOriginal.current = String(formRef.current[field] || ''); if (h) setEditH(h); setEditingField(field) }
   function discardEdit(field: TextField) { discardRef.current = true; setForm(f => ({ ...f, [field]: editOriginal.current })); setEditingField(null) }

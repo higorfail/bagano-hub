@@ -54,7 +54,7 @@ function MateriaisContent() {
     async function load() {
       const supabase = createClient()
       const [{ data: mats }, { data: cls }] = await Promise.all([
-        supabase.from('materials').select('id, client_id, title, type, status, description, due_date, drive_url, assigned_to, assigned_members, labels, created_at').order('created_at', { ascending: false }),
+        supabase.from('materials').select('id, client_id, title, type, status, description, ai_summary, due_date, drive_url, assigned_to, assigned_members, labels, created_at').order('created_at', { ascending: false }),
         supabase.from('clients').select('id, name, color_hex').order('name'),
       ])
       setMaterials(mats || [])

@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
+import { generateAiSummary } from '@/lib/aiSummary'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
@@ -237,15 +238,16 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   }
 
   // Salva um campo específico imediatamente e registra no histórico com mensagem detalhada (padrão cronograma)
-  async function persist(patch: Record<string, any>, logMsg?: string, action = 'updated') {
+  async function persist(patch: Record<string, any>, logMsg?: string, action = 'updated'): Promise<string | undefined> {
     const eid = await ensureId()
-    if (!eid) return
+    if (!eid) return undefined
     const { error } = await supabase.from('extras').update(patch).eq('id', eid)
-    if (error) { toast('Erro ao salvar'); return }
+    if (error) { toast('Erro ao salvar'); return undefined }
     if (logMsg) {
       await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, description: logMsg })
       setActivityKey(k => k + 1)
     }
+    return eid
   }
   async function logExt(eid: string, description: string, action = 'updated') {
     await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, description })
@@ -620,7 +622,11 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 onCommit={async v => {
                   const hadId = !!id
                   setDescription(v)
-                  persist({ description: v }, hadId ? `${who} editou a descrição` : undefined)
+                  const eid = await persist({ description: v }, hadId ? `${who} editou a descrição` : undefined)
+                  if (eid) {
+                    const summary = await generateAiSummary(v, title)
+                    if (summary != null) await supabase.from('extras').update({ ai_summary: summary }).eq('id', eid)
+                  }
                 }}
               />
 

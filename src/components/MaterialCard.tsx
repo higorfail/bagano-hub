@@ -7,6 +7,7 @@ import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
+import { generateAiSummary } from '@/lib/aiSummary'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
@@ -236,16 +237,17 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   }
 
   // Salva um campo específico imediatamente e registra no histórico com mensagem detalhada (padrão cronograma)
-  async function persist(patch: Record<string, any>, logMsg?: string, action = 'updated') {
+  async function persist(patch: Record<string, any>, logMsg?: string, action = 'updated'): Promise<string | undefined> {
     const mid = await ensureId()
-    if (!mid) return
+    if (!mid) return undefined
     const { error } = await supabase.from('materials').update(patch).eq('id', mid)
-    if (error) { toast('Erro ao salvar'); return }
+    if (error) { toast('Erro ao salvar'); return undefined }
     if (logMsg) {
       await logActivity({ tableName: 'materials', recordId: mid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, description: logMsg })
       setActivityKey(k => k + 1)
     }
     onSaved()
+    return mid
   }
 
   async function logMat(mid: string, description: string, action = 'updated') {
@@ -631,7 +633,11 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               onCommit={async v => {
                 const hadId = !!id
                 setDescription(v)
-                persist({ description: v }, hadId ? `${who} editou o briefing` : undefined)
+                const mid = await persist({ description: v }, hadId ? `${who} editou o briefing` : undefined)
+                if (mid) {
+                  const summary = await generateAiSummary(v, title)
+                  if (summary != null) await supabase.from('materials').update({ ai_summary: summary }).eq('id', mid)
+                }
               }}
             />
 

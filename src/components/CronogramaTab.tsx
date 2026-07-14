@@ -125,7 +125,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     if (!opts.silent) setLoading(true)
     const [{ data: postsData }, { data: statusData }, { data: campaignsData }] = await Promise.all([
       supabase.from('schedules')
-        .select('id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, assigned_members')
+        .select('id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, assigned_members, ai_summary')
         .eq('client_id', clientId).eq('month', month).eq('year', year)
         .order('post_number'),
       supabase.from('cronograma_status')

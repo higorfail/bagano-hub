@@ -11,6 +11,7 @@ interface ExtraLite {
   due_date?: string | null
   drive_url?: string | null
   description?: string | null
+  ai_summary?: string | null
   labels?: { text: string; color: string }[] | null
   client_id?: string | null
 }
@@ -117,10 +118,10 @@ export default function ExtraMiniCard({
         </div>
 
         {/* Description snippet — preenche o espaço que sobrar (dinâmico, sem vão) */}
-        {extra.description && (
+        {(extra.ai_summary || extra.description) && (
           <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 ml-5 leading-relaxed flex-1 min-h-0 overflow-hidden"
             style={{ WebkitMaskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)' }}>
-            {extra.description}
+            {extra.ai_summary || extra.description}
           </p>
         )}
 

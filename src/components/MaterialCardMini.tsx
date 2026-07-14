@@ -125,10 +125,10 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-shrink-0">{m.title}</p>
 
       {/* Briefing snippet — preenche o espaço que sobrar (dinâmico, sem vão) */}
-      {m.description && (
+      {(m.ai_summary || m.description) && (
         <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed flex-1 min-h-0 overflow-hidden"
           style={{ WebkitMaskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)' }}>
-          {m.description}
+          {m.ai_summary || m.description}
         </p>
       )}
 
