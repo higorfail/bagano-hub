@@ -102,11 +102,27 @@ function extractDriveId(url?: string): string | null {
 function driveIdToThumbnail(id: string, size = 400) {
   return `https://drive.google.com/thumbnail?id=${id}&sz=w${size}`
 }
-// Streaming direto da API do Drive (sem passar pelo nosso servidor) — usado numa
-// <video> nativa em vez do iframe /preview, que no iOS empilha os controles nativos
-// do Safari por cima dos controles do próprio player do Drive.
+// Streaming direto do Drive (sem passar pelo nosso servidor, sem contar na cota da
+// API — é o link clássico de download, não o endpoint da API) — usado numa <video>
+// nativa em vez do iframe /preview, que no iOS empilha os controles nativos do
+// Safari por cima dos controles do próprio player do Drive.
+// Só não funciona pra arquivos >100MB (o Drive mostra a tela de "não foi possível
+// verificar vírus" em vez do vídeo) — nesse caso o onError do <video> cai pro link.
 function driveIdToEmbed(id: string) {
-  return `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
+  return `https://drive.google.com/uc?export=download&id=${id}`
+}
+// Vídeo do Drive com fallback: se o streaming direto falhar (ex: arquivo >100MB),
+// cai pra um link "abrir no Drive" em vez de deixar a tela preta.
+function DriveVideoTag({ src, style, autoPlay }: { src: string; style: React.CSSProperties; autoPlay?: boolean }) {
+  const [failed, setFailed] = useState(false)
+  const driveViewUrl = src.replace('uc?export=download&id=', 'file/d/') + '/view'
+  if (failed) return (
+    <a href={driveViewUrl} target="_blank" rel="noopener noreferrer"
+      style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#111', fontSize: 13, fontWeight: 600, color: '#fff', textDecoration: 'none' }}>
+      🎬 Assistir no Drive
+    </a>
+  )
+  return <video key={src} src={src} controls autoPlay={autoPlay} playsInline onError={() => setFailed(true)} style={style} />
 }
 function pickCover(files: DriveFile[]): DriveFile | undefined {
   const images = files.filter(f => f.mimeType.startsWith('image/'))
@@ -358,7 +374,7 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
             <Loader2 size={28} color="white" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
         ) : slides.length > 0 && isVideoSlide && videoEmbedUrl ? (
-          <video key={videoEmbedUrl} src={videoEmbedUrl} controls autoPlay playsInline
+          <DriveVideoTag src={videoEmbedUrl} autoPlay
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : slides.length > 0 ? (
           <img src={slides[slide]} alt={post.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -561,12 +577,12 @@ function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
         {loading ? (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={20} color="#ccc" style={{ animation: 'spin 1s linear infinite' }} /></div>
         ) : isReel && media?.videoEmbedUrl ? (
-          <video key={media.videoEmbedUrl} src={media.videoEmbedUrl} controls playsInline
+          <DriveVideoTag src={media.videoEmbedUrl}
             style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : slides.length > 0 ? (
           <>
             {isVideoSlide && videoEmbedUrl ? (
-              <video key={videoEmbedUrl} src={videoEmbedUrl} controls playsInline
+              <DriveVideoTag src={videoEmbedUrl}
                 style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
             ) : (
               <img src={slides[slide]} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
