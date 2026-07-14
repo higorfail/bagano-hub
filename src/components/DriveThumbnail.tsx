@@ -5,9 +5,11 @@ import { useEffect, useState } from 'react'
 type DriveFile = { id: string; name: string; mimeType: string }
 
 // Preview de uma pasta do Google Drive: mostra várias imagens lado a lado (até 6),
-// com "capa.*" em primeiro se existir. Sem nenhuma foto na pasta, cai pro frame de um vídeo.
+// com "capa.*" em primeiro se existir. Sem foto, cai pra 1ª página de um PDF;
+// sem PDF nenhum, cai pro frame de um vídeo.
 export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
   const [images, setImages] = useState<DriveFile[]>([])
+  const [pdf, setPdf] = useState<DriveFile | null>(null)
   const [video, setVideo] = useState<DriveFile | null>(null)
 
   useEffect(() => {
@@ -25,15 +27,17 @@ export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
           setImages(cover ? [cover, ...imgs.filter(f => f.id !== cover.id)] : imgs)
           return
         }
+        const doc = files.find(f => f.mimeType === 'application/pdf')
+        if (doc) { setPdf(doc); return }
         const vid = files.find(f => f.mimeType.startsWith('video/'))
         if (vid) setVideo(vid)
       })
       .catch(() => {})
   }, [folderUrl])
 
-  const items = images.length > 0 ? images : video ? [video] : []
+  const items = images.length > 0 ? images : pdf ? [pdf] : video ? [video] : []
   if (items.length === 0) return null
-  const isVideo = images.length === 0 && !!video
+  const isVideo = images.length === 0 && !pdf && !!video
   const MAX = 6
   const shown = items.slice(0, MAX)
   const extra = items.length - shown.length

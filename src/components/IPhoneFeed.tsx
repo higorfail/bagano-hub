@@ -104,10 +104,12 @@ function pickCover(files: DriveFile[]): DriveFile | undefined {
   const images = files.filter(f => f.mimeType.startsWith('image/'))
   return images.find(f => /^capa\./i.test(f.name)) ?? images[0]
 }
-// Se não houver foto de capa na pasta, usa o frame de um vídeo como fallback.
+// Sem foto de capa, cai pra 1ª página de um PDF; sem PDF, cai pro frame de um vídeo.
 function pickCoverOrVideo(files: DriveFile[]): { file?: DriveFile; isVideo: boolean } {
   const cover = pickCover(files)
   if (cover) return { file: cover, isVideo: false }
+  const pdf = files.find(f => f.mimeType === 'application/pdf')
+  if (pdf) return { file: pdf, isVideo: false }
   const video = files.find(f => f.mimeType.startsWith('video/'))
   return { file: video, isVideo: true }
 }
@@ -132,19 +134,21 @@ async function resolveMedia(post: FeedPost): Promise<ResolvedMedia> {
       const files = await fetchFolderFiles(folderId)
       if (files.length > 0) {
         const cover = pickCover(files)
+        const pdf = files.find(f => f.mimeType === 'application/pdf')
         const videos = files.filter(f => f.mimeType.startsWith('video/'))
+        const nonImageFallback = (size?: number) => pdf ? driveIdToThumbnail(pdf.id, size) : videos[0] ? driveIdToThumbnail(videos[0].id, size) : undefined
         if (post.type === 'reel') {
-          const thumb = cover ? driveIdToThumbnail(cover.id) : videos[0] ? driveIdToThumbnail(videos[0].id) : undefined
+          const thumb = cover ? driveIdToThumbnail(cover.id) : nonImageFallback()
           return { thumbnailUrl: thumb, videoEmbedUrl: videos[0] ? driveIdToEmbed(videos[0].id) : undefined, folderLink: folderUrl }
         }
         if (post.type === 'carousel' || post.type === 'story') {
           const images = files.filter(f => f.mimeType.startsWith('image/'))
           const sorted = images.sort((a, b) => a.name.localeCompare(b.name))
           const urls = sorted.map(f => driveIdToThumbnail(f.id, 600))
-          const fallback = urls[0] ?? (videos[0] ? driveIdToThumbnail(videos[0].id, 600) : undefined)
+          const fallback = urls[0] ?? nonImageFallback(600)
           return { thumbnailUrl: cover ? driveIdToThumbnail(cover.id, 600) : fallback, carouselImages: urls.length > 0 ? urls : fallback ? [fallback] : [], folderLink: folderUrl }
         }
-        const photoThumb = cover ? driveIdToThumbnail(cover.id) : videos[0] ? driveIdToThumbnail(videos[0].id) : undefined
+        const photoThumb = cover ? driveIdToThumbnail(cover.id) : nonImageFallback()
         return { thumbnailUrl: photoThumb, folderLink: folderUrl }
       }
     }

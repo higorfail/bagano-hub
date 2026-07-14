@@ -59,6 +59,8 @@ export default function ExtraMiniCard({
         const images = files.filter(f => f.mimeType.startsWith('image/'))
         const cover = images.find(f => /^capa\./i.test(f.name)) ?? images[0]
         if (cover) { setThumbUrl(`https://drive.google.com/thumbnail?id=${cover.id}&sz=w480`); setIsThumbVideo(false); return }
+        const pdf = files.find(f => f.mimeType === 'application/pdf')
+        if (pdf) { setThumbUrl(`https://drive.google.com/thumbnail?id=${pdf.id}&sz=w480`); setIsThumbVideo(false); return }
         const video = files.find(f => f.mimeType.startsWith('video/'))
         if (video) { setThumbUrl(`https://drive.google.com/thumbnail?id=${video.id}&sz=w480`); setIsThumbVideo(true) }
       })
