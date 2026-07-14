@@ -83,6 +83,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       draggable={draggable}
       onDragStart={onDragStart}
       className="group relative bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl flex overflow-hidden shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer"
+      style={previewUrl ? { minHeight: 140 } : undefined}
     >
       {/* Move arrows — aparecem no hover */}
       {(onMovePrev || onMoveNext) && (
@@ -99,9 +100,9 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
         </div>
       )}
       {/* Preview do arquivo/entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16).
-          Imagem sempre 4:5 fixo; o texto ao lado tem altura própria (não depende da imagem). */}
+          Imagem 4:5 como piso (min-height no card), não teto — cresce junto com o texto se precisar. */}
       {previewUrl && (
-        <div className="relative w-28 aspect-[4/5] self-start flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 h-full flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={previewUrl} alt={m.title}
             className="w-full h-full object-cover"
             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
@@ -125,10 +126,10 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       {/* Título */}
       <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-shrink-0">{m.title}</p>
 
-      {/* Briefing snippet — altura própria, independente da imagem/badges */}
+      {/* Briefing snippet — preenche o espaço que sobrar (a imagem cresce junto se precisar) */}
       {(m.ai_summary || m.description) && (
-        <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed overflow-hidden"
-          style={{ maxHeight: '6.5em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
+        <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed flex-1 min-h-0 overflow-hidden"
+          style={{ WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
           {m.ai_summary || m.description}
         </p>
       )}
