@@ -122,15 +122,18 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       )}
 
       {/* Título */}
-      <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug">{m.title}</p>
+      <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-shrink-0">{m.title}</p>
 
-      {/* Briefing snippet */}
+      {/* Briefing snippet — preenche o espaço que sobrar (dinâmico, sem vão) */}
       {m.description && (
-        <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-4 leading-relaxed">{m.description}</p>
+        <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed flex-1 min-h-0 overflow-hidden"
+          style={{ WebkitMaskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)' }}>
+          {m.description}
+        </p>
       )}
 
       {/* Badges: tipo + status */}
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-center gap-1.5 flex-wrap flex-shrink-0">
         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${MAT_TYPE_COLOR[m.type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
           {MAT_TYPE_LABEL[m.type] || m.type}
         </span>

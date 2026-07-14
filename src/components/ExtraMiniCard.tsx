@@ -104,7 +104,7 @@ export default function ExtraMiniCard({
         )}
 
         {/* Type icon + title */}
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-2 flex-shrink-0">
           <TypeIcon size={13} strokeWidth={1.75}
             style={{ color: typeColor, flexShrink: 0, marginTop: 1.5 }} />
           <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-1 min-w-0 break-words"
@@ -116,9 +116,10 @@ export default function ExtraMiniCard({
           </p>
         </div>
 
-        {/* Description snippet */}
+        {/* Description snippet — preenche o espaço que sobrar (dinâmico, sem vão) */}
         {extra.description && (
-          <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 ml-5 line-clamp-4 leading-relaxed">
+          <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 ml-5 leading-relaxed flex-1 min-h-0 overflow-hidden"
+            style={{ WebkitMaskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)' }}>
             {extra.description}
           </p>
         )}
