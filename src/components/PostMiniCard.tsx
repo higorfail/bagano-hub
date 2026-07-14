@@ -166,7 +166,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         {/* Title + copy */}
         <div className="flex-1">
           <p className="font-bold text-[var(--color-text-primary)] text-[15px] leading-snug line-clamp-2">{post.title || 'Sem título'}</p>
-          {post.copy && <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 line-clamp-2">{post.copy.replace(/\*/g, '')}</p>}
+          {post.copy && <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 line-clamp-4">{post.copy.replace(/\*/g, '')}</p>}
         </div>
 
         {/* Rejection comment */}

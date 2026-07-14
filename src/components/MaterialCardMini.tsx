@@ -124,6 +124,11 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       {/* Título */}
       <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug">{m.title}</p>
 
+      {/* Briefing snippet */}
+      {m.description && (
+        <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-4 leading-relaxed">{m.description}</p>
+      )}
+
       {/* Badges: tipo + status */}
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${MAT_TYPE_COLOR[m.type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
@@ -139,8 +144,8 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
         )}
       </div>
 
-      {/* Rodapé: data + badges + avatares */}
-      <div className="flex items-center justify-between mt-0.5">
+      {/* Rodapé: data + badges + avatares — fica colado no fim do card */}
+      <div className="flex items-center justify-between mt-auto pt-0.5">
         <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-muted)] flex-wrap">
           {/* Data com cor de alerta */}
           {due && (

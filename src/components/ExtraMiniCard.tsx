@@ -91,7 +91,7 @@ export default function ExtraMiniCard({
         </div>
       )}
 
-      <div className="flex-1 min-w-0 p-3">
+      <div className="flex-1 min-w-0 p-3 flex flex-col">
         {/* Labels strip */}
         {extra.labels && extra.labels.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
@@ -118,13 +118,13 @@ export default function ExtraMiniCard({
 
         {/* Description snippet */}
         {extra.description && (
-          <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 ml-5 line-clamp-2 leading-relaxed">
+          <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 ml-5 line-clamp-4 leading-relaxed">
             {extra.description}
           </p>
         )}
 
-        {/* Meta row */}
-        <div className="flex flex-wrap items-center gap-2 mt-2 ml-5">
+        {/* Meta row — fica colado no fim do card */}
+        <div className="flex flex-wrap items-center gap-2 mt-auto pt-2 ml-5">
           {extra.due_date && (
             <span className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${overdue ? '' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`} style={overdue ? { background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' } : {}}>
               {overdue && <AlertCircle size={9} />}
