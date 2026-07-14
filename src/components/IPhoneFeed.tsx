@@ -355,7 +355,7 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
             <Loader2 size={28} color="white" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
         ) : slides.length > 0 && isVideoSlide && videoEmbedUrl ? (
-          <iframe src={videoEmbedUrl} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} allow="autoplay" allowFullScreen />
+          <iframe src={videoEmbedUrl} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} allow="autoplay" />
         ) : slides.length > 0 ? (
           <img src={slides[slide]} alt={post.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
@@ -557,11 +557,11 @@ function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
         {loading ? (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={20} color="#ccc" style={{ animation: 'spin 1s linear infinite' }} /></div>
         ) : isReel && media?.videoEmbedUrl ? (
-          <iframe src={media.videoEmbedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" allowFullScreen />
+          <iframe src={media.videoEmbedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" />
         ) : slides.length > 0 ? (
           <>
             {isVideoSlide && videoEmbedUrl ? (
-              <iframe src={videoEmbedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" allowFullScreen />
+              <iframe src={videoEmbedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" />
             ) : (
               <img src={slides[slide]} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             )}
