@@ -244,6 +244,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/aprovar/cliente/${client.id}`)
+                toast('Link fixo de aprovação copiado!')
+              }} className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">🔗 Link de aprovação</button>
               {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Instagram</a>}
               {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Manual</a>}
               {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Drive</a>}

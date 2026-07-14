@@ -8,7 +8,7 @@ import PostCard from '@/components/PostCard'
 import PostMiniCard, { MiniPost } from '@/components/PostMiniCard'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
-import { Check, Copy, Search, X, Zap, ClipboardCheck } from 'lucide-react'
+import { Check, Copy, Search, X, Zap, ClipboardCheck, Link2 } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 
@@ -113,6 +113,13 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [generatingLink, setGeneratingLink] = useState(false)
   const [aiMessage, setAiMessage] = useState('')
   const [copied, setCopied] = useState(false)
+  const [fixedLinkCopied, setFixedLinkCopied] = useState(false)
+  function copyFixedApprovalLink() {
+    navigator.clipboard.writeText(`${window.location.origin}/aprovar/cliente/${clientId}`)
+    setFixedLinkCopied(true)
+    toast('Link fixo de aprovação copiado!')
+    setTimeout(() => setFixedLinkCopied(false), 2000)
+  }
 
   // deep-link: auto-open post when postParam changes
   const handledPostParam = useRef<string | null>(null)
@@ -280,6 +287,18 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
 
   return (
     <>
+      {/* Link fixo de aprovação — sempre a mesma URL, redireciona pro token vigente do cliente */}
+      <div className="flex justify-end mb-2">
+        <button onClick={copyFixedApprovalLink}
+          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all"
+          style={fixedLinkCopied
+            ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
+            : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+          {fixedLinkCopied ? <Check size={12} /> : <Link2 size={12} />}
+          {fixedLinkCopied ? 'Copiado!' : 'Link fixo de aprovação'}
+        </button>
+      </div>
+
       {/* Barra contextual */}
       {posts.length > 0 && (
         <div className="flex items-center gap-3 flex-wrap py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-1 rounded-xl mb-2">
