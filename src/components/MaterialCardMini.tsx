@@ -131,7 +131,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       {/* Briefing snippet — preenche o espaço que sobrar (a imagem cresce junto se precisar) */}
       {(m.ai_summary || m.description) && (
         <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed flex-1 min-h-0 overflow-hidden"
-          style={{ maxHeight: '6.5em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
+          style={{ maxHeight: '3.2em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
           {m.ai_summary || m.description}
         </p>
       )}

@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ summary: '' })
   }
 
-  const prompt = `Resuma o texto abaixo em no máximo 2 frases curtas e diretas, em português, mantendo as informações mais importantes para quem vai bater o olho num card de trabalho. Não use aspas nem introduções como "este texto fala sobre" ou "resumo:". Responda apenas com o resumo puro.
+  const prompt = `Resuma o texto abaixo em 1 frase curta e direta (máximo ~110 caracteres), em português, com a informação mais importante para quem vai bater o olho num card de trabalho. Não use aspas, listas, tags nem introduções como "este texto fala sobre" ou "resumo:". Responda apenas com a frase pura.
 
 Título: ${title || 'sem título'}
 Texto: ${text}`
