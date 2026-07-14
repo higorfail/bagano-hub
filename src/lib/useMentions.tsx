@@ -32,29 +32,40 @@ function DriveLinkChip({ url }: { url: string }) {
   }, [url])
   return (
     <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-      className="inline-flex items-center gap-1.5 max-w-full align-bottom px-2 py-1 my-0.5 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
-      style={{ borderColor: 'var(--color-border)', color: 'var(--ds-info-text)', background: 'var(--color-bg-card)' }}>
+      className="inline-flex items-center gap-1.5 max-w-full px-2 py-1 rounded-lg text-xs font-medium border transition-colors hover:opacity-80"
+      style={{ borderColor: 'var(--color-border)', color: 'var(--ds-info-text)', background: 'var(--color-bg-card)', verticalAlign: 'middle' }}>
       {isFolder ? <Folder size={12} className="flex-shrink-0" /> : <Link2 size={12} className="flex-shrink-0" />}
       <span className="truncate">{name || (isFolder ? 'Pasta do Drive' : 'Abrir no Drive')}</span>
     </a>
   )
 }
 
-// Renderiza o corpo de um comentário destacando @menções e transformando links
-// (em especial do Drive, com chip de nome de arquivo) em algo clicável.
-export function renderWithMentions(body: string) {
-  return body.split(URL_SPLIT_RE).map((part, i) => {
+function renderLine(line: string, key: string) {
+  return line.split(URL_SPLIT_RE).map((part, i) => {
     if (URL_TEST_RE.test(part)) {
       return DRIVE_TEST_RE.test(part)
-        ? <DriveLinkChip key={i} url={part} />
-        : <a key={i} href={part} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+        ? <DriveLinkChip key={`${key}-${i}`} url={part} />
+        : <a key={`${key}-${i}`} href={part} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
             className="underline break-all" style={{ color: 'var(--ds-info-text)' }}>{part}</a>
     }
     return part.split(/(@\S+)/g).map((sub, j) =>
       /^@\S+/.test(sub)
-        ? <strong key={`${i}-${j}`} style={{ color: 'var(--color-accent)' }}>{sub}</strong>
-        : <span key={`${i}-${j}`}>{sub}</span>
+        ? <strong key={`${key}-${i}-${j}`} style={{ color: 'var(--color-accent)' }}>{sub}</strong>
+        : <span key={`${key}-${i}-${j}`}>{sub}</span>
     )
+  })
+}
+
+// Renderiza o corpo de um comentário destacando @menções e transformando links
+// (em especial do Drive, com chip de nome de arquivo) em algo clicável.
+// Linhas que são só um link viram um bloco próprio (evita ficar espremido junto do texto).
+export function renderWithMentions(body: string) {
+  return body.split('\n').map((line, i) => {
+    const trimmed = line.trim()
+    if (URL_TEST_RE.test(trimmed)) {
+      return <div key={i} className="my-1 first:mt-0 last:mb-0">{renderLine(trimmed, String(i))}</div>
+    }
+    return <div key={i}>{renderLine(line, String(i)) || <>&nbsp;</>}</div>
   })
 }
 

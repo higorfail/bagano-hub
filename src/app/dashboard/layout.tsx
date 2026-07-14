@@ -136,6 +136,15 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     const sevenDaysAgo    = new Date(Date.now() - 7 * 86400000).toISOString()
     const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString()
 
+    // Cards que o membro atual observa — vira notificação de qualquer comentário ou
+    // mudança de status/atribuição neles, mesmo sem @menção direta (estilo Trello).
+    let watchedScheduleIds: string[] = []
+    if (currentMember) {
+      const { data: watchRows } = await supabase.from('card_watchers')
+        .select('table_name, record_id').eq('member_id', currentMember.id).eq('table_name', 'schedules')
+      watchedScheduleIds = (watchRows || []).map((w: any) => w.record_id)
+    }
+
     const [
       activityApprovalsRes,
       activityRevisaoRes,
@@ -155,6 +164,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       extraMentionsRes,
       criacaoHojeRes,
       memberAssignedRes,
+      watchedCommentsRes,
     ] = await Promise.all([
       // Aprovações/rejeições do cliente via activity_log (com timestamp real)
       supabase.from('activity_log')
@@ -261,6 +271,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             .gte('created_at', fourteenDaysAgo)
             .order('created_at', { ascending: false })
             .limit(10)
+        : Promise.resolve({ data: [] }),
+      // Comentários em posts observados (sem @menção) — estilo "watch" do Trello
+      currentMember && watchedScheduleIds.length > 0
+        ? supabase.from('schedule_comments')
+            .select('id, body, author_name, created_at, schedule_id, schedules(id, title, client_id, month, year, clients(name, color_hex))')
+            .in('schedule_id', watchedScheduleIds)
+            .neq('author_name', currentMember.name)
+            .gte('created_at', fourteenDaysAgo)
+            .order('created_at', { ascending: false })
+            .limit(15)
         : Promise.resolve({ data: [] }),
     ])
 
@@ -427,6 +447,28 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         client_name: d.author_name || '',
         created_at: d.created_at,
         link: d.material_id ? `/dashboard/materiais?post=${d.material_id}` : '/dashboard/materiais',
+      })
+    })
+
+    // Comentários em posts observados (watch), sem duplicar o que já veio via @menção
+    const mentionedCommentIds = new Set((mentionsRes.data || []).map((d: any) => d.id))
+    ;(watchedCommentsRes.data || []).forEach((d: any) => {
+      if (mentionedCommentIds.has(d.id)) return
+      const sch = d.schedules as any
+      const mq = sch?.month ? `&m=${sch.month}` : ''
+      const yq = sch?.year  ? `&y=${sch.year}`  : ''
+      result.push({
+        id: `watch-cmt-${d.id}`,
+        type: 'comment' as const,
+        title: `${d.author_name || 'Alguém'} comentou num post que você observa`,
+        subtitle: sch?.title || 'Post',
+        body: d.body || '',
+        client_name: (sch?.clients as any)?.name || '',
+        client_color: (sch?.clients as any)?.color_hex || '',
+        created_at: d.created_at,
+        link: sch?.client_id
+          ? `/dashboard/cronograma?client=${sch.client_id}&post=${d.schedule_id}${mq}${yq}`
+          : '/dashboard/cronograma',
       })
     })
 

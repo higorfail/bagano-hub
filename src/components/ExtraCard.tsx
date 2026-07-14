@@ -7,6 +7,8 @@ import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { autoGrow } from '@/lib/autoGrow'
+import { ensureWatching } from '@/lib/watch'
+import WatchButton from '@/components/WatchButton'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import EditableField from '@/components/EditableField'
@@ -233,6 +235,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         dueDate: dueDate || '', dueTime: dueTime || '', driveUrl: driveUrl || '', labels,
         needsClientApproval, assignedMembers,
       })
+      ensureWatching('extras', data.id, [currentMember?.id, ...assignedMembers])
       await logActivity({ tableName: 'extras', recordId: data.id, clientId: fixedClientId || clientId || null, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
       setActivityKey(k => k + 1)
       return data.id
@@ -598,6 +601,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   <button key={m.id} onClick={() => {
                     const next = sel ? assignedMembers.filter(x => x !== m.id) : [...assignedMembers, m.id]
                     setAssignedMembers(next)
+                    if (!sel && id) ensureWatching('extras', id, [m.id])
                     const logMsg = sel ? `${who} removeu ${m.name} de "${title}"` : `${who} adicionou ${m.name} a "${title}"`
                     persist({ assigned_members: next, assigned_member_id: next[0] || null }, logMsg, sel ? 'updated' : 'member_assigned')
                   }}
@@ -734,14 +738,21 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           <div className="w-[340px] flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
               <span className="text-xs font-bold text-[var(--color-text-primary)]">Comentários e atividade</span>
-              <button onClick={() => setShowDetails(v => !v)} className="text-[11px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
-                {showDetails ? 'Ocultar detalhes' : 'Mostrar detalhes'}
-              </button>
+              <div className="flex items-center gap-2">
+                <WatchButton tableName="extras" recordId={id} />
+                <button onClick={() => setShowDetails(v => !v)} className="text-[11px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
+                  {showDetails ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+                </button>
+              </div>
             </div>
 
-            {/* Campo de comentário */}
-            <div className="px-3 py-3 border-b border-[var(--color-border)] flex items-end gap-2">
-              <div className="flex-1">
+            {/* Campo de comentário — estilo Trello: avatar + caixa + botão "Comentar" abaixo */}
+            <div className="px-4 py-3 border-b border-[var(--color-border)] flex items-start gap-2.5">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5"
+                style={{ background: (currentMember as any)?.color || 'var(--color-brand)' }}>
+                {(currentMember?.name || '?').split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
                 <textarea
                   ref={mentions.textareaRef}
                   value={newComment}
@@ -749,15 +760,18 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   onInput={e => autoGrow(e.currentTarget)}
                   onKeyDown={e => { if (mentions.handleKeyDown(e)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment() } }}
                   onBlur={mentions.handleBlur}
-                  placeholder="Comentar… @ para mencionar  (Enter envia · Shift+Enter quebra linha)" rows={2}
-                  className="w-full bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)]"
+                  placeholder="Escrever um comentário… @ para mencionar" rows={3}
+                  className="w-full bg-[var(--color-bg-page)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs text-[var(--color-text-primary)] outline-none resize-none focus:border-[var(--color-accent)] focus:bg-[var(--color-bg-card)] transition-colors"
                 />
                 {mentions.dropdown}
+                <div className="flex justify-end mt-2">
+                  <button onClick={addComment} disabled={!newComment.trim()}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg text-white disabled:opacity-40 disabled:cursor-not-allowed enabled:hover:opacity-90 enabled:cursor-pointer transition-opacity flex-shrink-0"
+                    style={{ background: 'var(--color-accent)' }}>
+                    <Send size={12} /> Comentar
+                  </button>
+                </div>
               </div>
-              <button onClick={addComment} disabled={!newComment.trim()}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 flex-shrink-0" style={{ background: 'var(--color-accent)' }}>
-                <Send size={14} />
-              </button>
             </div>
 
             {/* Feed */}
