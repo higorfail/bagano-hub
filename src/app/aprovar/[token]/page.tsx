@@ -181,7 +181,7 @@ function mapStatus(s: Post): FeedPost['status'] {
 
 interface Post {
   id: string; title: string; post_type: string; status: string
-  drive_url?: string; drive_folder_url?: string; copy?: string; briefing?: string; scheduled_date?: string
+  drive_url?: string; drive_folder_url?: string; copy?: string; legenda?: string; briefing?: string; scheduled_date?: string
   post_number?: number; approval_comment?: string; approval_status?: string
   funil?: string; campaign_type?: string
 }
@@ -240,7 +240,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     if (!cl) { setError('Cliente não encontrado.'); setLoading(false); return }
     setClient(cl)
     const baseQuery = supabase.from('schedules')
-      .select('id, title, post_type, status, drive_url, drive_folder_url, copy, briefing, scheduled_date, post_number, approval_comment, approval_status, funil, campaign_type')
+      .select('id, title, post_type, status, drive_url, drive_folder_url, copy, legenda, briefing, scheduled_date, post_number, approval_comment, approval_status, funil, campaign_type')
       .eq('client_id', tk.client_id)
       .eq('month', tk.month)
       .eq('year',  tk.year)
@@ -269,7 +269,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
   const feedPosts: FeedPost[] = posts.map(p => ({
     id: p.id, title: p.title, type: mapType(p.post_type), status: mapStatus(p),
     drive_url: (p as any).drive_url, drive_folder_url: (p as any).drive_folder_url,
-    copy: p.copy, scheduled_date: p.scheduled_date, post_number: (p as any).post_number,
+    copy: p.copy, legenda: p.legenda, scheduled_date: p.scheduled_date, post_number: (p as any).post_number,
   }))
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -790,7 +790,8 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   const comment    = comments[post.id] || ''
                   const isLoading  = submitting === post.id
                   const isExpanded = expanded.has(post.id)
-                  const longCopy   = (post.copy || '').length > 180
+                  const displayCopy = post.legenda || post.copy || ''
+                  const longCopy   = displayCopy.length > 180
 
                   const isCarrossel = post.post_type === 'carrossel' || post.post_type === 'carrossel_stories'
                   const driveId     = post.drive_url?.match(/[-\w]{25,}/)?.[0]
@@ -849,13 +850,15 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                       <div style={{ padding: '16px 18px' }}>
                         <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 12px', lineHeight: 1.3, letterSpacing: '-0.02em' }}>{post.title}</h3>
 
-                        {/* Copy */}
-                        {post.copy && (
+                        {/* Legenda (texto final do Instagram; se ainda não tiver, cai no rascunho de copy) */}
+                        {displayCopy && (
                           <div style={{ marginBottom: 16 }}>
-                            <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Texto do post</p>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                              {post.legenda ? 'Legenda' : 'Rascunho de copy'}
+                            </p>
                             <div style={{ background: '#fafaf8', borderRadius: 14, padding: '12px 14px', border: '1px solid #f0f0ec' }}>
                               <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap', overflow: 'hidden', display: isExpanded ? 'block' : '-webkit-box', WebkitLineClamp: isExpanded ? undefined : 4, WebkitBoxOrient: 'vertical' as any }}>
-                                {post.copy}
+                                {displayCopy}
                               </p>
                             </div>
                             {longCopy && (
@@ -1199,11 +1202,13 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                 <div style={{ padding: '16px 20px 20px' }}>
                   <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 14px', letterSpacing: '-0.02em', lineHeight: 1.2 }}>{sheetPost.title}</h3>
 
-                  {/* Copy */}
-                  {sheetPost.copy && (
+                  {/* Legenda (texto final do Instagram; se ainda não tiver, cai no rascunho de copy) */}
+                  {(sheetPost.legenda || sheetPost.copy) && (
                     <div style={{ background: '#fafaf8', borderRadius: 14, padding: '12px 14px', marginBottom: 14, border: '1px solid #f0f0ec' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Texto do post</p>
-                      <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{sheetPost.copy}</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                        {sheetPost.legenda ? 'Legenda' : 'Rascunho de copy'}
+                      </p>
+                      <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{sheetPost.legenda || sheetPost.copy}</p>
                     </div>
                   )}
 

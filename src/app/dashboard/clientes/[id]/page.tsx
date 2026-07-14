@@ -24,7 +24,7 @@ type Client = {
 }
 
 type Post = {
-  id: string; post_number: number; title: string; copy: string
+  id: string; post_number: number; title: string; copy: string; legenda?: string
   post_type: string; scheduled_date: string; status: string
   approval_status: string; approval_comment: string
   drive_url: string; drive_folder_url: string; reference_notes: string; funil: string; campaign_type: string
@@ -325,6 +325,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   drive_url: p.drive_url,
                   drive_folder_url: p.drive_folder_url,
                   copy: p.copy,
+                  legenda: p.legenda,
                   scheduled_date: p.scheduled_date,
                   post_number: p.post_number,
                 }))}

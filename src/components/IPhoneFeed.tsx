@@ -19,6 +19,7 @@ export interface FeedPost {
   drive_url?: string
   drive_folder_url?: string
   copy?: string
+  legenda?: string
   scheduled_date?: string
   post_number?: number
 }
@@ -384,8 +385,8 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
           {/* Gradient + info */}
           <div style={{ padding: approvalMode ? '40px 16px 10px' : '40px 16px 20px', background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)', pointerEvents: 'none' }}>
             <p style={{ fontSize: 13, fontWeight: 700, color: 'white', margin: '0 0 2px' }}>{post.title}</p>
-            {post.copy && !approvalMode && (
-              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', margin: '0 0 6px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{post.copy}</p>
+            {(post.legenda || post.copy) && !approvalMode && (
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', margin: '0 0 6px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{post.legenda || post.copy}</p>
             )}
             {!approvalMode && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, pointerEvents: 'auto' }}>
@@ -406,10 +407,10 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
           {approvalMode && (
             <div style={{ padding: '0 12px 16px', pointerEvents: 'auto' }}>
               {/* Legenda snippet */}
-              {post.copy && (
+              {(post.legenda || post.copy) && (
                 <div style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', borderRadius: 10, padding: '8px 12px', marginBottom: 10 }}>
-                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', margin: '0 0 3px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legenda</p>
-                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const }}>{post.copy}</p>
+                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', margin: '0 0 3px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{post.legenda ? 'Legenda' : 'Rascunho de copy'}</p>
+                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const }}>{post.legenda || post.copy}</p>
                 </div>
               )}
 
@@ -597,10 +598,10 @@ function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
             {new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}
           </div>
         )}
-        {post.copy && (
+        {(post.legenda || post.copy) && (
           <div style={{ background: 'var(--color-bg-subtle)', borderRadius: 10, padding: '10px 12px' }}>
-            <p style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legenda</p>
-            <p style={{ fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.6, margin: 0 }}>{post.copy}</p>
+            <p style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{post.legenda ? 'Legenda' : 'Rascunho de copy'}</p>
+            <p style={{ fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.6, margin: 0 }}>{post.legenda || post.copy}</p>
           </div>
         )}
         {(media?.folderLink || post.drive_url) && (

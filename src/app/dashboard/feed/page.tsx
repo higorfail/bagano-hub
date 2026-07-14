@@ -69,7 +69,7 @@ function FeedPageInner() {
   useEffect(() => {
     if (!selected) return
     setLoading(true)
-    supabase.from('schedules').select('id, title, post_type, status, approval_status, drive_url, drive_folder_url, copy, scheduled_date, post_number')
+    supabase.from('schedules').select('id, title, post_type, status, approval_status, drive_url, drive_folder_url, copy, legenda, scheduled_date, post_number')
       .eq('client_id', selected.id).eq('month', month).eq('year', year).order('post_number', { ascending: true })
       .then(({ data }) => {
         if (data) {
@@ -81,6 +81,7 @@ function FeedPageInner() {
             drive_url: s.drive_url,
             drive_folder_url: s.drive_folder_url,
             copy: s.copy,
+            legenda: s.legenda,
             scheduled_date: s.scheduled_date,
             post_number: s.post_number,
           })))
