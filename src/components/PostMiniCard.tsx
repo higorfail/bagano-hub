@@ -112,12 +112,12 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
     >
       <div className="h-[3px] w-full flex-shrink-0" style={{ background: isRevisao ? '#8b5cf6' : type.color }} />
 
-      {/* Quando tem preview, o card inteiro trava na altura da imagem 4:5 (w-28=112px -> 140px)
-          pra nunca sobrar vão embaixo dela — o texto se ajusta a essa altura, não o contrário. */}
-      <div className="flex flex-1 min-h-0" style={thumbUrl ? { height: 140 } : undefined}>
-      {/* Drive thumbnail — preview vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
+      <div className="flex flex-1 min-h-0">
+      {/* Drive thumbnail — preview vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16).
+          Imagem sempre 4:5 fixo; o texto ao lado tem altura própria (não depende da imagem),
+          pra não ficar espremido em cards com muita badge/avatar. */}
       {thumbUrl && (
-        <div className="relative w-28 h-full flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 aspect-[4/5] self-start flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={thumbUrl} alt={post.title}
             className="w-full h-full object-cover"
             onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
@@ -131,7 +131,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         </div>
       )}
 
-      <div className="p-4 flex flex-col gap-3 flex-1 min-w-0 overflow-hidden">
+      <div className="p-4 flex flex-col gap-3 flex-1 min-w-0">
         {/* Header */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -166,12 +166,12 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
           </div>
         </div>
 
-        {/* Title + copy — copy preenche o espaço que sobrar (dinâmico, sem vão) */}
-        <div className="flex-1 min-h-0 flex flex-col">
-          <p className="font-bold text-[var(--color-text-primary)] text-[15px] leading-snug line-clamp-2 flex-shrink-0">{post.title || 'Sem título'}</p>
+        {/* Title + copy — altura própria do texto, independente da imagem/badges ao lado */}
+        <div className="flex flex-col">
+          <p className="font-bold text-[var(--color-text-primary)] text-[15px] leading-snug line-clamp-2">{post.title || 'Sem título'}</p>
           {(post.ai_summary || post.copy) && (
-            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 flex-1 min-h-0 overflow-hidden"
-              style={{ WebkitMaskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)' }}>
+            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 overflow-hidden"
+              style={{ maxHeight: '6.5em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
               {post.ai_summary || post.copy!.replace(/\*/g, '')}
             </p>
           )}

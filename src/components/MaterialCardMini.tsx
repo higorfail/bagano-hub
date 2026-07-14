@@ -83,7 +83,6 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       draggable={draggable}
       onDragStart={onDragStart}
       className="group relative bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl flex overflow-hidden shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer"
-      style={previewUrl ? { height: 140 } : undefined}
     >
       {/* Move arrows — aparecem no hover */}
       {(onMovePrev || onMoveNext) && (
@@ -99,16 +98,17 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
           )}
         </div>
       )}
-      {/* Preview do arquivo/entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
+      {/* Preview do arquivo/entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16).
+          Imagem sempre 4:5 fixo; o texto ao lado tem altura própria (não depende da imagem). */}
       {previewUrl && (
-        <div className="relative w-28 h-full flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 aspect-[4/5] self-start flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={previewUrl} alt={m.title}
             className="w-full h-full object-cover"
             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
         </div>
       )}
 
-      <div className="flex-1 min-w-0 p-3 flex flex-col gap-2 overflow-hidden">
+      <div className="flex-1 min-w-0 p-3 flex flex-col gap-2">
       {/* Etiquetas coloridas */}
       {labels.length > 0 && (
         <div className="flex flex-wrap gap-1">
@@ -125,10 +125,10 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       {/* Título */}
       <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-shrink-0">{m.title}</p>
 
-      {/* Briefing snippet — preenche o espaço que sobrar (dinâmico, sem vão) */}
+      {/* Briefing snippet — altura própria, independente da imagem/badges */}
       {(m.ai_summary || m.description) && (
-        <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed flex-1 min-h-0 overflow-hidden"
-          style={{ WebkitMaskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)' }}>
+        <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed overflow-hidden"
+          style={{ maxHeight: '6.5em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
           {m.ai_summary || m.description}
         </p>
       )}

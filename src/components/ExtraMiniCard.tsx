@@ -75,12 +75,12 @@ export default function ExtraMiniCard({
       style={{
         borderLeft: `3px solid ${priorityColor}`,
         opacity: dragging ? 0.4 : 1,
-        ...(thumbUrl ? { height: 140 } : {}),
       }}
     >
-      {/* Preview da entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16) */}
+      {/* Preview da entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16).
+          Imagem sempre 4:5 fixo; o texto ao lado tem altura própria (não depende da imagem). */}
       {thumbUrl && (
-        <div className="relative w-28 h-full flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 aspect-[4/5] self-start flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={thumbUrl} alt={extra.title} className="w-full h-full object-cover"
             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
           {isThumbVideo && (
@@ -93,7 +93,7 @@ export default function ExtraMiniCard({
         </div>
       )}
 
-      <div className="flex-1 min-w-0 p-3 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 p-3 flex flex-col">
         {/* Labels strip */}
         {extra.labels && extra.labels.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
@@ -118,10 +118,10 @@ export default function ExtraMiniCard({
           </p>
         </div>
 
-        {/* Description snippet — preenche o espaço que sobrar (dinâmico, sem vão) */}
+        {/* Description snippet — altura própria, independente da imagem/badges */}
         {(extra.ai_summary || extra.description) && (
-          <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 ml-5 leading-relaxed flex-1 min-h-0 overflow-hidden"
-            style={{ WebkitMaskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 65%, transparent 100%)' }}>
+          <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 ml-5 leading-relaxed overflow-hidden"
+            style={{ maxHeight: '6.5em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
             {extra.ai_summary || extra.description}
           </p>
         )}
