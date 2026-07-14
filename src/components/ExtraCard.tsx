@@ -735,7 +735,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           </div>
 
           {/* RIGHT — comentários + atividade (feed único, tipo Trello) */}
-          <div className="w-[340px] flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
+          <div className="w-[380px] flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
               <span className="text-xs font-bold text-[var(--color-text-primary)]">Comentários e atividade</span>
               <div className="flex items-center gap-2">
@@ -819,7 +819,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 ) : (
                   <div key={item.id} className="flex items-start gap-2">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5 opacity-80" style={{ background: av.color }}>{av.initials}</div>
-                    <p className="text-[11px] text-[var(--color-text-muted)] leading-snug flex-1 pt-0.5">
+                    <p className="text-[11px] text-[var(--color-text-muted)] leading-snug flex-1 pt-0.5 break-words">
                       {item.body}
                       <span className="text-[var(--color-text-faint)]" title={fullDateTime(item.at)}> · {fullDateTime(item.at)}</span>
                     </p>
