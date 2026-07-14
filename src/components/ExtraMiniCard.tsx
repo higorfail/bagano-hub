@@ -77,7 +77,7 @@ export default function ExtraMiniCard({
       style={{
         borderLeft: `3px solid ${priorityColor}`,
         opacity: dragging ? 0.4 : 1,
-        ...(thumbUrl ? { height: 140 } : {}),
+        height: 140,
       }}
     >
       {/* Preview da entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16).
@@ -99,7 +99,7 @@ export default function ExtraMiniCard({
         </div>
       )}
 
-      <div className="flex-1 min-w-0 p-3 flex flex-col">
+      <div className="flex-1 min-w-0 min-h-0 p-3 flex flex-col overflow-hidden">
         {/* Labels strip */}
         {extra.labels && extra.labels.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
