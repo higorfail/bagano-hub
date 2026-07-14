@@ -18,7 +18,7 @@ const TYPE_EMOJIS: Record<string, string> = {
 }
 
 function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
-  const [images, setImages] = useState<{ id: string; name: string }[]>([])
+  const [items, setItems] = useState<{ id: string; name: string; isVideo: boolean }[]>([])
   const [slide, setSlide]   = useState(0)
   const [ready, setReady]   = useState(false)
 
@@ -28,9 +28,12 @@ function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl:
     fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType)&orderBy=name&key=${key}`)
       .then(r => r.json())
       .then(d => {
-        const imgs = (d.files || [])
-          .filter((f: { id: string; name: string; mimeType: string }) => f.mimeType.startsWith('image/'))
-        setImages(imgs)
+        const files: { id: string; name: string; mimeType: string }[] = d.files || []
+        // Imagens e vídeos juntos, ordenados pelo nome — carrossel misto (fotos + vídeo)
+        // mostra o vídeo no lugar certo em vez de descartar ele da visualização.
+        const imgs = files.filter(f => f.mimeType.startsWith('image/')).map(f => ({ id: f.id, name: f.name, isVideo: false }))
+        const vids = files.filter(f => f.mimeType.startsWith('video/')).map(f => ({ id: f.id, name: f.name, isVideo: true }))
+        setItems([...imgs, ...vids].sort((a, b) => a.name.localeCompare(b.name)))
         setReady(true)
       })
       .catch(() => setReady(true))
@@ -42,32 +45,42 @@ function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl:
     </div>
   )
 
-  if (images.length === 0) return (
+  if (items.length === 0) return (
     <a href={folderUrl} target="_blank" rel="noopener noreferrer"
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', background: '#f5f5f3', fontSize: 13, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
       📂 Abrir pasta no Drive
     </a>
   )
 
-  const prev = () => setSlide(s => (s - 1 + images.length) % images.length)
-  const next = () => setSlide(s => (s + 1) % images.length)
+  const prev = () => setSlide(s => (s - 1 + items.length) % items.length)
+  const next = () => setSlide(s => (s + 1) % items.length)
+  const current = items[slide]
 
   return (
     <div style={{ position: 'relative', background: '#111', userSelect: 'none' }}>
       <div style={{ position: 'relative', paddingTop: '100%', overflow: 'hidden' }}>
-        <img
-          key={images[slide].id}
-          src={`https://drive.google.com/thumbnail?id=${images[slide].id}&sz=w800`}
-          alt={`Slide ${slide + 1}`}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
-        />
+        {current.isVideo ? (
+          <iframe
+            key={current.id}
+            src={`https://drive.google.com/file/d/${current.id}/preview`}
+            allow="autoplay" allowFullScreen
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+          />
+        ) : (
+          <img
+            key={current.id}
+            src={`https://drive.google.com/thumbnail?id=${current.id}&sz=w800`}
+            alt={`Slide ${slide + 1}`}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+          />
+        )}
       </div>
-      {images.length > 1 && (
+      {items.length > 1 && (
         <>
           <button onClick={prev} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>‹</button>
           <button onClick={next} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>›</button>
           <div style={{ position: 'absolute', bottom: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 5 }}>
-            {images.map((_, i) => (
+            {items.map((_, i) => (
               <div key={i} onClick={() => setSlide(i)} style={{ width: i === slide ? 16 : 6, height: 6, borderRadius: 3, background: i === slide ? '#fff' : 'rgba(255,255,255,0.45)', cursor: 'pointer', transition: 'width 0.2s, background 0.2s' }} />
             ))}
           </div>
@@ -75,7 +88,7 @@ function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl:
       )}
       <a href={folderUrl} target="_blank" rel="noopener noreferrer"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 12, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
-        📂 {slide + 1}/{images.length} · Abrir pasta no Drive
+        📂 {slide + 1}/{items.length} · Abrir pasta no Drive
       </a>
     </div>
   )

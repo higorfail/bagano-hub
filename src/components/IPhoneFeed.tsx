@@ -48,6 +48,10 @@ interface ResolvedMedia {
   thumbnailUrl?: string
   videoEmbedUrl?: string
   carouselImages?: string[]
+  // Slots paralelos ao carouselImages — true quando aquele slide é vídeo,
+  // e a URL de embed pra tocar ele inline (iframe do Drive).
+  carouselIsVideo?: boolean[]
+  carouselVideoEmbeds?: (string | undefined)[]
   folderLink?: string
 }
 
@@ -143,10 +147,20 @@ async function resolveMedia(post: FeedPost): Promise<ResolvedMedia> {
         }
         if (post.type === 'carousel' || post.type === 'story') {
           const images = files.filter(f => f.mimeType.startsWith('image/'))
-          const sorted = images.sort((a, b) => a.name.localeCompare(b.name))
-          const urls = sorted.map(f => driveIdToThumbnail(f.id, 600))
+          // Imagens e vídeos juntos, na ordem do nome do arquivo — carrossel misto
+          // (ex: 4 fotos + 1 vídeo) mostra o vídeo no lugar certo, não descarta ele.
+          const slideFiles = [...images, ...videos].sort((a, b) => a.name.localeCompare(b.name))
+          const urls = slideFiles.map(f => driveIdToThumbnail(f.id, 600))
+          const isVideoFlags = slideFiles.map(f => f.mimeType.startsWith('video/'))
+          const videoEmbeds = slideFiles.map(f => f.mimeType.startsWith('video/') ? driveIdToEmbed(f.id) : undefined)
           const fallback = urls[0] ?? nonImageFallback(600)
-          return { thumbnailUrl: cover ? driveIdToThumbnail(cover.id, 600) : fallback, carouselImages: urls.length > 0 ? urls : fallback ? [fallback] : [], folderLink: folderUrl }
+          return {
+            thumbnailUrl: cover ? driveIdToThumbnail(cover.id, 600) : fallback,
+            carouselImages: urls.length > 0 ? urls : fallback ? [fallback] : [],
+            carouselIsVideo: urls.length > 0 ? isVideoFlags : fallback ? [false] : [],
+            carouselVideoEmbeds: urls.length > 0 ? videoEmbeds : fallback ? [undefined] : [],
+            folderLink: folderUrl,
+          }
         }
         const photoThumb = cover ? driveIdToThumbnail(cover.id) : nonImageFallback()
         return { thumbnailUrl: photoThumb, folderLink: folderUrl }
@@ -249,10 +263,13 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
   }, [post.id])
 
   const slides = media?.carouselImages || (media?.thumbnailUrl ? [media.thumbnailUrl] : [])
+  const isVideoSlide = media?.carouselIsVideo?.[slide] || false
+  const videoEmbedUrl = media?.carouselVideoEmbeds?.[slide]
 
-  // Auto-advance — disabled in approval mode
+  // Auto-advance — desabilitado em modo aprovação, e pausado num slide de vídeo
+  // (o cliente precisa de tempo pra assistir, não 5s fixos como numa foto)
   useEffect(() => {
-    if (loading || slides.length === 0 || paused || approvalMode) return
+    if (loading || slides.length === 0 || paused || approvalMode || isVideoSlide) return
     setProgress(0)
     const TICK = 50
     const step = (100 / DURATION) * TICK
@@ -261,7 +278,7 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
       if (slide < slides.length - 1) setSlide(s => s + 1); else onClose()
     }, DURATION)
     return () => { clearInterval(iv); clearTimeout(to) }
-  }, [slide, loading, slides.length, paused, approvalMode])
+  }, [slide, loading, slides.length, paused, approvalMode, isVideoSlide])
 
   // In approval mode track progress manually (no auto-close)
   useEffect(() => {
@@ -336,6 +353,8 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Loader2 size={28} color="white" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
+        ) : slides.length > 0 && isVideoSlide && videoEmbedUrl ? (
+          <iframe src={videoEmbedUrl} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} allow="autoplay" allowFullScreen />
         ) : slides.length > 0 ? (
           <img src={slides[slide]} alt={post.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
@@ -345,11 +364,20 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
           </div>
         )}
 
-        {/* Tap zones */}
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', zIndex: 10, pointerEvents: loading ? 'none' : 'auto' }}>
-          <div style={{ flex: 1 }} onClick={e => { e.stopPropagation(); goPrev() }} />
-          <div style={{ flex: 1 }} onClick={e => { e.stopPropagation(); goNext() }} />
-        </div>
+        {/* Tap zones — em slide de vídeo ficam só nas bordas, pra não bloquear os
+            controles do player do Drive no meio da tela */}
+        {isVideoSlide ? (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', zIndex: 10, pointerEvents: loading ? 'none' : 'auto' }}>
+            <div style={{ width: '18%' }} onClick={e => { e.stopPropagation(); goPrev() }} />
+            <div style={{ flex: 1 }} />
+            <div style={{ width: '18%' }} onClick={e => { e.stopPropagation(); goNext() }} />
+          </div>
+        ) : (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', zIndex: 10, pointerEvents: loading ? 'none' : 'auto' }}>
+            <div style={{ flex: 1 }} onClick={e => { e.stopPropagation(); goPrev() }} />
+            <div style={{ flex: 1 }} onClick={e => { e.stopPropagation(); goNext() }} />
+          </div>
+        )}
 
         {/* Bottom: info + approval UI */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 20, pointerEvents: 'none' }}>
@@ -511,6 +539,8 @@ function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
   const slides    = media?.carouselImages || (media?.thumbnailUrl ? [media.thumbnailUrl] : [])
   const isCarousel = post.type === 'carousel' && slides.length > 1
   const isReel     = post.type === 'reel'
+  const isVideoSlide = media?.carouselIsVideo?.[slide] || false
+  const videoEmbedUrl = media?.carouselVideoEmbeds?.[slide]
 
   return (
     <div style={{ width: 300, flexShrink: 0, background: 'var(--color-bg-card)', border: '0.5px solid var(--color-border)', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -529,7 +559,11 @@ function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
           <iframe src={media.videoEmbedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" allowFullScreen />
         ) : slides.length > 0 ? (
           <>
-            <img src={slides[slide]} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            {isVideoSlide && videoEmbedUrl ? (
+              <iframe src={videoEmbedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" allowFullScreen />
+            ) : (
+              <img src={slides[slide]} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            )}
             {isCarousel && (
               <>
                 <div style={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 4 }}>
