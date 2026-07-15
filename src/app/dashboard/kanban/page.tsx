@@ -180,9 +180,9 @@ export default function KanbanPage() {
         </div>
       </div>
 
-      {/* Board */}
-      <div className="flex-1 overflow-x-auto p-4">
-        <div className="flex gap-3 h-full min-w-max">
+      {/* Board — no mobile rola tipo Trello (1 coluna por vez, com snap) */}
+      <div className="flex-1 overflow-x-auto p-4 snap-x snap-mandatory md:snap-none">
+        <div className="flex gap-3 h-full md:min-w-max">
           {COLUMNS.map(col => {
             const colPosts = getColPosts(col.key)
             const groups = groupByClient(colPosts)
@@ -190,7 +190,7 @@ export default function KanbanPage() {
             return (
               <div
                 key={col.key}
-                className={`flex flex-col w-[268px] rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
+                className={`flex flex-col w-[calc(100vw-2rem)] md:w-[268px] flex-shrink-0 snap-center md:snap-align-none rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
                 style={isDragOver ? { outline: `2px solid ${col.color}`, outlineOffset: 1 } : {}}
                 onDragEnter={() => {
                   dragCounters.current[col.key] = (dragCounters.current[col.key] || 0) + 1

@@ -26,7 +26,6 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#7c0006",
   viewportFit: "cover",
 };
 
@@ -42,8 +41,18 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* Prevent flash of wrong theme before hydration */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('bagano-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');else if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})()` }} />
+        {/* Cor da barra de status/Safari acompanha o tema — sem "faixa" preta/branca destacada
+            (iOS liquid glass deixa o conteúdo passar por baixo, então precisa bater com o fundo real) */}
+        <meta id="theme-color-meta" name="theme-color" content="#F9F8F5" />
+        {/* Prevent flash of wrong theme before hydration — e já acerta a cor da barra de status */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{
+  var t=localStorage.getItem('bagano-theme');
+  if(t==='dark')document.documentElement.setAttribute('data-theme','dark');
+  else if(t==='light')document.documentElement.setAttribute('data-theme','light');
+  var isDark = t==='dark' || (t!=='light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  var m=document.getElementById('theme-color-meta');
+  if(m) m.setAttribute('content', isDark ? '#1C1A18' : '#F9F8F5');
+}catch(e){}})()` }} />
         {/* Theme CSS variables — outside Tailwind pipeline so selectors survive */}
         <style dangerouslySetInnerHTML={{ __html: `
 /* ── Base tokens (light) ─────────────────────────────────────────────── */

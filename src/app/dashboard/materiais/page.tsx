@@ -131,14 +131,14 @@ function MateriaisContent() {
         </div>
       </div>
 
-      <div className="flex gap-4 flex-1 overflow-x-auto">
+      <div className="flex gap-4 flex-1 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0">
         {COLUMNS.map((col, colIdx) => {
           const items      = colMaterials(col.key)
           const isDragOver = dragOverCol === col.key
           const prevCol    = COLUMNS[colIdx - 1]
           const nextCol    = COLUMNS[colIdx + 1]
           return (
-            <div key={col.key} className="flex-1 min-w-[300px] flex flex-col"
+            <div key={col.key} className="w-[calc(100vw-2rem)] flex-shrink-0 snap-center md:w-auto md:flex-1 md:min-w-[300px] md:snap-align-none flex flex-col"
               onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={() => setDragOverCol(null)}
               onDrop={e => {

@@ -20,6 +20,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setModeState(saved)
       applyTheme(saved)
     }
+    // "Auto" segue o sistema — se o SO mudar de tema com o app aberto, a cor da barra acompanha
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = () => { if ((localStorage.getItem('bagano-theme') as ThemeMode | null) !== 'light' && (localStorage.getItem('bagano-theme') as ThemeMode | null) !== 'dark') applyTheme('auto') }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
   }, [])
 
   function setMode(m: ThemeMode) {
@@ -40,4 +45,8 @@ function applyTheme(mode: ThemeMode) {
   if (mode === 'dark')  html.setAttribute('data-theme', 'dark')
   else if (mode === 'light') html.setAttribute('data-theme', 'light')
   else html.removeAttribute('data-theme')
+
+  const isDark = mode === 'dark' || (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const meta = document.getElementById('theme-color-meta')
+  meta?.setAttribute('content', isDark ? '#1C1A18' : '#F9F8F5')
 }

@@ -185,14 +185,14 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
         </div>
       )}
 
-      {/* Kanban columns — rola horizontal no mobile em vez de espremer 3 colunas */}
-      <div className="flex md:grid md:grid-cols-3 gap-5 overflow-x-auto pb-2 md:pb-0">
+      {/* Kanban columns — no mobile rola tipo Trello (1 coluna por vez, com snap) */}
+      <div className="flex md:grid md:grid-cols-3 gap-5 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
         {COLUMNS.map(col => {
           const colExtras = filtered.filter(e => e.status === col.key)
           const isDragTarget = dragOverCol === col.key && draggingId !== null
 
           return (
-            <div key={col.key} className="flex flex-col gap-2 w-[85vw] max-w-[340px] flex-shrink-0 md:w-auto md:max-w-none md:flex-shrink"
+            <div key={col.key} className="flex flex-col gap-2 w-[calc(100vw-2rem)] flex-shrink-0 snap-center md:w-auto md:max-w-none md:flex-shrink md:snap-align-none"
               onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null) }}
               onDrop={e => {
