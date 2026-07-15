@@ -314,79 +314,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
 
   return (
     <>
-      {/* Link fixo de aprovação — sempre a mesma URL, redireciona pro token vigente do cliente */}
-      <div className="flex justify-end mb-2">
-        <button onClick={copyFixedApprovalLink}
-          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all"
-          style={fixedLinkCopied
-            ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
-            : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-          {fixedLinkCopied ? <Check size={12} /> : <Link2 size={12} />}
-          {fixedLinkCopied ? 'Copiado!' : 'Link fixo de aprovação'}
-        </button>
-      </div>
-
-      {/* Barra contextual */}
-      {posts.length > 0 && (
-        <div className="flex items-center gap-3 flex-wrap py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] px-1 rounded-xl mb-2">
-          {estrategiaPosts.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-[var(--color-text-muted)] font-medium">{estrategiaPosts.length} em estratégia →</span>
-              <button onClick={() => openApprovalModal('cronograma')}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
-                style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
-                <ClipboardCheck size={12} /> Aprovar crono
-              </button>
-              <button onClick={async () => {
-                setSaving(true)
-                await Promise.all(estrategiaPosts.map(p => supabase.from('schedules').update({ status: 'producao' }).eq('id', p.id)))
-                setPosts(prev => prev.map(p => estrategiaPosts.find(ep => ep.id === p.id) ? { ...p, status: 'producao' } : p))
-                setSaving(false)
-                toast(`${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} enviado${estrategiaPosts.length !== 1 ? 's' : ''} para Criação!`)
-              }} disabled={saving}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90 disabled:opacity-50"
-                style={{ borderColor: '#f59e0b66', color: '#b45309', background: '#f59e0b18' }}>
-                <Zap size={12} /> Direto pra Criação
-              </button>
-            </div>
-          )}
-          {estrategiaPosts.length > 0 && revisaoPosts.length > 0 && <div className="w-px h-4 bg-[var(--color-border)]" />}
-          {revisaoPosts.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-[var(--color-text-muted)] font-medium">{revisaoPosts.length} em revisão →</span>
-              <button onClick={() => openApprovalModal('final')}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
-                style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
-                <ClipboardCheck size={12} /> Aprovação final
-              </button>
-            </div>
-          )}
-          <div className="ml-auto flex items-center gap-2">
-            <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
-              <button onClick={() => changeView('list')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
-              <button onClick={() => changeView('grid')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
-              <button onClick={() => changeView('calendar')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='calendar'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Calendário</button>
-            </div>
-            {isFinalized && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border" style={{ background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
-                <Check size={11} style={{ color: 'var(--ds-success-accent)' }} strokeWidth={2.5} />
-                <span className="text-xs font-semibold" style={{ color: 'var(--ds-success-text)' }}>
-                  Finalizado{cronoStatus?.finalized_by ? ` · ${cronoStatus.finalized_by.split(' ')[0]}` : ''}
-                </span>
-              </div>
-            )}
-            <button onClick={toggleFinalized} disabled={togglingStatus}
-              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all disabled:opacity-50"
-              style={isFinalized
-                ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
-                : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-              <Check size={11} strokeWidth={2.5} />
-              {isFinalized ? 'Reabrir' : 'Marcar finalizado'}
-            </button>
-          </div>
-        </div>
-      )}
-
       {posts.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[360px] text-center gap-6">
           <div className="relative">
@@ -405,37 +332,97 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
         </div>
       ) : (
         <>
-          {/* Barra de filtros */}
-          <div className="flex items-center gap-2 flex-wrap mb-5">
-            <div className="relative flex-1 min-w-[160px] max-w-xs">
+          {/* Toolbar única: busca + filtros à esquerda · ações à direita */}
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            <div className="relative w-[200px]">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
-              <input value={filterText} onChange={e => setFilterText(e.target.value)} placeholder="Buscar título ou copy..."
+              <input value={filterText} onChange={e => setFilterText(e.target.value)} placeholder="Buscar..."
                 className="w-full pl-8 pr-3 py-1.5 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]" />
             </div>
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
               className="text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
-              <option value="">Todos os status</option>
+              <option value="">Status</option>
               {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
             <select value={filterType} onChange={e => setFilterType(e.target.value)}
               className="text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
-              <option value="">Todos os tipos</option>
+              <option value="">Tipo</option>
               {POST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
             {hasFilter && (
-              <>
-                <button onClick={() => { setFilterText(''); setFilterStatus(''); setFilterType('') }}
-                  className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
-                  <X size={11} /> Limpar
-                </button>
-                <span className="text-xs text-[var(--color-text-muted)] ml-auto">{visiblePosts.length} de {posts.length} posts</span>
-              </>
+              <button onClick={() => { setFilterText(''); setFilterStatus(''); setFilterType('') }}
+                className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
+                <X size={11} /> {visiblePosts.length}/{posts.length}
+              </button>
             )}
-            <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
-              className="ml-auto flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-90"
-              style={{ background: clientColor || 'var(--color-brand)' }}>
-              + Novo post
-            </button>
+
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
+              {/* Ações contextuais de aprovação — só quando há posts elegíveis */}
+              {estrategiaPosts.length > 0 && (
+                <>
+                  <button onClick={() => openApprovalModal('cronograma')}
+                    title={`Enviar ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} em estratégia pra aprovação do cronograma`}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
+                    style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
+                    <ClipboardCheck size={12} /> Aprovar crono · {estrategiaPosts.length}
+                  </button>
+                  <button onClick={async () => {
+                    setSaving(true)
+                    await Promise.all(estrategiaPosts.map(p => supabase.from('schedules').update({ status: 'producao' }).eq('id', p.id)))
+                    setPosts(prev => prev.map(p => estrategiaPosts.find(ep => ep.id === p.id) ? { ...p, status: 'producao' } : p))
+                    setSaving(false)
+                    toast(`${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} enviado${estrategiaPosts.length !== 1 ? 's' : ''} para Criação!`)
+                  }} disabled={saving}
+                    title={`Pular aprovação e mandar ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} direto pra Criação`}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90 disabled:opacity-50"
+                    style={{ borderColor: '#f59e0b66', color: '#b45309', background: '#f59e0b18' }}>
+                    <Zap size={12} /> Pra Criação
+                  </button>
+                </>
+              )}
+              {revisaoPosts.length > 0 && (
+                <button onClick={() => openApprovalModal('final')}
+                  title={`Enviar ${revisaoPosts.length} post${revisaoPosts.length !== 1 ? 's' : ''} em revisão pra aprovação final do cliente`}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
+                  style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
+                  <ClipboardCheck size={12} /> Aprovação final · {revisaoPosts.length}
+                </button>
+              )}
+
+              {/* Toggle de visualização */}
+              <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
+                <button onClick={() => changeView('list')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
+                <button onClick={() => changeView('grid')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
+                <button onClick={() => changeView('calendar')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='calendar'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Calendário</button>
+              </div>
+
+              {/* Link fixo de aprovação — ícone com tooltip */}
+              <button onClick={copyFixedApprovalLink}
+                title={fixedLinkCopied ? 'Copiado!' : 'Copiar link fixo de aprovação do cliente'}
+                className="w-8 h-[30px] rounded-xl border flex items-center justify-center transition-all"
+                style={fixedLinkCopied
+                  ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
+                  : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                {fixedLinkCopied ? <Check size={13} /> : <Link2 size={13} />}
+              </button>
+
+              {/* Finalizado — um botão só, com estado */}
+              <button onClick={toggleFinalized} disabled={togglingStatus}
+                title={isFinalized ? `Finalizado${cronoStatus?.finalized_by ? ` por ${cronoStatus.finalized_by}` : ''} — clique pra reabrir` : 'Marcar cronograma como finalizado'}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all disabled:opacity-50"
+                style={isFinalized
+                  ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
+                  : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                <Check size={11} strokeWidth={2.5} />
+                {isFinalized ? `Finalizado${cronoStatus?.finalized_by ? ` · ${cronoStatus.finalized_by.split(' ')[0]}` : ''}` : 'Finalizar'}
+              </button>
+
+              <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-90"
+                style={{ background: clientColor || 'var(--color-brand)' }}>
+                + Novo post
+              </button>
+            </div>
           </div>
 
           {visiblePosts.length === 0 ? (

@@ -106,10 +106,10 @@ function CronogramaPageInner() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="px-6 pt-6 pb-4 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap flex-shrink-0">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Cronograma</h1>
-          <p className="text-[var(--color-text-muted)] text-sm mt-0.5">{postCount} post{postCount !== 1 ? 's' : ''} · {CRONO_MONTHS[selectedMonth - 1]} {selectedYear}</p>
+      <div className="px-6 py-3.5 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap flex-shrink-0">
+        <div className="min-w-0 flex items-baseline gap-2.5">
+          <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Cronograma</h1>
+          <p className="text-[var(--color-text-muted)] text-sm truncate">{postCount} post{postCount !== 1 ? 's' : ''} · {CRONO_MONTHS[selectedMonth - 1]} {selectedYear}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Client selector */}
@@ -149,7 +149,7 @@ function CronogramaPageInner() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto px-6 py-4">
         {selectedClient && (
           <CronogramaTab
             key={`${selectedClient}-${selectedMonth}-${selectedYear}`}

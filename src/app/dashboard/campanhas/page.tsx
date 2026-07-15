@@ -100,11 +100,11 @@ export default function CampanhasPage() {
   if (loading) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Carregando campanhas...</div>
 
   return (
-    <div className="p-6 flex flex-col gap-6 h-full overflow-y-auto">
+    <div className="px-6 py-4 flex flex-col gap-4 h-full overflow-y-auto">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Campanhas</h1>
-        <p className="text-[var(--color-text-muted)] text-sm mt-0.5">Visão global · todos os clientes por campanha</p>
+      <div className="flex items-baseline gap-2.5">
+        <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Campanhas</h1>
+        <p className="text-[var(--color-text-muted)] text-sm">todos os clientes por campanha</p>
       </div>
 
       {/* Seletor de campanha */}
@@ -117,7 +117,7 @@ export default function CampanhasPage() {
             <button
               key={s.type}
               onClick={() => setSelected(s.type)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-sm"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all text-xs"
               style={selected === s.type
                 ? { background: isDark ? s.theme.darkBg : s.theme.bg, borderColor: isDark ? s.theme.darkBorder : s.theme.border, color: s.theme.accent, fontWeight: 500 }
                 : { background: 'var(--color-bg-card)', borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }
@@ -132,23 +132,18 @@ export default function CampanhasPage() {
         })}
       </div>
 
-      {/* Banner da campanha selecionada */}
-      <div className="rounded-2xl p-5 border" style={{ background: isDark ? seasonal.theme.darkBg : seasonal.theme.bg, borderColor: isDark ? seasonal.theme.darkBorder : seasonal.theme.border }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">{seasonal.emoji}</span>
-            <div>
-              <h2 className="text-base font-semibold" style={{ color: seasonal.theme.accent }}>{seasonal.name}</h2>
-              <p className="text-sm mt-0.5" style={{ color: seasonal.theme.accent, opacity: 0.7 }}>
-                {days < 0 ? 'Já passou' : days === 0 ? 'Hoje!' : `Faltam ${days} dias · ${seasonal.day}/${seasonal.month}`}
-              </p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold" style={{ color: seasonal.theme.accent }}>{activeClients.length}</p>
-            <p className="text-xs" style={{ color: seasonal.theme.accent, opacity: 0.7 }}>clientes ativos</p>
-          </div>
+      {/* Banner da campanha selecionada — slim */}
+      <div className="rounded-2xl px-4 py-3 border flex items-center justify-between gap-3" style={{ background: isDark ? seasonal.theme.darkBg : seasonal.theme.bg, borderColor: isDark ? seasonal.theme.darkBorder : seasonal.theme.border }}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="text-2xl">{seasonal.emoji}</span>
+          <h2 className="text-sm font-semibold truncate" style={{ color: seasonal.theme.accent }}>{seasonal.name}</h2>
+          <span className="text-sm flex-shrink-0" style={{ color: seasonal.theme.accent, opacity: 0.7 }}>
+            · {days < 0 ? 'já passou' : days === 0 ? 'hoje!' : `faltam ${days} dias · ${seasonal.day}/${seasonal.month}`}
+          </span>
         </div>
+        <p className="text-sm font-semibold flex-shrink-0" style={{ color: seasonal.theme.accent }}>
+          {activeClients.length} cliente{activeClients.length !== 1 ? 's' : ''} ativo{activeClients.length !== 1 ? 's' : ''}
+        </p>
       </div>
 
       {/* Grid de clientes ativos */}

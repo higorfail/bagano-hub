@@ -116,13 +116,13 @@ function MateriaisContent() {
   if (loading) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Carregando materiais...</div>
 
   return (
-    <div className="p-6 flex flex-col gap-5 h-full">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Materiais</h1>
-          <p className="text-[var(--color-text-muted)] text-sm mt-0.5">{visible.length} materiais · menus, cardápios, artes</p>
+    <div className="px-6 py-4 flex flex-col gap-4 h-full">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-baseline gap-2.5 min-w-0">
+          <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Materiais</h1>
+          <p className="text-[var(--color-text-muted)] text-sm truncate">{visible.length} materia{visible.length === 1 ? 'l' : 'is'} · menus, cardápios, artes</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <select value={filterClient} onChange={e => setFilterClient(e.target.value)} className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)]">
             <option value="">Todos os clientes</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

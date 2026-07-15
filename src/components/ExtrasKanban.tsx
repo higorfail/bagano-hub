@@ -165,25 +165,23 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   )
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-3">
 
-      {/* Client filter chips — global only */}
+      {/* Filtro de cliente — select compacto (20+ clientes não cabem como chips) */}
       {globalMode && (
-        <div className="flex flex-wrap gap-2">
-          {[
-            { id: 'all',    name: 'Todos',       color_hex: 'var(--color-brand)' },
-            ...clients,
-            { id: 'global', name: 'Sem cliente', color_hex: '#94a3b8' },
-          ].map(c => (
-            <button key={c.id}
-              onClick={() => setFilterClient(c.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all border ${filterClient === c.id ? 'border-transparent text-white' : 'border-[var(--color-border)] text-[var(--color-text-muted)] bg-[var(--color-bg-card)] hover:border-[var(--color-border-hover)]'}`}
-              style={filterClient === c.id ? { background: c.color_hex } : {}}
-            >
-              {c.id !== 'all' && <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: c.color_hex }} />}
-              {c.name}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
+            className="text-sm rounded-lg border bg-[var(--color-bg-card)] px-3 py-1.5 outline-none cursor-pointer font-medium"
+            style={filterClient !== 'all'
+              ? { borderColor: clients.find(c => c.id === filterClient)?.color_hex || 'var(--color-border-strong)', color: 'var(--color-text-primary)' }
+              : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+            <option value="all">Todos os clientes</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <option value="global">Sem cliente</option>
+          </select>
+          {filterClient !== 'all' && (
+            <button onClick={() => setFilterClient('all')} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">✕ limpar</button>
+          )}
         </div>
       )}
 
