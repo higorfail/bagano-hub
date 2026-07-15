@@ -181,11 +181,11 @@ export default function ClientesPage() {
   )
 
   return (
-    <div className="p-6 flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Clientes</h1>
-          <p className="text-[var(--color-text-muted)] text-sm mt-0.5">{clients.length} clientes ativos</p>
+    <div className="p-4 md:p-6 flex flex-col gap-5">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-baseline gap-2.5 min-w-0">
+          <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Clientes</h1>
+          <p className="text-[var(--color-text-muted)] text-sm truncate">{clients.length} clientes ativos</p>
         </div>
         <Button variant="dark" onClick={openCreate}>+ Novo cliente</Button>
       </div>
@@ -195,10 +195,10 @@ export default function ClientesPage() {
         placeholder="Buscar cliente..."
         value={search}
         onChange={e => setSearch(e.target.value)}
-        className="w-full max-w-xs border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]"
+        className="w-full sm:max-w-xs border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-faint)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]"
       />
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {filtered.map(client => (
           <a
             key={client.id}
@@ -237,7 +237,7 @@ export default function ClientesPage() {
             Arquivo ({archivedClients.length} cliente{archivedClients.length !== 1 ? 's' : ''} inativo{archivedClients.length !== 1 ? 's' : ''})
           </button>
           {showArchive && (
-            <div className="grid grid-cols-4 gap-4 opacity-60">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 opacity-60">
               {archivedClients.map(client => (
                 <a
                   key={client.id}

@@ -216,7 +216,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   return (
     <div className="flex h-full" onClick={() => setShowMonthPicker(false)}>
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-6 border-b border-[var(--color-border)]">
+        <div className="p-4 md:p-6 border-b border-[var(--color-border)]">
 
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 mb-4">
@@ -255,14 +255,14 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 mt-5">
+          <div className="flex items-center gap-1 mt-5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
             {[{key:'cronograma',label:'Cronograma'},{key:'feed',label:'Feed'},{key:'materiais',label:'Materiais'},{key:'campanhas',label:'Campanhas'},{key:'time',label:'Time'},{key:'extras',label:'Extras'},{key:'onboarding',label:'Onboarding'},{key:'drive',label:'Drive'},{key:'historico',label:'Histórico'},{key:'manual',label:'Manual'}].map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab===t.key?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
+              <button key={t.key} onClick={() => setTab(t.key)} className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${tab===t.key?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
             ))}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {tab === 'cronograma' && (
             <div className="flex flex-col gap-4">
               {/* Month/year nav */}

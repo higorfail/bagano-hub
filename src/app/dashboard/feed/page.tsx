@@ -97,8 +97,16 @@ function FeedPageInner() {
   const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
-    <div className="flex h-screen bg-[var(--color-bg-page)]">
-      <aside className="w-60 flex-shrink-0 bg-[var(--color-bg-card)] border-r border-[var(--color-border)] flex flex-col">
+    <div className="flex flex-col md:flex-row h-screen bg-[var(--color-bg-page)] overflow-hidden">
+      {/* No mobile o seletor de cliente vira um select no topo — a lista lateral fixa não cabe na tela */}
+      <div className="md:hidden p-3 border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
+        <select value={selected?.id || ''} onChange={e => setSelected(clients.find(c => c.id === e.target.value) || null)}
+          className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-card)] outline-none">
+          <option value="">Selecione um cliente</option>
+          {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+      <aside className="hidden md:flex w-60 flex-shrink-0 bg-[var(--color-bg-card)] border-r border-[var(--color-border)] flex-col">
         <div className="px-4 pt-6 pb-4 border-b border-[var(--color-border)]">
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Feed Visual</h2>
           <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Preview do Instagram</p>
@@ -121,10 +129,10 @@ function FeedPageInner() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto p-8">
+      <main className="flex-1 overflow-auto p-4 md:p-8">
         {selected ? (
           <>
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-6 md:mb-8">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center text-white font-medium" style={{ background: selected.color_hex }}>
                   {selected.logo_url ? <img src={selected.logo_url} alt={selected.name} className="w-full h-full object-cover" /> : initials(selected.name)}

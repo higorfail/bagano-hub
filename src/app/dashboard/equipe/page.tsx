@@ -93,10 +93,10 @@ export default function EquipePage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-page)]">
-      <div className="max-w-5xl mx-auto px-8 py-10">
+      <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between gap-4 flex-wrap mb-8">
           <div>
             <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Equipe</h1>
             <p className="text-sm text-[var(--color-text-muted)] mt-0.5">{members.length} colaborador{members.length !== 1 ? 'es' : ''}</p>
@@ -128,7 +128,7 @@ export default function EquipePage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {members.map(m => (
               <div
                 key={m.id}

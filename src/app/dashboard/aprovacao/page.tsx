@@ -133,10 +133,10 @@ export default function AprovacaoPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-page)]">
-      <div className="max-w-3xl mx-auto px-8 py-10 space-y-4">
+      <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10 space-y-4">
 
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-2">
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-2">
           <div>
             <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Aprovações</h1>
             <p className="text-sm text-[var(--color-text-muted)] mt-1">

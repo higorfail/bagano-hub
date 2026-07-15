@@ -355,7 +355,7 @@ export default function CriacaoPage() {
   return (
     <>
     <div className="min-h-screen bg-[var(--color-bg-page)]">
-      <div className="max-w-3xl mx-auto px-8 py-8 space-y-6">
+      <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-8 space-y-6">
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
