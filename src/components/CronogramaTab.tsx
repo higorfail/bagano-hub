@@ -589,7 +589,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               })}
             </div>
           ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {visiblePosts.map(post => (
                 <PostMiniCard
                   key={post.id}

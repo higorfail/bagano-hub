@@ -116,7 +116,7 @@ function MateriaisContent() {
   if (loading) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Carregando materiais...</div>
 
   return (
-    <div className="px-6 py-4 flex flex-col gap-4 h-full">
+    <div className="px-4 md:px-6 py-4 flex flex-col gap-4 h-full">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-2.5 min-w-0">
           <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Materiais</h1>

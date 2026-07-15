@@ -185,14 +185,14 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
         </div>
       )}
 
-      {/* Kanban columns */}
-      <div className="grid grid-cols-3 gap-5">
+      {/* Kanban columns — rola horizontal no mobile em vez de espremer 3 colunas */}
+      <div className="flex md:grid md:grid-cols-3 gap-5 overflow-x-auto pb-2 md:pb-0">
         {COLUMNS.map(col => {
           const colExtras = filtered.filter(e => e.status === col.key)
           const isDragTarget = dragOverCol === col.key && draggingId !== null
 
           return (
-            <div key={col.key} className="flex flex-col gap-2"
+            <div key={col.key} className="flex flex-col gap-2 w-[85vw] max-w-[340px] flex-shrink-0 md:w-auto md:max-w-none md:flex-shrink"
               onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null) }}
               onDrop={e => {

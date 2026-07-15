@@ -100,7 +100,7 @@ export default function CampanhasPage() {
   if (loading) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Carregando campanhas...</div>
 
   return (
-    <div className="px-6 py-4 flex flex-col gap-4 h-full overflow-y-auto">
+    <div className="px-4 md:px-6 py-4 flex flex-col gap-4 h-full overflow-y-auto">
       {/* Header */}
       <div className="flex items-baseline gap-2.5">
         <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Campanhas</h1>
@@ -150,7 +150,7 @@ export default function CampanhasPage() {
       {activeClients.length > 0 && (
         <div>
           <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Clientes com esta campanha</p>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {activeClients.map(client => {
               const camp = activeCamps.find(c => c.client_id === client.id)!
               const campPosts = posts.filter(p => p.client_id === client.id && p.campaign_type === selected)

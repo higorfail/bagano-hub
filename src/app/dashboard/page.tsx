@@ -411,12 +411,12 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-page)]">
-      <div className="max-w-[1440px] mx-auto px-8 py-8 space-y-6">
+      <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-5 md:py-8 space-y-5 md:space-y-6">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between gap-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">
               {getDayGreeting()}{firstName ? `, ${firstName}` : ''} 👋
             </h1>
             <p className="text-sm text-[var(--color-text-muted)] mt-1">Aqui está o que está acontecendo hoje na Bagano.</p>

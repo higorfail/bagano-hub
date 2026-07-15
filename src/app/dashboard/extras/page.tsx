@@ -30,7 +30,7 @@ function ExtrasContent() {
   }, [])
 
   return (
-    <div className="px-6 py-4 flex flex-col gap-4">
+    <div className="px-4 md:px-6 py-4 flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-2.5 min-w-0">
           <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Extras</h1>

@@ -156,7 +156,7 @@ export default function KanbanPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap">
+      <div className="px-4 md:px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Kanban</h1>
