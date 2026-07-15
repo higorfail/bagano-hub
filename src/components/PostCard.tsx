@@ -161,6 +161,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const formRef = useRef(form); formRef.current = form
   const [showCal,  setShowCal]  = useState(false)
   const [calMonth, setCalMonth] = useState(() => ({ y: year, m: month - 1 }))
+  const [calPos,   setCalPos]   = useState<{ top: number, left: number } | null>(null)
+  const [dateText,  setDateText] = useState('')
+  const dateBtnRef = useRef<HTMLButtonElement>(null)
 
   const isNew = !postId
   const savedTimer      = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -170,13 +173,12 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const editOriginal = useRef('')
   const backdropDown = useRef(false)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const [editH, setEditH] = useState<number | undefined>(undefined)
 
   // Não entra em modo de edição se o clique foi pra soltar uma seleção de texto (copiar)
   function selectionGuardClick(field: TextField, e: React.MouseEvent<HTMLElement>) {
     const sel = window.getSelection()
     if (sel && sel.toString().length > 0) return
-    startEdit(field, e.currentTarget.offsetHeight)
+    startEdit(field)
   }
 
   // Envolve a seleção do textarea com um marcador (** ou *)
@@ -336,7 +338,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       if (summary != null) await supabase.from('schedules').update({ ai_summary: summary }).eq('id', pid)
     }
   }
-  function startEdit(field: TextField, h?: number) { editOriginal.current = String(formRef.current[field] || ''); if (h) setEditH(h); setEditingField(field) }
+  function startEdit(field: TextField) { editOriginal.current = String(formRef.current[field] || ''); setEditingField(field) }
   function discardEdit(field: TextField) { discardRef.current = true; setForm(f => ({ ...f, [field]: editOriginal.current })); setEditingField(null) }
   function blurCommit(field: TextField) { if (discardRef.current) { discardRef.current = false; return } commitText(field) }
   function changeType(v: string) {
@@ -572,9 +574,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 </>
               )}
             </div>
-            <textarea ref={editTextareaRef} autoFocus value={form[field] as string} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
+            <textarea ref={el => { editTextareaRef.current = el; if (el) autoGrow(el, 9999) }} autoFocus value={form[field] as string}
+              onChange={e => { setForm(f => ({ ...f, [field]: e.target.value })); autoGrow(e.currentTarget, 9999) }}
               onBlur={() => blurCommit(field)} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discardEdit(field) } }}
-              placeholder={placeholder} className={fieldEditCls} style={{ minHeight: Math.max(minH, editH || 0) }} />
+              placeholder={placeholder} className={fieldEditCls} style={{ minHeight: minH }} />
             <div className="flex items-center gap-2 mt-1.5">
               <button onMouseDown={e => { e.preventDefault(); commitText(field) }}
                 className="text-xs font-semibold px-3 py-1 rounded-lg text-white" style={{ background: 'var(--color-accent)' }}>Salvar</button>
@@ -680,13 +683,20 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           {/* Data */}
           <div className="relative min-w-0">
             <PropertyPill label="Data">
-              <button onClick={() => setShowCal(v => !v)}
+              <button ref={dateBtnRef} onClick={() => {
+                  if (!showCal) {
+                    const r = dateBtnRef.current?.getBoundingClientRect()
+                    if (r) setCalPos({ top: r.bottom + 8, left: r.left })
+                    setDateText(form.scheduled_date || '')
+                  }
+                  setShowCal(v => !v)
+                }}
                 className="w-full flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium border border-[var(--color-border)] hover:border-[var(--color-border-hover)] transition-colors truncate"
                 style={{ color: dueDateLabel ? dueDateLabel.color : 'var(--color-text-muted)' }}>
                 <Calendar size={12} className="flex-shrink-0" /> <span className="truncate">{dueDateLabel ? dueDateLabel.text : 'Definir'}</span>
               </button>
             </PropertyPill>
-            {showCal && (() => {
+            {showCal && calPos && (() => {
               const startWeekday = new Date(calMonth.y, calMonth.m, 1).getDay()
               const daysInMonth  = new Date(calMonth.y, calMonth.m + 1, 0).getDate()
               const cells: (number|null)[] = [...Array(startWeekday).fill(null), ...Array.from({length:daysInMonth},(_,i)=>i+1)]
@@ -695,10 +705,25 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 const s = `${calMonth.y}-${mm}-${dd}`
                 setForm(f => ({ ...f, scheduled_date: s })); persist({ scheduled_date: s }, `${who} definiu a data para ${new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`); setShowCal(false)
               }
+              function applyTyped() {
+                const m = dateText.trim().match(/^(\d{4})-(\d{2})-(\d{2})$|^(\d{2})\/(\d{2})\/(\d{4})$/)
+                if (!m) return
+                const s = m[1] ? `${m[1]}-${m[2]}-${m[3]}` : `${m[6]}-${m[5]}-${m[4]}`
+                if (Number.isNaN(new Date(s + 'T12:00:00').getTime())) return
+                setForm(f => ({ ...f, scheduled_date: s })); persist({ scheduled_date: s }, `${who} definiu a data para ${new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`); setShowCal(false)
+              }
               return (
-                <>
+                <ModalPortal>
                   <div className="fixed inset-0 z-[79]" onClick={() => setShowCal(false)} />
-                  <div className="absolute top-full left-0 mt-2 z-[80] bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-4 w-72 shadow-pop">
+                  <div className="fixed z-[80] bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-4 w-72 shadow-pop"
+                    style={{ top: calPos.top, left: calPos.left }}>
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <input value={dateText} onChange={e => setDateText(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyTyped() } }}
+                        placeholder="dd/mm/aaaa"
+                        className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs border border-[var(--color-border)] bg-transparent text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-hover)]" />
+                      <button onClick={applyTyped} className="text-xs font-semibold px-2.5 py-1.5 rounded-lg text-white flex-shrink-0" style={{ background: 'var(--color-accent)' }}>Ir</button>
+                    </div>
                     <div className="flex items-center justify-between mb-3">
                       <button onClick={() => setCalMonth(c => c.m===0?{y:c.y-1,m:11}:{y:c.y,m:c.m-1})} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]">‹</button>
                       <span className="text-sm font-semibold text-[var(--color-text-primary)] capitalize">{MESES[calMonth.m]} {calMonth.y}</span>
@@ -726,7 +751,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                       </button>
                     )}
                   </div>
-                </>
+                </ModalPortal>
               )
             })()}
           </div>
@@ -794,10 +819,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefImageUpload} />
               </div>
               {editingField === 'reference_notes' ? (
-                <textarea autoFocus value={form.reference_notes} onChange={e => setForm(f => ({ ...f, reference_notes: e.target.value }))}
+                <textarea autoFocus ref={el => { if (el) autoGrow(el, 9999) }} value={form.reference_notes}
+                  onChange={e => { setForm(f => ({ ...f, reference_notes: e.target.value })); autoGrow(e.currentTarget, 9999) }}
                   onBlur={() => blurCommit('reference_notes')} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discardEdit('reference_notes') } }}
                   placeholder="Cole links de referência, observações…"
-                  className={fieldEditCls} style={{ minHeight: Math.max(60, editH || 0) }} />
+                  className={fieldEditCls} style={{ minHeight: 60 }} />
               ) : (
                 <div onClick={e => selectionGuardClick('reference_notes', e)} className={fieldViewCls} style={{ minHeight: 40 }}>
                   {form.reference_notes || <span className="text-[var(--color-text-faint)]">Clique para adicionar links/observações…</span>}

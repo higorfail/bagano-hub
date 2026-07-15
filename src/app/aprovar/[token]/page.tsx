@@ -199,7 +199,6 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
   const [submitting,       setSubmitting]       = useState<string | null>(null)
   const [extraSubmitting,  setExtraSubmitting]  = useState<string | null>(null)
   const [toast,        setToast]        = useState<{ msg: string; ok: boolean } | null>(null)
-  const [expanded,     setExpanded]     = useState<Set<string>>(new Set())
   const [commenting,   setCommenting]   = useState<Set<string>>(new Set())
   const [comments,     setComments]     = useState<Record<string, string>>({})
   const [extraComments,    setExtraComments]    = useState<Record<string, string>>({})
@@ -789,9 +788,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   const isComm     = commenting.has(post.id)
                   const comment    = comments[post.id] || ''
                   const isLoading  = submitting === post.id
-                  const isExpanded = expanded.has(post.id)
                   const displayCopy = post.legenda || post.copy || ''
-                  const longCopy   = displayCopy.length > 180
 
                   const isCarrossel = post.post_type === 'carrossel' || post.post_type === 'carrossel_stories'
                   const driveId     = post.drive_url?.match(/[-\w]{25,}/)?.[0]
@@ -857,16 +854,10 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                               {post.legenda ? 'Legenda' : 'Rascunho de copy'}
                             </p>
                             <div style={{ background: '#fafaf8', borderRadius: 14, padding: '12px 14px', border: '1px solid #f0f0ec' }}>
-                              <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap', overflow: 'hidden', display: isExpanded ? 'block' : '-webkit-box', WebkitLineClamp: isExpanded ? undefined : 4, WebkitBoxOrient: 'vertical' as any }}>
+                              <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
                                 {displayCopy}
                               </p>
                             </div>
-                            {longCopy && (
-                              <button onClick={() => setExpanded(s => { const n = new Set(s); n.has(post.id) ? n.delete(post.id) : n.add(post.id); return n })}
-                                style={{ fontSize: 13, color: cc, fontWeight: 700, background: 'none', border: 'none', padding: '6px 0 0', cursor: 'pointer' }}>
-                                {isExpanded ? '▲ Ver menos' : '▼ Ver texto completo'}
-                              </button>
-                            )}
                           </div>
                         )}
 
