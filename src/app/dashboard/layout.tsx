@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
-import { ChevronDown, Check } from 'lucide-react'
+import { ChevronDown, Check, Menu, X as XIcon } from 'lucide-react'
 import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, CheckCircle2, XCircle, Camera, Clock, MessageCircle, Trash2, Zap, CalendarClock, ListChecks, Eye, AtSign } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
@@ -77,6 +77,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [notifFilter, setNotifFilter] = useState<'all' | 'mentions'>('all')
   const notifRef = useRef<HTMLDivElement>(null)
   const { mode, setMode } = useTheme()
+
+  // Sidebar vira gaveta (drawer) em telas pequenas — fecha sozinha ao navegar
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  useEffect(() => { setMobileNavOpen(false) }, [pathname])
 
   // Push notification (PWA) — verifica se já está inscrito assim que sabe quem é o usuário
   const [pushState, setPushState] = useState<'unsupported' | 'off' | 'on' | 'busy'>('off')
@@ -631,11 +635,20 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-[var(--color-bg-page)] overflow-hidden">
-      <aside className="w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 relative">
-        <Link href="/dashboard" className="flex items-center gap-2.5 px-2 mb-8 rounded-xl hover:opacity-80 transition-opacity" title="Ir para o início">
-          <LogoIcon size={34} className="text-[var(--color-logo)] flex-shrink-0" />
-          <span className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight">Bagano Hub</span>
-        </Link>
+      {/* Backdrop da gaveta — só existe (e só fecha) no mobile, com a sidebar aberta */}
+      {mobileNavOpen && (
+        <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setMobileNavOpen(false)} />
+      )}
+      <aside className={`w-64 md:w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 fixed md:relative inset-y-0 left-0 z-50 transition-transform duration-200 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center justify-between mb-8">
+          <Link href="/dashboard" className="flex items-center gap-2.5 px-2 rounded-xl hover:opacity-80 transition-opacity" title="Ir para o início">
+            <LogoIcon size={34} className="text-[var(--color-logo)] flex-shrink-0" />
+            <span className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight">Bagano Hub</span>
+          </Link>
+          <button onClick={() => setMobileNavOpen(false)} className="md:hidden w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] flex-shrink-0">
+            <XIcon size={16} />
+          </button>
+        </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
           <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Geral</p>
@@ -715,10 +728,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="h-14 border-b border-[var(--color-border)] bg-[var(--color-bg-page)] flex items-center justify-between px-8">
-          <div className="flex items-center gap-3">
-            <CommandPalette />
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <div className="h-14 border-b border-[var(--color-border)] bg-[var(--color-bg-page)] flex items-center justify-between px-3 md:px-8 gap-2">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            <button onClick={() => setMobileNavOpen(true)}
+              className="md:hidden w-9 h-9 rounded-xl hover:bg-[var(--color-bg-subtle)] flex items-center justify-center flex-shrink-0 text-[var(--color-text-secondary)]">
+              <Menu size={18} strokeWidth={1.75} />
+            </button>
+            <div className="hidden sm:block min-w-0">
+              <CommandPalette />
+            </div>
           </div>
 
           <div className="flex items-center gap-1">
