@@ -9,6 +9,7 @@ import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { autoGrow } from '@/lib/autoGrow'
+import { hostOf } from '@/lib/url'
 import { ensureWatching } from '@/lib/watch'
 import WatchButton from '@/components/WatchButton'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
@@ -741,17 +742,22 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               {/* Links externos */}
               {attachments.length > 0 && (
                 <div className="flex flex-col gap-2 mb-3">
-                  {attachments.map(a => (
+                  {attachments.map(a => {
+                    const hasCustomTitle = a.title && a.title !== a.url
+                    return (
                     <div key={a.id} className="group flex items-center gap-3 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
-                      <div className="w-8 h-8 rounded bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0">
-                        <Link2 size={15} className="text-[var(--color-text-secondary)]" />
+                      <div className="w-8 h-8 rounded bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        <img src={`https://www.google.com/s2/favicons?domain=${hostOf(a.url)}&sz=32`} alt="" className="w-4 h-4" />
                       </div>
-                      <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 text-sm hover:underline truncate" style={{ color: 'var(--ds-info-text)' }}>{a.title}</a>
+                      <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 hover:underline">
+                        <span className="text-sm block truncate" style={{ color: 'var(--ds-info-text)' }}>{hasCustomTitle ? a.title : hostOf(a.url)}</span>
+                        {hasCustomTitle && <span className="text-[10px] text-[var(--color-text-faint)] block truncate">{hostOf(a.url)}</span>}
+                      </a>
                       <button onClick={() => removeAttachment(a.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-opacity" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
                         <Trash2 size={13} />
                       </button>
                     </div>
-                  ))}
+                  )})}
                 </div>
               )}
 

@@ -11,23 +11,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ summary: '' })
   }
 
-  const prompt = `Resuma o texto abaixo em 1 frase curta e direta (máximo ~110 caracteres), em português, com a informação mais importante para quem vai bater o olho num card de trabalho. Não use aspas, listas, tags nem introduções como "este texto fala sobre" ou "resumo:". Responda apenas com a frase pura.
+  const prompt = `Resuma o texto abaixo em 1 frase bem curta e direta (máximo 70 caracteres, sem exceção), em português, com a informação mais importante para quem vai bater o olho num card de trabalho. Não use aspas, listas, tags nem introduções como "este texto fala sobre" ou "resumo:". Responda apenas com a frase pura, sem ponto final.
 
 Título: ${title || 'sem título'}
 Texto: ${text}`
 
-  try {
-    const res = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+  // gemini-flash-latest costuma ficar sobrecarregado (503) em horários de pico —
+  // flash-lite é mais estável e sobra pra uma tarefa simples como essa. Ainda
+  // assim, tenta de novo uma vez se vier 503 antes de desistir.
+  async function callGemini(model: string) {
+    return fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 200, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } },
+          generationConfig: { maxOutputTokens: 100, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } },
         }),
       }
     )
+  }
+
+  try {
+    let res = await callGemini('gemini-flash-lite-latest')
+    if (res.status === 503) res = await callGemini('gemini-flash-lite-latest')
 
     if (!res.ok) {
       const err = await res.text()
