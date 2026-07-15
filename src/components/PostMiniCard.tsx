@@ -114,17 +114,12 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
     >
       <div className="h-[3px] w-full flex-shrink-0" style={{ background: isRevisao ? '#8b5cf6' : type.color }} />
 
-      {/* flex-1 sempre: a linha (thumb + conteúdo) preenche 100% da altura do card, que por
-          sua vez o grid iguala à altura do vizinho mais alto na mesma linha. A miniatura
-          não tem altura fixa — ela estica junto (align-items:stretch padrão do flex row),
-          senão sobra espaço em branco embaixo quando o card vizinho tem mais texto. */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-      {/* Drive thumbnail — preview vertical na lateral esquerda, largura fixa (112px),
-          altura estica 100% junto com o card (nunca sobra vazio embaixo) */}
+      {/* Drive thumbnail — banner no topo (estilo capa do Trello), largura total, altura
+          fixa. Nunca estica (flex-col: filhos não esticam no eixo principal por padrão),
+          e o conteúdo abaixo (flex-1) absorve toda folga de altura que o grid impuser —
+          sem zoom esquisito na imagem e sem sobrar vazio embaixo. */}
       {thumbUrl && (
-        <div className="relative w-28 flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]" style={{ minHeight: 140 }}>
-          {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a
-              dependência circular (img 100% ← container ← card ← tamanho natural da img) */}
+        <div className="relative w-full h-32 flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           <img src={thumbUrl} alt={post.title}
             className="absolute inset-0 w-full h-full object-cover"
             onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
@@ -138,7 +133,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         </div>
       )}
 
-      <div className="p-4 flex flex-col gap-3 flex-1 min-w-0">
+      <div className="p-4 flex flex-col gap-3 flex-1 min-w-0 min-h-0">
         {/* Header */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -173,14 +168,13 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
           </div>
         </div>
 
-        {/* Title + copy — copy preenche o espaço que sobrar (a imagem cresce junto se precisar) */}
+        {/* Title + copy — a foto (banner no topo) não depende mais dessa altura, então
+            a descrição pode respirar de novo sem inflar/zoomar nada nos cards vizinhos */}
         <div className="flex-1 min-h-0 flex flex-col">
           <p className="font-bold text-[var(--color-text-primary)] text-[15px] leading-snug line-clamp-2 flex-shrink-0">{post.title || 'Sem título'}</p>
           {(post.ai_summary || post.copy) && (
-            /* Limitado a ~2 linhas — descrições longas não podem inflar a altura da
-               fileira inteira no grid (isso esticava as fotos dos cards vizinhos junto). */
             <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 overflow-hidden"
-              style={{ maxHeight: '2.6em', WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)' }}>
+              style={{ maxHeight: '4.5em', WebkitMaskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)' }}>
               {post.ai_summary || post.copy!.replace(/\*/g, '')}
             </p>
           )}
@@ -235,7 +229,6 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
             {isApproved && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓</span>}
           </div>
         </div>
-      </div>
       </div>
     </div>
   )
