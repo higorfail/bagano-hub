@@ -106,7 +106,17 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [filterStatus, setFilterStatus] = useState('')
   const [filterType, setFilterType] = useState('')
 
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'calendar'>(() => {
+    if (typeof window === 'undefined') return 'grid'
+    const saved = localStorage.getItem('crono_view')
+    return saved === 'list' || saved === 'calendar' ? saved : 'grid'
+  })
+  function changeView(v: 'grid' | 'list' | 'calendar') { setViewMode(v); try { localStorage.setItem('crono_view', v) } catch {} }
+
+  // Calendário: drag & drop de post entre dias
+  const [calDragId, setCalDragId] = useState<string | null>(null)
+  const [calDragOver, setCalDragOver] = useState<string | null>(null) // 'YYYY-MM-DD' ou 'nodate'
+  const [newPostDate, setNewPostDate] = useState<string | null>(null)
 
   const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [approvalLink, setApprovalLink] = useState('')
@@ -208,6 +218,23 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title} (cópia)" (duplicado)` })
     await loadPosts()
     toast('Post duplicado!')
+  }
+
+  // Muda a data de um post via drag & drop no calendário (otimista, com rollback em erro)
+  async function setPostDate(postId: string, date: string | null) {
+    const post = posts.find(p => p.id === postId)
+    if (!post || (post.scheduled_date || null) === date) return
+    const prev = posts
+    setPosts(ps => ps.map(p => p.id === postId ? { ...p, scheduled_date: date } : p))
+    const { error } = await supabase.from('schedules').update({ scheduled_date: date }).eq('id', postId)
+    if (error) { setPosts(prev); dbError(error, toast, 'mudar a data'); return }
+    const who = currentMember?.name || 'Alguém'
+    logActivity({
+      tableName: 'schedules', recordId: postId, clientId, action: 'updated', actorName: currentMember?.name,
+      description: date
+        ? `${who} moveu "${post.title}" para ${new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} no calendário`
+        : `${who} removeu a data de "${post.title}" no calendário`,
+    })
   }
 
   async function reorderPosts(targetId: string) {
@@ -335,12 +362,11 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             </div>
           )}
           <div className="ml-auto flex items-center gap-2">
-            {showViewToggle && (
-              <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
-                <button onClick={() => setViewMode('list')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
-                <button onClick={() => setViewMode('grid')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
-              </div>
-            )}
+            <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
+              <button onClick={() => changeView('list')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
+              <button onClick={() => changeView('grid')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
+              <button onClick={() => changeView('calendar')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='calendar'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Calendário</button>
+            </div>
             {isFinalized && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border" style={{ background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
                 <Check size={11} style={{ color: 'var(--ds-success-accent)' }} strokeWidth={2.5} />
@@ -445,7 +471,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 )
               })}
             </div>
-          ) : (
+          ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-3 gap-4">
               {visiblePosts.map(post => (
                 <PostMiniCard
@@ -467,7 +493,105 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 />
               ))}
             </div>
-          )}
+          ) : (() => {
+            // ── Calendário estilo Trello: posts nos dias, arrastar muda a data ──
+            const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+            const startWeekday = new Date(year, month - 1, 1).getDay()
+            const daysInMonth  = new Date(year, month, 0).getDate()
+            const totalCells   = Math.ceil((startWeekday + daysInMonth) / 7) * 7
+            const today        = new Date()
+            const isThisMonth  = today.getFullYear() === year && today.getMonth() === month - 1
+            const dayKey = (d: number) => `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+            const byDay: Record<string, typeof visiblePosts> = {}
+            for (const p of visiblePosts) {
+              if (!p.scheduled_date) continue
+              ;(byDay[p.scheduled_date] ||= []).push(p)
+            }
+            const noDate = visiblePosts.filter(p => !p.scheduled_date)
+
+            const chip = (post: (typeof visiblePosts)[number]) => {
+              const st = STATUS_LABEL[post.status] || post.status
+              const assigned = (post.assigned_members || []).map((id: string) => members?.find(m => m.id === id)).filter(Boolean)
+              return (
+                <div key={post.id} draggable
+                  onDragStart={e => { e.stopPropagation(); setCalDragId(post.id) }}
+                  onDragEnd={() => { setCalDragId(null); setCalDragOver(null) }}
+                  onClick={e => { e.stopPropagation(); setEditingPostId(post.id); setShowPostCard(true) }}
+                  className={`group/chip bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2 py-1.5 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-[var(--color-border-hover)] transition-all select-none ${calDragId === post.id ? 'opacity-40' : ''}`}>
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-px rounded ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{st}</span>
+                    {assigned.length > 0 && (
+                      <span className="ml-auto w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0"
+                        style={{ background: (assigned[0] as any).color || 'var(--color-brand)' }} title={assigned.map((a: any) => a.name).join(', ')}>
+                        {(assigned[0] as any).name?.[0]?.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] font-semibold text-[var(--color-text-primary)] leading-tight truncate">
+                    {post.post_number != null && <span className="text-[var(--color-text-faint)]">#{post.post_number} </span>}
+                    {post.title || 'Sem título'}
+                  </p>
+                  <p className="text-[9px] text-[var(--color-text-muted)] mt-px">{TYPE_LABEL[post.post_type] || post.post_type}</p>
+                </div>
+              )
+            }
+
+            return (
+              <div className="flex flex-col gap-3">
+                {/* Tray de posts sem data — arraste pro calendário (ou de volta pra cá) */}
+                <div
+                  onDragOver={e => { e.preventDefault(); if (calDragOver !== 'nodate') setCalDragOver('nodate') }}
+                  onDragLeave={() => setCalDragOver(v => v === 'nodate' ? null : v)}
+                  onDrop={() => { if (calDragId) setPostDate(calDragId, null); setCalDragId(null); setCalDragOver(null) }}
+                  className={`rounded-xl border border-dashed px-3 py-2.5 transition-colors ${calDragOver === 'nodate' ? 'border-[var(--color-accent)] bg-[var(--color-bg-subtle)]' : 'border-[var(--color-border)]'}`}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-1.5">
+                    Sem data {noDate.length > 0 && `· ${noDate.length}`}
+                    <span className="font-normal normal-case tracking-normal text-[var(--color-text-faint)]"> — arraste para um dia do calendário</span>
+                  </p>
+                  {noDate.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-1.5">{noDate.map(chip)}</div>
+                  ) : (
+                    <p className="text-[11px] text-[var(--color-text-faint)] py-1">Todos os posts têm data 🎉 — solte um post aqui pra remover a data dele.</p>
+                  )}
+                </div>
+
+                {/* Grade do mês */}
+                <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-bg-card)]">
+                  <div className="grid grid-cols-7 border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)]">
+                    {DIAS_SEMANA.map(d => (
+                      <div key={d} className="py-1.5 text-center text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">{d}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7">
+                    {Array.from({ length: totalCells }, (_, i) => {
+                      const d = i - startWeekday + 1
+                      const inMonth = d >= 1 && d <= daysInMonth
+                      if (!inMonth) return <div key={i} className="min-h-[110px] bg-[var(--color-bg-subtle)]/60 border-b border-r border-[var(--color-border)] [&:nth-child(7n)]:border-r-0" />
+                      const key = dayKey(d)
+                      const isToday = isThisMonth && today.getDate() === d
+                      const dayPosts = byDay[key] || []
+                      const isOver = calDragOver === key
+                      return (
+                        <div key={i}
+                          onDragOver={e => { e.preventDefault(); if (calDragOver !== key) setCalDragOver(key) }}
+                          onDragLeave={() => setCalDragOver(v => v === key ? null : v)}
+                          onDrop={() => { if (calDragId) setPostDate(calDragId, key); setCalDragId(null); setCalDragOver(null) }}
+                          onClick={() => { setNewPostDate(key); setEditingPostId(null); setShowPostCard(true) }}
+                          className={`group/day min-h-[110px] border-b border-r border-[var(--color-border)] [&:nth-child(7n)]:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer transition-colors ${isOver ? 'bg-[var(--color-bg-subtle)] ring-2 ring-inset ring-[var(--color-accent)]' : 'hover:bg-[var(--color-bg-subtle)]/50'}`}>
+                          <div className="flex items-center justify-between">
+                            <span className={`text-[11px] font-semibold w-5 h-5 rounded-full flex items-center justify-center ${isToday ? 'text-white' : 'text-[var(--color-text-muted)]'}`}
+                              style={isToday ? { background: clientColor || 'var(--color-brand)' } : {}}>{d}</span>
+                            <span className="text-[10px] text-[var(--color-text-faint)] opacity-0 group-hover/day:opacity-100 transition-opacity">+ post</span>
+                          </div>
+                          {dayPosts.map(chip)}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </>
       )}
 
@@ -481,7 +605,8 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
           month={month}
           year={year}
           postNumber={editingPostId ? undefined : posts.length + 1}
-          onClose={() => { setShowPostCard(false); setEditingPostId(null) }}
+          initialDate={editingPostId ? undefined : newPostDate || undefined}
+          onClose={() => { setShowPostCard(false); setEditingPostId(null); setNewPostDate(null) }}
           onSaved={() => loadPosts({ silent: true })}
           onDeleted={() => loadPosts({ silent: true })}
         />
