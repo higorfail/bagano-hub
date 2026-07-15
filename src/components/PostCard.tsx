@@ -599,20 +599,20 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-4 px-4"
+    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center md:py-4 md:px-4"
       onMouseDown={e => { backdropDown.current = e.target === e.currentTarget }}
       onMouseUp={e => { if (backdropDown.current && e.target === e.currentTarget) onClose(); backdropDown.current = false }}
       onPaste={handlePaste}>
-      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[1040px] max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
+      <div className="bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
 
-        <div className="h-[3px] flex-shrink-0 rounded-t-2xl" style={{ background: clientColor || typeObj.color }} />
+        <div className="h-[3px] flex-shrink-0 md:rounded-t-2xl" style={{ background: clientColor || typeObj.color }} />
 
-        {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total */}
-        <div className="flex flex-1 overflow-hidden divide-x divide-[var(--color-border)]">
+        {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total (empilha no mobile) */}
+        <div className="flex flex-col md:flex-row flex-1 overflow-hidden divide-y md:divide-y-0 md:divide-x divide-[var(--color-border)]">
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* HEADER — título */}
-        <div className="flex items-start justify-between gap-4 px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+        <div className="flex items-start justify-between gap-4 px-4 md:px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
           <div className="flex-1 min-w-0">
             {postNumber && <span className="text-[11px] font-black text-[var(--color-border-strong)]">#{postNumber}</span>}
             {editingField === 'title' ? (
@@ -658,8 +658,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         </div>
 
         {/* PROPRIEDADES — grid de pills com label embutido (encaixe determinístico) */}
-        <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
-          <div className="grid grid-cols-3 gap-x-3 gap-y-2">
+        <div className="px-4 md:px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2">
           {/* Tipo */}
           <PropertyPill label="Tipo">
             <div className="relative min-w-0">
@@ -798,7 +798,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         </div>
 
           {/* LEFT — campos + referências + entrega */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-7 py-5 gap-5">
+          <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-4 md:px-7 py-5 gap-5">
 
             {textField('briefing', 'Briefing', '· instruções pro time (o que fazer)', 'O que precisa ser feito, direção criativa, referências de estilo…', 70)}
             {textField('copy', 'Copy', '· conceito / roteiro', 'Ideia central, roteiro do reels, texto das artes…', 70)}
@@ -878,7 +878,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           </div>
 
           {/* RIGHT — comentários + atividade (feed único, tipo Trello) */}
-          <div className="w-[380px] flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
+          <div className="w-full md:w-[380px] h-[45vh] md:h-auto flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
               <span className="text-xs font-bold text-[var(--color-text-primary)]">Comentários e atividade</span>
               <div className="flex items-center gap-2">
@@ -1008,7 +1008,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         </div>
 
         {/* FOOTER */}
-        <div className="px-7 py-3 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-card)] relative">
+        <div className="px-4 md:px-7 py-3 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-card)] relative">
           {!isNew ? (
             confirmDelete ? (
               <div className="flex items-center gap-2">

@@ -503,20 +503,20 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   return (
     <ModalPortal>
     <div
-      className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center py-6 px-4"
+      className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center md:py-6 md:px-4"
       onClick={e => { if (e.target === e.currentTarget) { handleSaveMain(); onClose() } }}
     >
-      <div className="bg-[var(--color-bg-alt)] rounded-2xl w-full max-w-[1040px] max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
+      <div className="bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
 
         {/* Colored accent bar */}
-        <div className="h-[3px] flex-shrink-0 rounded-t-2xl" style={{ background: typeObj.color }} />
+        <div className="h-[3px] flex-shrink-0 md:rounded-t-2xl" style={{ background: typeObj.color }} />
 
         {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total */}
-        <div className="flex flex-1 overflow-hidden divide-x divide-[var(--color-border)]">
+        <div className="flex flex-col md:flex-row flex-1 overflow-hidden divide-y md:divide-y-0 md:divide-x divide-[var(--color-border)]">
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* HEADER — título (padrão cronograma) */}
-        <div className="flex items-start justify-between gap-4 px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
+        <div className="flex items-start justify-between gap-4 px-4 md:px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
           <div className="flex-1 min-w-0">
             <input
               value={title}
@@ -561,8 +561,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         </div>
 
         {/* PROPRIEDADES — grid de pills com label embutido (encaixe determinístico) */}
-        <div className="px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
-          <div className="grid grid-cols-3 gap-x-3 gap-y-2">
+        <div className="px-4 md:px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-2">
           {/* Cliente (global only) — primeiro na ordem de UX */}
           {!fixedClientId && clients.length > 0 && (
             <PropertyPill label="Cliente">
@@ -667,7 +667,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         </div>
 
           {/* LEFT — conteúdo livre (estilo Trello, sem caixas) */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-7 py-5 gap-5">
+          <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-4 md:px-7 py-5 gap-5">
 
             {/* DESCRIPTION — clique-para-editar (padrão cronograma) */}
             <EditableField
@@ -813,7 +813,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           </div>
 
           {/* RIGHT — comentários + atividade (feed único, tipo Trello) */}
-          <div className="w-[380px] flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
+          <div className="w-full md:w-[380px] h-[45vh] md:h-auto flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
               <span className="text-xs font-bold text-[var(--color-text-primary)]">Comentários e atividade</span>
               <div className="flex items-center gap-2">
@@ -909,7 +909,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         </div>
 
         {/* FOOTER */}
-        <div className="px-7 py-3.5 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-card)]">
+        <div className="px-4 md:px-7 py-3.5 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-card)]">
           <button onClick={handleDelete} className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
             <Trash2 size={13} /> Excluir
           </button>
