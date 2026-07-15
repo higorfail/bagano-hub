@@ -374,12 +374,12 @@ export default function CriacaoPage() {
 
           {/* Filters */}
           {(totalPosts > 0 || totalExtras > 0 || totalMaterials > 0) && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <Filter size={13} className="text-[var(--color-text-muted)] flex-shrink-0" />
+            <div className="flex items-center gap-1.5 md:gap-2 flex-wrap w-full md:w-auto">
+              <Filter size={13} className="text-[var(--color-text-muted)] flex-shrink-0 hidden md:block" />
 
               {/* Client */}
               <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
-                className="text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
+                className="flex-1 min-w-0 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
                 <option value="">Todos os clientes</option>
                 {clients.filter(c => posts.some(p => p.client_id === c.id) || extras.some(e => e.client_id === c.id) || materials.some(m => m.client_id === c.id)).map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -388,7 +388,7 @@ export default function CriacaoPage() {
 
               {/* Post type */}
               <select value={filterType} onChange={e => setFilterType(e.target.value)}
-                className="text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
+                className="flex-1 min-w-0 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
                 <option value="">Todos os tipos</option>
                 {POST_TYPE_ORDER.map(t => (
                   <option key={t} value={t}>{POST_TYPES[t]?.emoji} {POST_TYPES[t]?.label}</option>
@@ -397,7 +397,7 @@ export default function CriacaoPage() {
 
               {/* Member */}
               <select value={filterMember} onChange={e => setFilterMember(e.target.value)}
-                className="text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
+                className="flex-1 min-w-0 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
                 <option value="">Toda a equipe</option>
                 {members.map(m => (
                   <option key={m.id} value={m.id}>{m.name}</option>
@@ -406,7 +406,7 @@ export default function CriacaoPage() {
 
               {hasFilter && (
                 <button onClick={() => { setFilterClient(''); setFilterType(''); setFilterMember('') }}
-                  className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
+                  className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0">
                   <X size={11} /> Limpar
                 </button>
               )}

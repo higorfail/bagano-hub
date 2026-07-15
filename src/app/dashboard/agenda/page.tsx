@@ -269,7 +269,7 @@ export default function AgendaPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-page)]">
-      <div className="max-w-6xl mx-auto px-8 py-10 space-y-10">
+      <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10 space-y-6 md:space-y-10">
 
         {/* Header */}
         <div>
@@ -279,29 +279,29 @@ export default function AgendaPage() {
 
         {/* ── AGENDA DE CRIAÇÃO ─────────────────────────────────────────────── */}
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Agenda de criação</h2>
             <div className="flex items-center gap-2">
               <button onClick={() => setWeekStart(d => getMonday(addDays(d, -7)))}
-                className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors text-[var(--color-text-secondary)]">
+                className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors text-[var(--color-text-secondary)] flex-shrink-0">
                 <ChevronLeft size={14} />
               </button>
-              <span className="text-sm font-medium text-[var(--color-text-primary)] tabular-nums w-40 text-center">
+              <span className="text-xs md:text-sm font-medium text-[var(--color-text-primary)] tabular-nums w-32 md:w-40 text-center flex-shrink-0">
                 {weekStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} –{' '}
                 {weekEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
               </span>
               <button onClick={() => setWeekStart(d => getMonday(addDays(d, 7)))}
-                className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors text-[var(--color-text-secondary)]">
+                className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors text-[var(--color-text-secondary)] flex-shrink-0">
                 <ChevronRight size={14} />
               </button>
               <button onClick={() => setWeekStart(getMonday(new Date()))}
-                className="text-xs px-3 py-1.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                className="text-xs px-3 py-1.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)] transition-colors flex-shrink-0">
                 Hoje
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 md:gap-3">
             {dayDates.map((date, dayIndex) => {
               const dateStr  = toLocalISO(date)
               const isToday  = dateStr === todayStr
@@ -312,7 +312,7 @@ export default function AgendaPage() {
                   onDragOver={e => { e.preventDefault(); setDragOverDay(dayIndex) }}
                   onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDay(null) }}
                   onDrop={() => { if (dragEntryId !== null) moveEntry(dragEntryId, dayIndex); setDragOverDay(null) }}
-                  className={`bg-[var(--color-bg-card)] rounded-2xl border p-4 flex flex-col gap-2 min-h-[180px] transition-colors ${isToday ? 'border-[var(--color-brand)]' : dragOverDay === dayIndex ? 'border-[var(--color-brand)] bg-[var(--color-brand)]/5' : 'border-[var(--color-border)]'}`}>
+                  className={`bg-[var(--color-bg-card)] rounded-2xl border p-3 md:p-4 flex flex-col gap-2 min-h-[150px] md:min-h-[180px] transition-colors ${isToday ? 'border-[var(--color-brand)]' : dragOverDay === dayIndex ? 'border-[var(--color-brand)] bg-[var(--color-brand)]/5' : 'border-[var(--color-border)]'}`}>
                   {/* Day header */}
                   <div className="flex items-center justify-between mb-1">
                     <div>
@@ -381,9 +381,9 @@ export default function AgendaPage() {
 
         {/* ── CAPTAÇÕES ─────────────────────────────────────────────────────── */}
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Captações</h2>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3 flex-wrap">
               {calendarOk === false && (
                 <span className="text-xs px-3 py-1.5 rounded-xl border" style={{ color: 'var(--ds-caution-text)', background: 'var(--ds-caution-bg)', borderColor: 'var(--ds-caution-border)' }}>
                   Google Calendar não configurado
@@ -566,7 +566,7 @@ function CaptacaoRow({ c, clientMap, memberMap, syncing, calendarOk, onSync, onD
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <div className={`bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 flex items-center gap-4 ${c.status === 'cancelada' ? 'opacity-50' : ''}`}>
+    <div className={`bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 flex flex-wrap items-center gap-x-4 gap-y-2 ${c.status === 'cancelada' ? 'opacity-50' : ''}`}>
       {/* Date box */}
       <div className="w-12 h-12 rounded-xl bg-[var(--color-bg-page)] border border-[var(--color-border)] flex flex-col items-center justify-center flex-shrink-0">
         <span className="text-sm font-bold text-[var(--color-text-primary)] leading-none">{date.getDate()}</span>

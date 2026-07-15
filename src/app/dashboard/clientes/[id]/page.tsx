@@ -216,10 +216,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   return (
     <div className="flex h-full" onClick={() => setShowMonthPicker(false)}>
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-4 md:p-6 border-b border-[var(--color-border)]">
+        <div className="p-3 md:p-6 border-b border-[var(--color-border)]">
 
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-2 mb-4">
+          {/* Breadcrumb — escondido no mobile pra economizar espaço vertical */}
+          <div className="hidden md:flex items-center gap-2 mb-4">
             <button onClick={() => router.push('/dashboard/clientes')} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-all flex items-center gap-1">
               ← Clientes
             </button>
@@ -227,15 +227,18 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             <span className="text-xs font-medium text-[var(--color-text-primary)]">{client.name}</span>
           </div>
 
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <button onClick={() => router.push('/dashboard/clientes')} className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] flex-shrink-0 -ml-1">
+                ←
+              </button>
               {client.logo_url
-                ? <img src={client.logo_url} alt={client.name} className="w-12 h-12 rounded-full object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                : <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+                ? <img src={client.logo_url} alt={client.name} className="w-9 h-9 md:w-12 md:h-12 rounded-full object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                : <div className="w-9 h-9 md:w-12 md:h-12 rounded-full flex items-center justify-center text-white text-xs md:text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
               }
-              <div>
-                <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">{client.name}</h1>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <div className="min-w-0">
+                <h1 className="text-base md:text-2xl font-bold text-[var(--color-text-primary)] tracking-tight truncate">{client.name}</h1>
+                <div className="hidden md:flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-xs text-[var(--color-text-muted)]">{posts.length} posts · {MONTHS[selectedMonth-1]} {selectedYear}</span>
                   {notApproved > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>✗ {notApproved} não aprovado{notApproved>1?'s':''}</span>}
                   {approved > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ {approved} aprovado{approved>1?'s':''}</span>}
@@ -243,7 +246,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            {/* Ações — texto some no mobile, vira só ícone/menu compacto */}
+            <div className="hidden md:flex items-center gap-2 flex-shrink-0">
               <button onClick={() => {
                 navigator.clipboard.writeText(`${window.location.origin}/aprovar/cliente/${client.id}`)
                 toast('Link fixo de aprovação copiado!')
@@ -253,11 +257,23 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
               {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Drive</a>}
               <button onClick={openEditClient} className="border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Editar</button>
             </div>
+            <button onClick={openEditClient} className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] flex-shrink-0" title="Editar cliente">⋯</button>
           </div>
 
-          <div className="flex items-center gap-1 mt-5 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          {/* Ações — linha compacta com scroll horizontal no mobile */}
+          <div className="flex md:hidden items-center gap-1.5 mt-2.5 overflow-x-auto -mx-3 px-3">
+            <button onClick={() => {
+              navigator.clipboard.writeText(`${window.location.origin}/aprovar/cliente/${client.id}`)
+              toast('Link fixo de aprovação copiado!')
+            }} className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">🔗 Aprovação</button>
+            {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">Instagram</a>}
+            {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">Manual</a>}
+            {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">Drive</a>}
+          </div>
+
+          <div className="flex items-center gap-1 mt-3 md:mt-5 overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
             {[{key:'cronograma',label:'Cronograma'},{key:'feed',label:'Feed'},{key:'materiais',label:'Materiais'},{key:'campanhas',label:'Campanhas'},{key:'time',label:'Time'},{key:'extras',label:'Extras'},{key:'onboarding',label:'Onboarding'},{key:'drive',label:'Drive'},{key:'historico',label:'Histórico'},{key:'manual',label:'Manual'}].map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)} className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${tab===t.key?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
+              <button key={t.key} onClick={() => setTab(t.key)} className={`flex-shrink-0 px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all whitespace-nowrap ${tab===t.key?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
             ))}
           </div>
         </div>
@@ -369,14 +385,14 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   })
                 }
                 return (
-                  <div className="flex gap-4 overflow-x-auto">
+                  <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-3 px-3 md:mx-0 md:px-0">
                     {MAT_COLS.map((col, ci) => {
                       const items      = colItems(col.key)
                       const isDragOver = matDragOver === col.key
                       const prevCol    = MAT_COLS[ci - 1]
                       const nextCol    = MAT_COLS[ci + 1]
                       return (
-                        <div key={col.key} className="flex-1 min-w-[220px] flex flex-col"
+                        <div key={col.key} className="w-[calc(100vw-1.5rem)] flex-shrink-0 snap-center md:w-auto md:flex-1 md:min-w-[220px] md:snap-align-none flex flex-col"
                           onDragOver={e => { e.preventDefault(); setMatDragOver(col.key) }}
                           onDragLeave={() => setMatDragOver(null)}
                           onDrop={e => { e.preventDefault(); if (matDragging) moveMatStatus(matDragging, col.key); setMatDragging(null); setMatDragOver(null) }}>
@@ -575,14 +591,16 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
       </div>
 
       {showEditClient && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center md:p-4">
           <div className="absolute inset-0 bg-black/30" onClick={() => setShowEditClient(false)} />
-          <div className="relative bg-[var(--color-bg-card)] rounded-2xl shadow-xl w-full max-w-md p-6 flex flex-col gap-5">
-            <div className="flex items-center justify-between">
+          <div className="relative bg-[var(--color-bg-card)] rounded-none md:rounded-2xl shadow-xl w-full h-full md:h-auto max-w-md md:max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-0 border-b border-[var(--color-border)] md:border-none flex-shrink-0"
+              style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
               <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Editar cliente</h2>
-              <button onClick={() => setShowEditClient(false)} className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] text-lg">×</button>
+              <button onClick={() => setShowEditClient(false)} className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] text-lg flex-shrink-0">×</button>
             </div>
 
+            <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-5 flex flex-col gap-5" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
             <div className="flex items-center gap-3">
               {editClientForm.logo_url
                 ? <img src={editClientForm.logo_url} alt={editClientForm.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
@@ -645,6 +663,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
               <button onClick={saveEditClient} disabled={savingClient || !editClientForm.name.trim()} className="px-5 py-2 rounded-xl text-sm font-semibold bg-[var(--color-brand)] text-[var(--color-brand-fg)] hover:opacity-90 disabled:opacity-40 transition-opacity">
                 {savingClient ? 'Salvando...' : 'Salvar'}
               </button>
+            </div>
             </div>
           </div>
         </div>

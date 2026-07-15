@@ -58,6 +58,12 @@
 /* ── Scrollbars seguem o tema (claro/escuro) ─────────────────────────────── */
 :root { color-scheme: light; }
 [data-theme="dark"] { color-scheme: dark; }
+
+/* ── Fundo do html/body acompanha o tema — sem isso a área de safe-area/
+   overscroll do iOS (por trás da Dynamic Island/status bar translúcida)
+   pinta com o fundo padrão do navegador (preto), criando um "corte" visível
+   em vez de continuar o hub ─────────────────────────────────────────────── */
+html, body { background-color: var(--color-bg-page); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) { color-scheme: dark; }
 }
