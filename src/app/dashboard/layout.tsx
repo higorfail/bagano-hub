@@ -639,7 +639,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       {mobileNavOpen && (
         <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setMobileNavOpen(false)} />
       )}
-      <aside className={`w-64 md:w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 fixed md:relative inset-y-0 left-0 z-50 transition-transform duration-200 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`w-64 md:w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 fixed md:relative inset-y-0 left-0 z-50 transition-transform duration-200 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
         <div className="flex items-center justify-between mb-8">
           <Link href="/dashboard" className="flex items-center gap-2.5 px-2 rounded-xl hover:opacity-80 transition-opacity" title="Ir para o início">
             <LogoIcon size={34} className="text-[var(--color-logo)] flex-shrink-0" />
@@ -729,7 +730,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <div className="h-14 border-b border-[var(--color-border)] bg-[var(--color-bg-page)] flex items-center justify-between px-3 md:px-8 gap-2">
+        <div className="h-14 border-b border-[var(--color-border)] bg-[var(--color-bg-page)] flex items-center justify-between px-3 md:px-8 gap-2 flex-shrink-0" style={{ paddingTop: 'env(safe-area-inset-top)', height: 'calc(3.5rem + env(safe-area-inset-top))' }}>
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button onClick={() => setMobileNavOpen(true)}
               className="md:hidden w-9 h-9 rounded-xl hover:bg-[var(--color-bg-subtle)] flex items-center justify-center flex-shrink-0 text-[var(--color-text-secondary)]">
@@ -902,7 +903,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </div>{/* flex items-center gap-1 */}
         </div>
 
-        <main className="flex-1 overflow-auto page-content">
+        <main className="flex-1 overflow-auto page-content" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           {children}
         </main>
       </div>

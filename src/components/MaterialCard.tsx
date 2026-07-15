@@ -65,6 +65,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   const titleOriginal = useRef<string | null>(null)
   const typeOriginal = useRef<string | null>(null)
   const [showDetails,  setShowDetails]  = useState(true)
+  const [mobilePane, setMobilePane] = useState<'details' | 'comments'>('details')
   const [activityKey,  setActivityKey]  = useState(0)
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
 
@@ -469,11 +470,27 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center md:py-6 md:px-4"
       onClick={e => { if (e.target === e.currentTarget) { handleSaveMain(); onClose() } }}
     >
-      <div className="bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in">
+      <div className="bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
 
-        {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total (empilha no mobile) */}
+        {/* Abas Detalhes/Comentários — só no mobile (padrão Trello: alterna em vez de empilhar) */}
+        <div className="md:hidden flex items-center border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
+          <button onClick={() => setMobilePane('details')}
+            className="flex-1 text-center py-2.5 text-sm font-semibold transition-colors relative"
+            style={{ color: mobilePane === 'details' ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+            Detalhes
+            {mobilePane === 'details' && <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full" style={{ background: 'var(--color-accent)' }} />}
+          </button>
+          <button onClick={() => setMobilePane('comments')}
+            className="flex-1 text-center py-2.5 text-sm font-semibold transition-colors relative"
+            style={{ color: mobilePane === 'comments' ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+            Comentários
+            {mobilePane === 'comments' && <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full" style={{ background: 'var(--color-accent)' }} />}
+          </button>
+        </div>
+
+        {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total (abas no mobile, lado a lado no desktop) */}
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden divide-y md:divide-y-0 md:divide-x divide-[var(--color-border)]">
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <div className={`${mobilePane === 'comments' ? 'hidden md:flex' : 'flex'} flex-1 min-w-0 flex-col overflow-hidden`}>
 
         {/* HEADER — título (padrão cronograma) */}
         <div className="flex items-start justify-between gap-4 px-4 md:px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
@@ -807,7 +824,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
           </div>
 
           {/* DIREITA — comentários + atividade (feed único, tipo Trello) */}
-          <div className="w-full md:w-[380px] h-[45vh] md:h-auto flex-shrink-0 bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
+          <div className={`${mobilePane === 'details' ? 'hidden md:flex' : 'flex'} w-full md:w-[380px] flex-1 md:flex-none bg-[var(--color-bg-card)] flex-col overflow-hidden`}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
               <span className="text-xs font-bold text-[var(--color-text-primary)]">Comentários e atividade</span>
               <div className="flex items-center gap-2">

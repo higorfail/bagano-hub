@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description: "Hub interno Bagano",
   appleWebApp: {
     title: "Bagano Hub",
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
   },
   icons: {
     apple: "/apple-touch-icon.png",
@@ -27,6 +27,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#7c0006",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
