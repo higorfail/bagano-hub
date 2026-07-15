@@ -102,8 +102,25 @@ function extractDriveId(url?: string): string | null {
 function driveIdToThumbnail(id: string, size = 400) {
   return `https://drive.google.com/thumbnail?id=${id}&sz=w${size}`
 }
+// Streaming direto da API do Drive numa <video> nativa em vez do iframe /preview:
+// o iframe depende de cookie de sessão, que o Safari/iOS bloqueia (ITP) e deixa
+// o player todo preto — a API com key não depende de cookie e funciona com
+// playsInline no iOS.
 function driveIdToEmbed(id: string) {
-  return `https://drive.google.com/file/d/${id}/preview`
+  return `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
+}
+
+// <video> do Drive com fallback: se o streaming falhar (cota de download do
+// arquivo, arquivo grande demais, etc.) cai pra um link "assistir no Drive".
+function DriveVideo({ src, folderUrl, style }: { src: string; folderUrl?: string; style: React.CSSProperties }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return (
+    <a href={folderUrl || '#'} target="_blank" rel="noopener noreferrer"
+      style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#111', fontSize: 14, fontWeight: 600, color: '#fff', textDecoration: 'none' }}>
+      🎬 Assistir no Drive
+    </a>
+  )
+  return <video src={src} controls playsInline onError={() => setFailed(true)} style={style} />
 }
 function pickCover(files: DriveFile[]): DriveFile | undefined {
   const images = files.filter(f => f.mimeType.startsWith('image/'))
@@ -355,7 +372,8 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
             <Loader2 size={28} color="white" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
         ) : slides.length > 0 && isVideoSlide && videoEmbedUrl ? (
-          <iframe src={videoEmbedUrl} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} allow="autoplay" />
+          <DriveVideo src={videoEmbedUrl} folderUrl={media?.folderLink || post.drive_url}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : slides.length > 0 ? (
           <img src={slides[slide]} alt={post.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
@@ -557,11 +575,13 @@ function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
         {loading ? (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={20} color="#ccc" style={{ animation: 'spin 1s linear infinite' }} /></div>
         ) : isReel && media?.videoEmbedUrl ? (
-          <iframe src={media.videoEmbedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" />
+          <DriveVideo src={media.videoEmbedUrl} folderUrl={media?.folderLink || post.drive_url}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : slides.length > 0 ? (
           <>
             {isVideoSlide && videoEmbedUrl ? (
-              <iframe src={videoEmbedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay" />
+              <DriveVideo src={videoEmbedUrl} folderUrl={media?.folderLink || post.drive_url}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
             ) : (
               <img src={slides[slide]} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             )}

@@ -6,6 +6,7 @@
 
 import { useRef, useState } from 'react'
 import { Bold, Italic, List } from 'lucide-react'
+import { autoGrow } from '@/lib/autoGrow'
 
 // markdown leve: **negrito**, *itálico* e "- " bullets (escapa HTML antes)
 export function renderMd(text: string) {
@@ -36,16 +37,15 @@ type Props = {
 export default function EditableField({ label, hint, placeholder, value, onCommit, minH = 60 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
-  const [editH, setEditH] = useState<number | undefined>(undefined)
   const discardRef = useRef(false)
   const taRef = useRef<HTMLTextAreaElement>(null)
 
-  function startEdit(h?: number) { setDraft(value); discardRef.current = false; if (h) setEditH(h); setEditing(true) }
+  function startEdit() { setDraft(value); discardRef.current = false; setEditing(true) }
   // Não entra em modo de edição se o clique foi pra soltar uma seleção de texto (copiar)
-  function handleDisplayClick(e: React.MouseEvent<HTMLDivElement>) {
+  function handleDisplayClick() {
     const sel = window.getSelection()
     if (sel && sel.toString().length > 0) return
-    startEdit(e.currentTarget.offsetHeight)
+    startEdit()
   }
   function commit() {
     if (discardRef.current) { discardRef.current = false; setEditing(false); return }
@@ -91,11 +91,12 @@ export default function EditableField({ label, hint, placeholder, value, onCommi
               className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors"><List size={14} /></button>
             <span className="text-[10px] text-[var(--color-text-faint)] ml-1">**negrito** · *itálico* · - lista</span>
           </div>
-          <textarea ref={taRef} autoFocus value={draft} onChange={e => setDraft(e.target.value)}
+          <textarea ref={el => { taRef.current = el; if (el) autoGrow(el, 9999) }} autoFocus value={draft}
+            onChange={e => { setDraft(e.target.value); autoGrow(e.currentTarget, 9999) }}
             onBlur={commit} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); discard() } }}
             placeholder={placeholder}
             className="w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none resize-none leading-relaxed"
-            style={{ minHeight: Math.max(minH, editH || 0) }} />
+            style={{ minHeight: minH }} />
           <div className="flex items-center gap-2 mt-1.5">
             <button onMouseDown={e => { e.preventDefault(); commit() }}
               className="text-xs font-semibold px-3 py-1 rounded-lg text-white" style={{ background: 'var(--color-accent)' }}>Salvar</button>

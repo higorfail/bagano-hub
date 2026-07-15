@@ -17,6 +17,28 @@ const TYPE_EMOJIS: Record<string, string> = {
   reels: '🎬', carrossel: '📸', post: '🖼️', story: '⭕', carrossel_stories: '🔁',
 }
 
+// Streaming direto da API do Drive (sem passar pelo nosso servidor) numa <video>
+// nativa em vez do iframe /preview: o iframe do Drive depende de cookie de sessão,
+// que o Safari/iOS bloqueia (ITP) e deixa o player todo preto — a API com key não
+// depende de cookie e funciona com playsInline no iOS.
+function driveStreamUrl(id: string) {
+  return `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
+}
+
+// <video> do Drive com fallback: se o streaming falhar (cota de download do
+// arquivo, arquivo grande demais, etc.) cai pra um link "assistir no Drive"
+// em vez de deixar a tela preta.
+function DriveVideo({ id, folderUrl, style }: { id: string; folderUrl?: string; style: React.CSSProperties }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return (
+    <a href={folderUrl || `https://drive.google.com/file/d/${id}/view`} target="_blank" rel="noopener noreferrer"
+      style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#111', fontSize: 14, fontWeight: 600, color: '#fff', textDecoration: 'none' }}>
+      🎬 Assistir no Drive
+    </a>
+  )
+  return <video src={driveStreamUrl(id)} controls playsInline onError={() => setFailed(true)} style={style} />
+}
+
 function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
   const [items, setItems] = useState<{ id: string; name: string; isVideo: boolean }[]>([])
   const [slide, setSlide]   = useState(0)
@@ -60,12 +82,8 @@ function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl:
     <div style={{ position: 'relative', background: '#111', userSelect: 'none' }}>
       <div style={{ position: 'relative', paddingTop: '100%', overflow: 'hidden' }}>
         {current.isVideo ? (
-          <iframe
-            key={current.id}
-            src={`https://drive.google.com/file/d/${current.id}/preview`}
-            allow="autoplay"
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
-          />
+          <DriveVideo key={current.id} id={current.id} folderUrl={folderUrl}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : (
           <img
             key={current.id}
@@ -134,9 +152,9 @@ function ReelFolderPreview({ folderId, folderUrl }: { folderId: string; folderUr
   const video  = videos[0]
   // Mostra só o vídeo — a capa da pasta não entra aqui pra não sobrepor o player.
   return video ? (
-    <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '75%', maxHeight: '80vh', overflow: 'hidden' }}>
-      <iframe src={`https://drive.google.com/file/d/${video.id}/preview`} allow="autoplay"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
+    <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '177.78%', maxHeight: '80vh', overflow: 'hidden' }}>
+      <DriveVideo id={video.id} folderUrl={folderUrl}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
     </div>
   ) : (
     <a href={folderUrl} target="_blank" rel="noopener noreferrer"
@@ -157,9 +175,9 @@ function SheetReelFolderVideo({ folderId, folderUrl }: { folderId: string; folde
     </a>
   )
   return (
-    <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '75%', maxHeight: '80vh', overflow: 'hidden' }}>
-      <iframe src={`https://drive.google.com/file/d/${video.id}/preview`} allow="autoplay"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
+    <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '177.78%', maxHeight: '80vh', overflow: 'hidden' }}>
+      <DriveVideo id={video.id} folderUrl={folderUrl}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
     </div>
   )
 }
@@ -795,7 +813,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   const folderId    = post.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
                   const isVideoPost = post.post_type === 'reels'
                   const thumbUrl    = driveId && !isVideoPost && !isCarrossel ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w800` : null
-                  const embedUrl    = driveId && isVideoPost  ? `https://drive.google.com/file/d/${driveId}/preview` : null
+                  const embedVideoId = driveId && isVideoPost ? driveId : null
 
                   const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
                   const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#fafafa'
@@ -822,12 +840,12 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                       </div>
 
                       {/* Drive media */}
-                      {embedUrl ? (
+                      {embedVideoId ? (
                         <div>
                           {folderId && <FolderThumb folderId={folderId} />}
-                          <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '75%', maxHeight: '80vh', overflow: 'hidden' }}>
-                            <iframe src={embedUrl} allow="autoplay"
-                              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
+                          <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '177.78%', maxHeight: '80vh', overflow: 'hidden' }}>
+                            <DriveVideo id={embedVideoId} folderUrl={post.drive_folder_url || post.drive_url}
+                              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
                           </div>
                         </div>
                       ) : isVideoPost && folderId ? (
@@ -1177,9 +1195,9 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   /* Reel from folder: only video, cover is for the feed only */
                   <SheetReelFolderVideo folderId={sheetFolder} folderUrl={sheetPost.drive_folder_url || ''} />
                 ) : isSheetReel && driveId ? (
-                  <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '75%', maxHeight: '80vh', overflow: 'hidden' }}>
-                    <iframe src={`https://drive.google.com/file/d/${driveId}/preview`} allow="autoplay"
-                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} />
+                  <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '177.78%', maxHeight: '80vh', overflow: 'hidden' }}>
+                    <DriveVideo id={driveId} folderUrl={sheetPost.drive_folder_url || sheetPost.drive_url}
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
                   </div>
                 ) : sheetFolder ? (
                   <FolderThumb folderId={sheetFolder} maxHeight={300} />
