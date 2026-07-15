@@ -737,6 +737,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
               instagramUrl={client?.instagram_url}
               readonly={true}
               approvalMode={true}
+              nativeVideo={true}
               onStoryApprove={handleStoryApprove}
               onStoryReject={handleStoryReject}
               onPostClick={fp => {

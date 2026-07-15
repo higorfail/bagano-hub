@@ -73,6 +73,11 @@ export interface IPhoneFeedProps {
   approvalMode?: boolean
   onStoryApprove?: (post: FeedPost) => Promise<void>
   onStoryReject?: (post: FeedPost, comment: string) => Promise<void>
+  // Streaming nativo do vídeo (<video> em vez do iframe /preview do Drive) — ligar
+  // só no link público de aprovação (aprovar/[token]), onde o iOS/Safari do cliente
+  // precisa disso pra não ficar com o player preto. No hub interno deixa off pra
+  // não gastar a cota de download (alt=media) do Drive à toa.
+  nativeVideo?: boolean
 }
 
 const STATUS_CONFIG = {
@@ -102,18 +107,25 @@ function extractDriveId(url?: string): string | null {
 function driveIdToThumbnail(id: string, size = 400) {
   return `https://drive.google.com/thumbnail?id=${id}&sz=w${size}`
 }
-// Streaming direto da API do Drive numa <video> nativa em vez do iframe /preview:
-// o iframe depende de cookie de sessão, que o Safari/iOS bloqueia (ITP) e deixa
-// o player todo preto — a API com key não depende de cookie e funciona com
-// playsInline no iOS.
-function driveIdToEmbed(id: string) {
-  return `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
+// No link público de aprovação (iOS/Safari do cliente) usamos streaming direto da
+// API do Drive numa <video> nativa: o iframe /preview depende de cookie de sessão,
+// que o Safari/iOS bloqueia (ITP) e deixa o player todo preto. A API com key não
+// depende de cookie e funciona com playsInline no iOS.
+// No hub interno (uso majoritariamente desktop da equipe) mantemos o iframe /preview
+// normal do Drive, pra não gastar a cota de download (alt=media) sem necessidade.
+function driveIdToEmbed(id: string, native: boolean) {
+  return native
+    ? `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
+    : `https://drive.google.com/file/d/${id}/preview`
 }
 
-// <video> do Drive com fallback: se o streaming falhar (cota de download do
-// arquivo, arquivo grande demais, etc.) cai pra um link "assistir no Drive".
-function DriveVideo({ src, folderUrl, style }: { src: string; folderUrl?: string; style: React.CSSProperties }) {
+// <video> do Drive (modo nativo, ver comentário acima) com fallback: se o
+// streaming falhar (cota de download do arquivo, arquivo grande demais, etc.)
+// cai pra um link "assistir no Drive". Em modo não-nativo (hub) usa o iframe
+// /preview normal do Drive.
+function DriveVideo({ src, native, folderUrl, style }: { src: string; native: boolean; folderUrl?: string; style: React.CSSProperties }) {
   const [failed, setFailed] = useState(false)
+  if (!native) return <iframe src={src} allow="autoplay" style={{ ...style, border: 'none' }} />
   if (failed) return (
     <a href={folderUrl || '#'} target="_blank" rel="noopener noreferrer"
       style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#111', fontSize: 14, fontWeight: 600, color: '#fff', textDecoration: 'none' }}>
@@ -146,7 +158,7 @@ async function fetchFolderFiles(folderId: string): Promise<DriveFile[]> {
   } catch { return [] }
 }
 
-async function resolveMedia(post: FeedPost): Promise<ResolvedMedia> {
+async function resolveMedia(post: FeedPost, nativeVideo: boolean): Promise<ResolvedMedia> {
   const folderUrl = post.drive_folder_url
   const fileUrl   = post.drive_url
 
@@ -161,7 +173,7 @@ async function resolveMedia(post: FeedPost): Promise<ResolvedMedia> {
         const nonImageFallback = (size?: number) => pdf ? driveIdToThumbnail(pdf.id, size) : videos[0] ? driveIdToThumbnail(videos[0].id, size) : undefined
         if (post.type === 'reel') {
           const thumb = cover ? driveIdToThumbnail(cover.id) : nonImageFallback()
-          return { thumbnailUrl: thumb, videoEmbedUrl: videos[0] ? driveIdToEmbed(videos[0].id) : undefined, folderLink: folderUrl }
+          return { thumbnailUrl: thumb, videoEmbedUrl: videos[0] ? driveIdToEmbed(videos[0].id, nativeVideo) : undefined, folderLink: folderUrl }
         }
         if (post.type === 'carousel' || post.type === 'story') {
           const images = files.filter(f => f.mimeType.startsWith('image/'))
@@ -170,7 +182,7 @@ async function resolveMedia(post: FeedPost): Promise<ResolvedMedia> {
           const slideFiles = [...images, ...videos].sort((a, b) => a.name.localeCompare(b.name))
           const urls = slideFiles.map(f => driveIdToThumbnail(f.id, 600))
           const isVideoFlags = slideFiles.map(f => f.mimeType.startsWith('video/'))
-          const videoEmbeds = slideFiles.map(f => f.mimeType.startsWith('video/') ? driveIdToEmbed(f.id) : undefined)
+          const videoEmbeds = slideFiles.map(f => f.mimeType.startsWith('video/') ? driveIdToEmbed(f.id, nativeVideo) : undefined)
           const fallback = urls[0] ?? nonImageFallback(600)
           return {
             thumbnailUrl: cover ? driveIdToThumbnail(cover.id, 600) : fallback,
@@ -188,7 +200,7 @@ async function resolveMedia(post: FeedPost): Promise<ResolvedMedia> {
   if (fileUrl) {
     const id = extractDriveId(fileUrl)
     if (id) {
-      if (post.type === 'reel') return { thumbnailUrl: driveIdToThumbnail(id), videoEmbedUrl: driveIdToEmbed(id) }
+      if (post.type === 'reel') return { thumbnailUrl: driveIdToThumbnail(id), videoEmbedUrl: driveIdToEmbed(id, nativeVideo) }
       return { thumbnailUrl: driveIdToThumbnail(id) }
     }
   }
@@ -252,7 +264,7 @@ function StoryCircle({ post, clientColor, clientInitials, avatarUrl, seen, appro
 }
 
 // ── Story Viewer ──────────────────────────────────────────────────────────────
-function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, avatarUrl, onSeen, approvalMode, onApprove, onReject }: {
+function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, avatarUrl, onSeen, approvalMode, onApprove, onReject, nativeVideo }: {
   post: FeedPost
   onClose: () => void
   clientColor: string
@@ -263,6 +275,7 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
   approvalMode?: boolean
   onApprove?: (post: FeedPost) => Promise<void>
   onReject?: (post: FeedPost, comment: string) => Promise<void>
+  nativeVideo: boolean
 }) {
   const [media, setMedia]       = useState<ResolvedMedia | null>(null)
   const [slide, setSlide]       = useState(0)
@@ -276,7 +289,7 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
 
   useEffect(() => {
     setLoading(true); setSlide(0); setShowReject(false); setComment('')
-    resolveMedia(post).then(m => { setMedia(m); setLoading(false) })
+    resolveMedia(post, nativeVideo).then(m => { setMedia(m); setLoading(false) })
     onSeen(post.id)
   }, [post.id])
 
@@ -372,7 +385,7 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
             <Loader2 size={28} color="white" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
         ) : slides.length > 0 && isVideoSlide && videoEmbedUrl ? (
-          <DriveVideo src={videoEmbedUrl} folderUrl={media?.folderLink || post.drive_url}
+          <DriveVideo src={videoEmbedUrl} native={nativeVideo} folderUrl={media?.folderLink || post.drive_url}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : slides.length > 0 ? (
           <img src={slides[slide]} alt={post.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -544,7 +557,7 @@ function PostThumb({ post, onClick, dragging, dragOver }: {
 }
 
 // ── Post panel (side detail) ──────────────────────────────────────────────────
-function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
+function PostPanel({ post, onClose, nativeVideo }: { post: FeedPost; onClose: () => void; nativeVideo: boolean }) {
   const [media, setMedia]   = useState<ResolvedMedia | null>(null)
   const [loading, setLoading] = useState(true)
   const [slide, setSlide]   = useState(0)
@@ -552,7 +565,7 @@ function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
 
   useEffect(() => {
     setLoading(true); setSlide(0)
-    resolveMedia(post).then(m => { setMedia(m); setLoading(false) })
+    resolveMedia(post, nativeVideo).then(m => { setMedia(m); setLoading(false) })
   }, [post.id])
 
   const slides    = media?.carouselImages || (media?.thumbnailUrl ? [media.thumbnailUrl] : [])
@@ -575,12 +588,12 @@ function PostPanel({ post, onClose }: { post: FeedPost; onClose: () => void }) {
         {loading ? (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={20} color="#ccc" style={{ animation: 'spin 1s linear infinite' }} /></div>
         ) : isReel && media?.videoEmbedUrl ? (
-          <DriveVideo src={media.videoEmbedUrl} folderUrl={media?.folderLink || post.drive_url}
+          <DriveVideo src={media.videoEmbedUrl} native={nativeVideo} folderUrl={media?.folderLink || post.drive_url}
             style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : slides.length > 0 ? (
           <>
             {isVideoSlide && videoEmbedUrl ? (
-              <DriveVideo src={videoEmbedUrl} folderUrl={media?.folderLink || post.drive_url}
+              <DriveVideo src={videoEmbedUrl} native={nativeVideo} folderUrl={media?.folderLink || post.drive_url}
                 style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
             ) : (
               <img src={slides[slide]} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -651,6 +664,7 @@ export default function IPhoneFeed({
   approvalMode = false,
   onStoryApprove,
   onStoryReject,
+  nativeVideo = false,
 }: IPhoneFeedProps) {
   const igUsername = instagramUrl
     ? instagramUrl.replace(/https?:\/\/(www\.)?instagram\.com\/?/, '').replace(/\/$/, '')
@@ -805,7 +819,7 @@ export default function IPhoneFeed({
 
         {/* Post side panel */}
         {selectedPost && !activeStory && (
-          <PostPanel post={selectedPost} onClose={() => setSelectedPost(null)} />
+          <PostPanel post={selectedPost} onClose={() => setSelectedPost(null)} nativeVideo={nativeVideo} />
         )}
       </div>
 
@@ -822,6 +836,7 @@ export default function IPhoneFeed({
           approvalMode={approvalMode}
           onApprove={handleStoryApprove}
           onReject={handleStoryReject}
+          nativeVideo={nativeVideo}
         />
       )}
     </>
