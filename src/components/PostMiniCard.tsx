@@ -177,8 +177,10 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         <div className="flex-1 min-h-0 flex flex-col">
           <p className="font-bold text-[var(--color-text-primary)] text-[15px] leading-snug line-clamp-2 flex-shrink-0">{post.title || 'Sem título'}</p>
           {(post.ai_summary || post.copy) && (
-            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 flex-1 min-h-0 overflow-hidden"
-              style={{ maxHeight: '6.5em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
+            /* Limitado a ~2 linhas — descrições longas não podem inflar a altura da
+               fileira inteira no grid (isso esticava as fotos dos cards vizinhos junto). */
+            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 overflow-hidden"
+              style={{ maxHeight: '2.6em', WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)' }}>
               {post.ai_summary || post.copy!.replace(/\*/g, '')}
             </p>
           )}
