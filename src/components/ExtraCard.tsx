@@ -10,7 +10,7 @@ import { autoGrow } from '@/lib/autoGrow'
 import { ensureWatching } from '@/lib/watch'
 import WatchButton from '@/components/WatchButton'
 import { generateAiSummary } from '@/lib/aiSummary'
-import { hostOf } from '@/lib/url'
+import { hostOf, formatBytes } from '@/lib/url'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
@@ -18,7 +18,7 @@ import DeliverySection from '@/components/DeliverySection'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 import {
   X, Calendar, CheckSquare, Paperclip,
-  Trash2, Link2, Check,
+  Trash2, Link2, Check, Upload, File,
   FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag, Pencil
 } from 'lucide-react'
 
@@ -127,6 +127,9 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [editCommentText,  setEditCommentText]  = useState('')
   const mentions = useMentions(newComment, setNewComment, members)
   const [attachments,    setAttachments]    = useState<any[]>([])
+  const [uploads,        setUploads]        = useState<any[]>([])
+  const [uploading,      setUploading]      = useState(false)
+  const fileInputRef     = useRef<HTMLInputElement>(null)
   const [newAttachUrl,   setNewAttachUrl]   = useState('')
   const [newAttachTitle, setNewAttachTitle] = useState('')
 
@@ -146,14 +149,16 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   })
 
   const loadSub = useCallback(async (eid: string) => {
-    const [{ data: chk }, { data: cms }, { data: atts }] = await Promise.all([
+    const [{ data: chk }, { data: cms }, { data: atts }, { data: ups }] = await Promise.all([
       supabase.from('extra_checklist').select('*').eq('extra_id', eid).order('position', { ascending: true }),
       supabase.from('extra_comments').select('*').eq('extra_id', eid).order('created_at', { ascending: true }),
       supabase.from('extra_attachments').select('*').eq('extra_id', eid).order('created_at', { ascending: true }),
+      supabase.from('extra_uploads').select('*').eq('extra_id', eid).order('created_at', { ascending: true }),
     ])
     setChecklist(chk || [])
     setComments(cms || [])
     setAttachments(atts || [])
+    setUploads(ups || [])
   }, [])
 
   useEffect(() => {
@@ -391,6 +396,35 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     setComments(cs => cs.filter(c => c.id !== cid))
     const { error } = await supabase.from('extra_comments').delete().eq('id', cid)
     if (error) setComments(prev)
+  }
+
+  // Upload de arquivo real (mesmo bucket e padrão do MaterialCard)
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    const eid = await ensureId()
+    if (!eid) { setUploading(false); return }
+    const path = `extras/${eid}/${Date.now()}_${file.name}`
+    const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false })
+    if (error) { toast('Erro no upload: ' + error.message); setUploading(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
+    const { data: row } = await supabase.from('extra_uploads').insert({
+      extra_id: eid, filename: file.name, file_url: publicUrl, file_size: file.size, mime_type: file.type,
+    }).select().single()
+    if (row) setUploads(u => [...u, row])
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    await logExt(eid, `${who} enviou o arquivo "${file.name}"`)
+  }
+  async function removeUpload(uid: string, fileUrl: string) {
+    const upload = uploads.find(u => u.id === uid)
+    const path = fileUrl.split('/bagano-materiais/')[1]
+    if (path) await supabase.storage.from('bagano-materiais').remove([path])
+    await supabase.from('extra_uploads').delete().eq('id', uid)
+    setUploads(u => u.filter(x => x.id !== uid))
+    const eid = id || extraId
+    if (eid) await logExt(eid, `${who} removeu o arquivo "${upload?.filename || ''}"`)
   }
 
   async function addAttachment() {
@@ -684,12 +718,35 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               </div>
             </div>
 
-            {/* ATTACHMENTS */}
+            {/* ANEXOS & ARQUIVOS — mesmo padrão de Materiais: uploads e links */}
             <div>
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Anexos</span>
-                <span className="text-[10px] text-[var(--color-text-faint)]">· links de apoio</span>
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Anexos & Arquivos</span>
+                <span className="text-[10px] text-[var(--color-text-faint)]">· uploads e links</span>
               </div>
+
+              {/* Arquivos enviados */}
+              {uploads.length > 0 && (
+                <div className="flex flex-col gap-2 mb-3">
+                  {uploads.map(u => (
+                    <div key={u.id} className="group flex items-center gap-3 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl px-3 py-2">
+                      <div className="w-8 h-8 rounded bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0">
+                        <File size={15} className="text-[var(--color-text-secondary)]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <a href={u.file_url} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-text-primary)] truncate block font-medium hover:underline">{u.filename}</a>
+                        {u.file_size && <p className="text-[10px] text-[var(--color-text-muted)]">{formatBytes(u.file_size)}</p>}
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <a href={u.file_url} target="_blank" rel="noopener noreferrer" className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-text-secondary)]"><ExternalLink size={13} /></a>
+                        <button onClick={() => removeUpload(u.id, u.file_url)} className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] transition-colors" onMouseEnter={e => { e.currentTarget.style.background = 'var(--ds-error-bg)'; e.currentTarget.style.color = 'var(--ds-error-text)' }} onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = '' }}><Trash2 size={13} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Links externos */}
               {attachments.length > 0 && (
                 <div className="flex flex-col gap-2 mb-3">
                   {attachments.map(a => {
@@ -706,23 +763,39 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   )})}
                 </div>
               )}
-              {!showAttachInput ? (
-                <button onClick={() => setShowAttachInput(true)}
-                  className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors">
-                  + Adicionar link
+
+              {/* Botões de ação */}
+              <div className="flex gap-2">
+                <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] border border-dashed border-[var(--color-border-hover)] flex-1 justify-center disabled:opacity-50">
+                  {uploading ? (
+                    <><div className="w-3 h-3 border border-[#A8A59E] border-t-transparent rounded-full animate-spin" /> Enviando…</>
+                  ) : (
+                    <><Upload size={13} /> Enviar arquivo</>
+                  )}
                 </button>
-              ) : (
-                <div className="flex flex-col gap-2 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl p-3">
-                  <input value={newAttachUrl} onChange={e => setNewAttachUrl(e.target.value)} placeholder="https://…"
-                    className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]" />
-                  <input value={newAttachTitle} onChange={e => setNewAttachTitle(e.target.value)} placeholder="Nome (opcional)"
-                    className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]" />
-                  <div className="flex gap-2 justify-end">
-                    <button onClick={() => setShowAttachInput(false)} className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
-                    <button onClick={addAttachment} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">Anexar</button>
+
+                {!showAttachInput ? (
+                  <button onClick={() => setShowAttachInput(true)}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] border border-dashed border-[var(--color-border-hover)] flex-1 justify-center">
+                    <Link2 size={13} /> Colar link
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-2 flex-1 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-lg p-3">
+                    <input value={newAttachUrl} onChange={e => setNewAttachUrl(e.target.value)} placeholder="https://…"
+                      className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]" />
+                    <input value={newAttachTitle} onChange={e => setNewAttachTitle(e.target.value)} placeholder="Nome (opcional)"
+                      className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]" />
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setShowAttachInput(false)} className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
+                      <button onClick={addAttachment} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">Anexar</button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* ENTREGA DO CONTEÚDO — padrão design system */}

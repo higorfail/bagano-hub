@@ -9,7 +9,7 @@ import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { autoGrow } from '@/lib/autoGrow'
-import { hostOf } from '@/lib/url'
+import { hostOf, formatBytes } from '@/lib/url'
 import { ensureWatching } from '@/lib/watch'
 import WatchButton from '@/components/WatchButton'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
@@ -43,12 +43,6 @@ const LABEL_PALETTE = [
 
 function initials(name: string) {
   return (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
 type Props = {
