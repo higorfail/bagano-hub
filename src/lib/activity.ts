@@ -6,6 +6,7 @@ export async function logActivity(params: {
   clientId?: string | null
   action: string
   actorName?: string | null
+  actorId?: string | null
   field?: string | null
   oldValue?: string | null
   newValue?: string | null
@@ -27,4 +28,10 @@ export async function logActivity(params: {
   } catch {
     // never block the UI for logging
   }
+  // Dispara push pros watchers do card, sem bloquear a UI se falhar/demorar
+  fetch('/api/push/notify', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(params),
+  }).catch(() => {})
 }

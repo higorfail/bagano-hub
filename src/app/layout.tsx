@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import PushSwRegister from "@/components/PushSwRegister";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,6 +16,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Bagano Hub",
   description: "Hub interno Bagano",
+  appleWebApp: {
+    title: "Bagano Hub",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#7c0006",
 };
 
 export default function RootLayout({
@@ -146,7 +158,10 @@ export default function RootLayout({
         `}} />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <PushSwRegister />
+        {children}
+      </body>
     </html>
   );
 }

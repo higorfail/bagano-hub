@@ -230,7 +230,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         description, dueDate: dueDate || '', driveUrl: driveUrl || '', labels, assignedMembers,
       })
       ensureWatching('materials', data.id, [currentMember?.id, ...assignedMembers])
-      await logActivity({ tableName: 'materials', recordId: data.id, clientId: fixedClientId || clientId || null, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
+      await logActivity({ tableName: 'materials', recordId: data.id, clientId: fixedClientId || clientId || null, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
       setActivityKey(k => k + 1)
       return data.id
     }
@@ -244,7 +244,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     const { error } = await supabase.from('materials').update(patch).eq('id', mid)
     if (error) { toast('Erro ao salvar'); return undefined }
     if (logMsg) {
-      await logActivity({ tableName: 'materials', recordId: mid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, description: logMsg })
+      await logActivity({ tableName: 'materials', recordId: mid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, actorId: currentMember?.id, description: logMsg })
       setActivityKey(k => k + 1)
     }
     onSaved()
@@ -252,7 +252,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   }
 
   async function logMat(mid: string, description: string, action = 'updated') {
-    await logActivity({ tableName: 'materials', recordId: mid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, description })
+    await logActivity({ tableName: 'materials', recordId: mid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, actorId: currentMember?.id, description })
     setActivityKey(k => k + 1)
   }
 
@@ -289,7 +289,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       if (data) {
         setId(data.id)
         originalStatusRef.current = status
-        await logActivity({ tableName: 'materials', recordId: data.id, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
+        await logActivity({ tableName: 'materials', recordId: data.id, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
         setActivityKey(k => k + 1)
       }
     } else {
@@ -919,7 +919,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               <button onClick={() => setConfirmDelete(false)} className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
               <button onClick={async () => {
                 try { await moveToTrash('material', materialId, title || 'Material sem título', currentMember?.name) } catch { /* trash table missing */ }
-                await logActivity({ tableName: 'materials', recordId: materialId, action: 'deleted', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
+                await logActivity({ tableName: 'materials', recordId: materialId, action: 'deleted', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
                 await Promise.all([
                   supabase.from('material_checklist').delete().eq('material_id', materialId),
                   supabase.from('material_comments').delete().eq('material_id', materialId),

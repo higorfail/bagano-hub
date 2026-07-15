@@ -105,7 +105,7 @@ function MateriaisContent() {
     setMaterials(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m))
     const supabase = createClient()
     await supabase.from('materials').update({ status: newStatus }).eq('id', id)
-    await logActivity({ tableName: 'materials', recordId: id, action: 'status_changed', actorName: currentMember?.name, field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
+    await logActivity({ tableName: 'materials', recordId: id, action: 'status_changed', actorName: currentMember?.name, actorId: currentMember?.id, field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
   }
 
   function handleDeleted(id: string) {

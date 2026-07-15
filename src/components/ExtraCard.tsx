@@ -242,7 +242,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         needsClientApproval, assignedMembers,
       })
       ensureWatching('extras', data.id, [currentMember?.id, ...assignedMembers])
-      await logActivity({ tableName: 'extras', recordId: data.id, clientId: fixedClientId || clientId || null, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
+      await logActivity({ tableName: 'extras', recordId: data.id, clientId: fixedClientId || clientId || null, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
       setActivityKey(k => k + 1)
       return data.id
     }
@@ -256,13 +256,13 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const { error } = await supabase.from('extras').update(patch).eq('id', eid)
     if (error) { toast('Erro ao salvar'); return undefined }
     if (logMsg) {
-      await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, description: logMsg })
+      await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, actorId: currentMember?.id, description: logMsg })
       setActivityKey(k => k + 1)
     }
     return eid
   }
   async function logExt(eid: string, description: string, action = 'updated') {
-    await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, description })
+    await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, actorId: currentMember?.id, description })
     setActivityKey(k => k + 1)
   }
 
@@ -328,7 +328,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       setId(data.id)
       savedData = withRelations(data)
       originalStatusRef.current = status
-      await logActivity({ tableName: 'extras', recordId: data.id, clientId: resolvedClientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
+      await logActivity({ tableName: 'extras', recordId: data.id, clientId: resolvedClientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
       setActivityKey(k => k + 1)
     } else {
       // Rede de segurança: garante que tudo esteja persistido ao fechar.
@@ -343,7 +343,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
 
   async function handleDelete() {
     if (!id) { onClose(); return }
-    await logActivity({ tableName: 'extras', recordId: id, clientId: fixedClientId || clientId || null, action: 'deleted', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
+    await logActivity({ tableName: 'extras', recordId: id, clientId: fixedClientId || clientId || null, action: 'deleted', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
     await supabase.from('extras').delete().eq('id', id)
     if (onDeleted) onDeleted(id)
     onClose()

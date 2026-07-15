@@ -300,7 +300,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (data) {
       setCurrentId(data.id)
       ensureWatching('schedules', data.id, [currentMember?.id])
-      await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${f.title.trim() || 'Sem título'}"` })
+      await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${f.title.trim() || 'Sem título'}"` })
       setActivityKey(k => k + 1); flashSaved(); onSaved()
       return data.id
     }
@@ -318,7 +318,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (dbError(error, toast, 'salvar')) return undefined
     if (hadId) flashSaved()
     if (logMsg) {
-      await logActivity({ tableName: 'schedules', recordId: pid, clientId, action, actorName: currentMember?.name, description: logMsg })
+      await logActivity({ tableName: 'schedules', recordId: pid, clientId, action, actorName: currentMember?.name, actorId: currentMember?.id, description: logMsg })
       setActivityKey(k => k + 1)
     }
     onSaved()
@@ -373,7 +373,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (data) setComments(c => [...c, data])
     setNewComment('')
     requestAnimationFrame(() => { if (commentTextareaRef.current) autoGrow(commentTextareaRef.current) })
-    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'commented', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} comentou` })
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'commented', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} comentou` })
     setActivityKey(k => k + 1)
   }
 
@@ -423,7 +423,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const newImages = [...formRef.current.reference_images, publicUrl]
     setForm(f => ({ ...f, reference_images: newImages }))
     await supabase.from('schedules').update({ reference_images: newImages }).eq('id', pid)
-    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, description: `${who} anexou uma imagem de referência` })
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} anexou uma imagem de referência` })
     setActivityKey(k => k + 1)
     flashSaved(); setUploadingRef(false)
   }
@@ -444,7 +444,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     setForm(f => ({ ...f, reference_images: newImages }))
     if (currentId) {
       await supabase.from('schedules').update({ reference_images: newImages }).eq('id', currentId)
-      await logActivity({ tableName: 'schedules', recordId: currentId, clientId, action: 'updated', actorName: currentMember?.name, description: `${who} removeu uma imagem de referência` })
+      await logActivity({ tableName: 'schedules', recordId: currentId, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} removeu uma imagem de referência` })
       setActivityKey(k => k + 1)
     }
     const path = url.split('/bagano-materiais/')[1]
@@ -471,7 +471,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       reference_notes: f.reference_notes, funil: f.funil, campaign_type: f.campaign_type || null, reference_images: f.reference_images,
     }).select().single()
     if (dbError(error, toast, 'duplicar')) return
-    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, description: `${who} duplicou de "${f.title}"` })
+    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} duplicou de "${f.title}"` })
     toast('Post duplicado!'); onSaved(); onClose()
   }
 
@@ -480,7 +480,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const { error } = await supabase.from('schedules').update({ client_id: newClientId, campaign_type: null }).eq('id', pid)
     if (dbError(error, toast, 'mover')) return
     const name = clientList.find(c => c.id === newClientId)?.name
-    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, description: `Movido para o cliente ${name || ''}` })
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `Movido para o cliente ${name || ''}` })
     toast('Post movido de cliente'); onSaved(); onClose()
   }
 
@@ -489,7 +489,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (moveMonth === month && moveYear === year) { setMoveOpen(false); return }
     const { error } = await supabase.from('schedules').update({ month: moveMonth, year: moveYear }).eq('id', pid)
     if (dbError(error, toast, 'mover')) return
-    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, description: `Movido para ${MESES[moveMonth - 1]} ${moveYear}` })
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `Movido para ${MESES[moveMonth - 1]} ${moveYear}` })
     toast('Post movido de mês'); onSaved(); onClose()
   }
 

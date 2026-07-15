@@ -335,7 +335,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
       status: 'estrategia', scheduled_date: null,
     }).select('id').single()
     if (error) { toast('Erro ao duplicar post'); return }
-    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${title} (cópia)" (duplicado)` })
+    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title} (cópia)" (duplicado)` })
     await loadPosts()
     toast('Post duplicado!')
   }
@@ -358,7 +358,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     setPosts(ps => ps.map(p => p.id === postId ? { ...p, scheduled_date: date } : p))
     const who = currentMember?.name || 'Alguém'
     logActivity({
-      tableName: 'schedules', recordId: postId, clientId, action: 'updated', actorName: currentMember?.name,
+      tableName: 'schedules', recordId: postId, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id,
       description: date
         ? `${who} moveu "${post.title}" para ${new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} no calendário`
         : `${who} removeu a data de "${post.title}" no calendário`,

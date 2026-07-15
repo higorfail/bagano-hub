@@ -11,6 +11,8 @@ import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider } from '@/lib/ToastContext'
 import LogoIcon from '@/components/logos/LogoIcon'
+import { pushSupported, isSubscribedToPush, subscribeToPush } from '@/lib/push'
+import { BellRing } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard',          icon: Home,          label: 'Início' },
@@ -75,6 +77,19 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [notifFilter, setNotifFilter] = useState<'all' | 'mentions'>('all')
   const notifRef = useRef<HTMLDivElement>(null)
   const { mode, setMode } = useTheme()
+
+  // Push notification (PWA) — verifica se já está inscrito assim que sabe quem é o usuário
+  const [pushState, setPushState] = useState<'unsupported' | 'off' | 'on' | 'busy'>('off')
+  useEffect(() => {
+    if (!pushSupported()) { setPushState('unsupported'); return }
+    isSubscribedToPush().then(sub => setPushState(sub ? 'on' : 'off'))
+  }, [])
+  async function enablePush() {
+    if (!currentMember) return
+    setPushState('busy')
+    const res = await subscribeToPush(currentMember.id)
+    setPushState(res.ok ? 'on' : 'off')
+  }
 
   const [readIds, setReadIds] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
@@ -754,6 +769,18 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                     )}
                   </div>
                 </div>
+
+                {/* Ativar push notification */}
+                {pushState === 'off' && (
+                  <button onClick={enablePush}
+                    className="flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b border-[var(--color-border)] flex-shrink-0 transition-colors hover:bg-[var(--color-bg-subtle)] text-left w-full"
+                    style={{ color: 'var(--color-accent)' }}>
+                    <BellRing size={14} /> Ativar notificações no navegador/celular
+                  </button>
+                )}
+                {pushState === 'busy' && (
+                  <div className="px-4 py-2.5 text-xs text-[var(--color-text-muted)] border-b border-[var(--color-border)] flex-shrink-0">Ativando…</div>
+                )}
 
                 {/* Resumo divertido de aprovações */}
                 {stats.total > 0 && (

@@ -95,7 +95,7 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
       : await supabase.from('materials').insert(payload).select('id').single()
     setSaving(false)
     if (dbError(error, toast, 'salvar material')) return
-    if (!editingMaterial && data) await logActivity({ tableName: 'materials', recordId: data.id, clientId: payload.client_id || null, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${form.title}"` })
+    if (!editingMaterial && data) await logActivity({ tableName: 'materials', recordId: data.id, clientId: payload.client_id || null, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${form.title}"` })
     onSaved()
     onClose()
   }

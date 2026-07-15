@@ -75,7 +75,7 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
     }).select('id').single()
     setSaving(false)
     if (dbError(error, toast, 'criar post')) return
-    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${form.title}"` })
+    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${form.title}"` })
     onSaved()
     onClose()
   }
