@@ -289,10 +289,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   async function ensurePostId(): Promise<string | undefined> {
     if (currentId) return currentId
     const f = formRef.current
-    if (!f.title.trim()) return undefined
     const { data, error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year, post_number: postNumber,
-      title: f.title, briefing: f.briefing, copy: f.copy, legenda: f.legenda,
+      title: f.title.trim() || 'Sem título', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
       post_type: f.post_type, status: f.status, scheduled_date: f.scheduled_date || null,
       drive_url: f.drive_url, drive_folder_url: f.drive_folder_url || null, reference_notes: f.reference_notes, funil: f.funil,
       campaign_type: f.campaign_type || null, reference_images: f.reference_images,
@@ -301,7 +300,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (data) {
       setCurrentId(data.id)
       ensureWatching('schedules', data.id, [currentMember?.id])
-      await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${f.title}"` })
+      await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, description: `${currentMember?.name || 'Alguém'} criou "${f.title.trim() || 'Sem título'}"` })
       setActivityKey(k => k + 1); flashSaved(); onSaved()
       return data.id
     }
@@ -311,7 +310,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   async function persist(patch: Record<string, any>, logMsg?: string, action = 'updated'): Promise<string | undefined> {
     const hadId = !!currentId
     const pid = await ensurePostId()
-    if (!pid) { if (!formRef.current.title.trim()) toast('Adicione um título primeiro'); return undefined }
+    if (!pid) return undefined
     const dbPatch: Record<string, any> = { ...patch }
     if ('scheduled_date' in dbPatch) dbPatch.scheduled_date = dbPatch.scheduled_date || null
     if ('campaign_type' in dbPatch) dbPatch.campaign_type = dbPatch.campaign_type || null

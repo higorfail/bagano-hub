@@ -67,6 +67,69 @@ type Post = MiniPost & {
   campaign_type?: string | null
 }
 
+// ─── Calendar chip (view Calendário) ───────────────────────────────────────────
+// Mesma lógica de thumbnail do PostMiniCard (capa da pasta/arquivo do Drive),
+// só que num formato bem pequeno pra caber nas células do mês.
+function CalendarChip({ post, members, dragging, onDragStart, onDragEnd, onClick }: {
+  post: Post
+  members?: { id: string; name: string; color?: string }[]
+  dragging: boolean
+  onDragStart: (e: React.DragEvent) => void
+  onDragEnd: () => void
+  onClick: (e: React.MouseEvent) => void
+}) {
+  const [thumbUrl, setThumbUrl] = useState<string | null>(() => {
+    const id = post.drive_url?.match(/[-\w]{25,}/)?.[0]
+    return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w200` : null
+  })
+
+  useEffect(() => {
+    if (thumbUrl || !post.drive_folder_url) return
+    const folderId = post.drive_folder_url.match(/\/folders\/([-\w]{25,})/)?.[1]
+    const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
+    if (!folderId || !key) return
+    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType)&orderBy=name&key=${key}`)
+      .then(r => r.json())
+      .then(d => {
+        const files: { id: string; name: string; mimeType: string }[] = d.files || []
+        const images = files.filter(f => f.mimeType.startsWith('image/'))
+        const cover = images.find(f => /^capa\./i.test(f.name)) ?? images[0]
+        if (cover) { setThumbUrl(`https://drive.google.com/thumbnail?id=${cover.id}&sz=w200`); return }
+        const video = files.find(f => f.mimeType.startsWith('video/'))
+        if (video) setThumbUrl(`https://drive.google.com/thumbnail?id=${video.id}&sz=w200`)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post.drive_folder_url])
+
+  const st = STATUS_LABEL[post.status] || post.status
+  const assigned = (post.assigned_members || []).map(id => members?.find(m => m.id === id)).filter(Boolean) as { id: string; name: string; color?: string }[]
+
+  return (
+    <div draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onClick={onClick}
+      className={`group/chip flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg pl-1 pr-1.5 py-1 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-[var(--color-border-hover)] transition-all select-none ${dragging ? 'opacity-40' : ''}`}>
+      <div className="w-8 h-8 rounded-md flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+        {thumbUrl && <img src={thumbUrl} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1 mb-0.5">
+          <span className={`text-[8px] font-bold uppercase tracking-wide px-1 py-px rounded truncate ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{st}</span>
+          {assigned.length > 0 && (
+            <span className="ml-auto w-3.5 h-3.5 rounded-full flex items-center justify-center text-white text-[7px] font-bold flex-shrink-0"
+              style={{ background: assigned[0].color || 'var(--color-brand)' }} title={assigned.map(a => a.name).join(', ')}>
+              {assigned[0].name?.[0]?.toUpperCase()}
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] font-semibold text-[var(--color-text-primary)] leading-tight truncate">
+          {post.post_number != null && <span className="text-[var(--color-text-faint)]">#{post.post_number} </span>}
+          {post.title || 'Sem título'}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 type CronoStatus = { status: string; finalized_at: string | null; finalized_by: string | null } | null
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -398,23 +461,24 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
 
               {/* Link fixo de aprovação — ícone com tooltip */}
               <button onClick={copyFixedApprovalLink}
-                title={fixedLinkCopied ? 'Copiado!' : 'Copiar link fixo de aprovação do cliente'}
-                className="w-8 h-[30px] rounded-xl border flex items-center justify-center transition-all"
+                title={fixedLinkCopied ? 'Copiado!' : 'Copiar link fixo de aprovação do cliente — sempre o mesmo link, redireciona pro cronograma/conteúdo atual'}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all"
                 style={fixedLinkCopied
                   ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
                   : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                {fixedLinkCopied ? <Check size={13} /> : <Link2 size={13} />}
+                {fixedLinkCopied ? <Check size={12} /> : <Link2 size={12} />}
+                {fixedLinkCopied ? 'Copiado!' : 'Link aprovação'}
               </button>
 
               {/* Finalizado — um botão só, com estado */}
               <button onClick={toggleFinalized} disabled={togglingStatus}
-                title={isFinalized ? `Finalizado${cronoStatus?.finalized_by ? ` por ${cronoStatus.finalized_by}` : ''} — clique pra reabrir` : 'Marcar cronograma como finalizado'}
+                title={isFinalized ? `Cronograma finalizado${cronoStatus?.finalized_by ? ` por ${cronoStatus.finalized_by}` : ''} — clique pra reabrir e voltar a editar` : 'Marcar que o cronograma deste mês está fechado (não é mais rascunho)'}
                 className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all disabled:opacity-50"
                 style={isFinalized
                   ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
                   : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
                 <Check size={11} strokeWidth={2.5} />
-                {isFinalized ? `Finalizado${cronoStatus?.finalized_by ? ` · ${cronoStatus.finalized_by.split(' ')[0]}` : ''}` : 'Finalizar'}
+                {isFinalized ? `Finalizado${cronoStatus?.finalized_by ? ` · ${cronoStatus.finalized_by.split(' ')[0]}` : ''}` : 'Finalizar cronograma'}
               </button>
 
               <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
@@ -496,32 +560,13 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             }
             const noDate = visiblePosts.filter(p => !p.scheduled_date)
 
-            const chip = (post: (typeof visiblePosts)[number]) => {
-              const st = STATUS_LABEL[post.status] || post.status
-              const assigned = (post.assigned_members || []).map((id: string) => members?.find(m => m.id === id)).filter(Boolean)
-              return (
-                <div key={post.id} draggable
-                  onDragStart={e => { e.stopPropagation(); setCalDragId(post.id) }}
-                  onDragEnd={() => { setCalDragId(null); setCalDragOver(null) }}
-                  onClick={e => { e.stopPropagation(); setEditingPostId(post.id); setShowPostCard(true) }}
-                  className={`group/chip bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-2 py-1.5 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-[var(--color-border-hover)] transition-all select-none ${calDragId === post.id ? 'opacity-40' : ''}`}>
-                  <div className="flex items-center gap-1 mb-0.5">
-                    <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-px rounded ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{st}</span>
-                    {assigned.length > 0 && (
-                      <span className="ml-auto w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0"
-                        style={{ background: (assigned[0] as any).color || 'var(--color-brand)' }} title={assigned.map((a: any) => a.name).join(', ')}>
-                        {(assigned[0] as any).name?.[0]?.toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] font-semibold text-[var(--color-text-primary)] leading-tight truncate">
-                    {post.post_number != null && <span className="text-[var(--color-text-faint)]">#{post.post_number} </span>}
-                    {post.title || 'Sem título'}
-                  </p>
-                  <p className="text-[9px] text-[var(--color-text-muted)] mt-px">{TYPE_LABEL[post.post_type] || post.post_type}</p>
-                </div>
-              )
-            }
+            const chip = (post: (typeof visiblePosts)[number]) => (
+              <CalendarChip key={post.id} post={post} members={members} dragging={calDragId === post.id}
+                onDragStart={e => { e.stopPropagation(); setCalDragId(post.id) }}
+                onDragEnd={() => { setCalDragId(null); setCalDragOver(null) }}
+                onClick={e => { e.stopPropagation(); setEditingPostId(post.id); setShowPostCard(true) }}
+              />
+            )
 
             return (
               <div className="flex flex-col gap-3">
@@ -536,7 +581,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                     <span className="font-normal normal-case tracking-normal text-[var(--color-text-faint)]"> — arraste para um dia do calendário</span>
                   </p>
                   {noDate.length > 0 ? (
-                    <div className="grid grid-cols-4 gap-1.5">{noDate.map(chip)}</div>
+                    <div className="grid grid-cols-3 gap-1.5">{noDate.map(chip)}</div>
                   ) : (
                     <p className="text-[11px] text-[var(--color-text-faint)] py-1">Todos os posts têm data 🎉 — solte um post aqui pra remover a data dele.</p>
                   )}
