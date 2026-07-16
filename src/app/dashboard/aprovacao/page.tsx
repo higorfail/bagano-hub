@@ -363,9 +363,14 @@ export default function AprovacaoPage() {
               className="bg-[var(--color-bg-card)] border rounded-2xl overflow-hidden shadow-card transition-all"
               style={{ borderColor: hasUrgency ? 'var(--ds-warn-border)' : 'var(--color-border)' }}
             >
-              {/* Header — clicável */}
-              <div className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--color-bg-subtle)] transition-colors">
-                <button onClick={() => toggle(clientId)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+              {/* Header — a linha inteira é clicável (um único botão, como era antes);
+                  só o "Link" pára a propagação pra não abrir/fechar junto. */}
+              <button
+                type="button"
+                onClick={() => toggle(clientId)}
+                className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-[var(--color-bg-subtle)] transition-colors text-left"
+              >
+                <div className="flex items-center gap-3 min-w-0">
                   <div
                     className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden"
                     style={{ background: client.color_hex }}
@@ -380,13 +385,19 @@ export default function AprovacaoPage() {
                       </p>
                     )}
                   </div>
-                </button>
+                </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <button onClick={() => copyClientLink(clientId)} title="Copiar link de aprovação do cliente"
-                    className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-page)] hover:border-[var(--color-border-strong)] transition-colors">
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={e => { e.stopPropagation(); copyClientLink(clientId) }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); copyClientLink(clientId) } }}
+                    title="Copiar link de aprovação do cliente"
+                    className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-page)] hover:border-[var(--color-border-strong)] transition-colors cursor-pointer"
+                  >
                     <Link2 size={11} /> <span className="hidden sm:inline">Link</span>
-                  </button>
+                  </span>
                   {pendentes > 0 && (
                     <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)' }}>
                       <Clock size={10} /> {pendentes} aguardando
@@ -402,14 +413,12 @@ export default function AprovacaoPage() {
                       <CheckCircle2 size={10} /> {aprovados} aprovado{aprovados !== 1 ? 's' : ''}
                     </span>
                   )}
-                  <button onClick={() => toggle(clientId)}>
-                    {isOpen
-                      ? <ChevronDown size={15} className="text-[var(--color-text-muted)] flex-shrink-0" />
-                      : <ChevronRight size={15} className="text-[var(--color-text-muted)] flex-shrink-0" />
-                    }
-                  </button>
+                  {isOpen
+                    ? <ChevronDown size={15} className="text-[var(--color-text-muted)] flex-shrink-0" />
+                    : <ChevronRight size={15} className="text-[var(--color-text-muted)] flex-shrink-0" />
+                  }
                 </div>
-              </div>
+              </button>
 
               {/* Posts — expandido */}
               {isOpen && (
