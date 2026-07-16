@@ -72,7 +72,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
 
   const [thumbUrl, setThumbUrl] = useState<string | null>(() => {
     const id = post.drive_url?.match(/[-\w]{25,}/)?.[0]
-    return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w480` : null
+    return id ? `/api/drive-thumb?id=${id}&sz=w480` : null
   })
   const [isThumbVideo, setIsThumbVideo] = useState(isVideo)
 
@@ -86,11 +86,11 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         const files: { id: string; name: string; mimeType: string }[] = d.files || []
         const images = files.filter(f => f.mimeType.startsWith('image/'))
         const cover = images.find(f => /^capa\./i.test(f.name)) ?? images[0]
-        if (cover) { setThumbUrl(`https://drive.google.com/thumbnail?id=${cover.id}&sz=w480`); setIsThumbVideo(false); return }
+        if (cover) { setThumbUrl(`/api/drive-thumb?id=${cover.id}&sz=w480`); setIsThumbVideo(false); return }
         const pdf = files.find(f => f.mimeType === 'application/pdf')
-        if (pdf) { setThumbUrl(`https://drive.google.com/thumbnail?id=${pdf.id}&sz=w480`); setIsThumbVideo(false); return }
+        if (pdf) { setThumbUrl(`/api/drive-thumb?id=${pdf.id}&sz=w480`); setIsThumbVideo(false); return }
         const video = files.find(f => f.mimeType.startsWith('video/'))
-        if (video) { setThumbUrl(`https://drive.google.com/thumbnail?id=${video.id}&sz=w480`); setIsThumbVideo(true) }
+        if (video) { setThumbUrl(`/api/drive-thumb?id=${video.id}&sz=w480`); setIsThumbVideo(true) }
       })
       .catch(() => {})
   }, [post.drive_folder_url])

@@ -85,7 +85,7 @@ function CalendarChip({ post, members, dragging, otherCronograma, onDragStart, o
 }) {
   const [thumbUrl, setThumbUrl] = useState<string | null>(() => {
     const id = post.drive_url?.match(/[-\w]{25,}/)?.[0]
-    return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w200` : null
+    return id ? `/api/drive-thumb?id=${id}&sz=w200` : null
   })
 
   useEffect(() => {
@@ -98,9 +98,9 @@ function CalendarChip({ post, members, dragging, otherCronograma, onDragStart, o
         const files: { id: string; name: string; mimeType: string }[] = d.files || []
         const images = files.filter(f => f.mimeType.startsWith('image/'))
         const cover = images.find(f => /^capa\./i.test(f.name)) ?? images[0]
-        if (cover) { setThumbUrl(`https://drive.google.com/thumbnail?id=${cover.id}&sz=w200`); return }
+        if (cover) { setThumbUrl(`/api/drive-thumb?id=${cover.id}&sz=w200`); return }
         const video = files.find(f => f.mimeType.startsWith('video/'))
-        if (video) setThumbUrl(`https://drive.google.com/thumbnail?id=${video.id}&sz=w200`)
+        if (video) setThumbUrl(`/api/drive-thumb?id=${video.id}&sz=w200`)
       })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps

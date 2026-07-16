@@ -46,7 +46,7 @@ export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
         <a key={item.id} href={`https://drive.google.com/file/d/${item.id}/view`} target="_blank" rel="noopener noreferrer"
           onClick={e => e.stopPropagation()}
           className="relative w-[110px] aspect-[4/5] flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-bg-alt)] block">
-          <img src={`https://drive.google.com/thumbnail?id=${item.id}&sz=w400`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
+          <img src={`/api/drive-thumb?id=${item.id}&sz=w400`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
           {item.isVideo && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
               <div className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
@@ -70,7 +70,7 @@ export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
 // Preview de um arquivo do Google Drive (imagem ou vídeo) — caixa única 4:5.
 export function DriveThumbnail({ driveUrl, isVideo }: { driveUrl: string; isVideo: boolean }) {
   const driveId = driveUrl.match(/[-\w]{25,}/)?.[0]
-  const thumbUrl = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w600` : null
+  const thumbUrl = driveId ? `/api/drive-thumb?id=${driveId}&sz=w600` : null
   if (!thumbUrl) return null
   return (
     <a href={driveUrl} target="_blank" rel="noopener noreferrer"

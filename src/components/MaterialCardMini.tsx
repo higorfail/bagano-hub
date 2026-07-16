@@ -68,7 +68,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
     .filter(Boolean) as Member[]
 
   const driveId = typeof m.drive_url === 'string' ? m.drive_url.match(/[-\w]{25,}/)?.[0] : null
-  const previewUrl: string | null = m._preview || (driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w480` : null)
+  const previewUrl: string | null = m._preview || (driveId ? `/api/drive-thumb?id=${driveId}&sz=w480` : null)
   const delivered = !!m.drive_url
 
   const labels: { text: string; color: string }[] = Array.isArray(m.labels) ? m.labels : []

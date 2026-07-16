@@ -105,7 +105,7 @@ function extractDriveId(url?: string): string | null {
   return file ? file[0] : null
 }
 function driveIdToThumbnail(id: string, size = 400) {
-  return `https://drive.google.com/thumbnail?id=${id}&sz=w${size}`
+  return `/api/drive-thumb?id=${id}&sz=w${size}`
 }
 // No link público de aprovação (iOS/Safari do cliente) usamos streaming direto da
 // API do Drive numa <video> nativa: o iframe /preview depende de cookie de sessão,

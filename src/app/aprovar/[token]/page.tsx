@@ -85,7 +85,7 @@ function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl:
         ) : (
           <img
             key={current.id}
-            src={`https://drive.google.com/thumbnail?id=${current.id}&sz=w800`}
+            src={`/api/drive-thumb?id=${current.id}&sz=w800`}
             alt={`Slide ${slide + 1}`}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
           />
@@ -134,7 +134,7 @@ function FolderThumb({ folderId, maxHeight = 220 }: { folderId: string; maxHeigh
   if (!img) return null
   return (
     <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight, overflow: 'hidden' }}>
-      <img src={`https://drive.google.com/thumbnail?id=${img.id}&sz=w800`} alt=""
+      <img src={`/api/drive-thumb?id=${img.id}&sz=w800`} alt=""
         style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight }}
         onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
     </div>
@@ -809,7 +809,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   const driveId     = post.drive_url?.match(/[-\w]{25,}/)?.[0]
                   const folderId    = post.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
                   const isVideoPost = post.post_type === 'reels'
-                  const thumbUrl    = driveId && !isVideoPost && !isCarrossel ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w800` : null
+                  const thumbUrl    = driveId && !isVideoPost && !isCarrossel ? `/api/drive-thumb?id=${driveId}&sz=w800` : null
                   const embedVideoId = driveId && isVideoPost ? driveId : null
 
                   const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
@@ -1159,7 +1159,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
         const isLoading       = submitting === sheetPost.id
         const driveId         = sheetPost.drive_url?.match(/[-\w]{25,}/)?.[0]
         const sheetFolder     = sheetPost.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
-        const thumbUrl        = driveId ? `https://drive.google.com/thumbnail?id=${driveId}&sz=w600` : null
+        const thumbUrl        = driveId ? `/api/drive-thumb?id=${driveId}&sz=w600` : null
         const isSheetReel     = sheetPost.post_type === 'reels'
         const isSheetCarrossel = sheetPost.post_type === 'carrossel' || sheetPost.post_type === 'carrossel_stories'
         const closeSheet      = () => { setSheetPost(null); setSheetComment('') }
