@@ -110,16 +110,24 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         ${dragging ? 'opacity-40' : ''}
         ${dragOver ? 'ring-2 ring-[var(--color-accent)]' : ''}
         ${selected ? 'border-transparent' : isRejected ? 'border-[var(--ds-error-border)]' : isRevisao ? 'border-[#8b5cf6]/40' : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'}`}
-      style={selected ? { boxShadow: `0 0 0 2px ${clientColor || 'var(--color-accent)'}` } : isRevisao ? { boxShadow: '0 0 0 1px #8b5cf644' } : {}}
+      /* Altura travada — o card NUNCA estica pra bater a altura do vizinho na mesma
+         linha do grid (self-start ignora o align-items:stretch padrão). Tamanho sempre
+         igual, com ou sem thumbnail, com texto curto ou longo — conteúdo que não coube
+         é cortado pelo overflow-hidden, nunca esticado. */
+      style={{ height: 248, alignSelf: 'start', ...(selected ? { boxShadow: `0 0 0 2px ${clientColor || 'var(--color-accent)'}` } : isRevisao ? { boxShadow: '0 0 0 1px #8b5cf644' } : {}) }}
     >
       <div className="h-[3px] w-full flex-shrink-0" style={{ background: isRevisao ? '#8b5cf6' : type.color }} />
 
-      {/* Drive thumbnail — banner no topo (estilo capa do Trello), largura total, altura
-          fixa. Nunca estica (flex-col: filhos não esticam no eixo principal por padrão),
-          e o conteúdo abaixo (flex-1) absorve toda folga de altura que o grid impuser —
-          sem zoom esquisito na imagem e sem sobrar vazio embaixo. */}
+      {/* Altura travada em 140 (não mínima) com overflow-hidden — nada consegue estourar
+          além disso, custe o que custar em conteúdo cortado. flex-none (em vez de flex-1)
+          pra não esticar quando o grid iguala a altura da linha com o card vizinho, o que
+          deixava a miniatura mais alta que 140 (quase 9:16 em vez de 4:5). */}
+      <div className={`flex ${thumbUrl ? 'flex-none' : 'flex-1'} min-h-0 overflow-hidden`} style={thumbUrl ? { height: 140 } : undefined}>
+      {/* Drive thumbnail — preview vertical na lateral esquerda, sempre 4:5 (112x140 fixo) */}
       {thumbUrl && (
-        <div className="relative w-full h-32 flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]" style={{ height: 140 }}>
+          {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a
+              dependência circular (img 100% ← container ← card ← tamanho natural da img) */}
           <img src={thumbUrl} alt={post.title}
             className="absolute inset-0 w-full h-full object-cover"
             onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
@@ -133,7 +141,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         </div>
       )}
 
-      <div className="p-4 flex flex-col gap-3 flex-1 min-w-0 min-h-0">
+      <div className="p-4 flex flex-col gap-3 flex-1 min-w-0">
         {/* Header */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -168,13 +176,12 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
           </div>
         </div>
 
-        {/* Title + copy — a foto (banner no topo) não depende mais dessa altura, então
-            a descrição pode respirar de novo sem inflar/zoomar nada nos cards vizinhos */}
+        {/* Title + copy — copy preenche o espaço que sobrar (a imagem cresce junto se precisar) */}
         <div className="flex-1 min-h-0 flex flex-col">
           <p className="font-bold text-[var(--color-text-primary)] text-[15px] leading-snug line-clamp-2 flex-shrink-0">{post.title || 'Sem título'}</p>
           {(post.ai_summary || post.copy) && (
-            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 overflow-hidden"
-              style={{ maxHeight: '4.5em', WebkitMaskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)' }}>
+            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 flex-1 min-h-0 overflow-hidden"
+              style={{ maxHeight: '6.5em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
               {post.ai_summary || post.copy!.replace(/\*/g, '')}
             </p>
           )}
@@ -229,6 +236,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
             {isApproved && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓</span>}
           </div>
         </div>
+      </div>
       </div>
     </div>
   )
