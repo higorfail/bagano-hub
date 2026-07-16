@@ -25,18 +25,38 @@ function driveStreamUrl(id: string) {
   return `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
 }
 
-// <video> do Drive com fallback: se o streaming falhar (cota de download do
-// arquivo, arquivo grande demais, etc.) cai pra um link "assistir no Drive"
-// em vez de deixar a tela preta.
+// <video> do Drive com DUAS tentativas antes de desistir: 1) streaming nativo
+// (rápido, funciona na maioria dos casos) → 2) iframe /preview do Drive (o player
+// embutido padrão) → só then uma mensagem clara + botão "Abrir no Drive". O iframe
+// não avisa se o vídeo travar dentro dele (só se a própria página falhar ao
+// carregar), por isso mantém um link de escape sempre visível nessa 2ª tentativa.
 function DriveVideo({ id, folderUrl, style }: { id: string; folderUrl?: string; style: React.CSSProperties }) {
-  const [failed, setFailed] = useState(false)
-  if (failed) return (
-    <a href={folderUrl || `https://drive.google.com/file/d/${id}/view`} target="_blank" rel="noopener noreferrer"
-      style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#111', fontSize: 14, fontWeight: 600, color: '#fff', textDecoration: 'none' }}>
-      🎬 Assistir no Drive
-    </a>
+  const [stage, setStage] = useState<'video' | 'iframe' | 'failed'>('video')
+  const driveLink = folderUrl || `https://drive.google.com/file/d/${id}/view`
+
+  if (stage === 'failed') return (
+    <div style={{ ...style, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, background: '#111', textAlign: 'center', padding: 20 }}>
+      <span style={{ fontSize: 13, color: '#d1d5db', maxWidth: 240 }}>Não conseguimos carregar o vídeo aqui.</span>
+      <a href={driveLink} target="_blank" rel="noopener noreferrer"
+        style={{ fontSize: 14, fontWeight: 700, color: '#fff', background: '#E5384A', padding: '8px 16px', borderRadius: 10, textDecoration: 'none' }}>
+        🎬 Abrir no Drive
+      </a>
+    </div>
   )
-  return <video src={driveStreamUrl(id)} controls playsInline onError={() => setFailed(true)} style={style} />
+
+  if (stage === 'iframe') return (
+    <div style={{ ...style, position: 'relative' }}>
+      <iframe src={`https://drive.google.com/file/d/${id}/preview`} allow="autoplay"
+        style={{ width: '100%', height: '100%', border: 'none' }}
+        onError={() => setStage('failed')} />
+      <a href={driveLink} target="_blank" rel="noopener noreferrer"
+        style={{ position: 'absolute', bottom: 8, right: 8, fontSize: 11, fontWeight: 600, color: '#fff', background: 'rgba(0,0,0,0.65)', padding: '4px 9px', borderRadius: 8, textDecoration: 'none' }}>
+        Não carregou? Abrir no Drive
+      </a>
+    </div>
+  )
+
+  return <video src={driveStreamUrl(id)} controls playsInline onError={() => setStage('iframe')} style={style} />
 }
 
 function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
