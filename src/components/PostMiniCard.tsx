@@ -121,10 +121,12 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
           fixa (176px) — então nunca sobra faixa morta embaixo. Como o card não estica
           (self-start), a foto também nunca estica além do previsto. */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-      {/* Drive thumbnail — sempre 4:5 por proporção (aspect-ratio): a altura acompanha
-          o card de ponta a ponta e a largura deriva dela. Zero sobra, zero distorção. */}
+      {/* Drive thumbnail — sempre 4:5: a altura acompanha o card (176 − 3 da barra = 173)
+          e a largura é fixada em 138 (173 × 4/5). A largura precisa ser explícita: derivá-la
+          da altura via aspect-ratio quebra no Safari (item flex esticado resolve largura 0
+          e a foto some sem erro). Zero sobra, zero distorção. */}
       {thumbUrl && (
-        <div className="relative flex-shrink-0 self-stretch overflow-hidden bg-[var(--color-bg-subtle)]" style={{ aspectRatio: '4 / 5' }}>
+        <div className="relative flex-shrink-0 self-stretch overflow-hidden bg-[var(--color-bg-subtle)]" style={{ width: 138 }}>
           {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a
               dependência circular (img 100% ← container ← card ← tamanho natural da img) */}
           <img src={thumbUrl} alt={post.title}
