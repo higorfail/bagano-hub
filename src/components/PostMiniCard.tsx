@@ -113,8 +113,9 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
       /* Altura travada — o card NUNCA estica pra bater a altura do vizinho na mesma
          linha do grid (self-start ignora o align-items:stretch padrão). Tamanho sempre
          igual, com ou sem thumbnail, com texto curto ou longo — conteúdo que não coube
-         é cortado pelo overflow-hidden, nunca esticado. */
-      style={{ height: 248, alignSelf: 'start', ...(selected ? { boxShadow: `0 0 0 2px ${clientColor || 'var(--color-accent)'}` } : isRevisao ? { boxShadow: '0 0 0 1px #8b5cf644' } : {}) }}
+         é cortado pelo overflow-hidden, nunca esticado. 176px bate certinho com a foto
+         (140 + barra + respiro), que é o caso mais comum (sem descrição). */
+      style={{ height: 176, alignSelf: 'start', ...(selected ? { boxShadow: `0 0 0 2px ${clientColor || 'var(--color-accent)'}` } : isRevisao ? { boxShadow: '0 0 0 1px #8b5cf644' } : {}) }}
     >
       <div className="h-[3px] w-full flex-shrink-0" style={{ background: isRevisao ? '#8b5cf6' : type.color }} />
 
@@ -181,7 +182,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
           <p className="font-bold text-[var(--color-text-primary)] text-[15px] leading-snug line-clamp-2 flex-shrink-0">{post.title || 'Sem título'}</p>
           {(post.ai_summary || post.copy) && (
             <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 flex-1 min-h-0 overflow-hidden"
-              style={{ maxHeight: '6.5em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
+              style={{ maxHeight: '2.4em', WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)' }}>
               {post.ai_summary || post.copy!.replace(/\*/g, '')}
             </p>
           )}
