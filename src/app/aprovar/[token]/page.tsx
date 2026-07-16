@@ -45,9 +45,7 @@ function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl:
   const [ready, setReady]   = useState(false)
 
   useEffect(() => {
-    const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
-    if (!key) { setReady(true); return }
-    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType)&orderBy=name&key=${key}`)
+    fetch(`/api/drive-folder?folderId=${folderId}`)
       .then(r => r.json())
       .then(d => {
         const files: { id: string; name: string; mimeType: string }[] = d.files || []
@@ -117,9 +115,7 @@ function useFolderFiles(folderId: string) {
   const [files, setFiles] = useState<DriveFileInfo[]>([])
   const [ready, setReady] = useState(false)
   useEffect(() => {
-    const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
-    if (!key) { setReady(true); return }
-    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType)&orderBy=name&key=${key}`)
+    fetch(`/api/drive-folder?folderId=${folderId}`)
       .then(r => r.json())
       .then(d => { setFiles(d.files || []); setReady(true) })
       .catch(() => setReady(true))

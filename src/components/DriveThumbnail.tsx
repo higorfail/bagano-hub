@@ -16,9 +16,7 @@ export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
   useEffect(() => {
     const folderId = folderUrl.match(/\/folders\/([-\w]{25,})/)?.[1]
     if (!folderId) return
-    const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
-    if (!key) return
-    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType)&orderBy=name&key=${key}`)
+    fetch(`/api/drive-folder?folderId=${folderId}`)
       .then(r => r.json())
       .then(d => {
         const files: DriveFile[] = d.files || []

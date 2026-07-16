@@ -91,9 +91,8 @@ function CalendarChip({ post, members, dragging, otherCronograma, onDragStart, o
   useEffect(() => {
     if (thumbUrl || !post.drive_folder_url) return
     const folderId = post.drive_folder_url.match(/\/folders\/([-\w]{25,})/)?.[1]
-    const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
-    if (!folderId || !key) return
-    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType)&orderBy=name&key=${key}`)
+    if (!folderId) return
+    fetch(`/api/drive-folder?folderId=${folderId}`)
       .then(r => r.json())
       .then(d => {
         const files: { id: string; name: string; mimeType: string }[] = d.files || []

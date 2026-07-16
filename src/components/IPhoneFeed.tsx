@@ -150,9 +150,7 @@ function pickCoverOrVideo(files: DriveFile[]): { file?: DriveFile; isVideo: bool
 
 async function fetchFolderFiles(folderId: string): Promise<DriveFile[]> {
   try {
-    const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType,thumbnailLink,webViewLink)&orderBy=name&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
-    )
+    const res = await fetch(`/api/drive-folder?folderId=${folderId}`)
     if (!res.ok) return []
     return (await res.json()).files || []
   } catch { return [] }

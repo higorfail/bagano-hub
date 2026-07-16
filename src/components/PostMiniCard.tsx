@@ -80,9 +80,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
     if (!post.drive_folder_url) return
     const folderId = post.drive_folder_url.match(/\/folders\/([-\w]{25,})/)?.[1]
     if (!folderId) return
-    const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
-    if (!key) return
-    fetch(`https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType)&orderBy=name&key=${key}`)
+    fetch(`/api/drive-folder?folderId=${folderId}`)
       .then(r => r.json())
       .then(d => {
         const files: { id: string; name: string; mimeType: string }[] = d.files || []
