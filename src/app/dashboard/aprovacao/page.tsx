@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
-import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight, ChevronsUpDown, Search, Link2, LayoutGrid, List, Play, Megaphone } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight, ChevronsUpDown, Search, Link2, LayoutGrid, List, Play, Megaphone, MessageSquare, Send, X, ExternalLink } from 'lucide-react'
 
 type Post = {
   id: string
@@ -35,6 +35,13 @@ const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov
 
 function getInitials(name: string) {
   return name.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
+}
+
+function monthKeyOf(p: Post) { return `${p.year}-${String(p.month).padStart(2, '0')}` }
+
+function daysAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  return Math.floor(diff / 86400000)
 }
 
 // Mesma lógica de miniatura do PostMiniCard (cronograma): resolve direto do drive_url
@@ -93,9 +100,83 @@ function PostThumb({ post, className = 'w-14' }: { post: Post; className?: strin
   )
 }
 
-function daysAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime()
-  return Math.floor(diff / 86400000)
+// Preview grande — abre ao clicar na miniatura, sem sair da página. Clicar no
+// título/linha ainda navega pro post completo no cronograma.
+function Lightbox({ post, client, waitDays, onClose, onOpenFull }: {
+  post: Post; client?: Client; waitDays: number | null
+  onClose: () => void; onOpenFull: () => void
+}) {
+  const { thumbUrl, isThumbVideo } = useDriveThumb(post.drive_url, post.drive_folder_url, post.post_type === 'reels')
+  const needsRevision = post.approval_status === 'não aprovado'
+  const isApproved    = post.approval_status === 'aprovado'
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="relative max-w-sm w-full bg-[var(--color-bg-card)] rounded-2xl overflow-hidden shadow-pop" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors">
+          <X size={16} />
+        </button>
+        <div className="relative w-full bg-[var(--color-bg-subtle)]" style={{ aspectRatio: '4 / 5' }}>
+          {thumbUrl ? (
+            <img src={thumbUrl} alt={post.title} className="absolute inset-0 w-full h-full object-cover" />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-5xl opacity-60">{TYPE_EMOJI[post.post_type] || '📄'}</div>
+          )}
+          {thumbUrl && isThumbVideo && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+              <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                <Play size={22} className="text-[#111] ml-1" fill="currentColor" />
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="p-4 flex flex-col gap-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-semibold text-sm text-[var(--color-text-primary)]">{post.title || 'Sem título'}</p>
+            {isApproved ? (
+              <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>✓ Aprovado</span>
+            ) : needsRevision ? (
+              <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>Revisão</span>
+            ) : (
+              <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)' }}>Aguardando</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap text-xs text-[var(--color-text-muted)]">
+            {client && <span>{client.name}</span>}
+            <span className="text-[var(--color-text-faint)]">·</span>
+            <span>{TYPE_LABEL[post.post_type] || post.post_type}</span>
+            {waitDays !== null && waitDays > 0 && (
+              <>
+                <span className="text-[var(--color-text-faint)]">·</span>
+                <span style={{ color: waitDays >= 3 ? 'var(--ds-warn-text)' : undefined }}>aguardando há {waitDays}d</span>
+              </>
+            )}
+          </div>
+          {needsRevision && post.approval_comment && (
+            <p className="text-xs italic rounded-lg px-2.5 py-1.5" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>"{post.approval_comment}"</p>
+          )}
+          <div className="flex items-center gap-2 mt-1">
+            <button onClick={onOpenFull} className="flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl bg-[var(--color-brand)] text-[var(--color-brand-fg)] hover:opacity-90 transition-opacity">
+              Abrir post completo
+            </button>
+            {post.drive_url && (
+              <a href={post.drive_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                title="Abrir no Drive"
+                className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                <ExternalLink size={14} />
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function AprovacaoPage() {
@@ -105,15 +186,18 @@ export default function AprovacaoPage() {
   const [posts,   setPosts]   = useState<Post[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [waitingSince, setWaitingSince] = useState<Record<string, string>>({})
+  const [commentsCount, setCommentsCount] = useState<Record<string, number>>({})
   const [loading,   setLoading]   = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [filter,    setFilter]    = useState<'todos' | 'aguardando' | 'revisao' | 'aprovado'>('todos')
   const [search,    setSearch]    = useState('')
+  const [monthFilter, setMonthFilter] = useState('')
   const [view,      setView]      = useState<'list' | 'grid'>(() => {
     if (typeof window === 'undefined') return 'list'
     return (localStorage.getItem('aprovacao-view') as 'list' | 'grid') || 'list'
   })
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [lightboxId, setLightboxId] = useState<string | null>(null)
 
   function setViewMode(v: 'list' | 'grid') {
     setView(v)
@@ -141,22 +225,27 @@ export default function AprovacaoPage() {
         allPosts.forEach(p => { if (p.status === 'ajuste') urgentClients.add(p.client_id) })
         setExpanded(urgentClients)
 
-        // "Aguardando há X dias" — melhor esforço a partir do activity_log (não existe
-        // coluna dedicada pra isso), pega o registro mais antigo que menciona a mudança
-        // pra "Aguardando aprovação" por post. Se não achar, o post fica sem selo de tempo.
-        const ids = allPosts.filter(p => p.status === 'aguardando_aprovacao').map(p => p.id)
+        const ids = allPosts.map(p => p.id)
         if (ids.length > 0) {
-          const { data: logs } = await supabase
-            .from('activity_log')
-            .select('record_id, description, created_at')
-            .eq('table_name', 'schedules')
-            .eq('action', 'status_changed')
-            .in('record_id', ids)
-            .ilike('description', '%aguardando aprova%')
-            .order('created_at', { ascending: true })
+          // "Aguardando há X dias" — melhor esforço a partir do activity_log (não existe
+          // coluna dedicada pra isso), pega o registro mais antigo que menciona a mudança
+          // pra "Aguardando aprovação" por post. Se não achar, o post fica sem selo de tempo.
+          const waitingIds = allPosts.filter(p => p.status === 'aguardando_aprovacao').map(p => p.id)
+          const [logsRes, commentsRes] = await Promise.all([
+            waitingIds.length > 0
+              ? supabase.from('activity_log').select('record_id, description, created_at')
+                  .eq('table_name', 'schedules').eq('action', 'status_changed')
+                  .in('record_id', waitingIds).ilike('description', '%aguardando aprova%')
+                  .order('created_at', { ascending: true })
+              : Promise.resolve({ data: [] as any[] }),
+            supabase.from('schedule_comments').select('schedule_id').in('schedule_id', ids),
+          ])
           const since: Record<string, string> = {}
-          ;(logs || []).forEach((l: any) => { if (!since[l.record_id]) since[l.record_id] = l.created_at })
+          ;(logsRes.data || []).forEach((l: any) => { if (!since[l.record_id]) since[l.record_id] = l.created_at })
           setWaitingSince(since)
+          const cc: Record<string, number> = {}
+          ;(commentsRes.data || []).forEach((c: any) => { cc[c.schedule_id] = (cc[c.schedule_id] || 0) + 1 })
+          setCommentsCount(cc)
         }
       } catch {
         setLoadError(true)
@@ -172,6 +261,11 @@ export default function AprovacaoPage() {
     return m
   }, [clients])
 
+  const monthOptions = useMemo(() => {
+    const set = new Set(posts.map(monthKeyOf))
+    return Array.from(set).sort().reverse()
+  }, [posts])
+
   const searched = useMemo(() => {
     if (!search.trim()) return posts
     const q = search.trim().toLowerCase()
@@ -182,11 +276,28 @@ export default function AprovacaoPage() {
   }, [posts, search, clientMap])
 
   const filtered = useMemo(() => {
-    if (filter === 'aguardando') return searched.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado')
-    if (filter === 'revisao')    return searched.filter(p => p.status === 'ajuste')
-    if (filter === 'aprovado')   return searched.filter(p => p.approval_status === 'aprovado')
-    return searched.filter(p => p.approval_status !== 'aprovado')
-  }, [searched, filter])
+    let list = searched
+    if (filter === 'aguardando') list = list.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado')
+    else if (filter === 'revisao') list = list.filter(p => p.status === 'ajuste')
+    else if (filter === 'aprovado') list = list.filter(p => p.approval_status === 'aprovado')
+    else list = list.filter(p => p.approval_status !== 'aprovado')
+    if (monthFilter) list = list.filter(p => monthKeyOf(p) === monthFilter)
+    return list
+  }, [searched, filter, monthFilter])
+
+  // Dentro de cada mês: revisão primeiro, depois aguardando (mais antigo esperando
+  // primeiro), aprovados por último.
+  function sortPosts(list: Post[]) {
+    return [...list].sort((a, b) => {
+      const rank = (p: Post) => p.approval_status === 'não aprovado' ? 0 : p.approval_status === 'aprovado' ? 2 : 1
+      const ra = rank(a), rb = rank(b)
+      if (ra !== rb) return ra - rb
+      const wa = waitingSince[a.id] ? daysAgo(waitingSince[a.id]) : -1
+      const wb = waitingSince[b.id] ? daysAgo(waitingSince[b.id]) : -1
+      if (wa !== wb) return wb - wa
+      return (a.scheduled_date || '').localeCompare(b.scheduled_date || '')
+    })
+  }
 
   // Agrupar por cliente, mantendo ordem: clientes com revisão primeiro
   const byClient = useMemo(() => {
@@ -238,6 +349,15 @@ export default function AprovacaoPage() {
     navigator.clipboard.writeText(`${window.location.origin}/aprovar/cliente/${clientId}`)
     toast('Link de aprovação copiado!')
   }
+
+  function remindClient(clientId: string, pending: number) {
+    const client = clientMap[clientId]
+    const link = `${window.location.origin}/aprovar/cliente/${clientId}`
+    const msg = `Oi${client ? ', ' + client.name.split(' ')[0] : ''}! Tudo bem? Tem ${pending} post${pending !== 1 ? 's' : ''} esperando sua aprovação por aqui: ${link}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
+  const lightboxPost = lightboxId ? posts.find(p => p.id === lightboxId) || null : null
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -307,6 +427,16 @@ export default function AprovacaoPage() {
               className="pl-8 pr-3 py-1.5 rounded-xl text-sm border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none w-48 focus:w-64 transition-all"
             />
           </div>
+          {monthOptions.length > 1 && (
+            <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)}
+              className="text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
+              <option value="">Todos os meses</option>
+              {monthOptions.map(key => {
+                const [y, m] = key.split('-')
+                return <option key={key} value={key}>{MONTHS[parseInt(m) - 1]} {y}</option>
+              })}
+            </select>
+          )}
           {[
             { key: 'todos',      label: 'Pendentes',       count: aguardandoCount + revisaoCount },
             { key: 'aguardando', label: 'Aguardando',       count: aguardandoCount },
@@ -350,7 +480,7 @@ export default function AprovacaoPage() {
           // Agrupar por mês dentro do cliente
           const byMonth: Record<string, Post[]> = {}
           clientPosts.forEach(p => {
-            const key = `${p.year}-${String(p.month).padStart(2,'0')}`
+            const key = monthKeyOf(p)
             if (!byMonth[key]) byMonth[key] = []
             byMonth[key].push(p)
           })
@@ -363,8 +493,8 @@ export default function AprovacaoPage() {
               className="bg-[var(--color-bg-card)] border rounded-2xl overflow-hidden shadow-card transition-all"
               style={{ borderColor: hasUrgency ? 'var(--ds-warn-border)' : 'var(--color-border)' }}
             >
-              {/* Header — a linha inteira é clicável (um único botão, como era antes);
-                  só o "Link" pára a propagação pra não abrir/fechar junto. */}
+              {/* Header — a linha inteira é clicável (um único botão); "Link" e
+                  "Lembrar" param a propagação pra não abrir/fechar junto. */}
               <button
                 type="button"
                 onClick={() => toggle(clientId)}
@@ -388,6 +518,18 @@ export default function AprovacaoPage() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {pendentes > 0 && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={e => { e.stopPropagation(); remindClient(clientId, pendentes) }}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); remindClient(clientId, pendentes) } }}
+                      title="Lembrar cliente pelo WhatsApp"
+                      className="hidden md:flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-page)] hover:border-[var(--color-border-strong)] transition-colors cursor-pointer"
+                    >
+                      <Send size={11} /> Lembrar
+                    </span>
+                  )}
                   <span
                     role="button"
                     tabIndex={0}
@@ -399,17 +541,17 @@ export default function AprovacaoPage() {
                     <Link2 size={11} /> <span className="hidden sm:inline">Link</span>
                   </span>
                   {pendentes > 0 && (
-                    <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)' }}>
+                    <span className="hidden lg:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)' }}>
                       <Clock size={10} /> {pendentes} aguardando
                     </span>
                   )}
                   {revisoes > 0 && (
-                    <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>
+                    <span className="hidden lg:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>
                       <AlertTriangle size={10} /> {revisoes} revisão
                     </span>
                   )}
                   {aprovados > 0 && (
-                    <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
+                    <span className="hidden lg:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
                       <CheckCircle2 size={10} /> {aprovados} aprovado{aprovados !== 1 ? 's' : ''}
                     </span>
                   )}
@@ -423,7 +565,8 @@ export default function AprovacaoPage() {
               {/* Posts — expandido */}
               {isOpen && (
                 <div className="border-t border-[var(--color-border)]">
-                  {monthGroups.map(([monthKey, mPosts]) => {
+                  {monthGroups.map(([monthKey, mPostsRaw]) => {
+                    const mPosts = sortPosts(mPostsRaw)
                     const [y, m] = monthKey.split('-')
                     return (
                       <div key={monthKey}>
@@ -444,23 +587,36 @@ export default function AprovacaoPage() {
                               const needsRevision = p.approval_status === 'não aprovado'
                               const isApproved    = p.approval_status === 'aprovado'
                               const waitDays = waitingSince[p.id] ? daysAgo(waitingSince[p.id]) : null
+                              const isUrgent = waitDays !== null && waitDays >= 3 && !isApproved
                               const statusColor = isApproved ? 'var(--ds-success-accent)' : needsRevision ? 'var(--ds-warn-accent)' : 'var(--ds-info-accent)'
+                              const nComments = commentsCount[p.id] || 0
+                              const statusLabel = isApproved ? 'Aprovado' : needsRevision ? 'Revisão' : 'Aguardando'
                               return (
-                                <button key={p.id} onClick={() => navigateToPost(p)}
-                                  title={p.title || 'Sem título'}
-                                  className="flex flex-col gap-1 text-left group">
-                                  <div className="relative rounded-lg overflow-hidden transition-all group-hover:opacity-90" style={{ boxShadow: `0 0 0 2px ${statusColor}` }}>
+                                <div key={p.id} className="flex flex-col gap-1">
+                                  <button onClick={() => setLightboxId(p.id)} title="Ver preview" className="relative rounded-lg overflow-hidden transition-all hover:opacity-90"
+                                    style={{ boxShadow: `0 0 0 2px ${statusColor}` }}>
                                     <PostThumb post={p} className="w-full rounded-none" />
-                                    {/* Selo de status — sempre visível, é o que importa aqui */}
-                                    <div className="absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center shadow-sm" style={{ background: statusColor }}>
-                                      {isApproved ? <CheckCircle2 size={11} className="text-white" strokeWidth={2.5} /> : needsRevision ? <AlertTriangle size={11} className="text-white" strokeWidth={2.5} /> : <Clock size={11} className="text-white" strokeWidth={2.5} />}
-                                    </div>
                                     {waitDays !== null && waitDays > 0 && (
-                                      <span className="absolute top-1 right-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-black/60 text-white">{waitDays}d</span>
+                                      <span className={`absolute top-1 right-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white ${isUrgent ? 'animate-pulse' : ''}`}
+                                        style={{ background: isUrgent ? 'var(--ds-error-accent)' : 'rgba(0,0,0,0.6)' }}>
+                                        {waitDays}d
+                                      </span>
                                     )}
-                                  </div>
-                                  <p className="text-[11px] font-medium text-[var(--color-text-primary)] truncate leading-tight">{p.title || 'Sem título'}</p>
-                                </button>
+                                    {nComments > 0 && (
+                                      <span className="absolute top-1 left-1 flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-black/60 text-white">
+                                        <MessageSquare size={8} /> {nComments}
+                                      </span>
+                                    )}
+                                    {/* Faixa de status — texto explícito, não só cor/ícone */}
+                                    <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1 py-1 text-white text-[10px] font-bold uppercase tracking-wide" style={{ background: statusColor }}>
+                                      {isApproved ? <CheckCircle2 size={10} strokeWidth={2.5} /> : needsRevision ? <AlertTriangle size={10} strokeWidth={2.5} /> : <Clock size={10} strokeWidth={2.5} />}
+                                      {statusLabel}
+                                    </div>
+                                  </button>
+                                  <button onClick={() => navigateToPost(p)} className="text-left">
+                                    <p className="text-[11px] font-medium text-[var(--color-text-primary)] truncate leading-tight hover:underline">{p.title || 'Sem título'}</p>
+                                  </button>
+                                </div>
                               )
                             })}
                           </div>
@@ -470,14 +626,14 @@ export default function AprovacaoPage() {
                               const needsRevision = p.approval_status === 'não aprovado'
                               const isApproved    = p.approval_status === 'aprovado'
                               const waitDays = waitingSince[p.id] ? daysAgo(waitingSince[p.id]) : null
+                              const isUrgent = waitDays !== null && waitDays >= 3 && !isApproved
+                              const nComments = commentsCount[p.id] || 0
                               return (
-                                <button
-                                  key={p.id}
-                                  onClick={() => navigateToPost(p)}
-                                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[var(--color-bg-page)] transition-colors text-left group"
-                                >
-                                  <PostThumb post={p} />
-                                  <div className="flex-1 min-w-0">
+                                <div key={p.id} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[var(--color-bg-page)] transition-colors group">
+                                  <button onClick={() => setLightboxId(p.id)} title="Ver preview">
+                                    <PostThumb post={p} />
+                                  </button>
+                                  <button onClick={() => navigateToPost(p)} className="flex-1 min-w-0 text-left">
                                     <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{p.title || 'Sem título'}</p>
                                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                       <span className="text-xs text-[var(--color-text-muted)]">{TYPE_LABEL[p.post_type] || p.post_type}</span>
@@ -497,12 +653,24 @@ export default function AprovacaoPage() {
                                           </span>
                                         </>
                                       )}
+                                      {nComments > 0 && (
+                                        <>
+                                          <span className="text-[var(--color-text-faint)]">·</span>
+                                          <span className="text-xs flex items-center gap-0.5 text-[var(--color-text-muted)]">
+                                            <MessageSquare size={9} /> {nComments}
+                                          </span>
+                                        </>
+                                      )}
                                       {waitDays !== null && waitDays > 0 && (
                                         <>
                                           <span className="text-[var(--color-text-faint)]">·</span>
-                                          <span className="text-xs" style={{ color: waitDays >= 3 ? 'var(--ds-warn-text)' : 'var(--color-text-muted)' }}>
-                                            aguardando há {waitDays}d
-                                          </span>
+                                          {isUrgent ? (
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white animate-pulse" style={{ background: 'var(--ds-error-accent)' }}>
+                                              aguardando há {waitDays}d
+                                            </span>
+                                          ) : (
+                                            <span className="text-xs text-[var(--color-text-muted)]">aguardando há {waitDays}d</span>
+                                          )}
                                         </>
                                       )}
                                       {needsRevision && p.approval_comment && (
@@ -512,7 +680,7 @@ export default function AprovacaoPage() {
                                         </>
                                       )}
                                     </div>
-                                  </div>
+                                  </button>
                                   <div className="flex-shrink-0">
                                     {isApproved ? (
                                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
@@ -528,7 +696,7 @@ export default function AprovacaoPage() {
                                       </span>
                                     )}
                                   </div>
-                                </button>
+                                </div>
                               )
                             })}
                           </div>
@@ -542,6 +710,16 @@ export default function AprovacaoPage() {
           )
         })}
       </div>
+
+      {lightboxPost && (
+        <Lightbox
+          post={lightboxPost}
+          client={clientMap[lightboxPost.client_id]}
+          waitDays={waitingSince[lightboxPost.id] ? daysAgo(waitingSince[lightboxPost.id]) : null}
+          onClose={() => setLightboxId(null)}
+          onOpenFull={() => { navigateToPost(lightboxPost); setLightboxId(null) }}
+        />
+      )}
     </div>
   )
 }
