@@ -119,14 +119,14 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
     >
       <div className="h-[3px] w-full flex-shrink-0" style={{ background: isRevisao ? '#8b5cf6' : type.color }} />
 
-      {/* Altura travada em 140 (não mínima) com overflow-hidden — nada consegue estourar
-          além disso, custe o que custar em conteúdo cortado. flex-none (em vez de flex-1)
-          pra não esticar quando o grid iguala a altura da linha com o card vizinho, o que
-          deixava a miniatura mais alta que 140 (quase 9:16 em vez de 4:5). */}
-      <div className={`flex ${thumbUrl ? 'flex-none' : 'flex-1'} min-h-0 overflow-hidden`} style={thumbUrl ? { height: 140 } : undefined}>
-      {/* Drive thumbnail — preview vertical na lateral esquerda, sempre 4:5 (112x140 fixo) */}
+      {/* A linha interna (foto + conteúdo) preenche 100% da altura do card — que já é
+          fixa (176px) — então nunca sobra faixa morta embaixo. Como o card não estica
+          (self-start), a foto também nunca estica além do previsto. */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+      {/* Drive thumbnail — sempre 4:5 por proporção (aspect-ratio): a altura acompanha
+          o card de ponta a ponta e a largura deriva dela. Zero sobra, zero distorção. */}
       {thumbUrl && (
-        <div className="relative w-28 flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]" style={{ height: 140 }}>
+        <div className="relative flex-shrink-0 self-stretch overflow-hidden bg-[var(--color-bg-subtle)]" style={{ aspectRatio: '4 / 5' }}>
           {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a
               dependência circular (img 100% ← container ← card ← tamanho natural da img) */}
           <img src={thumbUrl} alt={post.title}
