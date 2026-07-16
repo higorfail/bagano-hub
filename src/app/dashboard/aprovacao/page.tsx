@@ -436,41 +436,30 @@ export default function AprovacaoPage() {
                         )}
 
                         {view === 'grid' ? (
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-4 items-start">
+                          /* 6 por linha — o que precisa saltar aos olhos é o status (aguardando/
+                             revisão/aprovado), não o texto. Anel colorido ao redor da foto +
+                             selo com ícone sobre a própria miniatura, sem legenda comprida. */
+                          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 p-4 items-start">
                             {mPosts.map(p => {
                               const needsRevision = p.approval_status === 'não aprovado'
                               const isApproved    = p.approval_status === 'aprovado'
                               const waitDays = waitingSince[p.id] ? daysAgo(waitingSince[p.id]) : null
+                              const statusColor = isApproved ? 'var(--ds-success-accent)' : needsRevision ? 'var(--ds-warn-accent)' : 'var(--ds-info-accent)'
                               return (
                                 <button key={p.id} onClick={() => navigateToPost(p)}
-                                  className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] hover:border-[var(--color-border-hover)] bg-[var(--color-bg-page)] overflow-hidden text-left transition-all hover:shadow-pop">
-                                  <PostThumb post={p} className="w-full rounded-none" />
-                                  <div className="px-2.5 pb-2.5 flex flex-col gap-1.5">
-                                    <p className="text-xs font-semibold text-[var(--color-text-primary)] line-clamp-2 leading-snug">{p.title || 'Sem título'}</p>
-                                    <div className="flex items-center gap-1 flex-wrap">
-                                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-md bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">{TYPE_LABEL[p.post_type] || p.post_type}</span>
-                                      {p.campaign_type && (
-                                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-md flex items-center gap-0.5" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>
-                                          <Megaphone size={8} /> {p.campaign_type}
-                                        </span>
-                                      )}
+                                  title={p.title || 'Sem título'}
+                                  className="flex flex-col gap-1 text-left group">
+                                  <div className="relative rounded-lg overflow-hidden transition-all group-hover:opacity-90" style={{ boxShadow: `0 0 0 2px ${statusColor}` }}>
+                                    <PostThumb post={p} className="w-full rounded-none" />
+                                    {/* Selo de status — sempre visível, é o que importa aqui */}
+                                    <div className="absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center shadow-sm" style={{ background: statusColor }}>
+                                      {isApproved ? <CheckCircle2 size={11} className="text-white" strokeWidth={2.5} /> : needsRevision ? <AlertTriangle size={11} className="text-white" strokeWidth={2.5} /> : <Clock size={11} className="text-white" strokeWidth={2.5} />}
                                     </div>
-                                    {needsRevision && p.approval_comment && (
-                                      <p className="text-[10px] italic line-clamp-1" style={{ color: 'var(--ds-warn-text)' }}>"{p.approval_comment}"</p>
+                                    {waitDays !== null && waitDays > 0 && (
+                                      <span className="absolute top-1 right-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-black/60 text-white">{waitDays}d</span>
                                     )}
-                                    <div className="flex items-center justify-between gap-1">
-                                      {isApproved ? (
-                                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>✓ Aprovado</span>
-                                      ) : needsRevision ? (
-                                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>Revisão</span>
-                                      ) : (
-                                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)' }}>Aguardando</span>
-                                      )}
-                                      {waitDays !== null && waitDays > 0 && (
-                                        <span className="text-[9px] text-[var(--color-text-faint)] flex-shrink-0">{waitDays}d</span>
-                                      )}
-                                    </div>
                                   </div>
+                                  <p className="text-[11px] font-medium text-[var(--color-text-primary)] truncate leading-tight">{p.title || 'Sem título'}</p>
                                 </button>
                               )
                             })}
