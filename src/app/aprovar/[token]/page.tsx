@@ -690,7 +690,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
           {/* Status pills */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto' }}>
             {pendingCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, background: '#f3f4f6', color: '#6b7280', padding: '4px 10px', borderRadius: 100, whiteSpace: 'nowrap' }}>{pendingCount} pendente{pendingCount !== 1 ? 's' : ''}</span>}
-            {changesCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, background: '#fef3c7', color: '#b45309', padding: '4px 10px', borderRadius: 100, whiteSpace: 'nowrap' }}>⚠ {changesCount} alteração{changesCount !== 1 ? 'ões' : ''}</span>}
+            {changesCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, background: '#fef3c7', color: '#b45309', padding: '4px 10px', borderRadius: 100, whiteSpace: 'nowrap' }}>⚠ {changesCount} ajuste{changesCount !== 1 ? 'ões' : ''}</span>}
             {approvedCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, background: '#f0fdf4', color: '#16a34a', padding: '4px 10px', borderRadius: 100, whiteSpace: 'nowrap' }}>✓ {approvedCount} aprovado{approvedCount !== 1 ? 's' : ''}</span>}
           </div>
 
@@ -810,7 +810,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                 <div>
                   <p style={{ fontSize: 14, fontWeight: 700, color: '#111', margin: '0 0 4px', letterSpacing: '-0.01em' }}>Revise e aprove cada post</p>
                   <p style={{ fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.55 }}>
-                    Leia o texto e toque em <strong style={{ color: '#111' }}>Aprovar</strong>. Se precisar de ajuste, toque em <strong style={{ color: '#111' }}>Pedir alteração</strong> e descreva o que mudar.
+                    Leia o texto e toque em <strong style={{ color: '#111' }}>Aprovar</strong>. Se precisar de ajuste, toque em <strong style={{ color: '#111' }}>Pedir ajuste</strong> e descreva o que mudar.
                   </p>
                 </div>
               </div>
@@ -835,7 +835,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
                   const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#fafafa'
                   const statusClr  = isApproved ? '#16a34a'  : isChanges ? '#b45309' : '#9ca3af'
-                  const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu alteração' : '● Pendente'
+                  const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : '● Pendente'
 
                   return (
                     <div key={post.id} style={{ background: '#fff', borderRadius: 22, border: `1.5px solid ${cardBorder}`, overflow: 'hidden', boxShadow: isApproved ? '0 2px 12px rgba(34,197,94,0.08)' : '0 1px 4px rgba(0,0,0,0.06)', transition: 'border-color 0.35s' }}>
@@ -936,14 +936,14 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                             </button>
                             <button onClick={() => requestChanges(post.id, comment)} disabled={!comment.trim() || !!isLoading}
                               style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 14, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
-                              <MessageSquare size={15} /> Enviar alteração
+                              <MessageSquare size={15} /> Enviar ajuste
                             </button>
                           </div>
                         ) : (
                           <div style={{ display: 'flex', gap: 10 }}>
                             <button onClick={() => setCommenting(s => { const n = new Set(s); n.add(post.id); return n })}
                               style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 14, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                              ✏️ Pedir alteração
+                              ✏️ Pedir ajuste
                             </button>
                             <button onClick={() => approve(post.id)} disabled={!!isLoading}
                               style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: cc, border: 'none', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 6px 24px ${cc}44`, letterSpacing: '-0.02em', transition: 'opacity 0.15s' }}>
@@ -1249,7 +1249,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                   {/* Comment */}
                   {!isApproved && (
                     <div style={{ marginBottom: 14 }}>
-                      <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px', fontWeight: 600 }}>Pedir alteração (opcional)</p>
+                      <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px', fontWeight: 600 }}>Pedir ajuste (opcional)</p>
                       <textarea value={sheetComment} onChange={e => setSheetComment(e.target.value)}
                         placeholder="Descreva o que precisa mudar..."
                         rows={3}
@@ -1279,7 +1279,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                       </button>
                       <button onClick={() => requestChanges(sheetPost.id, sheetComment)} disabled={!!isLoading}
                         style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 14, fontWeight: 700, color: '#92400e', cursor: 'pointer', opacity: isLoading ? 0.5 : 1 }}>
-                        <MessageSquare size={15} /> Enviar alteração
+                        <MessageSquare size={15} /> Enviar ajuste
                       </button>
                     </div>
                   ) : (
