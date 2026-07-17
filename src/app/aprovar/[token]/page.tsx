@@ -417,27 +417,62 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     const comment = extraComments[extra.id] || ''
     const isLoading = extraSubmitting === extra.id
     const TYPE_EXTRA: Record<string, string> = { story: '📸 Story', carrossel_stories: '🎠 Carrossel/Stories', reels: '🎬 Reels', post: '🖼️ Post' }
-    const driveId = extra.drive_url?.match(/[-\w]{25,}/)?.[0]
+
+    const isApproved = extra.client_approval_status === 'aprovado'
+    const isChanges  = extra.client_approval_status === 'recusado'
+    const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
+    const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#fafafa'
+    const statusClr  = isApproved ? '#16a34a'  : isChanges ? '#b45309' : '#9ca3af'
+    const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : '● Pendente'
+
+    // Mesma lógica de mídia do post final: pasta (reel/carrossel/capa) ou arquivo único (vídeo/imagem)
+    const isFolder    = /\/folders\//.test(extra.drive_url || '')
+    const folderId    = isFolder ? extra.drive_url.match(/\/folders\/([-\w]{25,})/)?.[1] : null
+    const driveId     = !isFolder ? extra.drive_url?.match(/[-\w]{25,}/)?.[0] : null
+    const isVideoType = extra.type === 'reels'
+    const isCarrossel = extra.type === 'carrossel_stories'
+    const thumbUrl    = driveId && !isVideoType ? `/api/drive-thumb?id=${driveId}&sz=w800` : null
+    const embedVideoId = driveId && isVideoType ? driveId : null
+
     return (
-      <div key={extra.id} style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #ebebeb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        {driveId && (
-          <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 260, overflow: 'hidden' }}>
-            <img src={`/api/drive-thumb?id=${driveId}&sz=w800`} alt=""
-              style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 260 }}
-              onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
-          </div>
-        )}
-        <div style={{ padding: '14px 18px' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
-            <div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', background: '#f3f4f6', padding: '2px 8px', borderRadius: 100 }}>{TYPE_EXTRA[extra.type] || extra.type}</span>
-            </div>
+      <div key={extra.id} style={{ background: '#fff', borderRadius: 22, border: `1.5px solid ${cardBorder}`, overflow: 'hidden', boxShadow: isApproved ? '0 2px 12px rgba(34,197,94,0.08)' : '0 1px 4px rgba(0,0,0,0.06)' }}>
+
+        {/* Status bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: statusBg, borderBottom: `1px solid ${cardBorder}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#555', background: '#f0f0ee', padding: '2px 9px', borderRadius: 100 }}>{TYPE_EXTRA[extra.type] || extra.type}</span>
             {extra.due_date && (
-              <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>
+              <span style={{ fontSize: 11, color: '#9ca3af' }}>
                 {new Date(extra.due_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
               </span>
             )}
           </div>
+          <span style={{ fontSize: 11, fontWeight: 700, color: statusClr }}>{statusTxt}</span>
+        </div>
+
+        {/* Drive media — mesmo tratamento do post final */}
+        {embedVideoId ? (
+          <div>
+            {folderId && <FolderThumb folderId={folderId} />}
+            <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '177.78%', maxHeight: '80vh', overflow: 'hidden' }}>
+              <DriveVideo id={embedVideoId} folderUrl={extra.drive_url}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
+            </div>
+          </div>
+        ) : isVideoType && folderId ? (
+          <ReelFolderPreview folderId={folderId} folderUrl={extra.drive_url || ''} />
+        ) : isCarrossel && folderId ? (
+          <CarouselPreview folderId={folderId} folderUrl={extra.drive_url || ''} />
+        ) : folderId ? (
+          <FolderThumb folderId={folderId} />
+        ) : thumbUrl ? (
+          <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 260, overflow: 'hidden' }}>
+            <img src={thumbUrl} alt={extra.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 260 }}
+              onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
+          </div>
+        ) : null}
+
+        <div style={{ padding: '14px 18px' }}>
           <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.3 }}>{extra.title}</h3>
           {(extra.ai_summary || extra.description) && (
             <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px', lineHeight: 1.6 }}>{extra.ai_summary || extra.description}</p>
@@ -491,6 +526,14 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
               </a>
             </div>
           )}
+
+          {isChanges && extra.client_approval_comment && (
+            <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
+              <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sua solicitação</p>
+              <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{extra.client_approval_comment}"</p>
+            </div>
+          )}
+
           {isCommenting && (
             <div style={{ marginBottom: 12 }}>
               <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 6px', fontWeight: 600 }}>Por que está recusando?</p>
