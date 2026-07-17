@@ -1010,6 +1010,19 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                       )}
                     </div>
                   </div>
+                ) : item.body?.includes('ajuste') ? (
+                  <div key={item.id} className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5"
+                      style={{ background: '#ef4444' }}>
+                      {av.initials}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[11px] font-semibold text-white px-2.5 py-1.5 rounded-lg leading-snug break-words" style={{ background: '#ef4444' }}>
+                        🔴 {item.body}
+                      </p>
+                      <span className="text-[10px] text-[var(--color-text-faint)]" title={fullDateTime(item.at)}>{fullDateTime(item.at)}</span>
+                    </div>
+                  </div>
                 ) : (
                   <div key={item.id} className="flex items-start gap-2">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5 opacity-80"

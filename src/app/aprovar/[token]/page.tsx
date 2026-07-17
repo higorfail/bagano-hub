@@ -322,7 +322,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     setSubmitting(postId)
     await supabase.from('schedules').update({ approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' }).eq('id', postId)
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' } : p))
-    logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente solicitou alterações: "${c}"` })
+    logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente solicitou ajuste: "${c}"` })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setComments(cc => { const n = { ...cc }; delete n[postId]; return n })
     setSheetPost(null); setSheetComment('')
