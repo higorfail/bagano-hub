@@ -462,7 +462,10 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       ? [{ kind: 'activity' as const, id: '__created__', at: createdAt, author: null, body: 'Card criado' }]
       : []),
   ].sort((x, y) => new Date(y.at).getTime() - new Date(x.at).getTime())
-  const visibleFeed = showDetails ? feed : feed.filter(f => f.kind === 'comment')
+  // Com "Ocultar detalhes" ativo, esconde só o ruído — comentários, ajuste/aprovação
+  // e a criação do card continuam visíveis sempre.
+  const isImportantActivity = (f: FeedItem) => f.id === '__created__' || /criou|ajuste|alterações|aprov/i.test(f.body)
+  const visibleFeed = showDetails ? feed : feed.filter(f => f.kind === 'comment' || isImportantActivity(f))
 
   return (
     <ModalPortal>
