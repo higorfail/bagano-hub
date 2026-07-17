@@ -245,7 +245,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
               : <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]"><Package size={10} /> Sem entrega</span>}
             {isRejected && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>Não aprovado</span>}
             {isAdjustedPending
-              ? <span title={post.approval_comment || ''} className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>🟡 Ajustado — com cliente</span>
+              ? <span title={post.approval_comment || ''} className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>🟡 Ajustado</span>
               : isAdjusted && <span title={post.approval_comment || ''} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">✓ Ajuste aplicado</span>}
             {isApproved && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓</span>}
           </div>
