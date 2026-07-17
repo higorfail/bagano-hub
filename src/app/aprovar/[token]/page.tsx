@@ -59,7 +59,7 @@ function DriveVideo({ id, folderUrl, style }: { id: string; folderUrl?: string; 
   return <video src={driveStreamUrl(id)} controls playsInline onError={() => setStage('iframe')} style={style} />
 }
 
-function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
+function CarouselPreview({ folderId, folderUrl, ratio = '100%' }: { folderId: string; folderUrl: string; ratio?: string }) {
   const [items, setItems] = useState<{ id: string; name: string; isVideo: boolean }[]>([])
   const [slide, setSlide]   = useState(0)
   const [ready, setReady]   = useState(false)
@@ -98,7 +98,7 @@ function CarouselPreview({ folderId, folderUrl }: { folderId: string; folderUrl:
 
   return (
     <div style={{ position: 'relative', background: '#111', userSelect: 'none' }}>
-      <div style={{ position: 'relative', paddingTop: '100%', overflow: 'hidden' }}>
+      <div style={{ position: 'relative', paddingTop: ratio, overflow: 'hidden' }}>
         {current.isVideo ? (
           <DriveVideo key={current.id} id={current.id} folderUrl={folderUrl}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
@@ -459,25 +459,22 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
           <span style={{ fontSize: 11, fontWeight: 700, color: statusClr }}>{statusTxt}</span>
         </div>
 
-        {/* Drive media — mesmo tratamento do post final */}
-        {embedVideoId ? (
-          <div>
-            {folderId && <FolderThumb folderId={folderId} />}
-            <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '177.78%', maxHeight: '80vh', overflow: 'hidden' }}>
-              <DriveVideo id={embedVideoId} folderUrl={extra.drive_url}
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
-            </div>
+        {/* Drive media — pasta SEMPRE vira carrossel navegável (quadro 4:5, mídia
+            inteira sem corte, estilo Instagram): resolve pasta mista com post 4:5
+            + story 9:16, cada um aparece por completo. Arquivo único: vídeo no
+            player 9:16, imagem no mesmo quadro 4:5 sem corte. */}
+        {folderId ? (
+          <CarouselPreview folderId={folderId} folderUrl={extra.drive_url || ''} ratio="125%" />
+        ) : embedVideoId ? (
+          <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: '177.78%', maxHeight: '80vh', overflow: 'hidden' }}>
+            <DriveVideo id={embedVideoId} folderUrl={extra.drive_url}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
           </div>
-        ) : isVideoType && folderId ? (
-          <ReelFolderPreview folderId={folderId} folderUrl={extra.drive_url || ''} />
-        ) : isCarrossel && folderId ? (
-          <CarouselPreview folderId={folderId} folderUrl={extra.drive_url || ''} />
-        ) : folderId ? (
-          <FolderThumb folderId={folderId} />
         ) : thumbUrl ? (
-          <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 260, overflow: 'hidden' }}>
-            <img src={thumbUrl} alt={extra.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 260 }}
-              onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
+          <div style={{ background: '#111', lineHeight: 0, position: 'relative', paddingTop: '125%', overflow: 'hidden' }}>
+            <img src={thumbUrl} alt={extra.title}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+              onError={e => { const wrap = (e.target as HTMLImageElement).parentElement; if (wrap) wrap.style.display = 'none' }} />
           </div>
         ) : null}
 
