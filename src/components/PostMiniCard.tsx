@@ -39,6 +39,7 @@ export type MiniPost = {
   assigned_members?: string[] | null
   comments_count?: number
   ai_summary?: string | null
+  labels?: { text: string; color: string }[] | null
 }
 
 type Props = {
@@ -154,6 +155,9 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: status.color + '22', color: status.color }}>{status.label}</span>
             {post.funil && <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">{post.funil}</span>}
             {campaignName && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaignName}</span>}
+            {post.labels?.map((l, i) => (
+              <span key={i} className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: l.color }}>{l.text}</span>
+            ))}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             {onSendToCriacao && post.status === 'estrategia' && (

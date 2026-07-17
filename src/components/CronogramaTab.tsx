@@ -69,7 +69,7 @@ type Post = MiniPost & {
   year?: number
 }
 
-const SCHEDULE_COLS = 'id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, assigned_members, ai_summary, month, year'
+const SCHEDULE_COLS = 'id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, assigned_members, ai_summary, labels, month, year'
 
 // ─── Calendar chip (view Calendário) ───────────────────────────────────────────
 // Mesma lógica de thumbnail do PostMiniCard (capa da pasta/arquivo do Drive),

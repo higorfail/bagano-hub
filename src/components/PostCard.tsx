@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
@@ -39,6 +39,12 @@ const STATUSES = [
   { value: 'publicado',                  label: 'Publicado',            color: '#059669' },
 ]
 const FUNIL_OPTIONS = ['Topo de funil','Meio de funil','Fundo de funil','Institucional','Promocional','Engajamento','Venda']
+const LABEL_PALETTE = [
+  { name: 'Vermelho', color: '#EF4444' }, { name: 'Laranja', color: '#F59E0B' },
+  { name: 'Amarelo',  color: '#EAB308' }, { name: 'Verde',   color: '#22C55E' },
+  { name: 'Azul',     color: '#3B82F6' }, { name: 'Roxo',    color: '#8B5CF6' },
+  { name: 'Rosa',     color: '#EC4899' }, { name: 'Cinza',   color: '#6B7280' },
+]
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(STATUSES.map(s => [s.value, s.label]))
 
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
@@ -161,6 +167,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [form,           setForm]           = useState<PostForm>(() => postId ? EMPTY : { ...EMPTY, scheduled_date: initialDate || '' })
   const [approvalStatus, setApprovalStatus] = useState<string>('')
   const [assignedMembers, setAssignedMembers] = useState<string[]>([])
+  const [labels,          setLabels]          = useState<{ text: string; color: string }[]>([])
+  const [showLabelPicker, setShowLabelPicker] = useState(false)
+  const [globalLabels,    setGlobalLabels]    = useState<any[]>([])
+  const [labelDraft,      setLabelDraft]      = useState({ text: '', color: '#3B82F6' })
+  const [editingLabel,    setEditingLabel]    = useState<any>(null)
   const formRef = useRef(form); formRef.current = form
   const [showCal,  setShowCal]  = useState(false)
   const [calMonth, setCalMonth] = useState(() => ({ y: year, m: month - 1 }))
@@ -240,6 +251,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   }, [])
 
   useEffect(() => {
+    supabase.from('labels').select('*').order('created_at', { ascending: true })
+      .then(({ data }) => { if (data) setGlobalLabels(data) })
+  }, [])
+
+  useEffect(() => {
     if (!postId) return
     async function load() {
       const { data } = await supabase.from('schedules').select('*').eq('id', postId).single()
@@ -253,6 +269,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         })
         setApprovalStatus(data.approval_status || '')
         setAssignedMembers(Array.isArray(data.assigned_members) ? data.assigned_members : [])
+        setLabels(Array.isArray(data.labels) ? data.labels : [])
         setCreatedAt(data.created_at || null)
       }
       setLoading(false)
@@ -296,7 +313,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       title: f.title.trim() || 'Sem título', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
       post_type: f.post_type, status: f.status, scheduled_date: f.scheduled_date || null,
       drive_url: f.drive_url, drive_folder_url: f.drive_folder_url || null, reference_notes: f.reference_notes, funil: f.funil,
-      campaign_type: f.campaign_type || null, reference_images: f.reference_images,
+      campaign_type: f.campaign_type || null, reference_images: f.reference_images, labels,
     }).select().single()
     if (dbError(error, toast, 'criar post')) return undefined
     if (data) {
@@ -368,6 +385,25 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       ? `${who} adicionou ${memberName} ao post "${formRef.current.title || 'sem título'}"`
       : `${who} removeu ${memberName} do post "${formRef.current.title || 'sem título'}"`
     persist({ assigned_members: next }, logMsg, adding ? 'member_assigned' : 'updated')
+  }
+
+  async function createGlobalLabel(text: string, color: string) {
+    const { data } = await supabase.from('labels').insert({ text, color }).select().single()
+    if (data) setGlobalLabels(g => [...g, data]); return data
+  }
+  async function updateGlobalLabel(labelId: string, text: string, color: string) {
+    const old = globalLabels.find(g => g.id === labelId)
+    await supabase.from('labels').update({ text, color }).eq('id', labelId)
+    setGlobalLabels(g => g.map(x => x.id === labelId ? { ...x, text, color } : x))
+    if (old) setLabels(ls => ls.map(l => (l.text === old.text && l.color === old.color) ? { text, color } : l))
+    setEditingLabel(null)
+  }
+  async function deleteGlobalLabel(labelId: string) {
+    const old = globalLabels.find(g => g.id === labelId)
+    await supabase.from('labels').delete().eq('id', labelId)
+    setGlobalLabels(g => g.filter(x => x.id !== labelId))
+    if (old) setLabels(ls => ls.filter(l => !(l.text === old.text && l.color === old.color)))
+    setEditingLabel(null)
   }
 
   async function addComment() {
@@ -473,7 +509,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       client_id: clientId, month, year, post_number: (count || 0) + 1,
       title: (f.title || 'Post') + ' (cópia)', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
       post_type: f.post_type, status: 'estrategia', scheduled_date: null, drive_url: f.drive_url, drive_folder_url: f.drive_folder_url || null,
-      reference_notes: f.reference_notes, funil: f.funil, campaign_type: f.campaign_type || null, reference_images: f.reference_images,
+      reference_notes: f.reference_notes, funil: f.funil, campaign_type: f.campaign_type || null, reference_images: f.reference_images, labels,
     }).select().single()
     if (dbError(error, toast, 'duplicar')) return
     if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} duplicou de "${f.title}"` })
@@ -816,7 +852,98 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               })}
             </div>
           </div>
+          {/* Linha 3 — etiquetas */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            <Tag size={12} className="text-[var(--color-text-muted)] flex-shrink-0" />
+            <div className="flex flex-wrap gap-1.5 items-center min-w-0">
+              {labels.map((l, i) => (
+                <span key={i} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md text-white" style={{ background: l.color }}>
+                  {l.text}
+                  <button onClick={() => {
+                    const next = labels.filter((_, idx) => idx !== i)
+                    setLabels(next)
+                    persist({ labels: next }, `${who} removeu a etiqueta "${l.text}"`)
+                  }}><X size={9} /></button>
+                </span>
+              ))}
+              <button onClick={() => setShowLabelPicker(true)}
+                className="text-[11px] px-2 py-0.5 rounded-full border border-dashed border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-strong)] transition-colors">
+                + Etiqueta
+              </button>
+            </div>
+          </div>
         </div>
+
+        {showLabelPicker && (
+          <ModalPortal>
+            <div className="fixed inset-0 z-[80] flex items-center justify-center" onClick={() => setShowLabelPicker(false)}>
+              <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-4 w-72 shadow-pop" onClick={e => e.stopPropagation()}>
+                <p className="text-sm font-bold text-[var(--color-text-primary)] mb-3">Etiquetas</p>
+                {globalLabels.length > 0 && (
+                  <div className="flex flex-col gap-1.5 mb-3 max-h-52 overflow-y-auto">
+                    {globalLabels.map(gl => {
+                      const applied  = labels.some(l => l.text === gl.text && l.color === gl.color)
+                      const isEditing = editingLabel?.id === gl.id
+                      if (isEditing) return (
+                        <div key={gl.id} className="border border-[var(--color-border)] rounded-lg p-2.5 bg-[var(--color-bg-alt)]">
+                          <input value={editingLabel.text} onChange={e => setEditingLabel((d: any) => ({ ...d, text: e.target.value }))}
+                            className="w-full border border-[var(--color-border)] rounded-lg px-2.5 py-1 text-sm outline-none focus:border-[var(--color-brand)] mb-2" />
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {LABEL_PALETTE.map(p => <button key={p.color} onClick={() => setEditingLabel((d: any) => ({ ...d, color: p.color }))}
+                              className={`w-6 h-6 rounded ${editingLabel.color === p.color ? 'ring-2 ring-offset-1 ring-[var(--color-brand)]' : ''}`} style={{ background: p.color }} />)}
+                          </div>
+                          <div className="flex gap-1.5">
+                            <button onClick={() => updateGlobalLabel(gl.id, editingLabel.text, editingLabel.color)} className="flex-1 py-1.5 text-xs font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Salvar</button>
+                            <button onClick={() => deleteGlobalLabel(gl.id)} className="px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors" style={{ borderColor: 'var(--ds-error-border)', color: 'var(--ds-error-text)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--ds-error-bg)')} onMouseLeave={e => (e.currentTarget.style.background = '')}>Excluir</button>
+                            <button onClick={() => setEditingLabel(null)} className="px-3 py-1.5 text-xs border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">×</button>
+                          </div>
+                        </div>
+                      )
+                      return (
+                        <div key={gl.id} className="flex items-center gap-1.5 group">
+                          <button onClick={() => {
+                            const next = applied
+                              ? labels.filter(l => !(l.text === gl.text && l.color === gl.color))
+                              : [...labels, { text: gl.text, color: gl.color }]
+                            setLabels(next)
+                            persist({ labels: next }, applied ? `${who} removeu a etiqueta "${gl.text}"` : `${who} adicionou a etiqueta "${gl.text}"`)
+                          }}
+                            className="flex-1 flex items-center gap-2 min-w-0">
+                            <span className="flex-1 text-left text-[11px] font-bold uppercase tracking-wide px-2.5 py-1.5 rounded text-white truncate" style={{ background: gl.color }}>{gl.text}</span>
+                            {applied && <Check size={14} className="text-[var(--color-text-primary)] flex-shrink-0" />}
+                          </button>
+                          <button onClick={() => setEditingLabel({ id: gl.id, text: gl.text, color: gl.color })}
+                            className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] flex-shrink-0">
+                            <Pencil size={12} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                <div className="border-t border-[var(--color-border)] pt-3">
+                  <p className="text-xs text-[var(--color-text-muted)] mb-2">Criar nova</p>
+                  <input value={labelDraft.text} onChange={e => setLabelDraft(d => ({ ...d, text: e.target.value }))} placeholder="Texto da etiqueta"
+                    className="w-full border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[var(--color-brand)] mb-2" />
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {LABEL_PALETTE.map(p => <button key={p.color} onClick={() => setLabelDraft(d => ({ ...d, color: p.color }))}
+                      className={`w-7 h-7 rounded-lg ${labelDraft.color === p.color ? 'ring-2 ring-offset-1 ring-[var(--color-brand)]' : ''}`} style={{ background: p.color }} />)}
+                  </div>
+                  <button onClick={async () => {
+                    if (labelDraft.text.trim()) {
+                      await createGlobalLabel(labelDraft.text, labelDraft.color)
+                      const next = [...labels, { ...labelDraft }]
+                      setLabels(next)
+                      persist({ labels: next }, `${who} criou e aplicou a etiqueta "${labelDraft.text}"`)
+                      setLabelDraft({ text: '', color: '#3B82F6' })
+                    }
+                  }}
+                    className="w-full py-2 text-sm font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Criar e aplicar</button>
+                </div>
+              </div>
+            </div>
+          </ModalPortal>
+        )}
 
           {/* LEFT — campos + referências + entrega */}
           <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-4 md:px-7 py-5 gap-5">
