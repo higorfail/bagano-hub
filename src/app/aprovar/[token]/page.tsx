@@ -399,6 +399,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     setExtraSubmitting(extraId)
     await supabase.from('extras').update({ client_approval_status: 'aprovado', client_approval_comment: null }).eq('id', extraId)
     setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aprovado', client_approval_comment: null } : e))
+    logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou o extra' })
     showToast('Extra aprovado! ✓')
     setExtraSubmitting(null)
   }
@@ -415,6 +416,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     setExtraSubmitting(extraId)
     await supabase.from('extras').update({ client_approval_status: 'recusado', client_approval_comment: c }).eq('id', extraId)
     setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'recusado', client_approval_comment: c } : e))
+    logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste: "${c}"` })
     setExtraCommenting(s => { const n = new Set(s); n.delete(extraId); return n })
     setExtraComments(cc => { const n = { ...cc }; delete n[extraId]; return n })
     showToast('Pedido de ajuste enviado!', false)

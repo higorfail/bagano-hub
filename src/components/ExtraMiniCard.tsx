@@ -158,9 +158,11 @@ export default function ExtraMiniCard({
           {extra.client_approval_status === 'aprovado' && (
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado</span>
           )}
-          {extra.client_approval_status === 'aguardando' && (
+          {extra.client_approval_status === 'aguardando' && extra.client_approval_comment ? (
+            <span title={extra.client_approval_comment} className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>🟡 Ajustado</span>
+          ) : extra.client_approval_status === 'aguardando' ? (
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: '#ec489922', color: '#ec4899' }}>Com cliente</span>
-          )}
+          ) : null}
           {extra.client_approval_status === 'recusado' && (
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>Ajuste</span>
           )}

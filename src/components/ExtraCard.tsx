@@ -766,6 +766,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado pelo cliente</span>
                 ) : clientApprovalStatus === 'recusado' ? (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>Ajuste</span>
+                ) : clientApprovalStatus === 'aguardando' && clientApprovalComment ? (
+                  <span title={clientApprovalComment} className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>🟡 Ajustado</span>
                 ) : clientApprovalStatus === 'aguardando' ? (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#ec489922', color: '#ec4899' }}>Aguardando aprovação</span>
                 ) : (
@@ -1084,6 +1086,22 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                       ) : (
                         <div className="text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed whitespace-pre-line break-words">{renderWithMentions(item.body)}</div>
                       )}
+                    </div>
+                  </div>
+                ) : item.body?.includes('marcou o ajuste como feito') ? (
+                  <div key={item.id} className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5" style={{ background: '#f59e0b' }}>{av.initials}</div>
+                    <div className="flex-1">
+                      <p className="text-[11px] font-semibold text-white px-2.5 py-1.5 rounded-lg leading-snug break-words" style={{ background: '#f59e0b' }}>🟡 {item.body}</p>
+                      <span className="text-[10px] text-[var(--color-text-faint)]" title={fullDateTime(item.at)}>{fullDateTime(item.at)}</span>
+                    </div>
+                  </div>
+                ) : item.body?.includes('recusou') || item.body?.includes('pediu ajuste') ? (
+                  <div key={item.id} className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5" style={{ background: '#ef4444' }}>{av.initials}</div>
+                    <div className="flex-1">
+                      <p className="text-[11px] font-semibold text-white px-2.5 py-1.5 rounded-lg leading-snug break-words" style={{ background: '#ef4444' }}>🔴 {item.body}</p>
+                      <span className="text-[10px] text-[var(--color-text-faint)]" title={fullDateTime(item.at)}>{fullDateTime(item.at)}</span>
                     </div>
                   </div>
                 ) : (
