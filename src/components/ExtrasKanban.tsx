@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Plus, CheckSquare, FileText, Bell } from 'lucide-react'
+import { Plus, CheckSquare, FileText, Bell, Link2, Check } from 'lucide-react'
 import ExtraCard from './ExtraCard'
 import ExtraMiniCard from './ExtraMiniCard'
 
@@ -90,6 +90,23 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   const [dragOverCol,  setDragOverCol]  = useState<ExtraStatus | null>(null)
   const [checkCounts,  setCheckCounts]  = useState<Record<string, { done: number; total: number }>>({})
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
+  const [copiedLink, setCopiedLink] = useState(false)
+
+  async function copyExtrasApprovalLink() {
+    if (!clientId) return
+    const now = new Date()
+    const month = now.getMonth() + 1
+    const year = now.getFullYear()
+    const { data: existing } = await supabase.from('approval_tokens').select('token')
+      .eq('client_id', clientId).eq('month', month).eq('year', year).eq('type', 'extras').maybeSingle()
+    const token = existing?.token || (
+      await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type: 'extras' }).select('token').single()
+    ).data?.token
+    if (!token) return
+    navigator.clipboard.writeText(`${window.location.origin}/aprovar/${token}`)
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2000)
+  }
 
   async function load() {
     setLoading(true)
@@ -166,6 +183,19 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
 
   return (
     <div className="flex flex-col gap-3">
+
+      {/* Link de aprovação de extras — só faz sentido no contexto de um cliente */}
+      {clientId && (
+        <div className="flex justify-end">
+          <button onClick={copyExtrasApprovalLink}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors"
+            style={copiedLink
+              ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
+              : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+            {copiedLink ? <><Check size={12} /> Link copiado!</> : <><Link2 size={12} /> Link de aprovação dos extras</>}
+          </button>
+        </div>
+      )}
 
       {/* Filtro de cliente — select compacto (20+ clientes não cabem como chips) */}
       {globalMode && (

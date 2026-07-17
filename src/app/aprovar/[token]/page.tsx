@@ -215,7 +215,7 @@ function mapStatus(s: Post): FeedPost['status'] {
 
 interface Post {
   id: string; title: string; post_type: string; status: string
-  drive_url?: string; drive_folder_url?: string; copy?: string; legenda?: string; briefing?: string; scheduled_date?: string
+  drive_url?: string; drive_folder_url?: string; copy?: string; legenda?: string; briefing?: string; scheduled_date?: string; reference_images?: string[] | null
   post_number?: number; approval_comment?: string; approval_status?: string
   funil?: string; campaign_type?: string
 }
@@ -272,8 +272,23 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
       .from('clients').select('id, name, color_hex, logo_url, instagram_url').eq('id', tk.client_id).single()
     if (!cl) { setError('Cliente não encontrado.'); setLoading(false); return }
     setClient(cl)
+    const extrasQuery = supabase.from('extras')
+      .select('id, title, type, description, ai_summary, drive_url, due_date, needs_client_approval, client_approval_status, client_approval_comment')
+      .eq('client_id', tk.client_id)
+      .eq('needs_client_approval', true)
+      .not('client_approval_status', 'in', '("aprovado","recusado")')
+      .order('created_at', { ascending: true })
+
+    if (tk.type === 'extras') {
+      const { data: ex } = await extrasQuery
+      setPosts([])
+      setExtras(ex || [])
+      setLoading(false)
+      return
+    }
+
     const baseQuery = supabase.from('schedules')
-      .select('id, title, post_type, status, drive_url, drive_folder_url, copy, legenda, briefing, scheduled_date, post_number, approval_comment, approval_status, funil, campaign_type')
+      .select('id, title, post_type, status, drive_url, drive_folder_url, copy, legenda, briefing, scheduled_date, post_number, approval_comment, approval_status, funil, campaign_type, reference_images')
       .eq('client_id', tk.client_id)
       .eq('month', tk.month)
       .eq('year',  tk.year)
@@ -282,15 +297,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
       ? baseQuery.eq('status', 'aguardando_aprovacao_crono')
       : baseQuery.eq('status', 'aguardando_aprovacao')
 
-    const [{ data: sc }, { data: ex }] = await Promise.all([
-      schedulesQuery,
-      supabase.from('extras')
-        .select('id, title, type, description, due_date, needs_client_approval, client_approval_status, client_approval_comment')
-        .eq('client_id', tk.client_id)
-        .eq('needs_client_approval', true)
-        .not('client_approval_status', 'in', '("aprovado","recusado")')
-        .order('created_at', { ascending: true }),
-    ])
+    const [{ data: sc }, { data: ex }] = await Promise.all([schedulesQuery, extrasQuery])
     setPosts(sc || [])
     setExtras(ex || [])
     setLoading(false)
@@ -406,6 +413,83 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     setExtraSubmitting(null)
   }
 
+  function renderExtraCard(extra: any) {
+    const isCommenting = extraCommenting.has(extra.id)
+    const comment = extraComments[extra.id] || ''
+    const isLoading = extraSubmitting === extra.id
+    const TYPE_EXTRA: Record<string, string> = { todo: '✅ Tarefa', note: '📝 Nota', reminder: '🔔 Lembrete' }
+    const driveId = extra.drive_url?.match(/[-\w]{25,}/)?.[0]
+    return (
+      <div key={extra.id} style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #ebebeb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        {driveId && (
+          <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 260, overflow: 'hidden' }}>
+            <img src={`/api/drive-thumb?id=${driveId}&sz=w800`} alt=""
+              style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 260 }}
+              onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
+          </div>
+        )}
+        <div style={{ padding: '14px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+            <div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', background: '#f3f4f6', padding: '2px 8px', borderRadius: 100 }}>{TYPE_EXTRA[extra.type] || extra.type}</span>
+            </div>
+            {extra.due_date && (
+              <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>
+                {new Date(extra.due_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+              </span>
+            )}
+          </div>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.3 }}>{extra.title}</h3>
+          {(extra.ai_summary || extra.description) && (
+            <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px', lineHeight: 1.6 }}>{extra.ai_summary || extra.description}</p>
+          )}
+          {extra.drive_url && (
+            <div style={{ marginBottom: 14 }}>
+              <a href={extra.drive_url} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: cc, textDecoration: 'none' }}>
+                🔗 Abrir no Drive
+              </a>
+            </div>
+          )}
+          {isCommenting && (
+            <div style={{ marginBottom: 12 }}>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 6px', fontWeight: 600 }}>Por que está recusando?</p>
+              <textarea autoFocus value={comment}
+                onChange={e => setExtraComments(c => ({ ...c, [extra.id]: e.target.value }))}
+                placeholder="Descreva o motivo..."
+                rows={2}
+                style={{ width: '100%', background: '#fff', border: `2px solid ${cc}`, borderRadius: 12, padding: '10px 14px', fontSize: 14, color: '#111', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5, fontFamily: 'inherit' }}
+              />
+            </div>
+          )}
+          {isCommenting ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setExtraCommenting(s => { const n = new Set(s); n.delete(extra.id); return n }); setExtraComments(c => { const n = { ...c }; delete n[extra.id]; return n }) }}
+                style={{ padding: '12px 16px', borderRadius: 14, background: '#f3f4f6', border: 'none', fontSize: 13, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={() => rejectExtra(extra.id, comment)} disabled={!comment.trim() || !!isLoading}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 0', borderRadius: 14, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 13, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
+                <MessageSquare size={13} /> Recusar
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setExtraCommenting(s => { const n = new Set(s); n.add(extra.id); return n })}
+                style={{ padding: '12px 16px', borderRadius: 14, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                ✗ Recusar
+              </button>
+              <button onClick={() => approveExtra(extra.id)} disabled={!!isLoading}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 0', borderRadius: 14, background: cc, border: 'none', fontSize: 14, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 4px 16px ${cc}44`, letterSpacing: '-0.01em' }}>
+                {isLoading ? '…' : <><CheckCircle size={15} strokeWidth={2.5} /> Aprovar</>}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   // Story callbacks for IPhoneFeed
   async function handleStoryApprove(fp: FeedPost) {
     await approve(fp.id)
@@ -438,6 +522,47 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
   )
 
   const cc = client?.color_hex || '#111111'
+
+  // ── Extras-only approval render ─────────────────────────────────────────────
+  if (tokenData?.type === 'extras') {
+    return (
+      <div style={{ minHeight: '100dvh', background: '#f8f8f6', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', paddingBottom: 32 }}>
+        {toast && (
+          <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: toast.ok ? '#111' : '#d97706', color: '#fff', fontSize: 14, fontWeight: 600, padding: '11px 22px', borderRadius: 100, boxShadow: '0 8px 40px rgba(0,0,0,0.22)', display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+            {toast.ok ? <CheckCircle size={15} /> : <MessageSquare size={15} />}
+            {toast.msg}
+          </div>
+        )}
+        <header style={{ background: '#fff', borderBottom: '1px solid #ebebeb', position: 'sticky', top: 0, zIndex: 30 }}>
+          <div style={{ maxWidth: 600, margin: '0 auto', padding: '14px 16px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {client?.logo_url
+                ? <img src={client.logo_url} alt={client.name} style={{ width: 44, height: 44, borderRadius: 14, objectFit: 'contain', flexShrink: 0, border: '1px solid #f0f0f0' }} />
+                : <div style={{ width: 44, height: 44, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 15, fontWeight: 800, background: cc, flexShrink: 0 }}>{initials(client?.name || '')}</div>
+              }
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{client?.name}</p>
+                <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovação de extras</p>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main style={{ maxWidth: 560, margin: '0 auto', padding: '20px 16px 0' }}>
+          {extras.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 20px', background: '#fff', borderRadius: 24, border: '1px solid #ebebeb' }}>
+              <p style={{ fontSize: 32, marginBottom: 12, lineHeight: 1 }}>🎉</p>
+              <p style={{ fontSize: 16, fontWeight: 700, color: '#111', margin: '0 0 8px' }}>Nada pendente</p>
+              <p style={{ fontSize: 14, color: '#9ca3af', margin: 0 }}>Todos os extras já foram processados.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{extras.map(renderExtraCard)}</div>
+          )}
+          <p style={{ textAlign: 'center', fontSize: 11, color: '#d1d5db', marginTop: 28 }}>Powered by Bagano Hub</p>
+        </main>
+        <style>{`* { -webkit-tap-highlight-color: transparent; box-sizing: border-box; } @keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    )
+  }
 
   // ── Cronograma approval render ─────────────────────────────────────────────
   if (tokenData?.type === 'cronograma') {
@@ -483,12 +608,43 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
               </div>
             )}
 
+            {post.legenda && (
+              <div style={{ marginBottom: 14 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Legenda</p>
+                <div style={{ background: '#f8f6ff', borderRadius: 14, padding: '12px 14px', border: '1px solid #e8e0f9' }}>
+                  <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{post.legenda}</p>
+                </div>
+              </div>
+            )}
+
             {post.copy && (
               <div style={{ marginBottom: 16 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Rascunho de copy</p>
                 <div style={{ background: '#f8f6ff', borderRadius: 14, padding: '12px 14px', border: '1px solid #e8e0f9' }}>
                   <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{post.copy}</p>
                 </div>
+              </div>
+            )}
+
+            {post.reference_images && post.reference_images.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Referências</p>
+                <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+                  {post.reference_images.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>
+                      <img src={url} alt={`Referência ${i + 1}`} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 12, border: '1px solid #ebebeb' }} />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(post.drive_url || post.drive_folder_url) && (
+              <div style={{ marginBottom: 16 }}>
+                <a href={post.drive_url || post.drive_folder_url} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: cc, textDecoration: 'none' }}>
+                  🔗 Abrir referência no Drive
+                </a>
               </div>
             )}
 

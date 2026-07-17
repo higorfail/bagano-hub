@@ -426,8 +426,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       })
     })
 
-    // Cronogramas finalizados recentemente
-    ;(cronogramaFinalizadoRes.data || []).forEach((d: any) => {
+    // Cronogramas finalizados recentemente — não mostrar pra quem é estrategista
+    // (ela já sabe que finalizou; a notificação é só pro resto do time)
+    const roleStr = (currentMember?.role || '').toLowerCase()
+    const isStrategist = ['estrategia', 'social'].some(r => roleStr.includes(r))
+    if (!isStrategist) (cronogramaFinalizadoRes.data || []).forEach((d: any) => {
       const MONTHS_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
       result.push({
         id: `crono-${d.id}`,
