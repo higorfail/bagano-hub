@@ -273,7 +273,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     if (!cl) { setError('Cliente não encontrado.'); setLoading(false); return }
     setClient(cl)
     const extrasQuery = supabase.from('extras')
-      .select('id, title, type, description, ai_summary, drive_url, due_date, needs_client_approval, client_approval_status, client_approval_comment')
+      .select('id, title, type, description, ai_summary, briefing, copy, legenda, reference_images, drive_url, due_date, needs_client_approval, client_approval_status, client_approval_comment')
       .eq('client_id', tk.client_id)
       .not('client_approval_status', 'in', '("aprovado","recusado")')
       .order('created_at', { ascending: true })
@@ -442,6 +442,47 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
           {(extra.ai_summary || extra.description) && (
             <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px', lineHeight: 1.6 }}>{extra.ai_summary || extra.description}</p>
           )}
+
+          {extra.briefing && (
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Briefing</p>
+              <div style={{ background: '#fafaf8', borderRadius: 14, padding: '12px 14px', border: '1px solid #f0f0ec' }}>
+                <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{extra.briefing}</p>
+              </div>
+            </div>
+          )}
+
+          {extra.legenda && (
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Legenda</p>
+              <div style={{ background: '#f8f6ff', borderRadius: 14, padding: '12px 14px', border: '1px solid #e8e0f9' }}>
+                <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{extra.legenda}</p>
+              </div>
+            </div>
+          )}
+
+          {extra.copy && (
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Rascunho de copy</p>
+              <div style={{ background: '#f8f6ff', borderRadius: 14, padding: '12px 14px', border: '1px solid #e8e0f9' }}>
+                <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{extra.copy}</p>
+              </div>
+            </div>
+          )}
+
+          {Array.isArray(extra.reference_images) && extra.reference_images.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Referências</p>
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+                {extra.reference_images.map((url: string, i: number) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>
+                    <img src={url} alt={`Referência ${i + 1}`} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 12, border: '1px solid #ebebeb' }} />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           {extra.drive_url && (
             <div style={{ marginBottom: 14 }}>
               <a href={extra.drive_url} target="_blank" rel="noopener noreferrer"
