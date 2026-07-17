@@ -272,10 +272,12 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
       .from('clients').select('id, name, color_hex, logo_url, instagram_url').eq('id', tk.client_id).single()
     if (!cl) { setError('Cliente não encontrado.'); setLoading(false); return }
     setClient(cl)
+    // Só o que o time enviou explicitamente pra aprovação — mesma lógica do
+    // cronograma (que filtra por status aguardando_aprovacao)
     const extrasQuery = supabase.from('extras')
       .select('id, title, type, description, ai_summary, briefing, copy, legenda, reference_images, drive_url, due_date, needs_client_approval, client_approval_status, client_approval_comment')
       .eq('client_id', tk.client_id)
-      .not('client_approval_status', 'in', '("aprovado","recusado")')
+      .eq('client_approval_status', 'aguardando')
       .order('created_at', { ascending: true })
 
     if (tk.type === 'extras') {
@@ -396,8 +398,15 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
   async function approveExtra(extraId: string) {
     setExtraSubmitting(extraId)
     await supabase.from('extras').update({ client_approval_status: 'aprovado', client_approval_comment: null }).eq('id', extraId)
-    setExtras(prev => prev.filter(e => e.id !== extraId))
+    setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aprovado', client_approval_comment: null } : e))
     showToast('Extra aprovado! ✓')
+    setExtraSubmitting(null)
+  }
+
+  async function undoExtra(extraId: string) {
+    setExtraSubmitting(extraId)
+    await supabase.from('extras').update({ client_approval_status: 'aguardando', client_approval_comment: null }).eq('id', extraId)
+    setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aguardando', client_approval_comment: null } : e))
     setExtraSubmitting(null)
   }
 
@@ -405,10 +414,10 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     const c = comment.trim(); if (!c) return
     setExtraSubmitting(extraId)
     await supabase.from('extras').update({ client_approval_status: 'recusado', client_approval_comment: c }).eq('id', extraId)
-    setExtras(prev => prev.filter(e => e.id !== extraId))
+    setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'recusado', client_approval_comment: c } : e))
     setExtraCommenting(s => { const n = new Set(s); n.delete(extraId); return n })
     setExtraComments(cc => { const n = { ...cc }; delete n[extraId]; return n })
-    showToast('Recusa enviada.', false)
+    showToast('Pedido de ajuste enviado!', false)
     setExtraSubmitting(null)
   }
 
@@ -536,16 +545,26 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
 
           {isCommenting && (
             <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 6px', fontWeight: 600 }}>Por que está recusando?</p>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 6px', fontWeight: 600 }}>O que precisa mudar?</p>
               <textarea autoFocus value={comment}
                 onChange={e => setExtraComments(c => ({ ...c, [extra.id]: e.target.value }))}
-                placeholder="Descreva o motivo..."
+                placeholder="Ex: Trocar a imagem, ajustar o texto..."
                 rows={2}
                 style={{ width: '100%', background: '#fff', border: `2px solid ${cc}`, borderRadius: 12, padding: '10px 14px', fontSize: 14, color: '#111', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5, fontFamily: 'inherit' }}
               />
             </div>
           )}
-          {isCommenting ? (
+          {isApproved ? (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', borderRadius: 14, background: '#f0fdf4', border: '1.5px solid #86efac', fontSize: 14, fontWeight: 700, color: '#16a34a' }}>
+                <CheckCircle size={15} strokeWidth={2.5} /> Aprovado
+              </div>
+              <button onClick={() => undoExtra(extra.id)} disabled={!!isLoading}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 16px', borderRadius: 14, background: '#fff', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}>
+                <RotateCcw size={13} /> Desfazer
+              </button>
+            </div>
+          ) : isCommenting ? (
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => { setExtraCommenting(s => { const n = new Set(s); n.delete(extra.id); return n }); setExtraComments(c => { const n = { ...c }; delete n[extra.id]; return n }) }}
                 style={{ padding: '12px 16px', borderRadius: 14, background: '#f3f4f6', border: 'none', fontSize: 13, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>
@@ -553,14 +572,14 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
               </button>
               <button onClick={() => rejectExtra(extra.id, comment)} disabled={!comment.trim() || !!isLoading}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 0', borderRadius: 14, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 13, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
-                <MessageSquare size={13} /> Recusar
+                <MessageSquare size={13} /> Enviar pedido
               </button>
             </div>
           ) : (
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setExtraCommenting(s => { const n = new Set(s); n.add(extra.id); return n })}
                 style={{ padding: '12px 16px', borderRadius: 14, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                ✗ Recusar
+                ✏️ Pedir ajuste
               </button>
               <button onClick={() => approveExtra(extra.id)} disabled={!!isLoading}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 0', borderRadius: 14, background: cc, border: 'none', fontSize: 14, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 4px 16px ${cc}44`, letterSpacing: '-0.01em' }}>
@@ -608,6 +627,10 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
 
   // ── Extras-only approval render ─────────────────────────────────────────────
   if (tokenData?.type === 'extras') {
+    const extrasApproved = extras.filter(e => e.client_approval_status === 'aprovado').length
+    const extrasPending  = extras.filter(e => e.client_approval_status === 'aguardando').length
+    const allExtrasDone  = extras.length > 0 && extrasPending === 0
+    const pctExtras      = extras.length > 0 ? (extrasApproved / extras.length) * 100 : 0
     return (
       <div style={{ minHeight: '100dvh', background: '#f8f8f6', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', paddingBottom: 32 }}>
         {toast && (
@@ -618,16 +641,29 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
         )}
         <header style={{ background: '#fff', borderBottom: '1px solid #ebebeb', position: 'sticky', top: 0, zIndex: 30 }}>
           <div style={{ maxWidth: 600, margin: '0 auto', padding: '14px 16px 12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               {client?.logo_url
                 ? <img src={client.logo_url} alt={client.name} style={{ width: 44, height: 44, borderRadius: 14, objectFit: 'contain', flexShrink: 0, border: '1px solid #f0f0f0' }} />
                 : <div style={{ width: 44, height: 44, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 15, fontWeight: 800, background: cc, flexShrink: 0 }}>{initials(client?.name || '')}</div>
               }
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{client?.name}</p>
-                <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovação de extras</p>
+                <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovação de conteúdos extras</p>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <p style={{ margin: 0, lineHeight: 1 }}>
+                  <span style={{ fontSize: 22, fontWeight: 900, color: allExtrasDone ? '#16a34a' : '#111', letterSpacing: '-0.04em' }}>{extrasApproved}</span>
+                  <span style={{ fontSize: 13, color: '#d1d5db', fontWeight: 500 }}>/{extras.length}</span>
+                </p>
+                <p style={{ fontSize: 10, color: '#b0b0b0', margin: '3px 0 0', letterSpacing: '0.02em' }}>APROVADOS</p>
               </div>
             </div>
+            <div style={{ height: 4, background: '#f3f3f1', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
+              <div style={{ height: '100%', borderRadius: 2, background: allExtrasDone ? '#22c55e' : cc, width: `${pctExtras}%`, transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)' }} />
+            </div>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.5 }}>
+              Revise cada conteúdo e toque em <strong style={{ color: '#111' }}>Aprovar</strong>. Se precisar de mudança, toque em <strong style={{ color: '#111' }}>Pedir ajuste</strong>.
+            </p>
           </div>
         </header>
         <main style={{ maxWidth: 560, margin: '0 auto', padding: '20px 16px 0' }}>
@@ -635,9 +671,16 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
             <div style={{ textAlign: 'center', padding: '48px 20px', background: '#fff', borderRadius: 24, border: '1px solid #ebebeb' }}>
               <p style={{ fontSize: 32, marginBottom: 12, lineHeight: 1 }}>🎉</p>
               <p style={{ fontSize: 16, fontWeight: 700, color: '#111', margin: '0 0 8px' }}>Nada pendente</p>
-              <p style={{ fontSize: 14, color: '#9ca3af', margin: 0 }}>Todos os extras já foram processados.</p>
+              <p style={{ fontSize: 14, color: '#9ca3af', margin: 0 }}>Nenhum conteúdo extra aguardando sua aprovação.</p>
             </div>
-          ) : (
+          ) : allExtrasDone ? (
+            <div style={{ textAlign: 'center', padding: '32px 20px 28px', background: '#fff', borderRadius: 24, border: '1.5px solid #86efac', boxShadow: '0 2px 16px rgba(34,197,94,0.1)', marginBottom: 20 }}>
+              <div style={{ fontSize: 56, marginBottom: 14, lineHeight: 1 }}>🎉</div>
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: '#111', margin: '0 0 10px', letterSpacing: '-0.03em' }}>Tudo aprovado!</h2>
+              <p style={{ fontSize: 14, color: '#6b7280', margin: 0, lineHeight: 1.65 }}>Obrigado! Nossa equipe já vai dar sequência.</p>
+            </div>
+          ) : null}
+          {extras.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{extras.map(renderExtraCard)}</div>
           )}
           <p style={{ textAlign: 'center', fontSize: 11, color: '#d1d5db', marginTop: 28 }}>Powered by Bagano Hub</p>
@@ -1207,66 +1250,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                     <div style={{ flex: 1, height: 1, background: '#ebebeb' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {extras.map(extra => {
-                      const isCommenting = extraCommenting.has(extra.id)
-                      const comment = extraComments[extra.id] || ''
-                      const isLoading = extraSubmitting === extra.id
-                      const TYPE_EXTRA: Record<string, string> = { story: '📸 Story', carrossel_stories: '🎠 Carrossel/Stories', reels: '🎬 Reels', post: '🖼️ Post' }
-                      return (
-                        <div key={extra.id} style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #ebebeb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                          <div style={{ padding: '14px 18px' }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
-                              <div>
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', background: '#f3f4f6', padding: '2px 8px', borderRadius: 100 }}>{TYPE_EXTRA[extra.type] || extra.type}</span>
-                              </div>
-                              {extra.due_date && (
-                                <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>
-                                  {new Date(extra.due_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                                </span>
-                              )}
-                            </div>
-                            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.3 }}>{extra.title}</h3>
-                            {extra.description && (
-                              <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px', lineHeight: 1.6 }}>{extra.description}</p>
-                            )}
-                            {isCommenting && (
-                              <div style={{ marginBottom: 12 }}>
-                                <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 6px', fontWeight: 600 }}>Por que está recusando?</p>
-                                <textarea autoFocus value={comment}
-                                  onChange={e => setExtraComments(c => ({ ...c, [extra.id]: e.target.value }))}
-                                  placeholder="Descreva o motivo..."
-                                  rows={2}
-                                  style={{ width: '100%', background: '#fff', border: `2px solid ${cc}`, borderRadius: 12, padding: '10px 14px', fontSize: 14, color: '#111', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5, fontFamily: 'inherit' }}
-                                />
-                              </div>
-                            )}
-                            {isCommenting ? (
-                              <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={() => { setExtraCommenting(s => { const n = new Set(s); n.delete(extra.id); return n }); setExtraComments(c => { const n = { ...c }; delete n[extra.id]; return n }) }}
-                                  style={{ padding: '12px 16px', borderRadius: 14, background: '#f3f4f6', border: 'none', fontSize: 13, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>
-                                  Cancelar
-                                </button>
-                                <button onClick={() => rejectExtra(extra.id, comment)} disabled={!comment.trim() || !!isLoading}
-                                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 0', borderRadius: 14, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 13, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
-                                  <MessageSquare size={13} /> Recusar
-                                </button>
-                              </div>
-                            ) : (
-                              <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={() => setExtraCommenting(s => { const n = new Set(s); n.add(extra.id); return n })}
-                                  style={{ padding: '12px 16px', borderRadius: 14, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                  ✗ Recusar
-                                </button>
-                                <button onClick={() => approveExtra(extra.id)} disabled={!!isLoading}
-                                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 0', borderRadius: 14, background: cc, border: 'none', fontSize: 14, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 4px 16px ${cc}44`, letterSpacing: '-0.01em' }}>
-                                  {isLoading ? '…' : <><CheckCircle size={15} strokeWidth={2.5} /> Aprovar</>}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
+                    {extras.map(extra => renderExtraCard(extra))}
                   </div>
                 </div>
               )}

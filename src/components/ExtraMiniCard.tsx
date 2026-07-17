@@ -14,6 +14,8 @@ interface ExtraLite {
   ai_summary?: string | null
   labels?: { text: string; color: string }[] | null
   client_id?: string | null
+  client_approval_status?: string | null
+  client_approval_comment?: string | null
 }
 
 type Props = {
@@ -151,6 +153,16 @@ export default function ExtraMiniCard({
           )}
           {extra.drive_url && (
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]">✓ Entregue</span>
+          )}
+          {/* Ciclo de aprovação do cliente — mesmas cores do cronograma */}
+          {extra.client_approval_status === 'aprovado' && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado</span>
+          )}
+          {extra.client_approval_status === 'aguardando' && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: '#ec489922', color: '#ec4899' }}>Com cliente</span>
+          )}
+          {extra.client_approval_status === 'recusado' && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>Ajuste</span>
           )}
           {assignedData.length > 0 && (
             <span className="flex -space-x-1.5 ml-auto">

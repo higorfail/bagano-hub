@@ -753,22 +753,51 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           {/* LEFT — conteúdo livre (estilo Trello, sem caixas) */}
           <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-4 md:px-7 py-5 gap-5">
 
-            {/* Aprovação do cliente — status + comentário de ajuste (padrão cronograma) */}
+            {/* Aprovação do cliente — mesmo ciclo do post do cronograma:
+                não enviado → aguardando aprovação → ajuste → aprovado.
+                O link público só mostra extras em "aguardando". */}
             <div>
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Aprovação do cliente</span>
                 {clientApprovalStatus === 'aprovado' ? (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado</span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado pelo cliente</span>
                 ) : clientApprovalStatus === 'recusado' ? (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>Ajuste</span>
+                ) : clientApprovalStatus === 'aguardando' ? (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#ec489922', color: '#ec4899' }}>Aguardando aprovação</span>
                 ) : (
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]">Aguardando</span>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]">Não enviado ao cliente</span>
                 )}
               </div>
               {clientApprovalStatus === 'recusado' && clientApprovalComment && (
-                <p className="text-xs font-semibold px-3 py-2 rounded-lg text-white" style={{ background: '#ef4444' }}>
+                <p className="text-xs font-semibold px-3 py-2 rounded-lg text-white mb-2" style={{ background: '#ef4444' }}>
                   🔴 {clientApprovalComment}
                 </p>
+              )}
+              {(!clientApprovalStatus || clientApprovalStatus === 'recusado') && id && (
+                <button
+                  onClick={() => {
+                    setClientApprovalStatus('aguardando')
+                    persist({ client_approval_status: 'aguardando' },
+                      clientApprovalStatus === 'recusado'
+                        ? `${who} marcou o ajuste como feito e reenviou pra aprovação do cliente`
+                        : `${who} enviou pra aprovação do cliente`,
+                      'status_changed')
+                  }}
+                  className="text-xs font-semibold px-3.5 py-2 rounded-xl text-white transition-opacity hover:opacity-90"
+                  style={{ background: clientApprovalStatus === 'recusado' ? '#ef4444' : '#ec4899' }}>
+                  {clientApprovalStatus === 'recusado' ? '✏ Ajuste feito — Reenviar pra aprovação' : '📤 Enviar pra aprovação do cliente'}
+                </button>
+              )}
+              {clientApprovalStatus === 'aguardando' && (
+                <button
+                  onClick={() => {
+                    setClientApprovalStatus('')
+                    persist({ client_approval_status: null }, `${who} retirou da aprovação do cliente`, 'status_changed')
+                  }}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                  Retirar da aprovação
+                </button>
               )}
             </div>
 
