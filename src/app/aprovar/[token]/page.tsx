@@ -417,7 +417,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     const isCommenting = extraCommenting.has(extra.id)
     const comment = extraComments[extra.id] || ''
     const isLoading = extraSubmitting === extra.id
-    const TYPE_EXTRA: Record<string, string> = { todo: '✅ Tarefa', note: '📝 Nota', reminder: '🔔 Lembrete' }
+    const TYPE_EXTRA: Record<string, string> = { story: '📸 Story', carrossel_stories: '🎠 Carrossel/Stories', reels: '🎬 Reels', post: '🖼️ Post' }
     const driveId = extra.drive_url?.match(/[-\w]{25,}/)?.[0]
     return (
       <div key={extra.id} style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #ebebeb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
@@ -1128,7 +1128,7 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
                       const isCommenting = extraCommenting.has(extra.id)
                       const comment = extraComments[extra.id] || ''
                       const isLoading = extraSubmitting === extra.id
-                      const TYPE_EXTRA: Record<string, string> = { todo: '✅ Tarefa', note: '📝 Nota', reminder: '🔔 Lembrete' }
+                      const TYPE_EXTRA: Record<string, string> = { story: '📸 Story', carrossel_stories: '🎠 Carrossel/Stories', reels: '🎬 Reels', post: '🖼️ Post' }
                       return (
                         <div key={extra.id} style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #ebebeb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                           <div style={{ padding: '14px 18px' }}>

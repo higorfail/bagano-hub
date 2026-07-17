@@ -19,17 +19,19 @@ import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, Check, Upload, File,
-  FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag, Pencil, ImagePlus, XCircle
+  ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag, Pencil, ImagePlus, XCircle,
+  Camera, Images, Video, Image as ImageIcon
 } from 'lucide-react'
 
-type ExtraType     = 'todo' | 'note' | 'reminder'
+type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post'
 type ExtraStatus   = 'backlog' | 'doing' | 'done'
 type ExtraPriority = 'low' | 'normal' | 'high'
 
 const TYPE_OPTIONS: { value: ExtraType; label: string; icon: React.ElementType; color: string }[] = [
-  { value: 'todo',     label: 'Tarefa',   icon: CheckSquare, color: '#3b82f6' },
-  { value: 'note',     label: 'Nota',     icon: FileText,    color: '#f59e0b' },
-  { value: 'reminder', label: 'Lembrete', icon: Bell,        color: '#8b5cf6' },
+  { value: 'story',             label: 'Story',             icon: Camera,   color: '#8b5cf6' },
+  { value: 'carrossel_stories', label: 'Carrossel/Stories', icon: Images,   color: '#6366f1' },
+  { value: 'reels',             label: 'Reels',             icon: Video,    color: '#ef4444' },
+  { value: 'post',              label: 'Post',              icon: ImageIcon, color: '#f59e0b' },
 ]
 const STATUS_OPTIONS: { value: ExtraStatus; label: string; color: string }[] = [
   { value: 'backlog', label: 'A fazer',      color: '#6b7280' },
@@ -42,9 +44,10 @@ const PRIORITY_OPTIONS: { value: ExtraPriority; label: string; color: string }[]
   { value: 'high',   label: 'Alta',   color: '#ef4444' },
 ]
 const TYPE_KEYWORDS: Record<ExtraType, string[]> = {
-  reminder: ['lembrar', 'lembrete', 'lembrança', 'não esquecer', 'não esqueça', 'avisar', 'aviso', 'alerta', 'reminder', 'remind'],
-  note:     ['nota', 'anotação', 'anotar', 'observação', 'obs:', 'obs ', 'ideia', 'ideias', 'referência', 'ref:', 'pesquisa', 'insight', 'note'],
-  todo:     ['fazer', 'criar', 'corrigir', 'implementar', 'desenvolver', 'atualizar', 'revisar', 'tarefa', 'todo', 'pendente'],
+  story:             ['story', 'stories'],
+  carrossel_stories: ['carrossel', 'carrossel/stories', 'carrossel de stories'],
+  reels:             ['reel', 'reels', 'vídeo', 'video'],
+  post:              ['post', 'foto', 'imagem'],
 }
 
 const LABEL_PALETTE = [
@@ -93,7 +96,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [clientManuallySet, setClientManuallySet] = useState(!!extraId || !!fixedClientId)
 
   const [title,           setTitle]           = useState('')
-  const [type,            setType]            = useState<ExtraType>('todo')
+  const [type,            setType]            = useState<ExtraType>('post')
   const [status,          setStatus]          = useState<ExtraStatus>(initialStatus ?? 'backlog')
   const [priority,        setPriority]        = useState<ExtraPriority>('normal')
   const [clientId,        setClientId]        = useState(fixedClientId || '')
@@ -204,7 +207,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       const { data } = await supabase.from('extras').select('*').eq('id', extraId).single()
       if (data) {
         setTitle(data.title || '')
-        setType(data.type || 'todo')
+        setType(TYPE_OPTIONS.some(t => t.value === data.type) ? data.type : 'post')
         setStatus(data.status || 'backlog')
         originalStatusRef.current = data.status || 'backlog'
         setPriority(data.priority || 'normal')
@@ -227,7 +230,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           ? data.assigned_members : data.assigned_member_id ? [data.assigned_member_id] : []
         setAssignedMembers(am)
         snapshotRef.current = JSON.stringify({
-          title: data.title || '', type: data.type || 'todo', priority: data.priority || 'normal',
+          title: data.title || '', type: data.type || 'post', priority: data.priority || 'normal',
           clientId: data.client_id || '', description: data.description || '',
           dueDate: data.due_date || '', dueTime: data.due_time || '', driveUrl: data.drive_url || '',
           labels: Array.isArray(data.labels) ? data.labels : [],
@@ -542,7 +545,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
 
   const checkDone  = checklist.filter(c => c.done).length
   const checkPct   = checklist.length ? Math.round((checkDone / checklist.length) * 100) : 0
-  const typeObj     = TYPE_OPTIONS.find(t => t.value === type)!
+  const typeObj     = TYPE_OPTIONS.find(t => t.value === type) || TYPE_OPTIONS[3]
   const statusObj   = STATUS_OPTIONS.find(s => s.value === status)!
   const priorityObj = PRIORITY_OPTIONS.find(p => p.value === priority)!
   const clientName  = clients.find(c => c.id === clientId)?.name

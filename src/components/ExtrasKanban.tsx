@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Plus, CheckSquare, FileText, Bell, Link2, Check } from 'lucide-react'
+import { Plus, Link2, Check, Camera, Images, Video, Image as ImageIcon } from 'lucide-react'
 import ExtraCard from './ExtraCard'
 import ExtraMiniCard from './ExtraMiniCard'
 
-type ExtraType     = 'todo' | 'note' | 'reminder'
+type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post'
 type ExtraStatus   = 'backlog' | 'doing' | 'done'
 type ExtraPriority = 'low' | 'normal' | 'high'
 
@@ -38,9 +38,10 @@ const COLUMNS: { key: ExtraStatus; label: string; color: string }[] = [
 ]
 
 const TYPE_CONFIG: Record<ExtraType, { icon: React.ElementType; color: string }> = {
-  todo:     { icon: CheckSquare, color: '#3b82f6' },
-  note:     { icon: FileText,    color: '#f59e0b' },
-  reminder: { icon: Bell,        color: '#8b5cf6' },
+  story:             { icon: Camera,    color: '#8b5cf6' },
+  carrossel_stories: { icon: Images,    color: '#6366f1' },
+  reels:             { icon: Video,     color: '#ef4444' },
+  post:              { icon: ImageIcon, color: '#f59e0b' },
 }
 
 const PRIORITY_BORDER: Record<ExtraPriority, string> = {
@@ -261,8 +262,8 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                     <ExtraMiniCard
                       key={extra.id}
                       extra={extra}
-                      TypeIcon={TYPE_CONFIG[extra.type].icon}
-                      typeColor={TYPE_CONFIG[extra.type].color}
+                      TypeIcon={(TYPE_CONFIG[extra.type] || TYPE_CONFIG.post).icon}
+                      typeColor={(TYPE_CONFIG[extra.type] || TYPE_CONFIG.post).color}
                       priorityColor={PRIORITY_BORDER[extra.priority]}
                       overdue={isOverdue(extra.due_date, extra.status)}
                       assignedData={assignedData}

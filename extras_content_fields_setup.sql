@@ -12,3 +12,11 @@ ALTER TABLE extras
   ADD COLUMN IF NOT EXISTS legenda          TEXT,
   ADD COLUMN IF NOT EXISTS reference_notes  TEXT,
   ADD COLUMN IF NOT EXISTS reference_images JSONB DEFAULT '[]'::jsonb;
+
+-- ============================================================
+-- Tipo do Extra trocou de tarefa/nota/lembrete pra tipo de
+-- conteúdo (story/carrossel+stories/reels/post), igual ao
+-- cronograma. Extras antigos com o tipo velho viram "post".
+-- ============================================================
+
+UPDATE extras SET type = 'post' WHERE type IN ('todo', 'note', 'reminder');
