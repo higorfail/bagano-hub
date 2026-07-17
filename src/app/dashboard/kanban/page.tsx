@@ -79,9 +79,14 @@ export default function KanbanPage() {
 
   async function movePost(postId: string, toColKey: string) {
     const dbStatus = toColKey === 'crono_feito' ? 'producao' : toColKey
+    // Sair de "Ajuste" arrastando no kanban também limpa o approval_status (mantém
+    // o approval_comment como histórico) — mesma regra do card expandido.
+    const wasAjuste = posts.find(p => p.id === postId)?.status === 'ajuste'
+    const clearRejection = wasAjuste && dbStatus !== 'ajuste'
+    const patch: any = clearRejection ? { status: dbStatus, approval_status: null } : { status: dbStatus }
     const prev = posts
-    setPosts(p => p.map(post => post.id === postId ? { ...post, status: dbStatus } : post))
-    const { error } = await createClient().from('schedules').update({ status: dbStatus }).eq('id', postId)
+    setPosts(p => p.map(post => post.id === postId ? { ...post, ...patch } : post))
+    const { error } = await createClient().from('schedules').update(patch).eq('id', postId)
     if (error) { setPosts(prev); dbError(error, toast, 'mover post') }
   }
 
@@ -91,9 +96,11 @@ export default function KanbanPage() {
     const dbStatus = toCol === 'crono_feito' ? 'producao' : toCol
     const ids = getColPosts(fromCol).filter(p => p.client_id === clientId).map(p => p.id)
     if (ids.length === 0) return
+    const clearRejection = fromCol === 'ajuste' && dbStatus !== 'ajuste'
+    const patch: any = clearRejection ? { status: dbStatus, approval_status: null } : { status: dbStatus }
     const prev = posts
-    setPosts(p => p.map(post => ids.includes(post.id) ? { ...post, status: dbStatus } : post))
-    const { error } = await createClient().from('schedules').update({ status: dbStatus }).in('id', ids)
+    setPosts(p => p.map(post => ids.includes(post.id) ? { ...post, ...patch } : post))
+    const { error } = await createClient().from('schedules').update(patch).in('id', ids)
     if (error) { setPosts(prev); dbError(error, toast, 'mover cliente') }
   }
 

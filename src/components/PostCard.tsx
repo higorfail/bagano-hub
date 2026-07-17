@@ -349,7 +349,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   }
   function changeStatus(v: string) {
     const old = STATUS_LABEL[formRef.current.status] || formRef.current.status
-    const clearRejection = approvalStatus === 'não aprovado' && (v === 'producao' || v === 'captacao')
+    // Sair de "Ajuste solicitado" por QUALQUER caminho limpa o approval_status (o alerta
+    // vermelho some) mas mantém approval_comment — o card mostra "✓ Ajuste aplicado" em
+    // vez do pedido original, sem perder o histórico do que foi pedido.
+    const clearRejection = formRef.current.status === 'ajuste' && v !== 'ajuste'
     setForm(f => ({ ...f, status: v }))
     if (clearRejection) setApprovalStatus('')
     persist(clearRejection ? { status: v, approval_status: null } : { status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
