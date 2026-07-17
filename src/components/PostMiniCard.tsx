@@ -67,8 +67,11 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
   const isRejected  = post.approval_status === 'não aprovado'
   const isApproved  = post.approval_status === 'aprovado'
   // Ajuste já resolvido: o comentário do cliente continua salvo (histórico), mas
-  // o post não está mais em "ajuste" nem rejeitado — mostra selo neutro em vez do alerta vermelho
-  const isAdjusted  = !isRejected && post.status !== 'ajuste' && !!post.approval_comment
+  // o post não está mais em "ajuste" nem rejeitado. Se voltou pro cliente (aguardando
+  // aprovação), destaca em amarelo — ainda é uma etapa "quente". Se já passou disso
+  // (aprovado/agendado/publicado), vira só um selo neutro de histórico.
+  const isAdjusted        = !isRejected && post.status !== 'ajuste' && !!post.approval_comment
+  const isAdjustedPending = isAdjusted && post.status === 'aguardando_aprovacao'
   const isRevisao   = post.status === 'revisao_interna'
   const refs      = post.reference_images?.length || 0
   const delivered = !!(post.drive_url || post.drive_folder_url)
@@ -241,7 +244,9 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
               ? <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}><Package size={10} /> Entregue</span>
               : <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]"><Package size={10} /> Sem entrega</span>}
             {isRejected && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>Não aprovado</span>}
-            {isAdjusted && <span title={post.approval_comment || ''} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">✓ Ajuste aplicado</span>}
+            {isAdjustedPending
+              ? <span title={post.approval_comment || ''} className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>🟡 Ajustado — com cliente</span>
+              : isAdjusted && <span title={post.approval_comment || ''} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">✓ Ajuste aplicado</span>}
             {isApproved && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓</span>}
           </div>
         </div>
