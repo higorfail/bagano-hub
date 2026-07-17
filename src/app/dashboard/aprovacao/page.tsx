@@ -615,7 +615,9 @@ export default function AprovacaoPage() {
                                   <button onClick={() => navigateToPost(p)} className="text-left flex-1 min-w-0">
                                     <p className="text-[11px] font-medium text-[var(--color-text-primary)] truncate leading-tight hover:underline">{p.title || 'Sem título'}</p>
                                     {(hasAdjustment || needsRevision) && p.approval_comment && (
-                                      <p className="text-[9px] italic mt-0.5 truncate" style={{ color: '#ef4444' }}>"{p.approval_comment}"</p>
+                                      <p className="text-[9px] font-semibold mt-0.5 truncate px-1.5 py-0.5 rounded text-white" style={{ background: '#ef4444' }}>
+                                        🔴 {p.approval_comment}
+                                      </p>
                                     )}
                                   </button>
                                 </div>
@@ -679,7 +681,9 @@ export default function AprovacaoPage() {
                                       {(hasAdjustment || needsRevision) && p.approval_comment && (
                                         <>
                                           <span className="text-[var(--color-text-faint)]">·</span>
-                                          <span className="text-xs italic truncate max-w-[280px]" style={{ color: '#ef4444' }}>"{p.approval_comment}"</span>
+                                          <span className="text-xs font-semibold px-2 py-1 rounded-md truncate max-w-[280px]" style={{ color: '#fff', background: '#ef4444' }}>
+                                            🔴 Ajuste: {p.approval_comment}
+                                          </span>
                                         </>
                                       )}
                                     </div>
