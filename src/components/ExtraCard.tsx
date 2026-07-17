@@ -106,6 +106,9 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [assignedMembers, setAssignedMembers] = useState<string[]>([])
 
   const [needsClientApproval, setNeedsClientApproval] = useState(false)
+  const [clientApprovalStatus,  setClientApprovalStatus]  = useState('')
+  const [clientApprovalComment, setClientApprovalComment] = useState('')
+  const [approvalLinkCopied, setApprovalLinkCopied] = useState(false)
 
   const [checklist,      setChecklist]      = useState<any[]>([])
   const [newCheckText,   setNewCheckText]   = useState('')
@@ -206,6 +209,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         setCreatedAt(data.created_at || null)
         setLabels(Array.isArray(data.labels) ? data.labels : [])
         setNeedsClientApproval(data.needs_client_approval || false)
+        setClientApprovalStatus(data.client_approval_status || '')
+        setClientApprovalComment(data.client_approval_comment || '')
         const am = Array.isArray(data.assigned_members) && data.assigned_members.length > 0
           ? data.assigned_members : data.assigned_member_id ? [data.assigned_member_id] : []
         setAssignedMembers(am)
@@ -294,6 +299,23 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const next = !needsClientApproval
     setNeedsClientApproval(next)
     persist({ needs_client_approval: next }, next ? `${who} marcou que precisa de aprovação do cliente` : `${who} removeu a necessidade de aprovação do cliente`)
+  }
+
+  async function copyExtrasApprovalLink() {
+    const cid = fixedClientId || clientId
+    if (!cid) return
+    const now = new Date()
+    const month = now.getMonth() + 1
+    const year = now.getFullYear()
+    const { data: existing } = await supabase.from('approval_tokens').select('token')
+      .eq('client_id', cid).eq('month', month).eq('year', year).eq('type', 'extras').maybeSingle()
+    const token = existing?.token || (
+      await supabase.from('approval_tokens').insert({ client_id: cid, month, year, type: 'extras' }).select('token').single()
+    ).data?.token
+    if (!token) return
+    navigator.clipboard.writeText(`${window.location.origin}/aprovar/${token}`)
+    setApprovalLinkCopied(true)
+    setTimeout(() => setApprovalLinkCopied(false), 2000)
   }
 
   async function handleSaveMain() {
@@ -570,6 +592,15 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
               </button>
             )}
+            {(fixedClientId || clientId) && (
+              <button
+                onClick={copyExtrasApprovalLink}
+                title="Copiar link de aprovação dos extras deste cliente"
+                className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg hover:bg-[var(--color-bg-subtle)] text-xs font-semibold transition-colors"
+                style={{ color: approvalLinkCopied ? 'var(--ds-success-text)' : 'var(--color-text-secondary)' }}>
+                {approvalLinkCopied ? <><Check size={13} /> Copiado!</> : <><Send size={13} /> Link de aprovação</>}
+              </button>
+            )}
             <button onClick={() => { handleSaveMain(); onClose() }}
               className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] transition-colors">
               <X size={16} />
@@ -685,6 +716,27 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
 
           {/* LEFT — conteúdo livre (estilo Trello, sem caixas) */}
           <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-4 md:px-7 py-5 gap-5">
+
+            {/* Aprovação do cliente — status + comentário de ajuste (padrão cronograma) */}
+            {needsClientApproval && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Aprovação do cliente</span>
+                  {clientApprovalStatus === 'aprovado' ? (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado</span>
+                  ) : clientApprovalStatus === 'recusado' ? (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>Ajuste</span>
+                  ) : (
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]">Aguardando</span>
+                  )}
+                </div>
+                {clientApprovalStatus === 'recusado' && clientApprovalComment && (
+                  <p className="text-xs font-semibold px-3 py-2 rounded-lg text-white" style={{ background: '#ef4444' }}>
+                    🔴 {clientApprovalComment}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* DESCRIPTION — clique-para-editar (padrão cronograma) */}
             <EditableField
