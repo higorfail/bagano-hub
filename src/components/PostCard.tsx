@@ -1140,6 +1140,19 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                       )}
                     </div>
                   </div>
+                ) : item.body?.includes('marcou ajuste como feito') || item.body?.includes('moveu de "Ajuste solicitado"') ? (
+                  <div key={item.id} className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5"
+                      style={{ background: '#f59e0b' }}>
+                      {av.initials}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[11px] font-semibold text-white px-2.5 py-1.5 rounded-lg leading-snug break-words" style={{ background: '#f59e0b' }}>
+                        🟡 {item.body}
+                      </p>
+                      <span className="text-[10px] text-[var(--color-text-faint)]" title={fullDateTime(item.at)}>{fullDateTime(item.at)}</span>
+                    </div>
+                  </div>
                 ) : item.body?.includes('ajuste') || item.body?.includes('alterações') ? (
                   <div key={item.id} className="flex items-start gap-2">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5"
@@ -1199,9 +1212,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             {form.status === 'ajuste' && currentId && (
               <button
                 onClick={async () => {
-                  await persist({ approval_status: null, status: 'aguardando_aprovacao' }, `${who} marcou ajuste como feito e reenviou para aprovação`, 'status_changed')
+                  setForm(f => ({ ...f, status: 'aguardando_aprovacao' }))
                   setApprovalStatus('')
-                  changeStatus('aguardando_aprovacao')
+                  await persist({ approval_status: null, status: 'aguardando_aprovacao' }, `${who} marcou ajuste como feito e reenviou para aprovação`, 'status_changed')
                 }}
                 className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl transition-all"
                 style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)', border: '1px solid var(--ds-error-border)' }}
