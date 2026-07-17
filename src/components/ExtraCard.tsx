@@ -19,7 +19,7 @@ import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, Check, Upload, File,
-  FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag, Pencil
+  FileText, Bell, ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag, Pencil, ImagePlus, XCircle
 } from 'lucide-react'
 
 type ExtraType     = 'todo' | 'note' | 'reminder'
@@ -98,6 +98,13 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [priority,        setPriority]        = useState<ExtraPriority>('normal')
   const [clientId,        setClientId]        = useState(fixedClientId || '')
   const [description,     setDescription]     = useState('')
+  const [briefing,        setBriefing]        = useState('')
+  const [copy,            setCopy]            = useState('')
+  const [legenda,         setLegenda]         = useState('')
+  const [referenceNotes,  setReferenceNotes]  = useState('')
+  const [referenceImages, setReferenceImages] = useState<string[]>([])
+  const [uploadingRef,    setUploadingRef]    = useState(false)
+  const refInputRef = useRef<HTMLInputElement>(null)
   const [dueDate,         setDueDate]         = useState('')
   const [dueTime,         setDueTime]         = useState('')
   const [driveUrl,        setDriveUrl]        = useState('')
@@ -203,6 +210,11 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         setPriority(data.priority || 'normal')
         setClientId(data.client_id || '')
         setDescription(data.description || '')
+        setBriefing(data.briefing || '')
+        setCopy(data.copy || '')
+        setLegenda(data.legenda || '')
+        setReferenceNotes(data.reference_notes || '')
+        setReferenceImages(Array.isArray(data.reference_images) ? data.reference_images : [])
         setDueDate(data.due_date || '')
         setDueTime(data.due_time || '')
         setDriveUrl(data.drive_url || '')
@@ -234,7 +246,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const payload = {
       title, type, status, priority,
       client_id: fixedClientId || clientId || null,
-      description, due_date: dueDate || null, due_time: dueTime || null, drive_url: driveUrl || null,
+      description, briefing, copy, legenda, reference_notes: referenceNotes, reference_images: referenceImages,
+      due_date: dueDate || null, due_time: dueTime || null, drive_url: driveUrl || null,
       assigned_members: assignedMembers, assigned_member_id: assignedMembers[0] || null, labels,
     }
     const { data, error } = await supabase.from('extras').insert(payload).select('*').single()
@@ -244,6 +257,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       originalStatusRef.current = status
       snapshotRef.current = JSON.stringify({
         title, type, priority, clientId: fixedClientId || clientId || '', description,
+        briefing, copy, legenda, referenceNotes, referenceImages,
         dueDate: dueDate || '', dueTime: dueTime || '', driveUrl: driveUrl || '', labels,
         needsClientApproval, assignedMembers,
       })
@@ -270,6 +284,45 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   async function logExt(eid: string, description: string, action = 'updated') {
     await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, actorId: currentMember?.id, description })
     setActivityKey(k => k + 1)
+  }
+
+  // Imagens de referência — mesmo padrão do PostCard (upload real + colar do clipboard)
+  async function uploadRefImageFile(file: File) {
+    setUploadingRef(true)
+    const eid = await ensureId()
+    if (!eid) { toast('Adicione um título antes de subir imagens'); setUploadingRef(false); return }
+    const safeName = file.name.normalize('NFD').replace(/[^a-zA-Z0-9._-]/g, '_') || `img_${Date.now()}.png`
+    const path = `extras/${eid}/${Date.now()}_${safeName}`
+    const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false })
+    if (error) { toast('Erro no upload: ' + error.message); setUploadingRef(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
+    const newImages = [...referenceImages, publicUrl]
+    setReferenceImages(newImages)
+    await supabase.from('extras').update({ reference_images: newImages }).eq('id', eid)
+    await logExt(eid, `${who} anexou uma imagem de referência`)
+    setUploadingRef(false)
+  }
+  async function handleRefImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return
+    await uploadRefImageFile(file)
+    if (refInputRef.current) refInputRef.current.value = ''
+  }
+  async function handleRefPaste(e: React.ClipboardEvent) {
+    const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
+    if (!item) return
+    const file = item.getAsFile(); if (!file) return
+    e.preventDefault(); await uploadRefImageFile(file)
+  }
+  async function removeRefImage(url: string) {
+    const newImages = referenceImages.filter(u => u !== url)
+    setReferenceImages(newImages)
+    const eid = id || extraId
+    if (eid) {
+      await supabase.from('extras').update({ reference_images: newImages }).eq('id', eid)
+      await logExt(eid, `${who} removeu uma imagem de referência`)
+    }
+    const path = url.split('/bagano-materiais/')[1]
+    if (path) supabase.storage.from('bagano-materiais').remove([path])
   }
 
   const STATUS_LABEL: Record<ExtraStatus,string> = { backlog: 'A fazer', doing: 'Em andamento', done: 'Concluído' }
@@ -324,7 +377,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const payload: any = {
       title, type, status, priority,
       client_id: fixedClientId || clientId || null,
-      description, due_date: dueDate || null, due_time: dueTime || null, drive_url: driveUrl || null,
+      description, briefing, copy, legenda, reference_notes: referenceNotes, reference_images: referenceImages,
+      due_date: dueDate || null, due_time: dueTime || null, drive_url: driveUrl || null,
       assigned_members: assignedMembers, assigned_member_id: assignedMembers[0] || null, labels,
       needs_client_approval: needsClientApproval,
     }
@@ -755,6 +809,63 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   }
                 }}
               />
+
+            {/* BRIEFING / COPY / LEGENDA — mesmos campos do card expandido do cronograma */}
+            <EditableField
+              label="Briefing" hint="· instruções pro time (o que fazer)"
+              placeholder="O que precisa ser feito, direção criativa, referências de estilo…"
+              value={briefing} minH={70}
+              onCommit={v => { const hadId = !!id; setBriefing(v); persist({ briefing: v }, hadId ? `${who} editou o briefing` : undefined) }}
+            />
+            <EditableField
+              label="Copy" hint="· conceito / roteiro"
+              placeholder="Ideia central, roteiro, texto das artes…"
+              value={copy} minH={70}
+              onCommit={v => { const hadId = !!id; setCopy(v); persist({ copy: v }, hadId ? `${who} editou a copy` : undefined) }}
+            />
+            <EditableField
+              label="Legenda" hint="· o texto que vai no Instagram"
+              placeholder="A legenda final, com hashtags e CTA…"
+              value={legenda} minH={70}
+              onCommit={v => { const hadId = !!id; setLegenda(v); persist({ legenda: v }, hadId ? `${who} editou a legenda` : undefined) }}
+            />
+
+            {/* Referências — mesmo padrão do cronograma (notas + upload de imagem) */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
+                  <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração · cole imagens (Ctrl+V)</span>
+                </div>
+                <button onClick={() => refInputRef.current?.click()} disabled={uploadingRef}
+                  className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50">
+                  <ImagePlus size={13} /> {uploadingRef ? 'Enviando…' : 'Imagem'}
+                </button>
+                <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefImageUpload} />
+              </div>
+              <div onPaste={handleRefPaste}>
+                <EditableField
+                  label="" placeholder="Cole links de referência, observações…"
+                  value={referenceNotes} minH={40}
+                  onCommit={v => { const hadId = !!id; setReferenceNotes(v); persist({ reference_notes: v }, hadId ? `${who} editou as referências` : undefined) }}
+                />
+              </div>
+              {referenceImages.length > 0 && (
+                <div className="grid grid-cols-4 gap-2 mt-2.5">
+                  {referenceImages.map((url, i) => (
+                    <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-[var(--color-border)]">
+                      <img src={url} alt={`Referência ${i + 1}`} className="w-full h-full object-cover" style={{ height: '100%' }} />
+                      <button onClick={() => removeRefImage(url)} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5">
+                        <XCircle size={14} className="text-white" />
+                      </button>
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 flex items-end p-1.5">
+                        <span className="text-[9px] text-white font-medium bg-black/40 rounded px-1">abrir</span>
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* CHECKLIST */}
             <div>
