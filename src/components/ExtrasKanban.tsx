@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useUser } from '@/lib/UserContext'
 import { Plus, Link2, Check, Camera, Images, Video, Image as ImageIcon } from 'lucide-react'
 import ExtraCard from './ExtraCard'
 import ExtraMiniCard from './ExtraMiniCard'
@@ -73,6 +74,7 @@ function isOverdue(due_date?: string | null, status?: ExtraStatus) {
 
 export default function ExtrasKanban({ clientId, globalMode = false, members = [], initialOpenId }: ExtrasKanbanProps) {
   const supabase = createClient()
+  const { currentMember, showOnlyMine } = useUser()
   const [extras,  setExtras]  = useState<Extra[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -170,11 +172,15 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])), [clients])
 
   const filtered = useMemo(() => extras.filter(e => {
+    if (showOnlyMine && currentMember) {
+      const assigned = e.assigned_members?.length ? e.assigned_members : e.assigned_member_id ? [e.assigned_member_id] : []
+      if (!assigned.includes(currentMember.id)) return false
+    }
     if (!globalMode) return true
     if (filterClient === 'all')    return true
     if (filterClient === 'global') return !e.client_id
     return e.client_id === filterClient
-  }), [extras, globalMode, filterClient])
+  }), [extras, globalMode, filterClient, showOnlyMine, currentMember])
 
   if (loading) return (
     <div className="flex items-center justify-center py-12">

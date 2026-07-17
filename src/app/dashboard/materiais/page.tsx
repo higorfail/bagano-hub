@@ -79,7 +79,10 @@ function MateriaisContent() {
 
   const visible = materials.filter(m => {
     if (filterClient && m.client_id !== filterClient) return false
-    if (showOnlyMine && currentMember && m.assigned_to !== currentMember.id) return false
+    if (showOnlyMine && currentMember) {
+      const assigned = m.assigned_members?.length ? m.assigned_members : m.assigned_to ? [m.assigned_to] : []
+      if (!assigned.includes(currentMember.id)) return false
+    }
     return true
   })
 

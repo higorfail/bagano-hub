@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState, Suspense } from 'react'
 import { useDarkMode } from '@/lib/useDarkMode'
+import { useUser } from '@/lib/UserContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import IPhoneFeed from '@/components/IPhoneFeed'
@@ -45,6 +46,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const pathname = usePathname()
   const isDark = useDarkMode()
   const { toast } = useToast()
+  const { currentMember, showOnlyMine } = useUser()
   const [client, setClient] = useState<Client | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [tab, setTab] = useState(() => searchParams.get('tab') || 'cronograma')
@@ -377,8 +379,13 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   { key: 'ajuste',               label: 'Ajuste', color: '#EF4444' },
                   { key: 'finalizado',            label: 'Finalizado',       color: '#22C55E' },
                 ]
+                const matVisible = materials.filter(m => {
+                  if (!showOnlyMine || !currentMember) return true
+                  const assigned = m.assigned_members?.length ? m.assigned_members : m.assigned_to ? [m.assigned_to] : []
+                  return assigned.includes(currentMember.id)
+                })
                 function colItems(colKey: string) {
-                  return materials.filter(m => {
+                  return matVisible.filter(m => {
                     const s = m.status || 'producao'
                     if (colKey === 'producao') return s === 'producao' || (!['aguardando_aprovacao','ajuste','finalizado'].includes(s))
                     return s === colKey
