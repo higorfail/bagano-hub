@@ -86,7 +86,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const originalStatusRef = useRef<ExtraStatus>(initialStatus ?? 'backlog')
   const snapshotRef = useRef<string>('')
   const titleOriginal = useRef<string | null>(null)
-  const [showDetails, setShowDetails] = useState(true)
+  const [showDetails, setShowDetails] = useState(false)
   const [mobilePane, setMobilePane] = useState<'details' | 'comments'>('details')
   const [activityKey, setActivityKey] = useState(0)
   const [activities,  setActivities]  = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])

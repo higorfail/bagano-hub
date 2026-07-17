@@ -154,7 +154,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
   const [createdAt,    setCreatedAt]    = useState<string | null>(null)
-  const [showDetails,  setShowDetails]  = useState(true)
+  const [showDetails,  setShowDetails]  = useState(false)
   // No mobile as duas colunas (conteúdo/comentários) viram abas — trocar em vez de empilhar (padrão Trello)
   const [mobilePane, setMobilePane] = useState<'details' | 'comments'>('details')
   const [emojiOpen,    setEmojiOpen]    = useState<TextField | null>(null)
