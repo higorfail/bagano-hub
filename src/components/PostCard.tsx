@@ -1010,7 +1010,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                       )}
                     </div>
                   </div>
-                ) : item.body?.includes('ajuste') ? (
+                ) : item.body?.includes('ajuste') || item.body?.includes('alterações') ? (
                   <div key={item.id} className="flex items-start gap-2">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5"
                       style={{ background: '#ef4444' }}>
