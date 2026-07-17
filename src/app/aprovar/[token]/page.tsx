@@ -275,7 +275,6 @@ export default function ApprovalPage({ params }: { params: Promise<{ token: stri
     const extrasQuery = supabase.from('extras')
       .select('id, title, type, description, ai_summary, drive_url, due_date, needs_client_approval, client_approval_status, client_approval_comment')
       .eq('client_id', tk.client_id)
-      .eq('needs_client_approval', true)
       .not('client_approval_status', 'in', '("aprovado","recusado")')
       .order('created_at', { ascending: true })
 

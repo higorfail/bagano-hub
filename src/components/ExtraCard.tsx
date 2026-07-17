@@ -115,7 +115,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [labels,          setLabels]          = useState<{ text: string; color: string }[]>([])
   const [assignedMembers, setAssignedMembers] = useState<string[]>([])
 
-  const [needsClientApproval, setNeedsClientApproval] = useState(false)
   const [clientApprovalStatus,  setClientApprovalStatus]  = useState('')
   const [clientApprovalComment, setClientApprovalComment] = useState('')
   const [approvalLinkCopied, setApprovalLinkCopied] = useState(false)
@@ -223,7 +222,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         setDriveUrl(data.drive_url || '')
         setCreatedAt(data.created_at || null)
         setLabels(Array.isArray(data.labels) ? data.labels : [])
-        setNeedsClientApproval(data.needs_client_approval || false)
         setClientApprovalStatus(data.client_approval_status || '')
         setClientApprovalComment(data.client_approval_comment || '')
         const am = Array.isArray(data.assigned_members) && data.assigned_members.length > 0
@@ -233,8 +231,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           title: data.title || '', type: data.type || 'post', priority: data.priority || 'normal',
           clientId: data.client_id || '', description: data.description || '',
           dueDate: data.due_date || '', dueTime: data.due_time || '', driveUrl: data.drive_url || '',
-          labels: Array.isArray(data.labels) ? data.labels : [],
-          needsClientApproval: data.needs_client_approval || false, assignedMembers: am,
+          labels: Array.isArray(data.labels) ? data.labels : [], assignedMembers: am,
         })
       }
       await loadSub(extraId)
@@ -262,7 +259,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         title, type, priority, clientId: fixedClientId || clientId || '', description,
         briefing, copy, legenda, referenceNotes, referenceImages,
         dueDate: dueDate || '', dueTime: dueTime || '', driveUrl: driveUrl || '', labels,
-        needsClientApproval, assignedMembers,
+        assignedMembers,
       })
       ensureWatching('extras', data.id, [currentMember?.id, ...assignedMembers])
       await logActivity({ tableName: 'extras', recordId: data.id, clientId: fixedClientId || clientId || null, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
@@ -351,12 +348,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const name = v ? (clients.find(c => c.id === v)?.name || '') : 'sem cliente'
     persist({ client_id: v || null }, `${who} definiu o cliente: ${name}`)
   }
-  function changeApproval() {
-    const next = !needsClientApproval
-    setNeedsClientApproval(next)
-    persist({ needs_client_approval: next }, next ? `${who} marcou que precisa de aprovação do cliente` : `${who} removeu a necessidade de aprovação do cliente`)
-  }
-
   async function copyExtrasApprovalLink() {
     const cid = fixedClientId || clientId
     if (!cid) return
@@ -383,7 +374,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       description, briefing, copy, legenda, reference_notes: referenceNotes, reference_images: referenceImages,
       due_date: dueDate || null, due_time: dueTime || null, drive_url: driveUrl || null,
       assigned_members: assignedMembers, assigned_member_id: assignedMembers[0] || null, labels,
-      needs_client_approval: needsClientApproval,
     }
     // Build client/member info locally to avoid depending on PostgREST joins
     const resolvedClientId = fixedClientId || clientId || null
@@ -719,17 +709,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               <Calendar size={12} className="flex-shrink-0" /> <span className="truncate">{dueDateLabel ? dueDateLabel.text : 'Definir'}</span>
             </button>
           </PropertyPill>
-          {/* Aprovação do cliente */}
-          <PropertyPill label="Aprovação">
-            <button
-              onClick={changeApproval}
-              className="w-full rounded-lg px-2.5 py-1.5 text-xs font-medium border transition-all truncate"
-              style={needsClientApproval
-                ? { background: '#3b82f618', color: '#3b82f6', borderColor: '#3b82f644' }
-                : { color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}>
-              {needsClientApproval ? '✓ Cliente aprova' : 'Não precisa'}
-            </button>
-          </PropertyPill>
           </div>
           {/* Linha 2 — grupos largos (chips) */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -775,25 +754,23 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
           <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-4 md:px-7 py-5 gap-5">
 
             {/* Aprovação do cliente — status + comentário de ajuste (padrão cronograma) */}
-            {needsClientApproval && (
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Aprovação do cliente</span>
-                  {clientApprovalStatus === 'aprovado' ? (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado</span>
-                  ) : clientApprovalStatus === 'recusado' ? (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>Ajuste</span>
-                  ) : (
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]">Aguardando</span>
-                  )}
-                </div>
-                {clientApprovalStatus === 'recusado' && clientApprovalComment && (
-                  <p className="text-xs font-semibold px-3 py-2 rounded-lg text-white" style={{ background: '#ef4444' }}>
-                    🔴 {clientApprovalComment}
-                  </p>
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Aprovação do cliente</span>
+                {clientApprovalStatus === 'aprovado' ? (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado</span>
+                ) : clientApprovalStatus === 'recusado' ? (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>Ajuste</span>
+                ) : (
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]">Aguardando</span>
                 )}
               </div>
-            )}
+              {clientApprovalStatus === 'recusado' && clientApprovalComment && (
+                <p className="text-xs font-semibold px-3 py-2 rounded-lg text-white" style={{ background: '#ef4444' }}>
+                  🔴 {clientApprovalComment}
+                </p>
+              )}
+            </div>
 
             {/* DESCRIPTION — clique-para-editar (padrão cronograma) */}
             <EditableField
