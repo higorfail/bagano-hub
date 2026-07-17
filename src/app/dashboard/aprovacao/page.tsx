@@ -384,7 +384,7 @@ export default function AprovacaoPage() {
             <p className="text-sm text-[var(--color-text-muted)] mt-1">
               {aguardandoCount > 0 && <span>{aguardandoCount} aguardando resposta</span>}
               {aguardandoCount > 0 && revisaoCount > 0 && <span className="mx-1.5 text-[var(--color-text-faint)]">·</span>}
-              {revisaoCount > 0 && <span style={{ color: 'var(--ds-warn-text)' }}>{revisaoCount} precisam revisão</span>}
+              {revisaoCount > 0 && <span style={{ color: 'var(--ds-warn-text)' }}>{revisaoCount} precisam ajuste</span>}
               {aguardandoCount === 0 && revisaoCount === 0 && 'Tudo em dia'}
               {pendingClientsCount > 0 && (
                 <span className="text-[var(--color-text-faint)]"> · {pendingClientsCount} cliente{pendingClientsCount !== 1 ? 's' : ''}{oldestWaitingDays !== null && oldestWaitingDays > 0 ? ` · mais antigo há ${oldestWaitingDays}d` : ''}</span>
@@ -438,7 +438,7 @@ export default function AprovacaoPage() {
           {[
             { key: 'todos',      label: 'Pendentes',       count: aguardandoCount + revisaoCount },
             { key: 'aguardando', label: 'Aguardando',       count: aguardandoCount },
-            { key: 'revisao',    label: 'Precisa revisão',  count: revisaoCount },
+            { key: 'revisao',    label: 'Ajuste',  count: revisaoCount },
             { key: 'aprovado',   label: 'Aprovados',        count: aprovadoCount },
           ].map(f => (
             <button
@@ -583,12 +583,13 @@ export default function AprovacaoPage() {
                           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 p-4 items-start">
                             {mPosts.map(p => {
                               const needsRevision = p.approval_status === 'não aprovado'
+                              const hasAdjustment = p.status === 'ajuste'
                               const isApproved    = p.approval_status === 'aprovado'
                               const waitDays = waitingSince[p.id] ? daysAgo(waitingSince[p.id]) : null
                               const isUrgent = waitDays !== null && waitDays >= 3 && !isApproved
-                              const statusColor = isApproved ? 'var(--ds-success-accent)' : needsRevision ? 'var(--ds-warn-accent)' : 'var(--ds-info-accent)'
+                              const statusColor = isApproved ? 'var(--ds-success-accent)' : hasAdjustment || needsRevision ? '#ef4444' : 'var(--ds-info-accent)'
                               const nComments = commentsCount[p.id] || 0
-                              const statusLabel = isApproved ? 'Aprovado' : needsRevision ? 'Revisão' : 'Aguardando'
+                              const statusLabel = isApproved ? 'Aprovado' : hasAdjustment || needsRevision ? 'Ajuste' : 'Aguardando'
                               return (
                                 <div key={p.id} className="flex flex-col gap-1">
                                   <button onClick={() => setLightboxId(p.id)} title="Ver preview" className="relative rounded-lg overflow-hidden transition-all hover:opacity-90"
@@ -611,8 +612,11 @@ export default function AprovacaoPage() {
                                       {statusLabel}
                                     </div>
                                   </button>
-                                  <button onClick={() => navigateToPost(p)} className="text-left">
+                                  <button onClick={() => navigateToPost(p)} className="text-left flex-1 min-w-0">
                                     <p className="text-[11px] font-medium text-[var(--color-text-primary)] truncate leading-tight hover:underline">{p.title || 'Sem título'}</p>
+                                    {(hasAdjustment || needsRevision) && p.approval_comment && (
+                                      <p className="text-[9px] italic mt-0.5 truncate" style={{ color: '#ef4444' }}>"{p.approval_comment}"</p>
+                                    )}
                                   </button>
                                 </div>
                               )
@@ -622,6 +626,7 @@ export default function AprovacaoPage() {
                           <div className="divide-y divide-[var(--color-bg-subtle)]">
                             {mPosts.map(p => {
                               const needsRevision = p.approval_status === 'não aprovado'
+                              const hasAdjustment = p.status === 'ajuste'
                               const isApproved    = p.approval_status === 'aprovado'
                               const waitDays = waitingSince[p.id] ? daysAgo(waitingSince[p.id]) : null
                               const isUrgent = waitDays !== null && waitDays >= 3 && !isApproved
@@ -671,10 +676,10 @@ export default function AprovacaoPage() {
                                           )}
                                         </>
                                       )}
-                                      {needsRevision && p.approval_comment && (
+                                      {(hasAdjustment || needsRevision) && p.approval_comment && (
                                         <>
                                           <span className="text-[var(--color-text-faint)]">·</span>
-                                          <span className="text-xs italic truncate max-w-[280px]" style={{ color: 'var(--ds-warn-text)' }}>"{p.approval_comment}"</span>
+                                          <span className="text-xs italic truncate max-w-[280px]" style={{ color: '#ef4444' }}>"{p.approval_comment}"</span>
                                         </>
                                       )}
                                     </div>
@@ -684,9 +689,9 @@ export default function AprovacaoPage() {
                                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
                                         ✓ Aprovado
                                       </span>
-                                    ) : needsRevision ? (
-                                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)', borderColor: 'var(--ds-warn-border)' }}>
-                                        Revisão
+                                    ) : hasAdjustment || needsRevision ? (
+                                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border text-white" style={{ color: '#fff', background: '#ef4444', borderColor: '#ef4444' }}>
+                                        Ajuste
                                       </span>
                                     ) : (
                                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)', borderColor: 'var(--ds-info-border)' }}>

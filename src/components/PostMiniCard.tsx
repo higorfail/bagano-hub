@@ -177,10 +177,10 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
           </div>
         </div>
 
-        {/* Title + copy — copy preenche o espaço que sobrar (a imagem cresce junto se precisar) */}
+        {/* Title + copy — não mostrar copy se estiver em Ajuste */}
         <div className="flex-1 min-h-0 flex flex-col">
           <p className="font-bold text-[var(--color-text-primary)] text-[15px] leading-snug line-clamp-2 flex-shrink-0">{post.title || 'Sem título'}</p>
-          {(post.ai_summary || post.copy) && (
+          {post.status !== 'ajuste' && (post.ai_summary || post.copy) && (
             <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mt-1.5 flex-1 min-h-0 overflow-hidden"
               style={{ maxHeight: '2.4em', WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)' }}>
               {post.ai_summary || post.copy!.replace(/\*/g, '')}
@@ -188,9 +188,9 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
           )}
         </div>
 
-        {/* Rejection comment */}
-        {isRejected && post.approval_comment && (
-          <div className="rounded-lg px-2.5 py-1.5 text-xs italic leading-snug" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+        {/* Rejection or adjustment comment */}
+        {(isRejected || post.status === 'ajuste') && post.approval_comment && (
+          <div className="rounded-lg px-2.5 py-1.5 text-xs italic leading-snug overflow-hidden text-ellipsis line-clamp-2" style={{ background: post.status === 'ajuste' ? '#ef444422' : 'var(--ds-error-bg)', color: post.status === 'ajuste' ? '#ef4444' : 'var(--ds-error-text)' }}>
             "{post.approval_comment}"
           </div>
         )}
