@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   MapPin, Phone, AtSign, Globe, Truck, BookOpen,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, Sparkles, X,
 } from 'lucide-react'
 
 type Pillar       = { name: string; description: string }
@@ -479,26 +479,151 @@ function VoiceTab({ data }: { data: ManualData }) {
   )
 }
 
+// ── GERADOR DE RASCUNHO VIA IA (pesquisa na web) ───────────────────────────────
+
+function ManualGeneratorModal({
+  genName, setGenName, genInstagram, setGenInstagram, genWebsite, setGenWebsite,
+  genLoading, genError, genDraft, setGenDraft, genSaving, onGenerate, onSave, onClose,
+}: {
+  genName: string; setGenName: (v: string) => void
+  genInstagram: string; setGenInstagram: (v: string) => void
+  genWebsite: string; setGenWebsite: (v: string) => void
+  genLoading: boolean; genError: string; genDraft: string; setGenDraft: (v: string) => void
+  genSaving: boolean
+  onGenerate: () => void; onSave: () => void; onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] shadow-pop w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+          <p className="font-bold text-[var(--color-text-primary)] flex items-center gap-2"><Sparkles size={16} className="text-[#8b5cf6]" /> Gerar rascunho do manual com IA</p>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]"><X size={15} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
+          <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
+            A IA pesquisa na web (site, Google Maps, Instagram, iFood/Rappi, notícias) e monta um rascunho.
+            Revise com atenção — pode errar dado, principalmente preços de cardápio — antes de salvar.
+          </p>
+          <div className="grid grid-cols-1 gap-2.5">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] block mb-1">Nome do negócio</label>
+              <input value={genName} onChange={e => setGenName(e.target.value)} placeholder="Ex: Donna Pizzeria"
+                className="w-full border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--color-bg-page)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]" />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] block mb-1">Instagram (opcional)</label>
+              <input value={genInstagram} onChange={e => setGenInstagram(e.target.value)} placeholder="https://instagram.com/..."
+                className="w-full border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--color-bg-page)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]" />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] block mb-1">Site (opcional)</label>
+              <input value={genWebsite} onChange={e => setGenWebsite(e.target.value)} placeholder="https://..."
+                className="w-full border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--color-bg-page)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)]" />
+            </div>
+          </div>
+          <button onClick={onGenerate} disabled={genLoading || !genName.trim()}
+            className="flex items-center justify-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            style={{ background: '#8b5cf6' }}>
+            {genLoading ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Pesquisando…</> : <>🔎 Pesquisar e gerar</>}
+          </button>
+          {genError && <p className="text-xs text-[var(--ds-error-text)] bg-[var(--ds-error-bg)] rounded-lg px-3 py-2">{genError}</p>}
+          {genDraft && (
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] block mb-1">Rascunho gerado — revise antes de salvar</label>
+              <textarea value={genDraft} onChange={e => setGenDraft(e.target.value)} rows={16}
+                className="w-full border border-[var(--color-border)] rounded-lg px-3 py-2 text-xs font-mono bg-[var(--color-bg-page)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-brand)] resize-none" />
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-[var(--color-border)] flex-shrink-0">
+          <button onClick={onClose} className="px-4 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">Cancelar</button>
+          <button onClick={onSave} disabled={!genDraft || genSaving}
+            className="px-4 py-1.5 text-sm font-semibold bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg disabled:opacity-40 transition-opacity">
+            {genSaving ? 'Salvando…' : 'Salvar no manual'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── MAIN ──────────────────────────────────────────────────────────────────────
 
 export default function ManualTab({ clientId }: { clientId: string }) {
   const [data, setData]       = useState<ManualData | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
+  const [clientInfo, setClientInfo] = useState<{ name: string; instagram_url: string | null } | null>(null)
 
-  useEffect(() => {
-    async function load() {
-      const supabase = createClient()
-      const { data: manual } = await supabase
-        .from('client_manuals')
-        .select('*')
-        .eq('client_id', clientId)
-        .maybeSingle()
-      setData(manual)
-      setLoading(false)
+  // Gerador de rascunho via IA (pesquisa na web) — pra clientes novos sem manual
+  const [showGenerator, setShowGenerator] = useState(false)
+  const [genName,      setGenName]      = useState('')
+  const [genInstagram, setGenInstagram] = useState('')
+  const [genWebsite,   setGenWebsite]   = useState('')
+  const [genLoading,   setGenLoading]   = useState(false)
+  const [genError,     setGenError]     = useState('')
+  const [genDraft,     setGenDraft]     = useState('')
+  const [genSaving,    setGenSaving]    = useState(false)
+
+  async function load() {
+    const supabase = createClient()
+    const [{ data: manual }, { data: client }] = await Promise.all([
+      supabase.from('client_manuals').select('*').eq('client_id', clientId).maybeSingle(),
+      supabase.from('clients').select('name, instagram_url').eq('id', clientId).maybeSingle(),
+    ])
+    setData(manual)
+    setClientInfo(client)
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [clientId])
+
+  function openGenerator() {
+    setGenName(clientInfo?.name || '')
+    setGenInstagram(clientInfo?.instagram_url || '')
+    setGenWebsite('')
+    setGenDraft('')
+    setGenError('')
+    setShowGenerator(true)
+  }
+
+  async function runGenerate() {
+    if (!genName.trim()) return
+    setGenLoading(true); setGenError(''); setGenDraft('')
+    try {
+      const res = await fetch('/api/ai-manual', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: genName, instagram: genInstagram, website: genWebsite }),
+      })
+      const json = await res.json()
+      if (!res.ok || json.error) { setGenError(json.error || 'Erro ao gerar'); setGenLoading(false); return }
+      // Valida que é JSON parseável antes de mostrar, mas guarda formatado (mais fácil de revisar)
+      try {
+        const parsed = JSON.parse(json.manual)
+        setGenDraft(JSON.stringify(parsed, null, 2))
+      } catch {
+        setGenDraft(json.manual) // deixa cru pro usuário corrigir manualmente se vier malformado
+      }
+    } catch {
+      setGenError('Erro de conexão ao gerar o rascunho')
     }
-    load()
-  }, [clientId])
+    setGenLoading(false)
+  }
+
+  async function saveGeneratedManual() {
+    let parsed: any
+    try { parsed = JSON.parse(genDraft) }
+    catch { setGenError('JSON inválido — corrija antes de salvar.'); return }
+    setGenSaving(true)
+    const supabase = createClient()
+    const { error } = await supabase.from('client_manuals').upsert({ client_id: clientId, ...parsed }, { onConflict: 'client_id' })
+    setGenSaving(false)
+    if (error) { setGenError('Erro ao salvar: ' + error.message); return }
+    setShowGenerator(false)
+    setLoading(true)
+    await load()
+  }
 
   if (loading) return (
     <div className="flex items-center justify-center h-40">
@@ -507,24 +632,39 @@ export default function ManualTab({ clientId }: { clientId: string }) {
   )
 
   if (!data) return (
-    <div className="flex flex-col items-center justify-center min-h-[360px] gap-4 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center">
-        <BookOpen size={28} className="text-[var(--color-text-faint)]" />
+    <>
+      <div className="flex flex-col items-center justify-center min-h-[360px] gap-4 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center">
+          <BookOpen size={28} className="text-[var(--color-text-faint)]" />
+        </div>
+        <div>
+          <p className="font-semibold text-[var(--color-text-primary)]">Manual não disponível</p>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1 max-w-xs">
+            Este cliente ainda não tem manual cadastrado.
+          </p>
+        </div>
+        <button onClick={openGenerator}
+          className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl text-white transition-opacity hover:opacity-90"
+          style={{ background: '#8b5cf6' }}>
+          <Sparkles size={14} /> Gerar rascunho com IA
+        </button>
       </div>
-      <div>
-        <p className="font-semibold text-[var(--color-text-primary)]">Manual não disponível</p>
-        <p className="text-sm text-[var(--color-text-muted)] mt-1 max-w-xs">
-          Este cliente ainda não tem manual cadastrado. Execute o SQL de seed no Supabase para importar os dados do Sous Chef.
-        </p>
-      </div>
-    </div>
+      {showGenerator && <ManualGeneratorModal
+        genName={genName} setGenName={setGenName}
+        genInstagram={genInstagram} setGenInstagram={setGenInstagram}
+        genWebsite={genWebsite} setGenWebsite={setGenWebsite}
+        genLoading={genLoading} genError={genError} genDraft={genDraft} setGenDraft={setGenDraft}
+        genSaving={genSaving}
+        onGenerate={runGenerate} onSave={saveGeneratedManual} onClose={() => setShowGenerator(false)}
+      />}
+    </>
   )
 
   return (
     <div className="flex flex-col gap-0 max-w-4xl">
       {/* Header */}
-      {(data.tagline || data.concept) && (
-        <div className="mb-5 pb-5 border-b border-[var(--color-border)]">
+      <div className="flex items-start justify-between gap-3 mb-5 pb-5 border-b border-[var(--color-border)]">
+        <div>
           {data.tagline && (
             <p className="text-lg font-semibold text-[var(--color-text-primary)] mb-1">{data.tagline}</p>
           )}
@@ -532,7 +672,20 @@ export default function ManualTab({ clientId }: { clientId: string }) {
             <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">{data.concept}</p>
           )}
         </div>
-      )}
+        <button onClick={openGenerator} title="Gerar novo rascunho com IA (sobrescreve ao salvar)"
+          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 transition-colors"
+          style={{ background: '#8b5cf618', color: '#8b5cf6' }}>
+          <Sparkles size={12} /> Regerar com IA
+        </button>
+      </div>
+      {showGenerator && <ManualGeneratorModal
+        genName={genName} setGenName={setGenName}
+        genInstagram={genInstagram} setGenInstagram={setGenInstagram}
+        genWebsite={genWebsite} setGenWebsite={setGenWebsite}
+        genLoading={genLoading} genError={genError} genDraft={genDraft} setGenDraft={setGenDraft}
+        genSaving={genSaving}
+        onGenerate={runGenerate} onSave={saveGeneratedManual} onClose={() => setShowGenerator(false)}
+      />}
 
       {/* Section nav */}
       <div className="flex items-center gap-1 mb-5 overflow-x-auto pb-1">
