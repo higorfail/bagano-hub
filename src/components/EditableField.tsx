@@ -32,9 +32,10 @@ type Props = {
   value: string
   onCommit: (value: string) => void
   minH?: number
+  labelExtra?: React.ReactNode
 }
 
-export default function EditableField({ label, hint, placeholder, value, onCommit, minH = 60 }: Props) {
+export default function EditableField({ label, hint, placeholder, value, onCommit, minH = 60, labelExtra }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const discardRef = useRef(false)
@@ -79,6 +80,7 @@ export default function EditableField({ label, hint, placeholder, value, onCommi
       <div className="flex items-baseline gap-2 mb-1.5">
         <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">{label}</span>
         {hint && <span className="text-[10px] text-[var(--color-text-faint)]">{hint}</span>}
+        {labelExtra}
       </div>
       {editing ? (
         <div>

@@ -10,6 +10,7 @@ import { autoGrow } from '@/lib/autoGrow'
 import { ensureWatching } from '@/lib/watch'
 import WatchButton from '@/components/WatchButton'
 import { generateAiSummary } from '@/lib/aiSummary'
+import { generateAiLegenda } from '@/lib/aiLegenda'
 import { hostOf, formatBytes } from '@/lib/url'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import EditableField from '@/components/EditableField'
@@ -20,7 +21,7 @@ import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, Check, Upload, File,
   ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag, Pencil, ImagePlus, XCircle,
-  Camera, Images, Video, Image as ImageIcon
+  Camera, Images, Video, Image as ImageIcon, Sparkles
 } from 'lucide-react'
 
 type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post'
@@ -107,6 +108,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [referenceNotes,  setReferenceNotes]  = useState('')
   const [referenceImages, setReferenceImages] = useState<string[]>([])
   const [uploadingRef,    setUploadingRef]    = useState(false)
+  const [clientManual,      setClientManual]      = useState<any>(null)
+  const [generatingLegenda, setGeneratingLegenda]  = useState(false)
   const refInputRef = useRef<HTMLInputElement>(null)
   const [dueDate,         setDueDate]         = useState('')
   const [dueTime,         setDueTime]         = useState('')
@@ -178,6 +181,13 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     supabase.from('labels').select('*').order('created_at', { ascending: true })
       .then(({ data }) => { if (data) setGlobalLabels(data) })
   }, [])
+
+  useEffect(() => {
+    const cid = fixedClientId || clientId
+    if (!cid) { setClientManual(null); return }
+    supabase.from('client_manuals').select('*').eq('client_id', cid).maybeSingle()
+      .then(({ data }) => setClientManual(data || null))
+  }, [fixedClientId, clientId])
 
 
   // Smart auto-detection as the user types the title
@@ -348,6 +358,15 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const name = v ? (clients.find(c => c.id === v)?.name || '') : 'sem cliente'
     persist({ client_id: v || null }, `${who} definiu o cliente: ${name}`)
   }
+  async function suggestLegenda() {
+    setGeneratingLegenda(true)
+    const suggestion = await generateAiLegenda({ title, post_type: type, briefing, copy, manual: clientManual })
+    setGeneratingLegenda(false)
+    if (!suggestion) { toast('Não consegui gerar uma sugestão agora.'); return }
+    setLegenda(suggestion)
+    persist({ legenda: suggestion }, id ? `${who} gerou uma sugestão de legenda com IA` : undefined)
+  }
+
   async function copyExtrasApprovalLink() {
     const cid = fixedClientId || clientId
     if (!cid) return
@@ -806,25 +825,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               )}
             </div>
 
-            {/* DESCRIPTION — clique-para-editar (padrão cronograma) */}
-            <EditableField
-                label="Descrição"
-                hint="· contexto, instruções, links"
-                placeholder="Adicione uma descrição, contexto, links…"
-                value={description}
-                minH={90}
-                onCommit={async v => {
-                  const hadId = !!id
-                  setDescription(v)
-                  const eid = await persist({ description: v }, hadId ? `${who} editou a descrição` : undefined)
-                  if (eid) {
-                    const summary = await generateAiSummary(v, title)
-                    if (summary != null) await supabase.from('extras').update({ ai_summary: summary }).eq('id', eid)
-                  }
-                }}
-              />
-
-            {/* BRIEFING / COPY / LEGENDA — mesmos campos do card expandido do cronograma */}
+            {/* BRIEFING / COPY / LEGENDA — mesmos campos do card expandido do cronograma
+                (substituem a antiga caixa de Descrição, que ficava redundante) */}
             <EditableField
               label="Briefing" hint="· instruções pro time (o que fazer)"
               placeholder="O que precisa ser feito, direção criativa, referências de estilo…"
@@ -835,13 +837,28 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               label="Copy" hint="· conceito / roteiro"
               placeholder="Ideia central, roteiro, texto das artes…"
               value={copy} minH={70}
-              onCommit={v => { const hadId = !!id; setCopy(v); persist({ copy: v }, hadId ? `${who} editou a copy` : undefined) }}
+              onCommit={async v => {
+                const hadId = !!id
+                setCopy(v)
+                const eid = await persist({ copy: v }, hadId ? `${who} editou a copy` : undefined)
+                if (eid) {
+                  const summary = await generateAiSummary(v, title)
+                  if (summary != null) await supabase.from('extras').update({ ai_summary: summary }).eq('id', eid)
+                }
+              }}
             />
             <EditableField
               label="Legenda" hint="· o texto que vai no Instagram"
               placeholder="A legenda final, com hashtags e CTA…"
               value={legenda} minH={70}
               onCommit={v => { const hadId = !!id; setLegenda(v); persist({ legenda: v }, hadId ? `${who} editou a legenda` : undefined) }}
+              labelExtra={(briefing?.trim() || copy?.trim()) ? (
+                <button onClick={suggestLegenda} disabled={generatingLegenda}
+                  className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
+                  style={{ background: '#8b5cf618', color: '#8b5cf6' }}>
+                  {generatingLegenda ? <><div className="w-2.5 h-2.5 border border-[#8b5cf6] border-t-transparent rounded-full animate-spin" /> Gerando…</> : <><Sparkles size={11} /> Sugerir com IA</>}
+                </button>
+              ) : undefined}
             />
 
             {/* Referências — mesmo padrão do cronograma (notas + upload de imagem) */}
