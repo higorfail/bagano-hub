@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
@@ -13,6 +13,7 @@ import { autoGrow } from '@/lib/autoGrow'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import { renderWithMentions } from '@/lib/useMentions'
 import { generateAiSummary } from '@/lib/aiSummary'
+import { generateAiLegenda } from '@/lib/aiLegenda'
 import { ensureWatching } from '@/lib/watch'
 import WatchButton from '@/components/WatchButton'
 import ModalPortal from '@/components/ModalPortal'
@@ -163,6 +164,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [moveMonth,    setMoveMonth]    = useState(month)
   const [moveYear,     setMoveYear]     = useState(year)
   const refInputRef = useRef<HTMLInputElement>(null)
+  const [clientManual,     setClientManual]     = useState<any>(null)
+  const [generatingLegenda, setGeneratingLegenda] = useState(false)
 
   const [form,           setForm]           = useState<PostForm>(() => postId ? EMPTY : { ...EMPTY, scheduled_date: initialDate || '' })
   const [approvalStatus, setApprovalStatus] = useState<string>('')
@@ -254,6 +257,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     supabase.from('labels').select('*').order('created_at', { ascending: true })
       .then(({ data }) => { if (data) setGlobalLabels(data) })
   }, [])
+
+  useEffect(() => {
+    supabase.from('client_manuals').select('*').eq('client_id', clientId).maybeSingle()
+      .then(({ data }) => setClientManual(data || null))
+  }, [clientId])
 
   useEffect(() => {
     if (!postId) return
@@ -357,6 +365,20 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       if (summary != null) await supabase.from('schedules').update({ ai_summary: summary }).eq('id', pid)
     }
   }
+  async function suggestLegenda() {
+    setGeneratingLegenda(true)
+    const f = formRef.current
+    const suggestion = await generateAiLegenda({
+      title: f.title, post_type: f.post_type, briefing: f.briefing, copy: f.copy, manual: clientManual,
+    })
+    setGeneratingLegenda(false)
+    if (!suggestion) { toast('Não consegui gerar uma sugestão agora.'); return }
+    // Abre o campo em edição já com a sugestão — o usuário revisa/ajusta e salva normalmente
+    editOriginal.current = f.legenda || ''
+    setForm(fm => ({ ...fm, legenda: suggestion }))
+    setEditingField('legenda')
+  }
+
   function startEdit(field: TextField) { editOriginal.current = String(formRef.current[field] || ''); setEditingField(field) }
   function discardEdit(field: TextField) { discardRef.current = true; setForm(f => ({ ...f, [field]: editOriginal.current })); setEditingField(null) }
   function blurCommit(field: TextField) { if (discardRef.current) { discardRef.current = false; return } commitText(field) }
@@ -580,12 +602,13 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const mdViewCls   = 'cursor-text text-sm text-[var(--color-text-primary)] leading-relaxed rounded-lg hover:bg-[var(--color-bg-subtle)] -mx-2 px-2 py-1.5 transition-colors md-content'
 
   // Campo de texto editável (click-to-edit + autosave)
-  function textField(field: TextField, label: string, hint: string, placeholder: string, minH = 60) {
+  function textField(field: TextField, label: string, hint: string, placeholder: string, minH = 60, extraLabelButton?: React.ReactNode) {
     return (
       <div>
         <div className="flex items-baseline gap-2 mb-1.5">
           <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">{label}</span>
           <span className="text-[10px] text-[var(--color-text-faint)]">{hint}</span>
+          {extraLabelButton}
         </div>
         {editingField === field ? (
           <div>
@@ -953,7 +976,15 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
             {textField('briefing', 'Briefing', '· instruções pro time (o que fazer)', 'O que precisa ser feito, direção criativa, referências de estilo…', 70)}
             {textField('copy', 'Copy', '· conceito / roteiro', 'Ideia central, roteiro do reels, texto das artes…', 70)}
-            {textField('legenda', 'Legenda', '· o texto que vai no Instagram', 'A legenda final do post, com hashtags e CTA…', 70)}
+            {textField('legenda', 'Legenda', '· o texto que vai no Instagram', 'A legenda final do post, com hashtags e CTA…', 70,
+              (form.briefing?.trim() || form.copy?.trim()) ? (
+                <button onClick={suggestLegenda} disabled={generatingLegenda}
+                  className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
+                  style={{ background: '#8b5cf618', color: '#8b5cf6' }}>
+                  {generatingLegenda ? <><div className="w-2.5 h-2.5 border border-[#8b5cf6] border-t-transparent rounded-full animate-spin" /> Gerando…</> : <><Sparkles size={11} /> Sugerir com IA</>}
+                </button>
+              ) : undefined
+            )}
 
 
             {/* Referências */}
