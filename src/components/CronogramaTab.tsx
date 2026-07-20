@@ -242,14 +242,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [generatingLink, setGeneratingLink] = useState(false)
   const [aiMessage, setAiMessage] = useState('')
   const [copied, setCopied] = useState(false)
-  const [fixedLinkCopied, setFixedLinkCopied] = useState(false)
-  function copyFixedApprovalLink() {
-    navigator.clipboard.writeText(`${window.location.origin}/aprovar/cliente/${clientId}`)
-    setFixedLinkCopied(true)
-    toast('Link fixo de aprovação copiado!')
-    setTimeout(() => setFixedLinkCopied(false), 2000)
-  }
-
   const [copiedLinkType, setCopiedLinkType] = useState<'cronograma' | 'final' | null>(null)
   async function copyTypeApprovalLink(type: 'cronograma' | 'final') {
     const { data: existing } = await supabase.from('approval_tokens').select('token')
@@ -582,17 +574,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 <button onClick={() => changeView('grid')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
                 <button onClick={() => changeView('calendar')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='calendar'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Calendário</button>
               </div>
-
-              {/* Link fixo de aprovação — ícone com tooltip */}
-              <button onClick={copyFixedApprovalLink}
-                title={fixedLinkCopied ? 'Copiado!' : 'Copiar link fixo de aprovação do cliente — sempre o mesmo link, redireciona pro cronograma/conteúdo atual'}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all"
-                style={fixedLinkCopied
-                  ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
-                  : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                {fixedLinkCopied ? <Check size={12} /> : <Link2 size={12} />}
-                {fixedLinkCopied ? 'Copiado!' : 'Link aprovação'}
-              </button>
 
               <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-90"
