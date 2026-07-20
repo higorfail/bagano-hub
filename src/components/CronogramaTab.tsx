@@ -331,6 +331,22 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     setTogglingStatus(false)
   }
 
+  async function finalizeCrono() {
+    if (cronoStatus?.status === 'finalizado') { await toggleFinalized(); return }
+    setTogglingStatus(true)
+    const by = currentMember?.name || null
+    const payload = { status: 'finalizado', finalized_at: new Date().toISOString(), finalized_by: by }
+    const { data: existing } = await supabase.from('cronograma_status').select('id')
+      .eq('client_id', clientId).eq('month', month).eq('year', year).maybeSingle()
+    setCronoStatus(payload)
+    const { error } = existing
+      ? await supabase.from('cronograma_status').update(payload).eq('client_id', clientId).eq('month', month).eq('year', year)
+      : await supabase.from('cronograma_status').insert({ client_id: clientId, month, year, ...payload })
+    setTogglingStatus(false)
+    if (error) { toast(`Erro ao finalizar: ${error.message}`); return }
+    await openApprovalModal('cronograma')
+  }
+
   async function sendToCriacao(postId: string) {
     const { error } = await supabase.from('schedules').update({ status: 'producao' }).eq('id', postId)
     if (error) { toast('Erro ao enviar pra Criação'); return }
@@ -499,16 +515,21 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             )}
 
             <div className="ml-auto flex items-center gap-2 flex-wrap">
-              {/* Grupo Aprovar crono: ação (se houver pendência) + copiar link (sempre) */}
-              <div className="flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-purple-border,var(--color-border))' }}>
+              {/* Grupo Crono: finalizar+enviar (sempre) + Pra Criação (se houver pendência) + copiar link (sempre) */}
+              <div className="flex items-center rounded-xl border overflow-hidden" style={{ borderColor: isFinalized ? 'var(--ds-success-border)' : 'var(--ds-purple-border,var(--color-border))' }}>
+                <button onClick={finalizeCrono} disabled={togglingStatus}
+                  title={isFinalized
+                    ? `Cronograma finalizado${cronoStatus?.finalized_by ? ` por ${cronoStatus.finalized_by}` : ''} — clique pra reabrir e voltar a editar`
+                    : `Finalizar cronograma e enviar${estrategiaPosts.length > 0 ? ` ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} em estratégia` : ''} pra aprovação do cliente`}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-all hover:opacity-90 disabled:opacity-50"
+                  style={isFinalized
+                    ? { color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
+                    : { color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
+                  <ClipboardCheck size={12} />
+                  {isFinalized ? `Finalizado${cronoStatus?.finalized_by ? ` · ${cronoStatus.finalized_by.split(' ')[0]}` : ''}` : `Finalizar crono${estrategiaPosts.length > 0 ? ` · ${estrategiaPosts.length}` : ''}`}
+                </button>
                 {estrategiaPosts.length > 0 && (
                   <>
-                    <button onClick={() => openApprovalModal('cronograma')}
-                      title={`Enviar ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} em estratégia pra aprovação do cronograma`}
-                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-all hover:opacity-90"
-                      style={{ color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
-                      <ClipboardCheck size={12} /> Aprovar crono · {estrategiaPosts.length}
-                    </button>
                     <button onClick={async () => {
                       setSaving(true)
                       await Promise.all(estrategiaPosts.map(p => supabase.from('schedules').update({ status: 'producao' }).eq('id', p.id)))
@@ -525,7 +546,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 )}
                 <button onClick={() => copyTypeApprovalLink('cronograma')}
                   title="Copiar link de aprovação do cronograma (pauta/estratégia, sem produção)"
-                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 transition-all hover:opacity-90 ${estrategiaPosts.length > 0 ? 'border-l' : ''}`}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border-l transition-all hover:opacity-90"
                   style={copiedLinkType === 'cronograma'
                     ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
                     : { borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)' }}>
@@ -541,7 +562,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                     title={`Enviar ${revisaoPosts.length} post${revisaoPosts.length !== 1 ? 's' : ''} em revisão pra aprovação final do cliente`}
                     className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-all hover:opacity-90"
                     style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
-                    <ClipboardCheck size={12} /> Aprovação final · {revisaoPosts.length}
+                    <ClipboardCheck size={12} /> Conteúdo entregue · {revisaoPosts.length}
                   </button>
                 )}
                 <button onClick={() => copyTypeApprovalLink('final')}
@@ -571,17 +592,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                   : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
                 {fixedLinkCopied ? <Check size={12} /> : <Link2 size={12} />}
                 {fixedLinkCopied ? 'Copiado!' : 'Link aprovação'}
-              </button>
-
-              {/* Finalizado — um botão só, com estado */}
-              <button onClick={toggleFinalized} disabled={togglingStatus}
-                title={isFinalized ? `Cronograma finalizado${cronoStatus?.finalized_by ? ` por ${cronoStatus.finalized_by}` : ''} — clique pra reabrir e voltar a editar` : 'Marcar que o cronograma deste mês está fechado (não é mais rascunho)'}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all disabled:opacity-50"
-                style={isFinalized
-                  ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
-                  : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                <Check size={11} strokeWidth={2.5} />
-                {isFinalized ? `Finalizado${cronoStatus?.finalized_by ? ` · ${cronoStatus.finalized_by.split(' ')[0]}` : ''}` : 'Finalizar cronograma'}
               </button>
 
               <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
