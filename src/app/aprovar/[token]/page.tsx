@@ -56,12 +56,10 @@ function DriveVideo({ id, folderUrl, ratio = '177.78%' }: { id: string; folderUr
         <DriveVideoMedia id={id} stage={stage} setStage={setStage}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
       </div>
-      {stage !== 'video' && (
-        <a href={driveLink} target="_blank" rel="noopener noreferrer"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 700, color: '#374151', textDecoration: 'none' }}>
-          🎬 Abrir conteúdo no Drive
-        </a>
-      )}
+      <a href={driveLink} target="_blank" rel="noopener noreferrer"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 700, color: '#374151', textDecoration: 'none' }}>
+        🎬 Abrir conteúdo no Drive
+      </a>
     </div>
   )
 }
