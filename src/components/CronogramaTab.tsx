@@ -276,7 +276,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     })
     const data = await res.json()
     setGeneratingPreplist(false)
-    if (!res.ok || !data.checklist) { toast(data.error || 'Não consegui gerar a prep list agora.'); return }
+    if (!res.ok || !data.checklist) { toast(data.error || 'Não consegui gerar o checklist agora.'); return }
     setPreplistText(data.checklist)
   }
   function copyPreplist() {
@@ -597,12 +597,12 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 </button>
               </div>
 
-              {/* Prep list de produção — gerada por IA, sob demanda, sem misturar com aprovação */}
+              {/* Checklist de produção — gerado por IA, sob demanda, sem misturar com aprovação */}
               <button onClick={generatePreplist}
-                title="Gerar checklist de produção (prep list) do mês com IA — pra equipe de captação usar no dia da gravação"
+                title="Gerar checklist de produção do mês com IA — pra equipe de captação usar no dia da gravação"
                 className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
                 style={{ borderColor: '#8b5cf666', color: '#8b5cf6' }}>
-                <ClipboardList size={12} /> Prep list
+                <ClipboardList size={12} /> Checklist
               </button>
 
               {/* Toggle de visualização */}
@@ -857,7 +857,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
               <div className="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-1.5"><Sparkles size={14} style={{ color: '#8b5cf6' }} /> Prep list de produção</h2>
+                  <h2 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-1.5"><Sparkles size={14} style={{ color: '#8b5cf6' }} /> Checklist de produção</h2>
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{clientName} · {CRONO_MONTHS[month - 1]} {year}</p>
                 </div>
                 <button onClick={() => setShowPreplist(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-lg leading-none">×</button>
