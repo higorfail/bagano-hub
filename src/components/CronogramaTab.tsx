@@ -250,6 +250,20 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     setTimeout(() => setFixedLinkCopied(false), 2000)
   }
 
+  const [copiedLinkType, setCopiedLinkType] = useState<'cronograma' | 'final' | null>(null)
+  async function copyTypeApprovalLink(type: 'cronograma' | 'final') {
+    const { data: existing } = await supabase.from('approval_tokens').select('token')
+      .eq('client_id', clientId).eq('month', month).eq('year', year).eq('type', type).maybeSingle()
+    const token = existing?.token || (
+      await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type }).select('token').single()
+    ).data?.token
+    if (!token) { toast('Erro ao gerar link'); return }
+    navigator.clipboard.writeText(`${window.location.origin}/aprovar/${token}`)
+    setCopiedLinkType(type)
+    toast(`Link de ${type === 'cronograma' ? 'aprovação do crono' : 'aprovação final'} copiado!`)
+    setTimeout(() => setCopiedLinkType(null), 2000)
+  }
+
   // deep-link: auto-open post when postParam changes
   const handledPostParam = useRef<string | null>(null)
 
@@ -485,37 +499,61 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             )}
 
             <div className="ml-auto flex items-center gap-2 flex-wrap">
-              {/* Ações contextuais de aprovação — só quando há posts elegíveis */}
-              {estrategiaPosts.length > 0 && (
-                <>
-                  <button onClick={() => openApprovalModal('cronograma')}
-                    title={`Enviar ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} em estratégia pra aprovação do cronograma`}
-                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
-                    style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
-                    <ClipboardCheck size={12} /> Aprovar crono · {estrategiaPosts.length}
-                  </button>
-                  <button onClick={async () => {
-                    setSaving(true)
-                    await Promise.all(estrategiaPosts.map(p => supabase.from('schedules').update({ status: 'producao' }).eq('id', p.id)))
-                    setPosts(prev => prev.map(p => estrategiaPosts.find(ep => ep.id === p.id) ? { ...p, status: 'producao' } : p))
-                    setSaving(false)
-                    toast(`${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} enviado${estrategiaPosts.length !== 1 ? 's' : ''} para Criação!`)
-                  }} disabled={saving}
-                    title={`Pular aprovação e mandar ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} direto pra Criação`}
-                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90 disabled:opacity-50"
-                    style={{ borderColor: '#f59e0b66', color: '#b45309', background: '#f59e0b18' }}>
-                    <Zap size={12} /> Pra Criação
-                  </button>
-                </>
-              )}
-              {revisaoPosts.length > 0 && (
-                <button onClick={() => openApprovalModal('final')}
-                  title={`Enviar ${revisaoPosts.length} post${revisaoPosts.length !== 1 ? 's' : ''} em revisão pra aprovação final do cliente`}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
-                  style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
-                  <ClipboardCheck size={12} /> Aprovação final · {revisaoPosts.length}
+              {/* Grupo Aprovar crono: ação (se houver pendência) + copiar link (sempre) */}
+              <div className="flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-purple-border,var(--color-border))' }}>
+                {estrategiaPosts.length > 0 && (
+                  <>
+                    <button onClick={() => openApprovalModal('cronograma')}
+                      title={`Enviar ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} em estratégia pra aprovação do cronograma`}
+                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-all hover:opacity-90"
+                      style={{ color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
+                      <ClipboardCheck size={12} /> Aprovar crono · {estrategiaPosts.length}
+                    </button>
+                    <button onClick={async () => {
+                      setSaving(true)
+                      await Promise.all(estrategiaPosts.map(p => supabase.from('schedules').update({ status: 'producao' }).eq('id', p.id)))
+                      setPosts(prev => prev.map(p => estrategiaPosts.find(ep => ep.id === p.id) ? { ...p, status: 'producao' } : p))
+                      setSaving(false)
+                      toast(`${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} enviado${estrategiaPosts.length !== 1 ? 's' : ''} para Criação!`)
+                    }} disabled={saving}
+                      title={`Pular aprovação e mandar ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} direto pra Criação`}
+                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 border-l transition-all hover:opacity-90 disabled:opacity-50"
+                      style={{ borderColor: '#f59e0b66', color: '#b45309', background: '#f59e0b18' }}>
+                      <Zap size={12} /> Pra Criação
+                    </button>
+                  </>
+                )}
+                <button onClick={() => copyTypeApprovalLink('cronograma')}
+                  title="Copiar link de aprovação do cronograma (pauta/estratégia, sem produção)"
+                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 transition-all hover:opacity-90 ${estrategiaPosts.length > 0 ? 'border-l' : ''}`}
+                  style={copiedLinkType === 'cronograma'
+                    ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
+                    : { borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)' }}>
+                  {copiedLinkType === 'cronograma' ? <Check size={12} /> : <Link2 size={12} />}
+                  {copiedLinkType === 'cronograma' ? 'Copiado!' : 'Link do crono'}
                 </button>
-              )}
+              </div>
+
+              {/* Grupo Aprovação final: ação (se houver pendência) + copiar link (sempre) */}
+              <div className="flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-success-border,var(--color-border))' }}>
+                {revisaoPosts.length > 0 && (
+                  <button onClick={() => openApprovalModal('final')}
+                    title={`Enviar ${revisaoPosts.length} post${revisaoPosts.length !== 1 ? 's' : ''} em revisão pra aprovação final do cliente`}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-all hover:opacity-90"
+                    style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
+                    <ClipboardCheck size={12} /> Aprovação final · {revisaoPosts.length}
+                  </button>
+                )}
+                <button onClick={() => copyTypeApprovalLink('final')}
+                  title="Copiar link de aprovação final (conteúdo já produzido)"
+                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 transition-all hover:opacity-90 ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
+                  style={copiedLinkType === 'final'
+                    ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
+                    : { borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)' }}>
+                  {copiedLinkType === 'final' ? <Check size={12} /> : <Link2 size={12} />}
+                  {copiedLinkType === 'final' ? 'Copiado!' : 'Link final'}
+                </button>
+              </div>
 
               {/* Toggle de visualização */}
               <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
