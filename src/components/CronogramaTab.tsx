@@ -8,9 +8,10 @@ import PostCard from '@/components/PostCard'
 import PostMiniCard, { MiniPost } from '@/components/PostMiniCard'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
-import { Check, Copy, Search, X, Zap, ClipboardCheck, Link2 } from 'lucide-react'
+import { Check, Copy, Search, X, Zap, ClipboardCheck, Link2, Sparkles, ClipboardList } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
+import ModalPortal from '@/components/ModalPortal'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -254,6 +255,34 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     setCopiedLinkType(type)
     toast(`Link de ${type === 'cronograma' ? 'aprovação do crono' : 'aprovação final'} copiado!`)
     setTimeout(() => setCopiedLinkType(null), 2000)
+  }
+
+  const [showPreplist, setShowPreplist] = useState(false)
+  const [generatingPreplist, setGeneratingPreplist] = useState(false)
+  const [preplistText, setPreplistText] = useState('')
+  const [preplistCopied, setPreplistCopied] = useState(false)
+
+  async function generatePreplist() {
+    setShowPreplist(true)
+    setGeneratingPreplist(true)
+    setPreplistText('')
+    const { data: fullPosts } = await supabase.from('schedules')
+      .select('title, post_type, briefing, copy, legenda, reference_notes')
+      .eq('client_id', clientId).eq('month', month).eq('year', year)
+      .order('post_number')
+    const res = await fetch('/api/ai-preplist', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ clientName, monthLabel: `${CRONO_MONTHS[month - 1]} ${year}`, posts: fullPosts || [] }),
+    })
+    const data = await res.json()
+    setGeneratingPreplist(false)
+    if (!res.ok || !data.checklist) { toast(data.error || 'Não consegui gerar a prep list agora.'); return }
+    setPreplistText(data.checklist)
+  }
+  function copyPreplist() {
+    navigator.clipboard.writeText(preplistText)
+    setPreplistCopied(true)
+    setTimeout(() => setPreplistCopied(false), 2000)
   }
 
   // deep-link: auto-open post when postParam changes
@@ -568,6 +597,14 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 </button>
               </div>
 
+              {/* Prep list de produção — gerada por IA, sob demanda, sem misturar com aprovação */}
+              <button onClick={generatePreplist}
+                title="Gerar checklist de produção (prep list) do mês com IA — pra equipe de captação usar no dia da gravação"
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
+                style={{ borderColor: '#8b5cf666', color: '#8b5cf6' }}>
+                <ClipboardList size={12} /> Prep list
+              </button>
+
               {/* Toggle de visualização */}
               <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
                 <button onClick={() => changeView('list')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
@@ -812,6 +849,37 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             </div>
           </div>
         </div>
+      )}
+
+      {showPreplist && (
+        <ModalPortal>
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
+              <div className="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-1.5"><Sparkles size={14} style={{ color: '#8b5cf6' }} /> Prep list de produção</h2>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{clientName} · {CRONO_MONTHS[month - 1]} {year}</p>
+                </div>
+                <button onClick={() => setShowPreplist(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-lg leading-none">×</button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5">
+                {generatingPreplist ? (
+                  <div className="flex items-center justify-center py-12"><p className="text-sm text-[var(--color-text-muted)]">Gerando checklist com IA...</p></div>
+                ) : (
+                  <textarea value={preplistText} onChange={e => setPreplistText(e.target.value)} rows={20}
+                    className="w-full text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-input)] rounded-xl p-4 outline-none resize-none font-mono leading-relaxed" />
+                )}
+              </div>
+              {!generatingPreplist && preplistText && (
+                <div className="p-4 border-t border-[var(--color-border)]">
+                  <button onClick={copyPreplist} className="w-full py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 flex items-center justify-center gap-2" style={{ background: '#8b5cf6' }}>
+                    <Copy size={14} />{preplistCopied ? 'Copiado!' : 'Copiar checklist'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </ModalPortal>
       )}
     </>
   )
