@@ -86,7 +86,9 @@ function getDayGreeting() {
 }
 
 function daysBetween(a: Date, b: Date) {
-  return Math.ceil((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24))
+  const aMid = new Date(a); aMid.setHours(0, 0, 0, 0)
+  const bMid = new Date(b); bMid.setHours(0, 0, 0, 0)
+  return Math.round((bMid.getTime() - aMid.getTime()) / (1000 * 60 * 60 * 24))
 }
 
 function pl(n: number, s: string, p: string) { return n === 1 ? s : p }

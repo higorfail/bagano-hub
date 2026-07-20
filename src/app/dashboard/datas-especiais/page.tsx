@@ -12,8 +12,9 @@ const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','A
 const MONTH_SHORT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
 function daysBetween(from: Date, to: Date) {
-  const diff = to.getTime() - from.getTime()
-  return Math.ceil(diff / 86400000)
+  const fromMid = new Date(from); fromMid.setHours(0, 0, 0, 0)
+  const toMid = new Date(to); toMid.setHours(0, 0, 0, 0)
+  return Math.round((toMid.getTime() - fromMid.getTime()) / 86400000)
 }
 
 function urgencyStyle(days: number): { pill: string; badge: string } {
