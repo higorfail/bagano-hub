@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
 import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight, ChevronsUpDown, Search, Link2, LayoutGrid, List, Play, Megaphone, MessageSquare, Send, X, ExternalLink } from 'lucide-react'
+import ModalPortal from '@/components/ModalPortal'
 
 type Post = {
   id: string
@@ -115,6 +116,7 @@ function Lightbox({ post, client, waitDays, onClose, onOpenFull }: {
   }, [onClose])
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
       <div className="relative max-w-sm w-full bg-[var(--color-bg-card)] rounded-2xl overflow-hidden shadow-pop" onClick={e => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors">
@@ -174,6 +176,7 @@ function Lightbox({ post, client, waitDays, onClose, onOpenFull }: {
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }
 
