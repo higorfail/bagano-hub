@@ -14,6 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://bagano-hub.vercel.app"),
   title: "Bagano Hub",
   description: "Hub interno Bagano",
   appleWebApp: {
@@ -21,7 +22,17 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
   icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
     apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "Bagano Hub",
+    description: "Hub interno Bagano",
+    siteName: "Bagano Hub",
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
   },
 };
 
