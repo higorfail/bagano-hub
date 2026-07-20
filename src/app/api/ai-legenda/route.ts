@@ -52,8 +52,12 @@ Responda APENAS com o texto da legenda pronta, sem explicações, sem aspas, sem
     if (res.status === 503) res = await callGemini('gemini-flash-lite-latest')
 
     if (!res.ok) {
+      if (res.status === 429) {
+        return NextResponse.json({ error: 'Limite gratuito diário da IA foi atingido. Tente de novo mais tarde.' }, { status: 429 })
+      }
       const err = await res.text()
-      return NextResponse.json({ error: err }, { status: 500 })
+      console.error('ai-legenda Gemini error:', err)
+      return NextResponse.json({ error: 'Não consegui gerar uma sugestão agora.' }, { status: 500 })
     }
 
     const data = await res.json()

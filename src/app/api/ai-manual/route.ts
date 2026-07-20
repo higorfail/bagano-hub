@@ -60,8 +60,12 @@ Responda APENAS com um JSON válido (sem markdown, sem \`\`\`, sem comentários)
     )
 
     if (!res.ok) {
+      if (res.status === 429) {
+        return NextResponse.json({ error: 'Limite gratuito diário da IA foi atingido. Tente de novo mais tarde (a cota reseta uma vez por dia).' }, { status: 429 })
+      }
       const err = await res.text()
-      return NextResponse.json({ error: err }, { status: 500 })
+      console.error('ai-manual Gemini error:', err)
+      return NextResponse.json({ error: 'Não consegui gerar o rascunho agora. Tente de novo em instantes.' }, { status: 500 })
     }
 
     const data = await res.json()
