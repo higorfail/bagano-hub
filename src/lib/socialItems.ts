@@ -160,8 +160,17 @@ export type DateQuickFilter = 'todos' | 'hoje' | 'semana' | 'mes'
 export type SocialFilters = {
   clientIds: Set<string>
   types: Set<string>
+  sources: Set<SocialSource>
   dateFilter: DateQuickFilter
+  missingDateOnly: boolean
+  overdueOnly: boolean
   search: string
+}
+
+// Agendado cuja data já passou e ainda não foi marcado como Publicado — o
+// mesmo critério usado pelo cron de push em /api/cron/overdue-posts.
+export function isOverdue(item: SocialItem, todayISO = new Date().toISOString().slice(0, 10)): boolean {
+  return item.column === 'agendado' && !!item.scheduledDate && item.scheduledDate < todayISO
 }
 
 function startOfWeek(d: Date) {
@@ -179,7 +188,10 @@ export function filterSocialItems(items: SocialItem[], filters: SocialFilters): 
   return items.filter(item => {
     if (filters.clientIds.size > 0 && (!item.clientId || !filters.clientIds.has(item.clientId))) return false
     if (filters.types.size > 0 && (!item.postType || !filters.types.has(item.postType))) return false
+    if (filters.sources.size > 0 && !filters.sources.has(item.source)) return false
     if (filters.search.trim() && !item.title.toLowerCase().includes(filters.search.trim().toLowerCase())) return false
+    if (filters.missingDateOnly) return !item.scheduledDate
+    if (filters.overdueOnly) return isOverdue(item, todayStr)
 
     if (filters.dateFilter !== 'todos') {
       if (!item.scheduledDate) return false
@@ -223,6 +235,18 @@ export async function downloadDriveContent(driveUrl: string | null | undefined):
     window.open(driveUrl, '_blank')
     return { ok: true, message: 'Erro no download — abrindo no Drive.' }
   }
+}
+
+// Define a data (e opcionalmente hora) de um item sem mudar sua coluna — usado
+// pelo botão "Definir data" nos cards Aprovados sem data marcada ainda.
+export async function setItemScheduledDate(item: SocialItem, date: string, time?: string) {
+  const supabase = createClient()
+  if (item.source === 'schedule') {
+    return supabase.from('schedules').update({ scheduled_date: date }).eq('id', item.id)
+  }
+  const patch: Record<string, unknown> = { due_date: date }
+  if (time) patch.due_time = time
+  return supabase.from('extras').update(patch).eq('id', item.id)
 }
 
 // Atualiza o campo que determina a coluna, de volta na tabela de origem.

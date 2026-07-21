@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { SocialItem, SOCIAL_COLUMNS, SocialColumn, moveSocialItem } from '@/lib/socialItems'
+import { SocialItem, SOCIAL_COLUMNS, SocialColumn, moveSocialItem, setItemScheduledDate } from '@/lib/socialItems'
 import { groupByClient, useClientGrouping } from '@/lib/useClientGrouping'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
@@ -35,6 +35,15 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
     if (error) { onItemsChange(() => prev); dbError(error, toast, 'mover publicação') }
   }
 
+  async function setDate(itemId: string, date: string) {
+    const item = items.find(i => i.id === itemId)
+    if (!item) return
+    const prev = items
+    onItemsChange(list => list.map(i => i.id === itemId ? { ...i, scheduledDate: date } : i))
+    const { error } = await setItemScheduledDate(item, date)
+    if (error) { onItemsChange(() => prev); dbError(error, toast, 'definir data') }
+  }
+
   async function moveGroup(clientKey: string, fromCol: SocialColumn, toCol: SocialColumn) {
     if (fromCol === toCol) return
     const groupItems = getColItems(fromCol).filter(i => (i.clientId || '_sem_cliente') === clientKey)
@@ -49,7 +58,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
 
   return (
     <div className="flex-1 overflow-x-auto p-4 snap-x snap-mandatory md:snap-none">
-      <div className="flex gap-3 h-full md:min-w-max">
+      <div className="flex gap-4 h-full">
         {SOCIAL_COLUMNS.map(col => {
           const colItems = getColItems(col.key)
           const groups = groupByClient(colItems, i => i.clientId)
@@ -57,7 +66,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
           return (
             <div
               key={col.key}
-              className={`flex flex-col w-[calc(100vw-2rem)] md:w-[300px] flex-shrink-0 snap-center md:snap-align-none rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
+              className={`flex flex-col w-[calc(100vw-2rem)] md:w-auto md:flex-1 md:min-w-[300px] md:max-w-[460px] flex-shrink-0 snap-center md:snap-align-none rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
               style={isDragOver ? { outline: `2px solid ${col.color}`, outlineOffset: 1 } : {}}
               onDragEnter={() => {
                 dragCounters.current[col.key] = (dragCounters.current[col.key] || 0) + 1
@@ -143,6 +152,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
                           onDragEnd={() => { setDragging(null); setDragOver(null); dragCounters.current = {} }}
                           onClick={() => onOpenItem(item)}
                           onPublish={() => moveItem(item.id, 'publicado')}
+                          onSetDate={date => setDate(item.id, date)}
                         />
                       ))}
                     </div>
