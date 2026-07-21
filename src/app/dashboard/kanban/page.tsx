@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import PostCard from '@/components/PostCard'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
+import { groupByClient, useClientGrouping } from '@/lib/useClientGrouping'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 type Post = {
@@ -44,7 +45,6 @@ export default function KanbanPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [dragging, setDragging] = useState<string | null>(null)
-  const [draggingGroup, setDraggingGroup] = useState<{ clientId: string; fromCol: string } | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear] = useState(new Date().getFullYear())
@@ -52,8 +52,7 @@ export default function KanbanPage() {
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
   const [editingClientId, setEditingClientId] = useState<string | null>(null)
   const [cronoStatuses, setCronoStatuses] = useState<Record<string, string>>({})
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const dragCounters = useRef<Record<string, number>>({})
+  const { isCollapsed, toggleCollapse, draggingGroup, setDraggingGroup, dragCounters } = useClientGrouping()
 
   useEffect(() => {
     async function load() {
@@ -118,23 +117,6 @@ export default function KanbanPage() {
       })
     }
     return posts.filter(p => p.status === colKey)
-  }
-
-  function groupByClient(colPosts: Post[]): [string, Post[]][] {
-    const map: Record<string, Post[]> = {}
-    for (const p of colPosts) {
-      if (!map[p.client_id]) map[p.client_id] = []
-      map[p.client_id].push(p)
-    }
-    return Object.entries(map)
-  }
-
-  function toggleCollapse(key: string) {
-    setExpanded(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key); else next.add(key)
-      return next
-    })
   }
 
   function openPostCard(post: Post) {
@@ -240,7 +222,7 @@ export default function KanbanPage() {
                   {groups.map(([clientId, clientPosts]) => {
                     const client = getClient(clientId)
                     const groupKey = `${col.key}:${clientId}`
-                    const isCollapsed = !expanded.has(groupKey)
+                    const collapsed = isCollapsed(groupKey)
                     const isGroupDragging = draggingGroup?.clientId === clientId && draggingGroup?.fromCol === col.key
                     const byType = clientPosts.reduce((acc, p) => {
                       const t = TYPE_LABEL[p.post_type] || p.post_type
@@ -263,14 +245,14 @@ export default function KanbanPage() {
                           </div>
                           <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] flex-1 truncate">{client?.name}</span>
                           <span className="text-[10px] text-[var(--color-text-faint)]">{clientPosts.length}</span>
-                          {isCollapsed
+                          {collapsed
                             ? <ChevronRight size={11} className="text-[var(--color-text-faint)] flex-shrink-0" />
                             : <ChevronDown size={11} className="text-[var(--color-text-faint)] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                           }
                         </button>
 
                         {/* Collapsed summary */}
-                        {isCollapsed && (
+                        {collapsed && (
                           <div className="mx-1 px-3 py-2 rounded-xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex flex-wrap gap-1">
                             {Object.entries(byType).map(([type, count]) => (
                               <span key={type} className="text-[10px] font-medium text-[var(--color-text-muted)]">
@@ -281,7 +263,7 @@ export default function KanbanPage() {
                         )}
 
                         {/* Individual cards */}
-                        {!isCollapsed && clientPosts.map(post => {
+                        {!collapsed && clientPosts.map(post => {
                           const isBeingDragged = dragging === post.id
                           const isRejected = post.approval_status === 'não aprovado' && !['aprovado', 'agendado', 'publicado'].includes(post.status)
                           const isApproved = post.approval_status === 'aprovado'
