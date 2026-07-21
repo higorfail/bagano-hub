@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { SocialItem, isOverdue, moveSocialItem, POST_TYPE_LABEL } from '@/lib/socialItems'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
+import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
 import SocialItemPopover, { PopoverAnchor } from './SocialItemPopover'
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock, AlertTriangle, Play } from 'lucide-react'
 
 const DAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
 
@@ -16,6 +17,54 @@ type Props = {
   clients: Client[]
   onOpenItem: (item: SocialItem) => void
   onItemsChange: (updater: (items: SocialItem[]) => SocialItem[]) => void
+}
+
+function WeekDayItem({ item, client, overdue, onClick }: {
+  item: SocialItem; client?: Client; overdue: boolean; onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
+}) {
+  const published = item.column === 'publicado'
+  const accent = overdue ? 'var(--ds-error-accent)' : (client?.color_hex || '#94a3b8')
+  const { thumbUrl, isVideo } = useDriveThumbnail(item.driveUrl, item.driveFolderUrl, item.postType === 'reels')
+
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-lg overflow-hidden text-left border transition-opacity hover:opacity-85 flex flex-col"
+      style={published
+        ? { background: accent, borderColor: accent }
+        : { background: accent + '18', borderColor: accent + (overdue ? '80' : '55') }}
+    >
+      {thumbUrl && (
+        <div className="relative w-full bg-[var(--color-bg-subtle)]" style={{ aspectRatio: '16 / 9' }}>
+          <img src={thumbUrl} alt={item.title} className="absolute inset-0 w-full h-full object-cover"
+            onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
+          {isVideo && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
+              <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center shadow">
+                <Play size={11} className="text-[#111] ml-0.5" fill="currentColor" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      <div className="px-2 py-1.5 flex flex-col gap-0.5">
+        <div className="flex items-center gap-1">
+          {overdue ? <AlertTriangle size={9} className="flex-shrink-0" style={{ color: published ? '#fff' : accent }} />
+            : published ? <CheckCircle2 size={9} className="flex-shrink-0" style={{ color: '#fff' }} />
+            : <Clock size={9} className="flex-shrink-0" style={{ color: accent }} />}
+          <span className="text-[11px] font-bold truncate" style={{ color: published ? '#fff' : accent }}>
+            {client?.name || 'Sem cliente'}
+          </span>
+          <span className="text-[9px] font-semibold uppercase tracking-wide flex-shrink-0" style={{ color: published ? 'rgba(255,255,255,0.85)' : accent }}>
+            {overdue ? 'Atrasado' : published ? 'Publicado' : 'Agendado'}
+          </span>
+        </div>
+        <span className="text-[9px] truncate" style={{ color: published ? 'rgba(255,255,255,0.8)' : 'var(--color-text-muted)' }}>
+          {item.scheduledTime ? item.scheduledTime.slice(0, 5) + ' · ' : ''}{item.title} · {POST_TYPE_LABEL[item.postType || ''] || item.postType}
+        </span>
+      </div>
+    </button>
+  )
 }
 
 function getMonday(d: Date) {
@@ -94,37 +143,15 @@ export default function SocialWeekView({ items, clients, onOpenItem, onItemsChan
               </div>
               <div className="flex-1 p-1.5 flex flex-col gap-1 min-h-[80px]">
                 {dayItems.length === 0 && <span className="text-[10px] text-[var(--color-text-faint)] text-center py-3">—</span>}
-                {dayItems.map(item => {
-                  const client = getClient(item.clientId)
-                  const published = item.column === 'publicado'
-                  const overdue = isOverdue(item, todayISO)
-                  const accent = overdue ? 'var(--ds-error-accent)' : (client?.color_hex || '#94a3b8')
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={e => openPopover(e, item)}
-                      className="rounded-lg px-2 py-1.5 text-left border transition-opacity hover:opacity-85 flex flex-col gap-0.5"
-                      style={published
-                        ? { background: accent, borderColor: accent }
-                        : { background: accent + '18', borderColor: accent + (overdue ? '80' : '55') }}
-                    >
-                      <div className="flex items-center gap-1">
-                        {overdue ? <AlertTriangle size={9} className="flex-shrink-0" style={{ color: published ? '#fff' : accent }} />
-                          : published ? <CheckCircle2 size={9} className="flex-shrink-0" style={{ color: '#fff' }} />
-                          : <Clock size={9} className="flex-shrink-0" style={{ color: accent }} />}
-                        <span className="text-[11px] font-bold truncate" style={{ color: published ? '#fff' : accent }}>
-                          {client?.name || 'Sem cliente'}
-                        </span>
-                        <span className="text-[9px] font-semibold uppercase tracking-wide flex-shrink-0" style={{ color: published ? 'rgba(255,255,255,0.85)' : accent }}>
-                          {overdue ? 'Atrasado' : published ? 'Publicado' : 'Agendado'}
-                        </span>
-                      </div>
-                      <span className="text-[9px] truncate" style={{ color: published ? 'rgba(255,255,255,0.8)' : 'var(--color-text-muted)' }}>
-                        {item.scheduledTime ? item.scheduledTime.slice(0, 5) + ' · ' : ''}{item.title} · {POST_TYPE_LABEL[item.postType || ''] || item.postType}
-                      </span>
-                    </button>
-                  )
-                })}
+                {dayItems.map(item => (
+                  <WeekDayItem
+                    key={item.id}
+                    item={item}
+                    client={getClient(item.clientId)}
+                    overdue={isOverdue(item, todayISO)}
+                    onClick={e => openPopover(e, item)}
+                  />
+                ))}
               </div>
             </div>
           )

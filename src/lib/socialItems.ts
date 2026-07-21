@@ -18,6 +18,7 @@ export type SocialItem = {
   copy: string | null
   legenda: string | null
   driveUrl: string | null
+  driveFolderUrl: string | null
   labels: { text: string; color: string }[] | null
   assignedMembers: string[]
   raw: ScheduleRow | ExtraRow
@@ -37,6 +38,7 @@ export type ScheduleRow = {
   copy: string | null
   legenda: string | null
   drive_url: string | null
+  drive_folder_url: string | null
 }
 
 export type ExtraRow = {
@@ -73,7 +75,7 @@ export const SOCIAL_COLUMNS: { key: SocialColumn; label: string; color: string }
   { key: 'publicado', label: 'Publicado', color: '#22C55E' },
 ]
 
-const SCHEDULE_SELECT ='id, post_number, title, post_type, status, scheduled_date, client_id, month, year, approval_status, copy, legenda, drive_url'
+const SCHEDULE_SELECT ='id, post_number, title, post_type, status, scheduled_date, client_id, month, year, approval_status, copy, legenda, drive_url, drive_folder_url'
 const EXTRA_SELECT = 'id, title, type, status, client_id, due_date, due_time, copy, legenda, drive_url, labels, assigned_members, assigned_member_id, needs_client_approval, client_approval_status'
 
 export function scheduleToSocialItem(row: ScheduleRow): SocialItem | null {
@@ -95,6 +97,7 @@ export function scheduleToSocialItem(row: ScheduleRow): SocialItem | null {
     copy: row.copy,
     legenda: row.legenda,
     driveUrl: row.drive_url,
+    driveFolderUrl: row.drive_folder_url,
     labels: null,
     assignedMembers: [],
     raw: row,
@@ -130,6 +133,7 @@ export function extraToSocialItem(row: ExtraRow): SocialItem | null {
     copy: row.copy,
     legenda: row.legenda,
     driveUrl: row.drive_url,
+    driveFolderUrl: null,
     labels: row.labels,
     assignedMembers,
     raw: row,
@@ -175,7 +179,7 @@ export function isOverdue(item: SocialItem, todayISO = new Date().toISOString().
 
 function startOfWeek(d: Date) {
   const day = d.getDay() // 0 = domingo
-  const diff = d.getDate() - day
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1) // semana começa na segunda
   return new Date(d.getFullYear(), d.getMonth(), diff)
 }
 
@@ -206,10 +210,16 @@ export function filterSocialItems(items: SocialItem[], filters: SocialFilters): 
 
 // Baixa o conteúdo entregue (Drive) sem sair da página — usado pelo botão de
 // download nos cards de Publicações. Cai pra "abrir no Drive" quando o proxy
-// não consegue (arquivo não compartilhado por link, Doc/Sheet/Slide nativo, etc).
-export async function downloadDriveContent(driveUrl: string | null | undefined): Promise<{ ok: boolean; message: string }> {
-  if (!driveUrl) return { ok: false, message: 'Este item não tem link do Drive.' }
-  const id = extractDriveFileId(driveUrl)
+// não consegue (arquivo não compartilhado por link, Doc/Sheet/Slide nativo, etc)
+// ou quando o conteúdo é uma pasta inteira (carrossel) — nesse caso não dá pra
+// baixar tudo como um arquivo só, então só abre a pasta.
+export async function downloadDriveContent(driveUrl: string | null | undefined, driveFolderUrl?: string | null): Promise<{ ok: boolean; message: string }> {
+  if (!driveUrl && !driveFolderUrl) return { ok: false, message: 'Este item não tem conteúdo do Drive vinculado.' }
+  if (!driveUrl && driveFolderUrl) {
+    window.open(driveFolderUrl, '_blank')
+    return { ok: true, message: 'É uma pasta com vários arquivos — abrindo no Drive.' }
+  }
+  const id = extractDriveFileId(driveUrl!)
   if (!id) return { ok: false, message: 'Não consegui identificar o arquivo do Drive nesse link.' }
 
   try {
@@ -229,10 +239,10 @@ export async function downloadDriveContent(driveUrl: string | null | undefined):
     }
     const data = await res.json().catch(() => null)
     if (data?.fallbackUrl) { window.open(data.fallbackUrl, '_blank'); return { ok: true, message: 'Este arquivo só pode ser aberto no Drive.' } }
-    window.open(driveUrl, '_blank')
+    window.open(driveUrl!, '_blank')
     return { ok: true, message: 'Não deu pra baixar direto — abrindo no Drive.' }
   } catch {
-    window.open(driveUrl, '_blank')
+    window.open(driveUrl!, '_blank')
     return { ok: true, message: 'Erro no download — abrindo no Drive.' }
   }
 }

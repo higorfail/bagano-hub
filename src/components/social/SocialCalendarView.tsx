@@ -8,7 +8,7 @@ import SocialItemPopover, { PopoverAnchor } from './SocialItemPopover'
 import { ChevronLeft, ChevronRight, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
-const WEEKDAYS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
+const WEEKDAYS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
 
 type Client = { id: string; name: string; color_hex: string }
 
@@ -46,7 +46,7 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
     setPopover({ item, anchor: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } })
   }
 
-  const firstDay = new Date(year, month - 1, 1).getDay()
+  const firstDay = (new Date(year, month - 1, 1).getDay() + 6) % 7 // semana começa na segunda
   const daysInMonth = new Date(year, month, 0).getDate()
   const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
   while (cells.length % 7 !== 0) cells.push(null)

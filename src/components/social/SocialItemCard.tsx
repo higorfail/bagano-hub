@@ -2,7 +2,8 @@
 
 import { SocialItem, POST_TYPE_LABEL, POST_TYPE_ACCENT, downloadDriveContent, isOverdue } from '@/lib/socialItems'
 import { useToast } from '@/lib/ToastContext'
-import { Copy, Check, Download, Loader2, CalendarPlus, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
+import { Copy, Check, Download, Loader2, CalendarPlus, CheckCircle2, AlertTriangle, Play } from 'lucide-react'
 import { useState } from 'react'
 
 type Client = { id: string; name: string; color_hex: string }
@@ -29,6 +30,7 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
   const published = item.column === 'publicado'
   const needsDate = item.column === 'aprovado' && !item.scheduledDate
   const overdue = isOverdue(item)
+  const { thumbUrl, isVideo } = useDriveThumbnail(item.driveUrl, item.driveFolderUrl, item.postType === 'reels')
 
   async function copyCaption(e: React.MouseEvent) {
     e.stopPropagation()
@@ -39,12 +41,13 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
     setTimeout(() => setCopied(false), 1500)
   }
 
+  const hasContent = !!(item.driveUrl || item.driveFolderUrl)
+
   async function download(e: React.MouseEvent) {
     e.stopPropagation()
-    if (downloading) return
-    if (!item.driveUrl) { toast('Este item não tem link do Drive.'); return }
+    if (downloading || !hasContent) return
     setDownloading(true)
-    const { message } = await downloadDriveContent(item.driveUrl)
+    const { message } = await downloadDriveContent(item.driveUrl, item.driveFolderUrl)
     toast(message)
     setDownloading(false)
   }
@@ -63,6 +66,19 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
       className={`mx-1 bg-[var(--color-bg-card)] rounded-2xl overflow-hidden flex flex-col cursor-pointer select-none border transition-all hover:shadow-sm hover:border-[var(--color-border-hover)] ${overdue ? 'border-[var(--ds-error-border)]' : 'border-[var(--color-border)]'}`}
     >
       <div className="h-[3px] flex-shrink-0" style={{ background: overdue ? 'var(--ds-error-accent)' : typeAccent }} />
+      {thumbUrl && (
+        <div className="relative w-full bg-[var(--color-bg-subtle)]" style={{ aspectRatio: '16 / 10' }}>
+          <img src={thumbUrl} alt={item.title} className="absolute inset-0 w-full h-full object-cover"
+            onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
+          {isVideo && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
+              <div className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                <Play size={14} className="text-[#111] ml-0.5" fill="currentColor" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       <div className="p-3 flex flex-col gap-2">
         {overdue && (
           <div className="flex items-center gap-1.5 rounded-lg px-2 py-1" style={{ background: 'var(--ds-error-bg)' }}>
@@ -130,8 +146,8 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
           </button>
           <button
             onClick={download}
-            title={item.driveUrl ? 'Baixar conteúdo' : 'Sem link do Drive'}
-            disabled={!item.driveUrl || downloading}
+            title={hasContent ? 'Baixar conteúdo' : 'Sem link do Drive'}
+            disabled={!hasContent || downloading}
             className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-faint)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
           >
             {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}

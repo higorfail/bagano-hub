@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Camera, PenLine, Filter, Users, Laptop, Part
 import PostCard from '@/components/PostCard'
 
 const MONTHS   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
-const WEEKDAYS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
+const WEEKDAYS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
 
 const EVENT_TYPES: Record<string, { label: string; color: string; Icon: any }> = {
   reuniao:          { label: 'Reunião',          color: '#3b82f6', Icon: Users },
@@ -173,7 +173,7 @@ export default function CalendarioPage() {
   function prevMonth() { if (month === 1) { setMonth(12); setYear(y => y - 1) } else setMonth(m => m - 1) }
   function nextMonth() { if (month === 12) { setMonth(1); setYear(y => y + 1) } else setMonth(m => m + 1) }
 
-  const firstDay   = new Date(year, month - 1, 1).getDay()
+  const firstDay   = (new Date(year, month - 1, 1).getDay() + 6) % 7 // semana começa na segunda
   const daysInMonth = new Date(year, month, 0).getDate()
   const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
   while (cells.length % 7 !== 0) cells.push(null)

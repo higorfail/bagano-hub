@@ -10,6 +10,8 @@ type Props = {
   clients: Client[]
   filters: SocialFilters
   onChange: (next: SocialFilters) => void
+  leading?: React.ReactNode
+  trailing?: React.ReactNode
 }
 
 const DATE_OPTIONS: { key: DateQuickFilter; label: string }[] = [
@@ -72,7 +74,7 @@ function FilterDropdown({ label, count, children }: { label: string; count: numb
   )
 }
 
-export default function SocialFilterBar({ clients, filters, onChange }: Props) {
+export default function SocialFilterBar({ clients, filters, onChange, leading, trailing }: Props) {
   function toggleClient(id: string) {
     const next = new Set(filters.clientIds)
     if (next.has(id)) next.delete(id); else next.add(id)
@@ -92,6 +94,7 @@ export default function SocialFilterBar({ clients, filters, onChange }: Props) {
 
   return (
     <div className="flex items-center gap-2 px-4 md:px-6 py-2.5 border-b border-[var(--color-border)] flex-wrap">
+      {leading}
       <div className="relative">
         <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
         <input
@@ -163,6 +166,9 @@ export default function SocialFilterBar({ clients, filters, onChange }: Props) {
           ✕ limpar filtros
         </button>
       )}
+
+      <div className="flex-1" />
+      {trailing}
     </div>
   )
 }
