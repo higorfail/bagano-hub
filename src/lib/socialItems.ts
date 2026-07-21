@@ -21,6 +21,10 @@ export type SocialItem = {
   driveFolderUrl: string | null
   labels: { text: string; color: string }[] | null
   assignedMembers: string[]
+  // Mês/ano de produção do cronograma (igual ao Kanban) — só existe em
+  // schedules; extras não têm esse conceito (fica null).
+  productionMonth: number | null
+  productionYear: number | null
   raw: ScheduleRow | ExtraRow
 }
 
@@ -100,6 +104,8 @@ export function scheduleToSocialItem(row: ScheduleRow): SocialItem | null {
     driveFolderUrl: row.drive_folder_url,
     labels: null,
     assignedMembers: [],
+    productionMonth: row.month,
+    productionYear: row.year,
     raw: row,
   }
 }
@@ -136,6 +142,8 @@ export function extraToSocialItem(row: ExtraRow): SocialItem | null {
     driveFolderUrl: null,
     labels: row.labels,
     assignedMembers,
+    productionMonth: null,
+    productionYear: null,
     raw: row,
   }
 }
@@ -168,6 +176,10 @@ export type SocialFilters = {
   dateFilter: DateQuickFilter
   missingDateOnly: boolean
   overdueOnly: boolean
+  // Mês de produção (igual ao seletor do Kanban) — null = todos os meses.
+  // Só filtra schedules pelo mês/ano de produção; extras (sem esse campo)
+  // são filtrados pelo mês da própria data (scheduledDate), se tiverem uma.
+  monthFilter: { month: number; year: number } | null
   search: string
 }
 
@@ -194,6 +206,17 @@ export function filterSocialItems(items: SocialItem[], filters: SocialFilters): 
     if (filters.types.size > 0 && (!item.postType || !filters.types.has(item.postType))) return false
     if (filters.sources.size > 0 && !filters.sources.has(item.source)) return false
     if (filters.search.trim() && !item.title.toLowerCase().includes(filters.search.trim().toLowerCase())) return false
+
+    if (filters.monthFilter) {
+      if (item.source === 'schedule') {
+        if (item.productionMonth !== filters.monthFilter.month || item.productionYear !== filters.monthFilter.year) return false
+      } else {
+        if (!item.scheduledDate) return false
+        const d = new Date(item.scheduledDate + 'T12:00:00')
+        if (d.getMonth() + 1 !== filters.monthFilter.month || d.getFullYear() !== filters.monthFilter.year) return false
+      }
+    }
+
     if (filters.missingDateOnly) return !item.scheduledDate
     if (filters.overdueOnly) return isOverdue(item, todayStr)
 

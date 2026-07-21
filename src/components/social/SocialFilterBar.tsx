@@ -27,6 +27,18 @@ const SOURCE_OPTIONS: { key: SocialSource | 'todos'; label: string }[] = [
   { key: 'extra',    label: 'Extra' },
 ]
 
+const MONTHS_SHORT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+
+// Mês atual ± 3, pra escolher rápido — igual ao que o Kanban deixa navegar,
+// só que como lista em vez de seta por seta.
+function nearbyMonths(): { month: number; year: number }[] {
+  const now = new Date()
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 3 + i, 1)
+    return { month: d.getMonth() + 1, year: d.getFullYear() }
+  })
+}
+
 function initials(name: string) {
   return (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
@@ -43,8 +55,8 @@ function Avatar({ client, size = 8 }: { client: Client; size?: number }) {
   )
 }
 
-// Dropdown genérico usado pros filtros de Cliente e Tipo — fecha ao clicar fora.
-function FilterDropdown({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
+// Dropdown genérico usado pros filtros de Cliente, Tipo e Mês — fecha ao clicar fora.
+function FilterDropdown({ label, count, showBadge = true, children }: { label: string; count: number; showBadge?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -62,7 +74,7 @@ function FilterDropdown({ label, count, children }: { label: string; count: numb
           count > 0 ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/8' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'
         }`}
       >
-        {label}{count > 0 && <span className="text-[10px] font-bold">({count})</span>}
+        {label}{count > 0 && showBadge && <span className="text-[10px] font-bold">({count})</span>}
         <ChevronDown size={12} />
       </button>
       {open && (
@@ -91,6 +103,7 @@ export default function SocialFilterBar({ clients, filters, onChange, leading, t
 
   const allTypes = Object.keys(POST_TYPE_LABEL)
   const currentSource: SocialSource | 'todos' = filters.sources.size === 1 ? [...filters.sources][0] : 'todos'
+  const monthLabel = filters.monthFilter ? `${MONTHS_SHORT[filters.monthFilter.month - 1]} ${filters.monthFilter.year}` : 'Mês'
 
   return (
     <div className="flex items-center gap-2 px-4 md:px-6 py-2.5 border-b border-[var(--color-border)] flex-wrap">
@@ -118,6 +131,30 @@ export default function SocialFilterBar({ clients, filters, onChange, leading, t
           </button>
         ))}
       </div>
+
+      <FilterDropdown label={monthLabel} count={filters.monthFilter ? 1 : 0} showBadge={false}>
+        <button
+          onClick={() => onChange({ ...filters, monthFilter: null })}
+          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors text-left"
+        >
+          <span className="text-xs text-[var(--color-text-primary)] flex-1">Todos os meses</span>
+          {!filters.monthFilter && <Check size={13} className="text-[var(--color-accent)] flex-shrink-0" />}
+        </button>
+        <div className="my-1 border-t border-[var(--color-border)]" />
+        {nearbyMonths().map(m => {
+          const active = filters.monthFilter?.month === m.month && filters.monthFilter?.year === m.year
+          return (
+            <button
+              key={`${m.year}-${m.month}`}
+              onClick={() => onChange({ ...filters, monthFilter: m })}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors text-left"
+            >
+              <span className="text-xs text-[var(--color-text-primary)] flex-1">{MONTHS_SHORT[m.month - 1]} {m.year}</span>
+              {active && <Check size={13} className="text-[var(--color-accent)] flex-shrink-0" />}
+            </button>
+          )
+        })}
+      </FilterDropdown>
 
       <FilterDropdown label="Cliente" count={filters.clientIds.size}>
         {clients.map(c => {
@@ -158,9 +195,9 @@ export default function SocialFilterBar({ clients, filters, onChange, leading, t
         ))}
       </div>
 
-      {(filters.clientIds.size > 0 || filters.types.size > 0 || filters.sources.size > 0 || filters.search || filters.dateFilter !== 'todos' || filters.missingDateOnly || filters.overdueOnly) && (
+      {(filters.clientIds.size > 0 || filters.types.size > 0 || filters.sources.size > 0 || filters.search || filters.dateFilter !== 'todos' || filters.missingDateOnly || filters.overdueOnly || filters.monthFilter) && (
         <button
-          onClick={() => onChange({ clientIds: new Set(), types: new Set(), sources: new Set(), dateFilter: 'todos', missingDateOnly: false, overdueOnly: false, search: '' })}
+          onClick={() => onChange({ clientIds: new Set(), types: new Set(), sources: new Set(), dateFilter: 'todos', missingDateOnly: false, overdueOnly: false, monthFilter: null, search: '' })}
           className="text-[11px] text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] px-1"
         >
           ✕ limpar filtros

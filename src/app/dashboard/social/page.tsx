@@ -16,7 +16,7 @@ import { LayoutGrid, Calendar, CalendarDays, AlertCircle, AlertTriangle, ListChe
 type Client = { id: string; name: string; color_hex: string; logo_url?: string | null }
 type View = 'board' | 'calendario' | 'semana' | 'pendencias'
 
-const EMPTY_FILTERS: SocialFilters = { clientIds: new Set(), types: new Set(), sources: new Set(), dateFilter: 'todos', missingDateOnly: false, overdueOnly: false, search: '' }
+const EMPTY_FILTERS: SocialFilters = { clientIds: new Set(), types: new Set(), sources: new Set(), dateFilter: 'todos', missingDateOnly: false, overdueOnly: false, monthFilter: null, search: '' }
 
 export default function SocialPage() {
   useEffect(() => { document.title = 'Publicações · Bagano Hub' }, [])
@@ -66,9 +66,9 @@ export default function SocialPage() {
         filters={filters}
         onChange={setFilters}
         leading={
-          <div className="pr-2 mr-1 border-r border-[var(--color-border)] flex flex-col justify-center">
+          <div className="pr-2 mr-1 border-r border-[var(--color-border)] flex flex-col justify-center" title="Diferente do Kanban: aqui conta todos os meses + Extras juntos. Use o filtro de Mês pra comparar 1:1 com o Kanban.">
             <h1 className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight leading-none">Publicações</h1>
-            <p className="text-[var(--color-text-muted)] text-[10px] mt-1 whitespace-nowrap">{scheduledCount} agendado{scheduledCount === 1 ? '' : 's'} · {publishedToday} hoje</p>
+            <p className="text-[var(--color-text-muted)] text-[10px] mt-1 whitespace-nowrap">{scheduledCount} agendado{scheduledCount === 1 ? '' : 's'} · {publishedToday} hoje · todos os meses</p>
           </div>
         }
         trailing={
