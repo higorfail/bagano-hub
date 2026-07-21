@@ -248,7 +248,7 @@ export default function ApprovalPage({ token }: { token: string }) {
 
   useEffect(() => {
     if (!client || !tokenData) return
-    const label = tokenData.type === 'cronograma' ? 'Aprovação do Cronograma' : 'Aprovação Final'
+    const label = tokenData.type === 'cronograma' ? 'Aprovação do Cronograma' : tokenData.type === 'geral' ? 'Aprovações Pendentes' : 'Aprovação Final'
     document.title = `${label} · ${client.name}`
   }, [client, tokenData])
 
@@ -285,6 +285,22 @@ export default function ApprovalPage({ token }: { token: string }) {
     if (tk.type === 'extras') {
       const { data: ex } = await extrasQuery
       setPosts([])
+      setExtras(ex || [])
+      setLoading(false)
+      return
+    }
+
+    if (tk.type === 'geral') {
+      // Visão unificada: tudo que está pendente pro cliente agora, sem
+      // recorte de mês — diferente do crono/final que são de um mês
+      // específico, aqui é "o que falta aprovar, período".
+      const geralSchedulesQuery = supabase.from('schedules')
+        .select('id, title, post_type, status, drive_url, drive_folder_url, copy, legenda, briefing, scheduled_date, post_number, approval_comment, approval_status, funil, campaign_type, reference_images')
+        .eq('client_id', tk.client_id)
+        .in('status', ['aguardando_aprovacao_crono', 'aguardando_aprovacao'])
+        .order('post_number', { ascending: true })
+      const [{ data: sc }, { data: ex }] = await Promise.all([geralSchedulesQuery, extrasQuery])
+      setPosts(sc || [])
       setExtras(ex || [])
       setLoading(false)
       return
@@ -623,6 +639,342 @@ export default function ApprovalPage({ token }: { token: string }) {
 
   const cc = client?.color_hex || '#111111'
 
+  // Cronograma card — hoisted pro escopo do componente (não só dentro do
+  // branch 'cronograma') pra ser reaproveitado também na visão unificada 'geral'.
+  function renderCronoCard(post: Post) {
+    const isApproved = post.approval_status === 'aprovado'
+    const isChanged  = post.approval_status === 'não aprovado'
+    const isComm     = commenting.has(post.id)
+    const comment    = comments[post.id] || ''
+    const isLoading  = submitting === post.id
+
+    return (
+      <div key={post.id} style={{ background: '#fff', borderRadius: 22, border: `1.5px solid ${isApproved ? '#86efac' : isChanged ? '#fcd34d' : '#ebebeb'}`, overflow: 'hidden', boxShadow: isApproved ? '0 2px 12px rgba(34,197,94,0.08)' : '0 1px 4px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: isApproved ? '#f0fdf4' : isChanged ? '#fffbeb' : '#fafafa', borderBottom: `1px solid ${isApproved ? '#86efac' : isChanged ? '#fcd34d' : '#ebebeb'}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: '#c4c4c0', letterSpacing: '0.05em' }}>#{String(post.post_number || 1).padStart(2, '0')}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#555', background: '#f0f0ee', padding: '2px 9px', borderRadius: 100 }}>{TYPE_EMOJIS[post.post_type]} {TYPE_LABELS[post.post_type]}</span>
+            {post.scheduled_date && <span style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>}
+            {post.funil && <span style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', padding: '1px 7px', borderRadius: 100 }}>{post.funil.split(' ')[0]}</span>}
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 700, color: isApproved ? '#16a34a' : isChanged ? '#b45309' : '#9ca3af' }}>
+            {isApproved ? '✓ Aprovado' : isChanged ? '⚠ Revisar' : '● Pendente'}
+          </span>
+        </div>
+
+        <div style={{ padding: '16px 18px' }}>
+          <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 12px', lineHeight: 1.3, letterSpacing: '-0.02em' }}>{post.title}</h3>
+
+          {post.briefing && (
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Estratégia / Briefing</p>
+              <div style={{ background: '#fafaf8', borderRadius: 14, padding: '12px 14px', border: '1px solid #f0f0ec' }}>
+                <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{post.briefing}</p>
+              </div>
+            </div>
+          )}
+
+          {post.legenda && (
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Legenda</p>
+              <div style={{ background: '#f8f6ff', borderRadius: 14, padding: '12px 14px', border: '1px solid #e8e0f9' }}>
+                <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{post.legenda}</p>
+              </div>
+            </div>
+          )}
+
+          {post.copy && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Rascunho de copy</p>
+              <div style={{ background: '#f8f6ff', borderRadius: 14, padding: '12px 14px', border: '1px solid #e8e0f9' }}>
+                <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{post.copy}</p>
+              </div>
+            </div>
+          )}
+
+          {post.reference_images && post.reference_images.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Referências</p>
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+                {post.reference_images.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>
+                    <img src={url} alt={`Referência ${i + 1}`} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 12, border: '1px solid #ebebeb' }} />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(post.drive_url || post.drive_folder_url) && (
+            <div style={{ marginBottom: 16 }}>
+              <a href={post.drive_url || post.drive_folder_url} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: cc, textDecoration: 'none' }}>
+                🔗 Abrir referência no Drive
+              </a>
+            </div>
+          )}
+
+          {isChanged && post.approval_comment && (
+            <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
+              <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sua solicitação</p>
+              <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{post.approval_comment}"</p>
+            </div>
+          )}
+
+          {isComm && (
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px', fontWeight: 600 }}>O que precisa mudar?</p>
+              <textarea autoFocus value={comment}
+                onChange={e => setComments(c => ({ ...c, [post.id]: e.target.value }))}
+                placeholder="Ex: Mudar o foco para o produto B, ajustar a data..."
+                rows={3}
+                style={{ width: '100%', background: '#fff', border: `2px solid ${cc}`, borderRadius: 14, padding: '13px 16px', fontSize: 15, color: '#111', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5, fontFamily: 'inherit' }}
+              />
+            </div>
+          )}
+
+          {isApproved ? (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#f0fdf4', border: '1.5px solid #86efac', fontSize: 15, fontWeight: 700, color: '#16a34a' }}>
+                <CheckCircle size={17} strokeWidth={2.5} /> Aprovado
+              </div>
+              <button onClick={() => { supabase.from('schedules').update({ status: 'aguardando_aprovacao_crono', approval_status: null }).eq('id', post.id); setPosts(prev => prev.map(p => p.id === post.id ? { ...p, status: 'aguardando_aprovacao_crono', approval_status: undefined } : p)) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 16px', borderRadius: 16, background: '#fff', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}>
+                <RotateCcw size={13} /> Desfazer
+              </button>
+            </div>
+          ) : isComm ? (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => { setCommenting(s => { const n = new Set(s); n.delete(post.id); return n }); setComments(c => { const n = { ...c }; delete n[post.id]; return n }) }}
+                style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: 'none', fontSize: 14, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => rejectCrono(post.id, comment)} disabled={!comment.trim() || !!isLoading}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 14, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
+                <MessageSquare size={15} /> Enviar pedido
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setCommenting(s => { const n = new Set(s); n.add(post.id); return n })}
+                style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 14, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>✏️ Pedir ajuste</button>
+              <button onClick={() => approveCrono(post.id)} disabled={!!isLoading}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: cc, border: 'none', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 6px 24px ${cc}44`, letterSpacing: '-0.02em' }}>
+                {isLoading ? '…' : <><CheckCircle size={17} strokeWidth={2.5} /> Aprovar</>}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Card de post final — hoisted igual o crono, reaproveitado na visão 'geral'.
+  function renderFinalCard(post: Post, idx: number) {
+    const isApproved = post.approval_status === 'aprovado'
+    const isChanges  = post.approval_status === 'não aprovado'
+    const isComm     = commenting.has(post.id)
+    const comment    = comments[post.id] || ''
+    const isLoading  = submitting === post.id
+    const displayCopy = post.legenda || post.copy || ''
+
+    const isCarrossel = post.post_type === 'carrossel' || post.post_type === 'carrossel_stories'
+    const driveId     = post.drive_url?.match(/[-\w]{25,}/)?.[0]
+    const folderId    = post.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
+    const isVideoPost = post.post_type === 'reels'
+    const thumbUrl    = driveId && !isVideoPost && !isCarrossel ? `/api/drive-thumb?id=${driveId}&sz=w800` : null
+    const embedVideoId = driveId && isVideoPost ? driveId : null
+
+    const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
+    const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#fafafa'
+    const statusClr  = isApproved ? '#16a34a'  : isChanges ? '#b45309' : '#9ca3af'
+    const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : '● Pendente'
+
+    return (
+      <div key={post.id} style={{ background: '#fff', borderRadius: 22, border: `1.5px solid ${cardBorder}`, overflow: 'hidden', boxShadow: isApproved ? '0 2px 12px rgba(34,197,94,0.08)' : '0 1px 4px rgba(0,0,0,0.06)', transition: 'border-color 0.35s' }}>
+
+        {/* Status bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: statusBg, borderBottom: `1px solid ${cardBorder}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: '#c4c4c0', letterSpacing: '0.05em' }}>#{String(post.post_number || idx + 1).padStart(2, '0')}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#555', background: '#f0f0ee', padding: '2px 9px', borderRadius: 100 }}>
+              {TYPE_EMOJIS[post.post_type]} {TYPE_LABELS[post.post_type] || post.post_type}
+            </span>
+            {post.scheduled_date && (
+              <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                {new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+              </span>
+            )}
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 700, color: statusClr }}>{statusTxt}</span>
+        </div>
+
+        {/* Drive media */}
+        {embedVideoId ? (
+          <div>
+            {folderId && <FolderThumb folderId={folderId} />}
+            <DriveVideo id={embedVideoId} folderUrl={post.drive_folder_url || post.drive_url} />
+          </div>
+        ) : isVideoPost && folderId ? (
+          <ReelFolderPreview folderId={folderId} folderUrl={post.drive_folder_url || ''} />
+        ) : isCarrossel && folderId ? (
+          <CarouselPreview folderId={folderId} folderUrl={post.drive_folder_url || ''} />
+        ) : folderId ? (
+          <FolderThumb folderId={folderId} />
+        ) : thumbUrl ? (
+          <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>
+            <img src={thumbUrl} alt={post.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 220 }}
+              onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
+          </div>
+        ) : null}
+
+        {/* Content */}
+        <div style={{ padding: '16px 18px' }}>
+          <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 12px', lineHeight: 1.3, letterSpacing: '-0.02em' }}>{post.title}</h3>
+
+          {/* Legenda (texto final do Instagram; se ainda não tiver, cai no rascunho de copy) */}
+          {displayCopy && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                {post.legenda ? 'Legenda' : 'Rascunho de copy'}
+              </p>
+              <div style={{ background: '#fafaf8', borderRadius: 14, padding: '12px 14px', border: '1px solid #f0f0ec' }}>
+                <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
+                  {displayCopy}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Previous change */}
+          {isChanges && post.approval_comment && (
+            <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
+              <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sua solicitação</p>
+              <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{post.approval_comment}"</p>
+            </div>
+          )}
+
+          {/* Comment input */}
+          {isComm && (
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px', fontWeight: 600 }}>O que precisa mudar?</p>
+              <textarea autoFocus value={comment}
+                onChange={e => setComments(c => ({ ...c, [post.id]: e.target.value }))}
+                placeholder="Ex: Trocar a imagem, ajustar o texto na linha 2..."
+                rows={3}
+                style={{ width: '100%', background: '#fff', border: `2px solid ${cc}`, borderRadius: 14, padding: '13px 16px', fontSize: 15, color: '#111', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5, fontFamily: 'inherit' }}
+              />
+            </div>
+          )}
+
+          {/* Actions */}
+          {isApproved ? (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#f0fdf4', border: '1.5px solid #86efac', fontSize: 15, fontWeight: 700, color: '#16a34a' }}>
+                <CheckCircle size={17} strokeWidth={2.5} /> Aprovado
+              </div>
+              <button onClick={() => undo(post.id)} disabled={!!isLoading}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 16px', borderRadius: 16, background: '#fff', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}>
+                <RotateCcw size={13} /> Desfazer
+              </button>
+            </div>
+          ) : isComm ? (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => { setCommenting(s => { const n = new Set(s); n.delete(post.id); return n }); setComments(c => { const n = { ...c }; delete n[post.id]; return n }) }}
+                style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: 'none', fontSize: 14, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={() => requestChanges(post.id, comment)} disabled={!comment.trim() || !!isLoading}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 14, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
+                <MessageSquare size={15} /> Enviar ajuste
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setCommenting(s => { const n = new Set(s); n.add(post.id); return n })}
+                style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 14, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                ✏️ Pedir ajuste
+              </button>
+              <button onClick={() => approve(post.id)} disabled={!!isLoading}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: cc, border: 'none', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 6px 24px ${cc}44`, letterSpacing: '-0.02em', transition: 'opacity 0.15s' }}>
+                {isLoading ? '…' : <><CheckCircle size={17} strokeWidth={2.5} /> Aprovar</>}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )  }
+
+  // ── Visão unificada (geral) — tudo pendente do cliente numa página só ───────
+  if (tokenData?.type === 'geral') {
+    const cronoList = posts.filter(p => p.status === 'aguardando_aprovacao_crono')
+    const finalList = posts.filter(p => p.status === 'aguardando_aprovacao')
+    const totalPendingGeral = cronoList.length + finalList.length + extras.length
+    const allDoneGeral = totalPendingGeral === 0
+
+    return (
+      <div style={{ minHeight: '100dvh', background: '#f8f8f6', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', paddingBottom: 32 }}>
+        {toast && (
+          <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: toast.ok ? '#111' : '#d97706', color: '#fff', fontSize: 14, fontWeight: 600, padding: '11px 22px', borderRadius: 100, boxShadow: '0 8px 40px rgba(0,0,0,0.22)', display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+            {toast.ok ? <CheckCircle size={15} /> : <MessageSquare size={15} />}
+            {toast.msg}
+          </div>
+        )}
+        <header style={{ background: '#fff', borderBottom: '1px solid #ebebeb', position: 'sticky', top: 0, zIndex: 30 }}>
+          <div style={{ maxWidth: 600, margin: '0 auto', padding: '14px 16px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {client?.logo_url
+                ? <img src={client.logo_url} alt={client.name} style={{ width: 44, height: 44, borderRadius: 14, objectFit: 'contain', flexShrink: 0, border: '1px solid #f0f0f0' }} />
+                : <div style={{ width: 44, height: 44, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 15, fontWeight: 800, background: cc, flexShrink: 0 }}>{initials(client?.name || '')}</div>
+              }
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{client?.name}</p>
+                <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovações pendentes</p>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <p style={{ margin: 0, lineHeight: 1 }}>
+                  <span style={{ fontSize: 22, fontWeight: 900, color: allDoneGeral ? '#16a34a' : '#111', letterSpacing: '-0.04em' }}>{totalPendingGeral}</span>
+                </p>
+                <p style={{ fontSize: 10, color: '#b0b0b0', margin: '3px 0 0', letterSpacing: '0.02em' }}>PENDENTES</p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main style={{ maxWidth: 560, margin: '0 auto', padding: '20px 16px 0' }}>
+          {allDoneGeral ? (
+            <div style={{ textAlign: 'center', padding: '32px 20px 28px', background: '#fff', borderRadius: 24, border: '1.5px solid #86efac', boxShadow: '0 2px 16px rgba(34,197,94,0.1)' }}>
+              <div style={{ fontSize: 56, marginBottom: 14, lineHeight: 1 }}>🎉</div>
+              <h2 style={{ fontSize: 22, fontWeight: 900, color: '#111', margin: '0 0 10px', letterSpacing: '-0.03em' }}>Tudo em dia!</h2>
+              <p style={{ fontSize: 14, color: '#6b7280', margin: 0, lineHeight: 1.65 }}>Não há nada aguardando sua aprovação no momento.</p>
+            </div>
+          ) : (
+            <>
+              {cronoList.length > 0 && (
+                <div style={{ marginBottom: 28 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 12px' }}>📋 Estratégia / Cronograma · {cronoList.length}</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{cronoList.map(p => renderCronoCard(p))}</div>
+                </div>
+              )}
+              {finalList.length > 0 && (
+                <div style={{ marginBottom: 28 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 12px' }}>✅ Posts finais · {finalList.length}</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{finalList.map((p, i) => renderFinalCard(p, i))}</div>
+                </div>
+              )}
+              {extras.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 12px' }}>🧩 Extras · {extras.length}</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{extras.map(renderExtraCard)}</div>
+                </div>
+              )}
+            </>
+          )}
+          <p style={{ textAlign: 'center', fontSize: 11, color: '#d1d5db', marginTop: 28 }}>Powered by Bagano Hub</p>
+        </main>
+        <style>{`* { -webkit-tap-highlight-color: transparent; box-sizing: border-box; } @keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    )
+  }
+
   // ── Extras-only approval render ─────────────────────────────────────────────
   if (tokenData?.type === 'extras') {
     const extrasApproved = extras.filter(e => e.client_approval_status === 'aprovado').length
@@ -698,132 +1050,6 @@ export default function ApprovalPage({ token }: { token: string }) {
     const campaigns  = [...new Set(posts.map(p => p.campaign_type).filter(Boolean))] as string[]
     const byCampaign = campaigns.map(ct => ({ name: ct, posts: posts.filter(p => p.campaign_type === ct) }))
     const noCampaign = posts.filter(p => !p.campaign_type)
-
-    function renderCronoCard(post: Post) {
-      const isApproved = post.approval_status === 'aprovado'
-      const isChanged  = post.approval_status === 'não aprovado'
-      const isComm     = commenting.has(post.id)
-      const comment    = comments[post.id] || ''
-      const isLoading  = submitting === post.id
-
-      return (
-        <div key={post.id} style={{ background: '#fff', borderRadius: 22, border: `1.5px solid ${isApproved ? '#86efac' : isChanged ? '#fcd34d' : '#ebebeb'}`, overflow: 'hidden', boxShadow: isApproved ? '0 2px 12px rgba(34,197,94,0.08)' : '0 1px 4px rgba(0,0,0,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: isApproved ? '#f0fdf4' : isChanged ? '#fffbeb' : '#fafafa', borderBottom: `1px solid ${isApproved ? '#86efac' : isChanged ? '#fcd34d' : '#ebebeb'}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#c4c4c0', letterSpacing: '0.05em' }}>#{String(post.post_number || 1).padStart(2, '0')}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#555', background: '#f0f0ee', padding: '2px 9px', borderRadius: 100 }}>{TYPE_EMOJIS[post.post_type]} {TYPE_LABELS[post.post_type]}</span>
-              {post.scheduled_date && <span style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>}
-              {post.funil && <span style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', padding: '1px 7px', borderRadius: 100 }}>{post.funil.split(' ')[0]}</span>}
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: isApproved ? '#16a34a' : isChanged ? '#b45309' : '#9ca3af' }}>
-              {isApproved ? '✓ Aprovado' : isChanged ? '⚠ Revisar' : '● Pendente'}
-            </span>
-          </div>
-
-          <div style={{ padding: '16px 18px' }}>
-            <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 12px', lineHeight: 1.3, letterSpacing: '-0.02em' }}>{post.title}</h3>
-
-            {post.briefing && (
-              <div style={{ marginBottom: 14 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Estratégia / Briefing</p>
-                <div style={{ background: '#fafaf8', borderRadius: 14, padding: '12px 14px', border: '1px solid #f0f0ec' }}>
-                  <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{post.briefing}</p>
-                </div>
-              </div>
-            )}
-
-            {post.legenda && (
-              <div style={{ marginBottom: 14 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Legenda</p>
-                <div style={{ background: '#f8f6ff', borderRadius: 14, padding: '12px 14px', border: '1px solid #e8e0f9' }}>
-                  <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{post.legenda}</p>
-                </div>
-              </div>
-            )}
-
-            {post.copy && (
-              <div style={{ marginBottom: 16 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Rascunho de copy</p>
-                <div style={{ background: '#f8f6ff', borderRadius: 14, padding: '12px 14px', border: '1px solid #e8e0f9' }}>
-                  <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{post.copy}</p>
-                </div>
-              </div>
-            )}
-
-            {post.reference_images && post.reference_images.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Referências</p>
-                <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
-                  {post.reference_images.map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>
-                      <img src={url} alt={`Referência ${i + 1}`} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 12, border: '1px solid #ebebeb' }} />
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {(post.drive_url || post.drive_folder_url) && (
-              <div style={{ marginBottom: 16 }}>
-                <a href={post.drive_url || post.drive_folder_url} target="_blank" rel="noopener noreferrer"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: cc, textDecoration: 'none' }}>
-                  🔗 Abrir referência no Drive
-                </a>
-              </div>
-            )}
-
-            {isChanged && post.approval_comment && (
-              <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
-                <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sua solicitação</p>
-                <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{post.approval_comment}"</p>
-              </div>
-            )}
-
-            {isComm && (
-              <div style={{ marginBottom: 14 }}>
-                <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px', fontWeight: 600 }}>O que precisa mudar?</p>
-                <textarea autoFocus value={comment}
-                  onChange={e => setComments(c => ({ ...c, [post.id]: e.target.value }))}
-                  placeholder="Ex: Mudar o foco para o produto B, ajustar a data..."
-                  rows={3}
-                  style={{ width: '100%', background: '#fff', border: `2px solid ${cc}`, borderRadius: 14, padding: '13px 16px', fontSize: 15, color: '#111', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5, fontFamily: 'inherit' }}
-                />
-              </div>
-            )}
-
-            {isApproved ? (
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#f0fdf4', border: '1.5px solid #86efac', fontSize: 15, fontWeight: 700, color: '#16a34a' }}>
-                  <CheckCircle size={17} strokeWidth={2.5} /> Aprovado
-                </div>
-                <button onClick={() => { supabase.from('schedules').update({ status: 'aguardando_aprovacao_crono', approval_status: null }).eq('id', post.id); setPosts(prev => prev.map(p => p.id === post.id ? { ...p, status: 'aguardando_aprovacao_crono', approval_status: undefined } : p)) }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 16px', borderRadius: 16, background: '#fff', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}>
-                  <RotateCcw size={13} /> Desfazer
-                </button>
-              </div>
-            ) : isComm ? (
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => { setCommenting(s => { const n = new Set(s); n.delete(post.id); return n }); setComments(c => { const n = { ...c }; delete n[post.id]; return n }) }}
-                  style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: 'none', fontSize: 14, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>Cancelar</button>
-                <button onClick={() => rejectCrono(post.id, comment)} disabled={!comment.trim() || !!isLoading}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 14, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
-                  <MessageSquare size={15} /> Enviar pedido
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => setCommenting(s => { const n = new Set(s); n.add(post.id); return n })}
-                  style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 14, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>✏️ Pedir ajuste</button>
-                <button onClick={() => approveCrono(post.id)} disabled={!!isLoading}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: cc, border: 'none', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 6px 24px ${cc}44`, letterSpacing: '-0.02em' }}>
-                  {isLoading ? '…' : <><CheckCircle size={17} strokeWidth={2.5} /> Aprovar</>}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )
-    }
 
     return (
       <div style={{ minHeight: '100dvh', background: '#f8f8f6', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', paddingBottom: cronoPending > 0 && !allCronoDone ? 90 : 32 }}>
@@ -1097,141 +1323,7 @@ export default function ApprovalPage({ token }: { token: string }) {
 
               {/* Post cards */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {posts.map((post, idx) => {
-                  const isApproved = post.approval_status === 'aprovado'
-                  const isChanges  = post.approval_status === 'não aprovado'
-                  const isComm     = commenting.has(post.id)
-                  const comment    = comments[post.id] || ''
-                  const isLoading  = submitting === post.id
-                  const displayCopy = post.legenda || post.copy || ''
-
-                  const isCarrossel = post.post_type === 'carrossel' || post.post_type === 'carrossel_stories'
-                  const driveId     = post.drive_url?.match(/[-\w]{25,}/)?.[0]
-                  const folderId    = post.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
-                  const isVideoPost = post.post_type === 'reels'
-                  const thumbUrl    = driveId && !isVideoPost && !isCarrossel ? `/api/drive-thumb?id=${driveId}&sz=w800` : null
-                  const embedVideoId = driveId && isVideoPost ? driveId : null
-
-                  const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
-                  const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#fafafa'
-                  const statusClr  = isApproved ? '#16a34a'  : isChanges ? '#b45309' : '#9ca3af'
-                  const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : '● Pendente'
-
-                  return (
-                    <div key={post.id} style={{ background: '#fff', borderRadius: 22, border: `1.5px solid ${cardBorder}`, overflow: 'hidden', boxShadow: isApproved ? '0 2px 12px rgba(34,197,94,0.08)' : '0 1px 4px rgba(0,0,0,0.06)', transition: 'border-color 0.35s' }}>
-
-                      {/* Status bar */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: statusBg, borderBottom: `1px solid ${cardBorder}` }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: '#c4c4c0', letterSpacing: '0.05em' }}>#{String(post.post_number || idx + 1).padStart(2, '0')}</span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#555', background: '#f0f0ee', padding: '2px 9px', borderRadius: 100 }}>
-                            {TYPE_EMOJIS[post.post_type]} {TYPE_LABELS[post.post_type] || post.post_type}
-                          </span>
-                          {post.scheduled_date && (
-                            <span style={{ fontSize: 11, color: '#9ca3af' }}>
-                              {new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                            </span>
-                          )}
-                        </div>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: statusClr }}>{statusTxt}</span>
-                      </div>
-
-                      {/* Drive media */}
-                      {embedVideoId ? (
-                        <div>
-                          {folderId && <FolderThumb folderId={folderId} />}
-                          <DriveVideo id={embedVideoId} folderUrl={post.drive_folder_url || post.drive_url} />
-                        </div>
-                      ) : isVideoPost && folderId ? (
-                        <ReelFolderPreview folderId={folderId} folderUrl={post.drive_folder_url || ''} />
-                      ) : isCarrossel && folderId ? (
-                        <CarouselPreview folderId={folderId} folderUrl={post.drive_folder_url || ''} />
-                      ) : folderId ? (
-                        <FolderThumb folderId={folderId} />
-                      ) : thumbUrl ? (
-                        <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>
-                          <img src={thumbUrl} alt={post.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 220 }}
-                            onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
-                        </div>
-                      ) : null}
-
-                      {/* Content */}
-                      <div style={{ padding: '16px 18px' }}>
-                        <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 12px', lineHeight: 1.3, letterSpacing: '-0.02em' }}>{post.title}</h3>
-
-                        {/* Legenda (texto final do Instagram; se ainda não tiver, cai no rascunho de copy) */}
-                        {displayCopy && (
-                          <div style={{ marginBottom: 16 }}>
-                            <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                              {post.legenda ? 'Legenda' : 'Rascunho de copy'}
-                            </p>
-                            <div style={{ background: '#fafaf8', borderRadius: 14, padding: '12px 14px', border: '1px solid #f0f0ec' }}>
-                              <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
-                                {displayCopy}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Previous change */}
-                        {isChanges && post.approval_comment && (
-                          <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
-                            <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sua solicitação</p>
-                            <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{post.approval_comment}"</p>
-                          </div>
-                        )}
-
-                        {/* Comment input */}
-                        {isComm && (
-                          <div style={{ marginBottom: 14 }}>
-                            <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px', fontWeight: 600 }}>O que precisa mudar?</p>
-                            <textarea autoFocus value={comment}
-                              onChange={e => setComments(c => ({ ...c, [post.id]: e.target.value }))}
-                              placeholder="Ex: Trocar a imagem, ajustar o texto na linha 2..."
-                              rows={3}
-                              style={{ width: '100%', background: '#fff', border: `2px solid ${cc}`, borderRadius: 14, padding: '13px 16px', fontSize: 15, color: '#111', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5, fontFamily: 'inherit' }}
-                            />
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        {isApproved ? (
-                          <div style={{ display: 'flex', gap: 10 }}>
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#f0fdf4', border: '1.5px solid #86efac', fontSize: 15, fontWeight: 700, color: '#16a34a' }}>
-                              <CheckCircle size={17} strokeWidth={2.5} /> Aprovado
-                            </div>
-                            <button onClick={() => undo(post.id)} disabled={!!isLoading}
-                              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 16px', borderRadius: 16, background: '#fff', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}>
-                              <RotateCcw size={13} /> Desfazer
-                            </button>
-                          </div>
-                        ) : isComm ? (
-                          <div style={{ display: 'flex', gap: 10 }}>
-                            <button onClick={() => { setCommenting(s => { const n = new Set(s); n.delete(post.id); return n }); setComments(c => { const n = { ...c }; delete n[post.id]; return n }) }}
-                              style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: 'none', fontSize: 14, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>
-                              Cancelar
-                            </button>
-                            <button onClick={() => requestChanges(post.id, comment)} disabled={!comment.trim() || !!isLoading}
-                              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 14, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
-                              <MessageSquare size={15} /> Enviar ajuste
-                            </button>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', gap: 10 }}>
-                            <button onClick={() => setCommenting(s => { const n = new Set(s); n.add(post.id); return n })}
-                              style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 14, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                              ✏️ Pedir ajuste
-                            </button>
-                            <button onClick={() => approve(post.id)} disabled={!!isLoading}
-                              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: cc, border: 'none', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 6px 24px ${cc}44`, letterSpacing: '-0.02em', transition: 'opacity 0.15s' }}>
-                              {isLoading ? '…' : <><CheckCircle size={17} strokeWidth={2.5} /> Aprovar</>}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+                {posts.map((post, idx) => renderFinalCard(post, idx))}
               </div>
 
               {/* Extras pendentes de aprovação */}

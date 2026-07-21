@@ -3,42 +3,24 @@
 import { useEffect, useState } from 'react'
 import { use } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
+import { getOrCreateGeneralApprovalToken } from '@/lib/approvalLinks'
 
-// Link fixo por cliente — sempre aponta pro token de aprovação mais recente.
-// Gera um token novo (mês/ano atual, tipo "final") se ainda não existir nenhum,
-// assim quem guarda essa URL sempre cai na aprovação vigente, sem precisar
-// pedir um link novo toda hora.
+// Link fixo por cliente — sempre aponta pro token "geral" (tudo pendente:
+// crono + final + extras, numa página só), buscando ou criando se ainda não
+// existir. Determinístico: quem guarda essa URL sempre cai na mesma visão
+// unificada, em vez do antigo comportamento de "pega o token mais recente de
+// qualquer tipo" (podia cair em crono ou final dependendo do que foi criado
+// por último).
 export default function ClientApprovalRedirect({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params)
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const supabase = createClient()
-    ;(async () => {
-      const { data: existing } = await supabase.from('approval_tokens')
-        .select('token')
-        .eq('client_id', clientId)
-        .eq('active', true)
-        .order('year', { ascending: false })
-        .order('month', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (existing?.token) {
-        router.replace(`/aprovar/${existing.token}`)
-        return
-      }
-
-      const now = new Date()
-      const { data: created, error: insErr } = await supabase.from('approval_tokens')
-        .insert({ client_id: clientId, month: now.getMonth() + 1, year: now.getFullYear(), type: 'final' })
-        .select('token').single()
-
-      if (insErr || !created) { setError('Não foi possível gerar o link de aprovação para este cliente.'); return }
-      router.replace(`/aprovar/${created.token}`)
+    (async () => {
+      const token = await getOrCreateGeneralApprovalToken(clientId)
+      if (!token) { setError('Não foi possível gerar o link de aprovação para este cliente.'); return }
+      router.replace(`/aprovar/${token}`)
     })()
   }, [clientId, router])
 

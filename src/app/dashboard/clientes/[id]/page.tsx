@@ -10,6 +10,7 @@ import MaterialCard from '@/components/MaterialCard'
 import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
+import { getOrCreateGeneralApprovalToken } from '@/lib/approvalLinks'
 import CampaignsTab from '@/components/CampaignsTab'
 import CronogramaTab, { CRONO_MONTHS } from '@/components/CronogramaTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
@@ -250,10 +251,12 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             </div>
             {/* Ações — texto some no mobile, vira só ícone/menu compacto */}
             <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/aprovar/cliente/${client.id}`)
-                toast('Link fixo de aprovação copiado!')
-              }} className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">🔗 Link de aprovação</button>
+              <button onClick={async () => {
+                const generalToken = await getOrCreateGeneralApprovalToken(client.id)
+                if (!generalToken) { toast('Erro ao gerar link'); return }
+                navigator.clipboard.writeText(`${window.location.origin}/aprovar/${generalToken}`)
+                toast('Link geral de aprovação copiado!')
+              }} className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]" title="Mostra tudo que está pendente de aprovação (crono + final + extras) numa página só">🔗 Link de aprovação</button>
               {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Instagram</a>}
               {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Manual</a>}
               {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Drive</a>}

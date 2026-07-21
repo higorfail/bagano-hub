@@ -186,6 +186,7 @@ export default function AprovacaoPage() {
   const { toast } = useToast()
   const [posts,   setPosts]   = useState<Post[]>([])
   const [clients, setClients] = useState<Client[]>([])
+  const [extrasPending, setExtrasPending] = useState<{ id: string; client_id: string; title: string }[]>([])
   const [waitingSince, setWaitingSince] = useState<Record<string, string>>({})
   const [commentsCount, setCommentsCount] = useState<Record<string, number>>({})
   const [loading,   setLoading]   = useState(true)
@@ -209,18 +210,26 @@ export default function AprovacaoPage() {
     async function load() {
       try {
         const supabase = createClient()
-        const [{ data: postData, error: e1 }, { data: clientData }] = await Promise.all([
+        const [{ data: postData, error: e1 }, { data: clientData }, { data: extrasData }] = await Promise.all([
           supabase
             .from('schedules')
             .select('id, title, post_type, status, approval_status, approval_comment, scheduled_date, month, year, client_id, drive_url, drive_folder_url, funil, campaign_type')
             .or('status.eq.aguardando_aprovacao,status.eq.ajuste,approval_status.eq.aprovado')
             .order('month', { ascending: false }),
           supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active'),
+          // Extras aguardando aprovação do cliente — invisíveis nesta página até
+          // agora, já que ela só olhava schedules. Mesmo critério usado em
+          // AprovarClient.tsx (client_approval_status='aguardando' sozinho —
+          // needs_client_approval não é confiável, nunca é setado pelo fluxo
+          // normal de Extras).
+          supabase.from('extras').select('id, client_id, title')
+            .eq('client_approval_status', 'aguardando'),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
         const allPosts = postData || []
         setPosts(allPosts)
         setClients(clientData || [])
+        setExtrasPending(extrasData || [])
         // Auto-expand clients com revisão solicitada
         const urgentClients = new Set<string>()
         allPosts.forEach(p => { if (p.status === 'ajuste') urgentClients.add(p.client_id) })
@@ -261,6 +270,13 @@ export default function AprovacaoPage() {
     clients.forEach(c => { m[c.id] = c })
     return m
   }, [clients])
+
+  const extrasPendingByClient = useMemo(() => {
+    const m: Record<string, number> = {}
+    extrasPending.forEach(e => { m[e.client_id] = (m[e.client_id] || 0) + 1 })
+    return m
+  }, [extrasPending])
+  const extrasPendingTotal = extrasPending.length
 
   const monthOptions = useMemo(() => {
     const set = new Set(posts.map(monthKeyOf))
@@ -307,13 +323,20 @@ export default function AprovacaoPage() {
       if (!groups[p.client_id]) groups[p.client_id] = []
       groups[p.client_id].push(p)
     })
+    // Cliente com só Extras pendentes (sem nenhum post do cronograma) também
+    // precisa aparecer na lista — senão a pendência de Extra passa batido.
+    if (filter === 'todos') {
+      Object.keys(extrasPendingByClient).forEach(clientId => {
+        if (!groups[clientId]) groups[clientId] = []
+      })
+    }
     // Revisões primeiro, depois aguardando
     return Object.entries(groups).sort(([, a], [, b]) => {
       const aRev = a.some(p => p.approval_status === 'não aprovado') ? 0 : 1
       const bRev = b.some(p => p.approval_status === 'não aprovado') ? 0 : 1
       return aRev - bRev
     })
-  }, [filtered])
+  }, [filtered, extrasPendingByClient, filter])
 
   const aguardandoCount = posts.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado').length
   const revisaoCount    = posts.filter(p => p.status === 'ajuste').length
@@ -354,7 +377,7 @@ export default function AprovacaoPage() {
   function remindClient(clientId: string, pending: number) {
     const client = clientMap[clientId]
     const link = `${window.location.origin}/aprovar/cliente/${clientId}`
-    const msg = `Oi${client ? ', ' + client.name.split(' ')[0] : ''}! Tudo bem? Tem ${pending} post${pending !== 1 ? 's' : ''} esperando sua aprovação por aqui: ${link}`
+    const msg = `Oi${client ? ', ' + client.name.split(' ')[0] : ''}! Tudo bem? Tem ${pending} it${pending !== 1 ? 'ens' : 'em'} esperando sua aprovação por aqui: ${link}`
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
@@ -388,7 +411,13 @@ export default function AprovacaoPage() {
               {aguardandoCount > 0 && <span>{aguardandoCount} aguardando resposta</span>}
               {aguardandoCount > 0 && revisaoCount > 0 && <span className="mx-1.5 text-[var(--color-text-faint)]">·</span>}
               {revisaoCount > 0 && <span style={{ color: 'var(--ds-warn-text)' }}>{revisaoCount} precisam ajuste</span>}
-              {aguardandoCount === 0 && revisaoCount === 0 && 'Tudo em dia'}
+              {aguardandoCount === 0 && revisaoCount === 0 && extrasPendingTotal === 0 && 'Tudo em dia'}
+              {extrasPendingTotal > 0 && (
+                <>
+                  {(aguardandoCount > 0 || revisaoCount > 0) && <span className="mx-1.5 text-[var(--color-text-faint)]">·</span>}
+                  <span style={{ color: '#6366f1' }}>{extrasPendingTotal} extra{extrasPendingTotal !== 1 ? 's' : ''} pendente{extrasPendingTotal !== 1 ? 's' : ''}</span>
+                </>
+              )}
               {pendingClientsCount > 0 && (
                 <span className="text-[var(--color-text-faint)]"> · {pendingClientsCount} cliente{pendingClientsCount !== 1 ? 's' : ''}{oldestWaitingDays !== null && oldestWaitingDays > 0 ? ` · mais antigo há ${oldestWaitingDays}d` : ''}</span>
               )}
@@ -476,6 +505,7 @@ export default function AprovacaoPage() {
           const pendentes  = clientPosts.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado').length
           const revisoes   = clientPosts.filter(p => p.approval_status === 'não aprovado').length
           const aprovados  = clientPosts.filter(p => p.approval_status === 'aprovado').length
+          const extrasPendentes = extrasPendingByClient[clientId] || 0
           const hasUrgency = revisoes > 0
 
           // Agrupar por mês dentro do cliente
@@ -512,19 +542,21 @@ export default function AprovacaoPage() {
                     <span className="font-semibold text-[var(--color-text-primary)] text-sm truncate">{client.name}</span>
                     {!isOpen && (
                       <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                        {clientPosts.length} post{clientPosts.length !== 1 ? 's' : ''} pendente{clientPosts.length !== 1 ? 's' : ''}
+                        {clientPosts.length > 0
+                          ? `${clientPosts.length} post${clientPosts.length !== 1 ? 's' : ''} pendente${clientPosts.length !== 1 ? 's' : ''}`
+                          : `${extrasPendentes} extra${extrasPendentes !== 1 ? 's' : ''} pendente${extrasPendentes !== 1 ? 's' : ''}`}
                       </p>
                     )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {pendentes > 0 && (
+                  {(pendentes + extrasPendentes) > 0 && (
                     <span
                       role="button"
                       tabIndex={0}
-                      onClick={e => { e.stopPropagation(); remindClient(clientId, pendentes) }}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); remindClient(clientId, pendentes) } }}
+                      onClick={e => { e.stopPropagation(); remindClient(clientId, pendentes + extrasPendentes) }}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); remindClient(clientId, pendentes + extrasPendentes) } }}
                       title="Lembrar cliente pelo WhatsApp"
                       className="hidden md:flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-page)] hover:border-[var(--color-border-strong)] transition-colors cursor-pointer"
                     >
@@ -556,6 +588,11 @@ export default function AprovacaoPage() {
                       <CheckCircle2 size={10} /> {aprovados} aprovado{aprovados !== 1 ? 's' : ''}
                     </span>
                   )}
+                  {extrasPendentes > 0 && (
+                    <span className="hidden lg:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full" style={{ color: '#6366f1', background: '#6366f122' }} title="Extras aguardando aprovação do cliente">
+                      🧩 {extrasPendentes} extra{extrasPendentes !== 1 ? 's' : ''}
+                    </span>
+                  )}
                   {isOpen
                     ? <ChevronDown size={15} className="text-[var(--color-text-muted)] flex-shrink-0" />
                     : <ChevronRight size={15} className="text-[var(--color-text-muted)] flex-shrink-0" />
@@ -566,6 +603,12 @@ export default function AprovacaoPage() {
               {/* Posts — expandido */}
               {isOpen && (
                 <div className="border-t border-[var(--color-border)]">
+                  {clientPosts.length === 0 && extrasPendentes > 0 && (
+                    <div className="px-5 py-4 flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+                      🧩 {extrasPendentes} extra{extrasPendentes !== 1 ? 's' : ''} aguardando aprovação do cliente — confira em
+                      <button onClick={e => { e.stopPropagation(); router.push('/dashboard/extras') }} className="font-medium underline underline-offset-2 hover:text-[var(--color-text-primary)]">Extras</button>
+                    </div>
+                  )}
                   {monthGroups.map(([monthKey, mPostsRaw]) => {
                     const mPosts = sortPosts(mPostsRaw)
                     const [y, m] = monthKey.split('-')
