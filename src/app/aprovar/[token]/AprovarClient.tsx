@@ -479,8 +479,8 @@ export default function ApprovalPage({ token }: { token: string }) {
           </div>
         ) : null}
 
-        <div style={{ padding: '14px 18px' }}>
-          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.3 }}>{extra.title}</h3>
+        <div style={{ padding: '16px 18px' }}>
+          <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.3 }}>{extra.title}</h3>
           {(extra.ai_summary || extra.description) && (
             <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px', lineHeight: 1.6 }}>{extra.ai_summary || extra.description}</p>
           )}
@@ -542,46 +542,46 @@ export default function ApprovalPage({ token }: { token: string }) {
           )}
 
           {isCommenting && (
-            <div style={{ marginBottom: 12 }}>
-              <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 6px', fontWeight: 600 }}>O que precisa mudar?</p>
+            <div style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px', fontWeight: 600 }}>O que precisa mudar?</p>
               <textarea autoFocus value={comment}
                 onChange={e => setExtraComments(c => ({ ...c, [extra.id]: e.target.value }))}
                 placeholder="Ex: Trocar a imagem, ajustar o texto..."
-                rows={2}
-                style={{ width: '100%', background: '#fff', border: `2px solid ${cc}`, borderRadius: 12, padding: '10px 14px', fontSize: 14, color: '#111', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5, fontFamily: 'inherit' }}
+                rows={3}
+                style={{ width: '100%', background: '#fff', border: `2px solid ${cc}`, borderRadius: 14, padding: '13px 16px', fontSize: 15, color: '#111', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5, fontFamily: 'inherit' }}
               />
             </div>
           )}
           {isApproved ? (
             <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', borderRadius: 14, background: '#f0fdf4', border: '1.5px solid #86efac', fontSize: 14, fontWeight: 700, color: '#16a34a' }}>
-                <CheckCircle size={15} strokeWidth={2.5} /> Aprovado
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#f0fdf4', border: '1.5px solid #86efac', fontSize: 15, fontWeight: 700, color: '#16a34a' }}>
+                <CheckCircle size={17} strokeWidth={2.5} /> Aprovado
               </div>
               <button onClick={() => undoExtra(extra.id)} disabled={!!isLoading}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 16px', borderRadius: 14, background: '#fff', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 16px', borderRadius: 16, background: '#fff', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}>
                 <RotateCcw size={13} /> Desfazer
               </button>
             </div>
           ) : isCommenting ? (
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => { setExtraCommenting(s => { const n = new Set(s); n.delete(extra.id); return n }); setExtraComments(c => { const n = { ...c }; delete n[extra.id]; return n }) }}
-                style={{ padding: '12px 16px', borderRadius: 14, background: '#f3f4f6', border: 'none', fontSize: 13, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>
+                style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: 'none', fontSize: 14, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button onClick={() => rejectExtra(extra.id, comment)} disabled={!comment.trim() || !!isLoading}
-                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 0', borderRadius: 14, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 13, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
-                <MessageSquare size={13} /> Enviar pedido
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#fef3c7', border: '1.5px solid #fde68a', fontSize: 14, fontWeight: 700, color: '#92400e', cursor: comment.trim() ? 'pointer' : 'default', opacity: !comment.trim() || isLoading ? 0.5 : 1 }}>
+                <MessageSquare size={15} /> Enviar pedido
               </button>
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setExtraCommenting(s => { const n = new Set(s); n.add(extra.id); return n })}
-                style={{ padding: '12px 16px', borderRadius: 14, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 14, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 ✏️ Pedir ajuste
               </button>
               <button onClick={() => approveExtra(extra.id)} disabled={!!isLoading}
-                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 0', borderRadius: 14, background: cc, border: 'none', fontSize: 14, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 4px 16px ${cc}44`, letterSpacing: '-0.01em' }}>
-                {isLoading ? '…' : <><CheckCircle size={15} strokeWidth={2.5} /> Aprovar</>}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: cc, border: 'none', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: isLoading ? 0.7 : 1, boxShadow: `0 6px 24px ${cc}44`, letterSpacing: '-0.02em' }}>
+                {isLoading ? '…' : <><CheckCircle size={17} strokeWidth={2.5} /> Aprovar</>}
               </button>
             </div>
           )}
