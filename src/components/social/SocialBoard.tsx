@@ -147,6 +147,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
                           key={item.id}
                           item={item}
                           client={client}
+                          compact
                           draggable
                           onDragStart={() => setDragging(item.id)}
                           onDragEnd={() => { setDragging(null); setDragOver(null); dragCounters.current = {} }}

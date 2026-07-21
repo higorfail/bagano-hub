@@ -61,6 +61,7 @@ export type ExtraRow = {
   assigned_member_id: string | null
   client_approval_status: string | null
   published_at: string | null
+  scheduled_at: string | null
 }
 
 // Tipos de post — mesmo vocabulário usado em schedules.post_type e extras.type
@@ -80,7 +81,7 @@ export const SOCIAL_COLUMNS: { key: SocialColumn; label: string; color: string }
 ]
 
 const SCHEDULE_SELECT ='id, post_number, title, post_type, status, scheduled_date, client_id, month, year, approval_status, copy, legenda, drive_url, drive_folder_url'
-const EXTRA_SELECT = 'id, title, type, status, client_id, due_date, due_time, copy, legenda, drive_url, labels, assigned_members, assigned_member_id, client_approval_status, published_at'
+const EXTRA_SELECT = 'id, title, type, status, client_id, due_date, due_time, copy, legenda, drive_url, labels, assigned_members, assigned_member_id, client_approval_status, published_at, scheduled_at'
 
 export function scheduleToSocialItem(row: ScheduleRow): SocialItem | null {
   let column: SocialColumn
@@ -114,13 +115,18 @@ export function extraToSocialItem(row: ExtraRow): SocialItem | null {
   let column: SocialColumn
   if (row.published_at) {
     column = 'publicado'
+  } else if (row.scheduled_at) {
+    column = 'agendado'
   } else {
     // Só é "pronto pra publicar" quando a produção terminou e, SE chegou a
     // ser enviado pro cliente aprovar, a aprovação já veio (não bloqueia se
     // nunca foi enviado — nem todo Extra passa por aprovação de cliente).
+    // A coluna nunca é inferida por due_date (prazo de produção, não é ela
+    // quem decidiu isso) — tudo que fica pronto cai em Aprovado; só um
+    // arrasto/ação manual dela dentro desta página move pra Agendado/Publicado.
     if (row.status !== 'done') return null
     if (row.client_approval_status && row.client_approval_status !== 'aprovado') return null
-    column = row.due_date ? 'agendado' : 'aprovado'
+    column = 'aprovado'
   }
 
   const assignedMembers = row.assigned_members?.length
@@ -298,10 +304,11 @@ export async function moveSocialItem(item: SocialItem, toColumn: SocialColumn) {
     return supabase.from('extras').update({ published_at: new Date().toISOString() }).eq('id', item.id)
   }
   if (toColumn === 'agendado') {
-    const patch: Record<string, unknown> = { published_at: null }
+    const patch: Record<string, unknown> = { scheduled_at: new Date().toISOString(), published_at: null }
     if (!item.scheduledDate) patch.due_date = new Date().toISOString().slice(0, 10)
     return supabase.from('extras').update(patch).eq('id', item.id)
   }
-  // toColumn === 'aprovado'
-  return supabase.from('extras').update({ due_date: null, published_at: null }).eq('id', item.id)
+  // toColumn === 'aprovado' — due_date fica como está (é só informativo);
+  // só desfaz os marcadores manuais de agendado/publicado.
+  return supabase.from('extras').update({ scheduled_at: null, published_at: null }).eq('id', item.id)
 }

@@ -66,43 +66,40 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
       className={`mx-1 bg-[var(--color-bg-card)] rounded-2xl overflow-hidden flex flex-col cursor-pointer select-none border transition-all hover:shadow-sm hover:border-[var(--color-border-hover)] ${overdue ? 'border-[var(--ds-error-border)]' : 'border-[var(--color-border)]'}`}
     >
       <div className="h-[3px] flex-shrink-0" style={{ background: overdue ? 'var(--ds-error-accent)' : typeAccent }} />
-      <div className="p-3 flex flex-col gap-2">
+      <div className="p-2 flex flex-col gap-1.5">
         {overdue && (
-          <div className="flex items-center gap-1.5 rounded-lg px-2 py-1" style={{ background: 'var(--ds-error-bg)' }}>
-            <AlertTriangle size={11} style={{ color: 'var(--ds-error-text)' }} />
-            <span className="text-[10px] font-semibold" style={{ color: 'var(--ds-error-text)' }}>Passou da data e não foi publicado</span>
+          <div className="flex items-center gap-1.5 rounded-md px-1.5 py-0.5" style={{ background: 'var(--ds-error-bg)' }}>
+            <AlertTriangle size={10} style={{ color: 'var(--ds-error-text)' }} />
+            <span className="text-[9px] font-semibold" style={{ color: 'var(--ds-error-text)' }}>Atrasado</span>
           </div>
         )}
-        <div className="flex items-center justify-between gap-1">
-          <span className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--color-text-muted)] truncate max-w-[140px]">
-            {client && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: client.color_hex }} />}
-            {client?.name}
-          </span>
-          <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md flex-shrink-0" style={{ background: item.source === 'extra' ? '#6366f122' : 'var(--color-bg-subtle)', color: item.source === 'extra' ? '#6366f1' : 'var(--color-text-faint)' }}>
-            {item.source === 'extra' ? 'Extra' : 'Crono'}
-          </span>
-        </div>
-
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-1.5">
           {thumbUrl && (
-            <div className="relative w-9 h-9 rounded-lg overflow-hidden bg-[var(--color-bg-subtle)] flex-shrink-0">
+            <div className="relative w-7 h-7 rounded-md overflow-hidden bg-[var(--color-bg-subtle)] flex-shrink-0">
               <img src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
                 onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
               {isVideo && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
-                  <Play size={10} className="text-white" fill="currentColor" />
+                  <Play size={8} className="text-white" fill="currentColor" />
                 </div>
               )}
             </div>
           )}
-          <p className="text-xs font-semibold text-[var(--color-text-primary)] leading-snug line-clamp-2 flex-1 min-w-0">{item.title}</p>
+          <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+            <span className="flex items-center gap-1 text-[9px] font-medium text-[var(--color-text-muted)] truncate">
+              {client && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: client.color_hex }} />}
+              {client?.name}
+              <span className="flex-shrink-0" style={{ color: item.source === 'extra' ? '#6366f1' : 'var(--color-text-faint)' }}>· {item.source === 'extra' ? 'Extra' : 'Crono'}</span>
+            </span>
+            <p className="text-xs font-semibold text-[var(--color-text-primary)] leading-snug line-clamp-2">{item.title}</p>
+          </div>
         </div>
 
         {!compact && caption && (
           <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed line-clamp-2">{caption}</p>
         )}
 
-        <div className="flex items-center gap-1.5 text-[10px]">
+        <div className="flex items-center gap-1.5 text-[9px]">
           <span className="font-semibold px-1.5 py-0.5 rounded-md" style={{ background: typeAccent + '22', color: typeAccent }}>
             {POST_TYPE_LABEL[item.postType || ''] || item.postType}
           </span>
@@ -135,33 +132,33 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
           )
         )}
 
-        <div className="flex items-center gap-1 pt-1.5 border-t border-[var(--color-border)]">
+        <div className="flex items-center gap-0.5 pt-1 border-t border-[var(--color-border)]">
           <button
             onClick={copyCaption}
             title={caption ? 'Copiar legenda' : 'Sem legenda/copy preenchida'}
             disabled={!caption}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-faint)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
           >
-            {copied ? <Check size={13} className="text-[var(--ds-success-text)]" /> : <Copy size={13} />}
+            {copied ? <Check size={12} className="text-[var(--ds-success-text)]" /> : <Copy size={12} />}
           </button>
           <button
             onClick={download}
             title={hasContent ? 'Baixar conteúdo' : 'Sem link do Drive'}
             disabled={!hasContent || downloading}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-faint)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
           >
-            {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
           </button>
           <div className="flex-1" />
           {published ? (
-            <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-md" style={{ color: 'var(--ds-success-text)' }}>
-              <CheckCircle2 size={12} /> Publicado
+            <span className="flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-md" style={{ color: 'var(--ds-success-text)' }}>
+              <CheckCircle2 size={11} /> Publicado
             </span>
           ) : (
             <button
               onClick={markPublished}
               title="Marcar como publicado"
-              className="text-[10px] font-semibold px-2.5 py-1 rounded-md"
+              className="text-[9px] font-semibold px-2 py-0.5 rounded-md"
               style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}
             >
               Publicar
