@@ -38,11 +38,11 @@ Texto: ${text}`
     if (res.status === 503) res = await callGemini('gemini-flash-lite-latest')
 
     if (!res.ok) {
-      if (res.status === 429) {
-        return NextResponse.json({ error: 'Limite gratuito diário da IA foi atingido. Tente de novo mais tarde.' }, { status: 429 })
-      }
       const err = await res.text()
-      console.error('ai-summary Gemini error:', err)
+      console.error('ai-summary Gemini error:', res.status, err)
+      if (res.status === 429) {
+        return NextResponse.json({ error: 'Limite de uso da IA atingido no momento. Tente de novo em instantes ou mais tarde.' }, { status: 429 })
+      }
       return NextResponse.json({ error: 'Não consegui gerar o resumo agora.' }, { status: 500 })
     }
 

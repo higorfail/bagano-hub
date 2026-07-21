@@ -177,11 +177,11 @@ ${cronogramaText}`
     )
 
     if (!res.ok) {
-      if (res.status === 429) {
-        return NextResponse.json({ error: 'Limite gratuito diário da IA foi atingido. Tente de novo mais tarde (a cota reseta uma vez por dia).' }, { status: 429 })
-      }
       const err = await res.text()
-      console.error('ai-preplist Gemini error:', err)
+      console.error('ai-preplist Gemini error:', res.status, err)
+      if (res.status === 429) {
+        return NextResponse.json({ error: 'Limite de uso da IA atingido no momento. Tente de novo em instantes ou mais tarde.' }, { status: 429 })
+      }
       return NextResponse.json({ error: 'Não consegui gerar o checklist agora. Tente de novo em instantes.' }, { status: 500 })
     }
 
