@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check, Menu, X as XIcon } from 'lucide-react'
-import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, CheckCircle2, XCircle, Camera, Clock, MessageCircle, Trash2, Zap, CalendarClock, ListChecks, Eye, AtSign } from 'lucide-react'
+import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, CheckCircle2, XCircle, Camera, Clock, MessageCircle, Trash2, Zap, CalendarClock, ListChecks, Eye, AtSign, Share2 } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider } from '@/lib/ToastContext'
@@ -29,6 +29,7 @@ const productionItems = [
   { href: '/dashboard/materiais',  icon: Package,        label: 'Materiais' },
   { href: '/dashboard/campanhas',  icon: Megaphone,      label: 'Campanhas' },
   { href: '/dashboard/extras',     icon: LayoutList,     label: 'Extras' },
+  { href: '/dashboard/social',     icon: Share2,         label: 'Publicações' },
 ]
 const contentItems = [
   { href: '/dashboard/calendario',                 icon: Calendar,      label: 'Calendário' },
