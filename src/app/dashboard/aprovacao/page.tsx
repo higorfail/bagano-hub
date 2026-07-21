@@ -24,6 +24,7 @@ type Post = {
   campaign_type: string | null
 }
 type Client = { id: string; name: string; color_hex: string; logo_url: string | null }
+type ExtraPending = { id: string; client_id: string; title: string; type: string; drive_url: string | null; due_date: string | null }
 
 const TYPE_LABEL: Record<string, string> = {
   reels: 'Reels', carrossel: 'Carrossel', post: 'Post',
@@ -96,6 +97,99 @@ function PostThumb({ post, className = 'w-14' }: { post: Post; className?: strin
         </div>
       )}
     </div>
+  )
+}
+
+// Miniatura de Extra — mesmo componente/estilo do PostThumb (Extra só não tem
+// drive_folder_url, é sempre arquivo único).
+function ExtraThumb({ extra, className = 'w-14' }: { extra: ExtraPending; className?: string }) {
+  const { thumbUrl, isThumbVideo } = useDriveThumb(extra.drive_url, null, extra.type === 'reels')
+  return (
+    <div className={`relative flex-shrink-0 overflow-hidden rounded-lg bg-[var(--color-bg-subtle)] flex items-center justify-center ${className}`} style={{ aspectRatio: '4 / 5' }}>
+      {thumbUrl ? (
+        <img src={thumbUrl} alt={extra.title} className="absolute inset-0 w-full h-full object-cover"
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+      ) : (
+        <span className="text-lg opacity-60">{TYPE_EMOJI[extra.type] || '📄'}</span>
+      )}
+      {thumbUrl && isThumbVideo && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+          <div className="w-6 h-6 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+            <Play size={10} className="text-[#111] ml-0.5" fill="currentColor" />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Preview grande de Extra — mesmo padrão do Lightbox de post, mas sem
+// "aguardando há Xd" (não temos activity_log rastreado pra Extras aqui) e
+// abrindo o Extra completo em /dashboard/extras?post=... em vez do cronograma.
+function ExtraLightbox({ extra, client, onClose, onOpenFull }: {
+  extra: ExtraPending; client?: Client; onClose: () => void; onOpenFull: () => void
+}) {
+  const { thumbUrl, isThumbVideo } = useDriveThumb(extra.drive_url, null, extra.type === 'reels')
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <ModalPortal>
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="relative max-w-sm w-full bg-[var(--color-bg-card)] rounded-2xl overflow-hidden shadow-pop" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors">
+          <X size={16} />
+        </button>
+        <div className="relative w-full bg-[var(--color-bg-subtle)]" style={{ aspectRatio: '4 / 5' }}>
+          {thumbUrl ? (
+            <img src={thumbUrl} alt={extra.title} className="absolute inset-0 w-full h-full object-cover" />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-5xl opacity-60">{TYPE_EMOJI[extra.type] || '📄'}</div>
+          )}
+          {thumbUrl && isThumbVideo && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+              <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                <Play size={22} className="text-[#111] ml-1" fill="currentColor" />
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="p-4 flex flex-col gap-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-semibold text-sm text-[var(--color-text-primary)]">{extra.title || 'Sem título'}</p>
+            <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)' }}>Aguardando</span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap text-xs text-[var(--color-text-muted)]">
+            {client && <span>{client.name}</span>}
+            <span className="text-[var(--color-text-faint)]">·</span>
+            <span>{TYPE_LABEL[extra.type] || extra.type}</span>
+            {extra.due_date && (
+              <>
+                <span className="text-[var(--color-text-faint)]">·</span>
+                <span>{new Date(extra.due_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <button onClick={onOpenFull} className="flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl bg-[var(--color-brand)] text-[var(--color-brand-fg)] hover:opacity-90 transition-opacity">
+              Abrir extra completo
+            </button>
+            {extra.drive_url && (
+              <a href={extra.drive_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                title="Abrir no Drive"
+                className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                <ExternalLink size={14} />
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+    </ModalPortal>
   )
 }
 
@@ -186,7 +280,8 @@ export default function AprovacaoPage() {
   const { toast } = useToast()
   const [posts,   setPosts]   = useState<Post[]>([])
   const [clients, setClients] = useState<Client[]>([])
-  const [extrasPending, setExtrasPending] = useState<{ id: string; client_id: string; title: string }[]>([])
+  const [extrasPending, setExtrasPending] = useState<ExtraPending[]>([])
+  const [extraLightboxId, setExtraLightboxId] = useState<string | null>(null)
   const [waitingSince, setWaitingSince] = useState<Record<string, string>>({})
   const [commentsCount, setCommentsCount] = useState<Record<string, number>>({})
   const [loading,   setLoading]   = useState(true)
@@ -222,7 +317,7 @@ export default function AprovacaoPage() {
           // AprovarClient.tsx (client_approval_status='aguardando' sozinho —
           // needs_client_approval não é confiável, nunca é setado pelo fluxo
           // normal de Extras).
-          supabase.from('extras').select('id, client_id, title')
+          supabase.from('extras').select('id, client_id, title, type, drive_url, due_date')
             .eq('client_approval_status', 'aguardando'),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
@@ -369,9 +464,13 @@ export default function AprovacaoPage() {
     router.push(`/dashboard/cronograma?client=${p.client_id}&post=${p.id}&m=${p.month}&y=${p.year}`)
   }
 
+  function navigateToExtra(e: ExtraPending) {
+    router.push(`/dashboard/extras?post=${e.id}`)
+  }
+
   function copyClientLink(clientId: string) {
     navigator.clipboard.writeText(`${window.location.origin}/aprovar/cliente/${clientId}`)
-    toast('Link de aprovação copiado!')
+    toast('Link da Central de aprovação copiado!')
   }
 
   function remindClient(clientId: string, pending: number) {
@@ -382,6 +481,7 @@ export default function AprovacaoPage() {
   }
 
   const lightboxPost = lightboxId ? posts.find(p => p.id === lightboxId) || null : null
+  const extraLightboxPending = extraLightboxId ? extrasPending.find(e => e.id === extraLightboxId) || null : null
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -506,6 +606,7 @@ export default function AprovacaoPage() {
           const revisoes   = clientPosts.filter(p => p.approval_status === 'não aprovado').length
           const aprovados  = clientPosts.filter(p => p.approval_status === 'aprovado').length
           const extrasPendentes = extrasPendingByClient[clientId] || 0
+          const clientExtras = extrasPending.filter(e => e.client_id === clientId)
           const hasUrgency = revisoes > 0
 
           // Agrupar por mês dentro do cliente
@@ -603,10 +704,58 @@ export default function AprovacaoPage() {
               {/* Posts — expandido */}
               {isOpen && (
                 <div className="border-t border-[var(--color-border)]">
-                  {clientPosts.length === 0 && extrasPendentes > 0 && (
-                    <div className="px-5 py-4 flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-                      🧩 {extrasPendentes} extra{extrasPendentes !== 1 ? 's' : ''} aguardando aprovação do cliente — confira em
-                      <button onClick={e => { e.stopPropagation(); router.push('/dashboard/extras') }} className="font-medium underline underline-offset-2 hover:text-[var(--color-text-primary)]">Extras</button>
+                  {clientExtras.length > 0 && (
+                    <div>
+                      <div className="px-5 py-2 bg-[var(--color-bg-subtle)] border-b border-[var(--color-border)]">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">🧩 Extras</span>
+                      </div>
+                      {view === 'grid' ? (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 p-4 items-start">
+                          {clientExtras.map(ex => (
+                            <div key={ex.id} className="flex flex-col gap-1">
+                              <button onClick={() => setExtraLightboxId(ex.id)} title="Ver preview" className="relative rounded-lg overflow-hidden transition-all hover:opacity-90"
+                                style={{ boxShadow: `0 0 0 2px var(--ds-info-accent)` }}>
+                                <ExtraThumb extra={ex} className="w-full rounded-none" />
+                                <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1 py-1 text-white text-[10px] font-bold uppercase tracking-wide" style={{ background: 'var(--ds-info-accent)' }}>
+                                  <Clock size={10} strokeWidth={2.5} /> Aguardando
+                                </div>
+                              </button>
+                              <button onClick={() => navigateToExtra(ex)} className="text-left flex-1 min-w-0">
+                                <p className="text-[11px] font-medium text-[var(--color-text-primary)] truncate leading-tight hover:underline">{ex.title || 'Sem título'}</p>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-[var(--color-bg-subtle)]">
+                          {clientExtras.map(ex => (
+                            <div key={ex.id} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[var(--color-bg-page)] transition-colors group">
+                              <button onClick={() => setExtraLightboxId(ex.id)} title="Ver preview">
+                                <ExtraThumb extra={ex} />
+                              </button>
+                              <button onClick={() => navigateToExtra(ex)} className="flex-1 min-w-0 text-left">
+                                <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{ex.title || 'Sem título'}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <span className="text-xs text-[var(--color-text-muted)]">{TYPE_LABEL[ex.type] || ex.type}</span>
+                                  {ex.due_date && (
+                                    <>
+                                      <span className="text-[var(--color-text-faint)]">·</span>
+                                      <span className="text-xs text-[var(--color-text-muted)]">
+                                        {new Date(ex.due_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </button>
+                              <div className="flex-shrink-0">
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)', borderColor: 'var(--ds-info-border)' }}>
+                                  Aguardando
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                   {monthGroups.map(([monthKey, mPostsRaw]) => {
@@ -771,6 +920,15 @@ export default function AprovacaoPage() {
           waitDays={waitingSince[lightboxPost.id] ? daysAgo(waitingSince[lightboxPost.id]) : null}
           onClose={() => setLightboxId(null)}
           onOpenFull={() => { navigateToPost(lightboxPost); setLightboxId(null) }}
+        />
+      )}
+
+      {extraLightboxPending && (
+        <ExtraLightbox
+          extra={extraLightboxPending}
+          client={clientMap[extraLightboxPending.client_id]}
+          onClose={() => setExtraLightboxId(null)}
+          onOpenFull={() => { navigateToExtra(extraLightboxPending); setExtraLightboxId(null) }}
         />
       )}
     </div>

@@ -255,8 +255,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 const generalToken = await getOrCreateGeneralApprovalToken(client.id)
                 if (!generalToken) { toast('Erro ao gerar link'); return }
                 navigator.clipboard.writeText(`${window.location.origin}/aprovar/${generalToken}`)
-                toast('Link geral de aprovação copiado!')
-              }} className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]" title="Mostra tudo que está pendente de aprovação (crono + final + extras) numa página só">🔗 Link de aprovação</button>
+                toast('Link da Central de aprovação copiado!')
+              }} className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]" title="Mostra tudo que está pendente de aprovação (crono + final + extras) numa página só">🔗 Central de aprovação</button>
               {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Instagram</a>}
               {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Manual</a>}
               {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Drive</a>}
@@ -267,10 +267,12 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 
           {/* Ações — linha compacta com scroll horizontal no mobile */}
           <div className="flex md:hidden items-center gap-1.5 mt-2.5 overflow-x-auto -mx-3 px-3">
-            <button onClick={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/aprovar/cliente/${client.id}`)
-              toast('Link fixo de aprovação copiado!')
-            }} className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">🔗 Aprovação</button>
+            <button onClick={async () => {
+              const generalToken = await getOrCreateGeneralApprovalToken(client.id)
+              if (!generalToken) { toast('Erro ao gerar link'); return }
+              navigator.clipboard.writeText(`${window.location.origin}/aprovar/${generalToken}`)
+              toast('Link da Central de aprovação copiado!')
+            }} className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">🔗 Central</button>
             {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">Instagram</a>}
             {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">Manual</a>}
             {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">Drive</a>}

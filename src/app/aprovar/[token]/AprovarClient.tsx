@@ -248,7 +248,7 @@ export default function ApprovalPage({ token }: { token: string }) {
 
   useEffect(() => {
     if (!client || !tokenData) return
-    const label = tokenData.type === 'cronograma' ? 'Aprovação do Cronograma' : tokenData.type === 'geral' ? 'Aprovações Pendentes' : 'Aprovação Final'
+    const label = tokenData.type === 'cronograma' ? 'Aprovação do Cronograma' : tokenData.type === 'geral' ? 'Central de Aprovação' : 'Aprovação Final'
     document.title = `${label} · ${client.name}`
   }, [client, tokenData])
 
@@ -927,7 +927,7 @@ export default function ApprovalPage({ token }: { token: string }) {
               }
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{client?.name}</p>
-                <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovações pendentes</p>
+                <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Central de aprovação</p>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <p style={{ margin: 0, lineHeight: 1 }}>
