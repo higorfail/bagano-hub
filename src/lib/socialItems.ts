@@ -276,14 +276,16 @@ export async function downloadDriveContent(driveUrl: string | null | undefined, 
   }
 }
 
-// Define a data (e opcionalmente hora) de um item sem mudar sua coluna — usado
-// pelo botão "Definir data" nos cards Aprovados sem data marcada ainda.
-export async function setItemScheduledDate(item: SocialItem, date: string, time?: string) {
+// Agenda de vez: define a data (e opcionalmente hora) E move pro Agendado
+// numa ação só — usado pelo botão "Agendar". Diferente de moveSocialItem
+// pro caso 'agendado', porque também precisa gravar a data escolhida (não
+// só cair no default de hoje quando não houver uma ainda).
+export async function scheduleSocialItem(item: SocialItem, date: string, time?: string) {
   const supabase = createClient()
   if (item.source === 'schedule') {
-    return supabase.from('schedules').update({ scheduled_date: date }).eq('id', item.id)
+    return supabase.from('schedules').update({ scheduled_date: date, status: 'agendado' }).eq('id', item.id)
   }
-  const patch: Record<string, unknown> = { due_date: date }
+  const patch: Record<string, unknown> = { due_date: date, scheduled_at: new Date().toISOString(), published_at: null }
   if (time) patch.due_time = time
   return supabase.from('extras').update(patch).eq('id', item.id)
 }

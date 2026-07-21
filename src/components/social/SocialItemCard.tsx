@@ -3,7 +3,7 @@
 import { SocialItem, POST_TYPE_LABEL, POST_TYPE_ACCENT, downloadDriveContent, isOverdue } from '@/lib/socialItems'
 import { useToast } from '@/lib/ToastContext'
 import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
-import { Copy, Check, Download, Loader2, CalendarPlus, CheckCircle2, AlertTriangle, Play } from 'lucide-react'
+import { Copy, Check, Download, Loader2, CalendarClock, CheckCircle2, AlertTriangle, Clock3, BadgeCheck, Play } from 'lucide-react'
 import { useState } from 'react'
 
 type Client = { id: string; name: string; color_hex: string }
@@ -16,20 +16,27 @@ type Props = {
   onDragEnd?: () => void
   onClick?: () => void
   onPublish?: () => void
-  onSetDate?: (date: string) => void
+  onSchedule?: (date: string) => void
   compact?: boolean
 }
 
-export default function SocialItemCard({ item, client, draggable, onDragStart, onDragEnd, onClick, onPublish, onSetDate, compact }: Props) {
+const STATUS_META = {
+  aprovado:  { label: 'Aprovado',  icon: BadgeCheck,   color: '#3B82F6' },
+  agendado:  { label: 'Agendado',  icon: Clock3,       color: '#14B8A6' },
+  publicado: { label: 'Publicado', icon: CheckCircle2, color: '#22C55E' },
+  atrasado:  { label: 'Atrasado',  icon: AlertTriangle, color: 'var(--ds-error-accent)' },
+} as const
+
+export default function SocialItemCard({ item, client, draggable, onDragStart, onDragEnd, onClick, onPublish, onSchedule, compact }: Props) {
   const { toast } = useToast()
   const [copied, setCopied] = useState(false)
   const [downloading, setDownloading] = useState(false)
-  const [settingDate, setSettingDate] = useState(false)
+  const [scheduling, setScheduling] = useState(false)
   const typeAccent = POST_TYPE_ACCENT[item.postType || ''] || 'var(--color-border)'
   const caption = item.legenda || item.copy || ''
-  const published = item.column === 'publicado'
-  const needsDate = item.column === 'aprovado' && !item.scheduledDate
   const overdue = isOverdue(item)
+  const statusKey = overdue ? 'atrasado' : item.column
+  const status = STATUS_META[statusKey]
   const { thumbUrl, isVideo } = useDriveThumbnail(item.driveUrl, item.driveFolderUrl, item.postType === 'reels')
 
   async function copyCaption(e: React.MouseEvent) {
@@ -57,6 +64,12 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
     onPublish?.()
   }
 
+  function schedule(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (item.scheduledDate) { onSchedule?.(item.scheduledDate); return }
+    setScheduling(true)
+  }
+
   return (
     <div
       draggable={draggable}
@@ -67,12 +80,10 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
     >
       <div className="h-[3px] flex-shrink-0" style={{ background: overdue ? 'var(--ds-error-accent)' : typeAccent }} />
       <div className="p-2 flex flex-col gap-1.5">
-        {overdue && (
-          <div className="flex items-center gap-1.5 rounded-md px-1.5 py-0.5" style={{ background: 'var(--ds-error-bg)' }}>
-            <AlertTriangle size={10} style={{ color: 'var(--ds-error-text)' }} />
-            <span className="text-[9px] font-semibold" style={{ color: 'var(--ds-error-text)' }}>Atrasado</span>
-          </div>
-        )}
+        <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide" style={{ color: status.color }}>
+          <status.icon size={10} />
+          {status.label}
+        </div>
         <div className="flex items-start gap-1.5">
           {thumbUrl && (
             <div className="relative w-7 h-7 rounded-md overflow-hidden bg-[var(--color-bg-subtle)] flex-shrink-0">
@@ -111,23 +122,24 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
           )}
         </div>
 
-        {needsDate && onSetDate && (
-          settingDate ? (
+        {item.column === 'aprovado' && onSchedule && (
+          scheduling ? (
             <input
               type="date"
               autoFocus
               onClick={e => e.stopPropagation()}
-              onChange={e => { if (e.target.value) { onSetDate(e.target.value); setSettingDate(false) } }}
-              onBlur={() => setSettingDate(false)}
+              onChange={e => { if (e.target.value) { onSchedule(e.target.value); setScheduling(false) } }}
+              onBlur={() => setScheduling(false)}
               className="text-[11px] px-2 py-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none"
             />
           ) : (
             <button
-              onClick={e => { e.stopPropagation(); setSettingDate(true) }}
-              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg border border-dashed"
-              style={{ borderColor: 'var(--ds-warn-border)', color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}
+              onClick={schedule}
+              title={item.scheduledDate ? 'Confirmar agendamento pra essa data' : 'Escolher uma data e agendar'}
+              className="flex items-center justify-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg"
+              style={{ background: '#14B8A622', color: '#0d8a7a' }}
             >
-              <CalendarPlus size={11} /> Definir data
+              <CalendarClock size={11} /> Agendar
             </button>
           )
         )}
@@ -150,11 +162,11 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
             {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
           </button>
           <div className="flex-1" />
-          {published ? (
+          {item.column === 'publicado' ? (
             <span className="flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-md" style={{ color: 'var(--ds-success-text)' }}>
               <CheckCircle2 size={11} /> Publicado
             </span>
-          ) : (
+          ) : item.column === 'agendado' ? (
             <button
               onClick={markPublished}
               title="Marcar como publicado"
@@ -163,7 +175,7 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
             >
               Publicar
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

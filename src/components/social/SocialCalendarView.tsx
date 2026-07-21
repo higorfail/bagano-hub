@@ -1,11 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { SocialItem, isOverdue, moveSocialItem } from '@/lib/socialItems'
+import { SocialItem, isOverdue, moveSocialItem, scheduleSocialItem } from '@/lib/socialItems'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import SocialItemPopover, { PopoverAnchor } from './SocialItemPopover'
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock3, BadgeCheck, AlertTriangle } from 'lucide-react'
+
+const STATUS_META = {
+  aprovado:  { label: 'Aprovado',  icon: BadgeCheck,    color: '#3B82F6' },
+  agendado:  { label: 'Agendado',  icon: Clock3,        color: '#14B8A6' },
+  publicado: { label: 'Publicado', icon: CheckCircle2,  color: '#22C55E' },
+  atrasado:  { label: 'Atrasado',  icon: AlertTriangle, color: 'var(--ds-error-accent)' },
+} as const
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const WEEKDAYS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
@@ -41,6 +48,15 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
     setPopover(null)
   }
 
+  async function schedule(item: SocialItem) {
+    if (!item.scheduledDate) return
+    const prev = items
+    onItemsChange(list => list.map(i => i.id === item.id ? { ...i, column: 'agendado' } : i))
+    const { error } = await scheduleSocialItem(item, item.scheduledDate)
+    if (error) { onItemsChange(() => prev); dbError(error, toast, 'agendar') }
+    setPopover(null)
+  }
+
   function openPopover(e: React.MouseEvent<HTMLButtonElement>, item: SocialItem) {
     const r = e.currentTarget.getBoundingClientRect()
     setPopover({ item, anchor: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } })
@@ -59,8 +75,9 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
     <div className="flex-1 flex flex-col gap-3 p-4 overflow-auto">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3 text-[11px] text-[var(--color-text-muted)]">
-          <span className="flex items-center gap-1.5"><CheckCircle2 size={12} style={{ color: 'var(--ds-success-accent)' }} /> Publicado</span>
-          <span className="flex items-center gap-1.5"><Clock size={12} className="text-[var(--color-text-faint)]" /> Agendado</span>
+          <span className="flex items-center gap-1.5"><BadgeCheck size={12} style={{ color: STATUS_META.aprovado.color }} /> Aprovado</span>
+          <span className="flex items-center gap-1.5"><Clock3 size={12} style={{ color: STATUS_META.agendado.color }} /> Agendado</span>
+          <span className="flex items-center gap-1.5"><CheckCircle2 size={12} style={{ color: STATUS_META.publicado.color }} /> Publicado</span>
           <span className="flex items-center gap-1.5"><AlertTriangle size={12} style={{ color: 'var(--ds-error-accent)' }} /> Atrasado</span>
         </div>
         <div className="flex items-center gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1">
@@ -96,7 +113,9 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
                   const client = getClient(item.clientId)
                   const published = item.column === 'publicado'
                   const overdue = isOverdue(item, todayISO)
-                  const accent = overdue ? 'var(--ds-error-accent)' : (client?.color_hex || '#94a3b8')
+                  const statusKey = overdue ? 'atrasado' : item.column
+                  const status = STATUS_META[statusKey]
+                  const accent = overdue ? 'var(--ds-error-accent)' : status.color
                   return (
                     <button
                       key={item.id}
@@ -107,7 +126,7 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
                         : { background: accent + '16', borderColor: accent + (overdue ? '80' : '55') }}
                     >
                       <span className="flex items-center gap-1 text-[10px] font-bold truncate" style={{ color: published ? '#fff' : accent }}>
-                        {overdue ? <AlertTriangle size={9} className="flex-shrink-0" /> : published ? <CheckCircle2 size={9} className="flex-shrink-0" /> : <Clock size={9} className="flex-shrink-0" />}
+                        <status.icon size={9} className="flex-shrink-0" />
                         {client?.name || 'Sem cliente'}
                       </span>
                       <span className="text-[9px] truncate" style={{ color: published ? 'rgba(255,255,255,0.85)' : 'var(--color-text-muted)' }}>
@@ -133,6 +152,7 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
           onClose={() => setPopover(null)}
           onOpen={() => { onOpenItem(popover.item); setPopover(null) }}
           onPublish={() => publish(popover.item)}
+          onSchedule={() => schedule(popover.item)}
         />
       )}
     </div>

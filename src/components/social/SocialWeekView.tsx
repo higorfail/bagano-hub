@@ -1,12 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { SocialItem, isOverdue, moveSocialItem, POST_TYPE_LABEL } from '@/lib/socialItems'
+import { SocialItem, isOverdue, moveSocialItem, scheduleSocialItem, POST_TYPE_LABEL } from '@/lib/socialItems'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
 import SocialItemPopover, { PopoverAnchor } from './SocialItemPopover'
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock, AlertTriangle, Play } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock3, BadgeCheck, AlertTriangle, Play } from 'lucide-react'
+
+const STATUS_META = {
+  aprovado:  { label: 'Aprovado',  icon: BadgeCheck,    color: '#3B82F6' },
+  agendado:  { label: 'Agendado',  icon: Clock3,        color: '#14B8A6' },
+  publicado: { label: 'Publicado', icon: CheckCircle2,  color: '#22C55E' },
+  atrasado:  { label: 'Atrasado',  icon: AlertTriangle, color: 'var(--ds-error-accent)' },
+} as const
 
 const DAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
 
@@ -23,7 +30,9 @@ function WeekDayItem({ item, client, overdue, onClick }: {
   item: SocialItem; client?: Client; overdue: boolean; onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
 }) {
   const published = item.column === 'publicado'
-  const accent = overdue ? 'var(--ds-error-accent)' : (client?.color_hex || '#94a3b8')
+  const statusKey = overdue ? 'atrasado' : item.column
+  const status = STATUS_META[statusKey]
+  const accent = overdue ? 'var(--ds-error-accent)' : status.color
   const { thumbUrl, isVideo } = useDriveThumbnail(item.driveUrl, item.driveFolderUrl, item.postType === 'reels')
 
   return (
@@ -47,14 +56,12 @@ function WeekDayItem({ item, client, overdue, onClick }: {
       )}
       <div className="flex flex-col gap-0.5 min-w-0 flex-1">
         <div className="flex items-center gap-1">
-          {overdue ? <AlertTriangle size={9} className="flex-shrink-0" style={{ color: published ? '#fff' : accent }} />
-            : published ? <CheckCircle2 size={9} className="flex-shrink-0" style={{ color: '#fff' }} />
-            : <Clock size={9} className="flex-shrink-0" style={{ color: accent }} />}
+          <status.icon size={9} className="flex-shrink-0" style={{ color: published ? '#fff' : accent }} />
           <span className="text-[11px] font-bold truncate" style={{ color: published ? '#fff' : accent }}>
             {client?.name || 'Sem cliente'}
           </span>
           <span className="text-[9px] font-semibold uppercase tracking-wide flex-shrink-0" style={{ color: published ? 'rgba(255,255,255,0.85)' : accent }}>
-            {overdue ? 'Atrasado' : published ? 'Publicado' : 'Agendado'}
+            {status.label}
           </span>
         </div>
         <span className="text-[9px] truncate" style={{ color: published ? 'rgba(255,255,255,0.8)' : 'var(--color-text-muted)' }}>
@@ -100,6 +107,15 @@ export default function SocialWeekView({ items, clients, onOpenItem, onItemsChan
     setPopover(null)
   }
 
+  async function schedule(item: SocialItem) {
+    if (!item.scheduledDate) return
+    const prev = items
+    onItemsChange(list => list.map(i => i.id === item.id ? { ...i, column: 'agendado' } : i))
+    const { error } = await scheduleSocialItem(item, item.scheduledDate)
+    if (error) { onItemsChange(() => prev); dbError(error, toast, 'agendar') }
+    setPopover(null)
+  }
+
   function openPopover(e: React.MouseEvent<HTMLButtonElement>, item: SocialItem) {
     const r = e.currentTarget.getBoundingClientRect()
     setPopover({ item, anchor: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } })
@@ -109,8 +125,9 @@ export default function SocialWeekView({ items, clients, onOpenItem, onItemsChan
     <div className="flex-1 flex flex-col gap-3 p-4 overflow-auto">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3 text-[11px] text-[var(--color-text-muted)]">
-          <span className="flex items-center gap-1.5"><CheckCircle2 size={12} style={{ color: 'var(--ds-success-accent)' }} /> Publicado</span>
-          <span className="flex items-center gap-1.5"><Clock size={12} className="text-[var(--color-text-faint)]" /> Agendado</span>
+          <span className="flex items-center gap-1.5"><BadgeCheck size={12} style={{ color: STATUS_META.aprovado.color }} /> Aprovado</span>
+          <span className="flex items-center gap-1.5"><Clock3 size={12} style={{ color: STATUS_META.agendado.color }} /> Agendado</span>
+          <span className="flex items-center gap-1.5"><CheckCircle2 size={12} style={{ color: STATUS_META.publicado.color }} /> Publicado</span>
           <span className="flex items-center gap-1.5"><AlertTriangle size={12} style={{ color: 'var(--ds-error-accent)' }} /> Atrasado</span>
         </div>
         <div className="flex items-center gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1">
@@ -164,6 +181,7 @@ export default function SocialWeekView({ items, clients, onOpenItem, onItemsChan
           onClose={() => setPopover(null)}
           onOpen={() => { onOpenItem(popover.item); setPopover(null) }}
           onPublish={() => publish(popover.item)}
+          onSchedule={() => schedule(popover.item)}
         />
       )}
     </div>

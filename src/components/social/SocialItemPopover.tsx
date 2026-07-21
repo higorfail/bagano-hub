@@ -5,7 +5,7 @@ import { SocialItem, POST_TYPE_LABEL, downloadDriveContent } from '@/lib/socialI
 import { useToast } from '@/lib/ToastContext'
 import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
 import ModalPortal from '@/components/ModalPortal'
-import { Copy, Check, ExternalLink, Download, Loader2, CheckCircle2, Play } from 'lucide-react'
+import { Copy, Check, ExternalLink, Download, Loader2, CheckCircle2, CalendarClock, Play } from 'lucide-react'
 
 export type PopoverAnchor = { top: number; bottom: number; left: number; right: number }
 
@@ -16,6 +16,7 @@ type Props = {
   onClose: () => void
   onOpen: () => void
   onPublish: () => void
+  onSchedule?: () => void
 }
 
 const POPOVER_WIDTH = 264
@@ -27,13 +28,12 @@ const GAP = 6
 // direto no <body>: como position:fixed, se um ancestral qualquer no caminho
 // até aqui tiver transform/filter (vira containing block), o popover abriria
 // grudado ali em vez de perto do clique — o portal evita esse problema.
-export default function SocialItemPopover({ item, clientName, anchor, onClose, onOpen, onPublish }: Props) {
+export default function SocialItemPopover({ item, clientName, anchor, onClose, onOpen, onPublish, onSchedule }: Props) {
   const { toast } = useToast()
   const [copied, setCopied] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const caption = item.legenda || item.copy || ''
-  const published = item.column === 'publicado'
   const hasContent = !!(item.driveUrl || item.driveFolderUrl)
   const { thumbUrl, isVideo } = useDriveThumbnail(item.driveUrl, item.driveFolderUrl, item.postType === 'reels')
 
@@ -116,10 +116,14 @@ export default function SocialItemPopover({ item, clientName, anchor, onClose, o
               {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
             </button>
             <div className="flex-1">
-              {published ? (
+              {item.column === 'publicado' ? (
                 <span className="flex items-center justify-center gap-1 text-[10px] font-semibold px-2 py-1.5 rounded-lg" style={{ color: 'var(--ds-success-text)' }}>
                   <CheckCircle2 size={12} /> Publicado
                 </span>
+              ) : item.column === 'aprovado' ? (
+                <button onClick={onSchedule} className="w-full flex items-center justify-center gap-1 text-[10px] font-semibold px-2 py-1.5 rounded-lg" style={{ background: '#14B8A622', color: '#0d8a7a' }}>
+                  <CalendarClock size={12} /> Agendar
+                </button>
               ) : (
                 <button onClick={onPublish} className="w-full text-[10px] font-semibold px-2 py-1.5 rounded-lg" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
                   Publicar

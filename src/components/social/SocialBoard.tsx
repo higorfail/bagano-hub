@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { SocialItem, SOCIAL_COLUMNS, SocialColumn, moveSocialItem, setItemScheduledDate } from '@/lib/socialItems'
+import { SocialItem, SOCIAL_COLUMNS, SocialColumn, moveSocialItem, scheduleSocialItem } from '@/lib/socialItems'
 import { groupByClient, useClientGrouping } from '@/lib/useClientGrouping'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
@@ -35,13 +35,13 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
     if (error) { onItemsChange(() => prev); dbError(error, toast, 'mover publicação') }
   }
 
-  async function setDate(itemId: string, date: string) {
+  async function schedule(itemId: string, date: string) {
     const item = items.find(i => i.id === itemId)
     if (!item) return
     const prev = items
-    onItemsChange(list => list.map(i => i.id === itemId ? { ...i, scheduledDate: date } : i))
-    const { error } = await setItemScheduledDate(item, date)
-    if (error) { onItemsChange(() => prev); dbError(error, toast, 'definir data') }
+    onItemsChange(list => list.map(i => i.id === itemId ? { ...i, scheduledDate: date, column: 'agendado' } : i))
+    const { error } = await scheduleSocialItem(item, date)
+    if (error) { onItemsChange(() => prev); dbError(error, toast, 'agendar') }
   }
 
   async function moveGroup(clientKey: string, fromCol: SocialColumn, toCol: SocialColumn) {
@@ -153,7 +153,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
                           onDragEnd={() => { setDragging(null); setDragOver(null); dragCounters.current = {} }}
                           onClick={() => onOpenItem(item)}
                           onPublish={() => moveItem(item.id, 'publicado')}
-                          onSetDate={date => setDate(item.id, date)}
+                          onSchedule={date => schedule(item.id, date)}
                         />
                       ))}
                     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { SocialItem, isOverdue, moveSocialItem, setItemScheduledDate } from '@/lib/socialItems'
+import { SocialItem, isOverdue, moveSocialItem, scheduleSocialItem } from '@/lib/socialItems'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import SocialItemCard from './SocialItemCard'
@@ -33,11 +33,11 @@ export default function SocialPendingView({ items, clients, onOpenItem, onItemsC
     if (error) { onItemsChange(() => prev); dbError(error, toast, 'marcar como publicado') }
   }
 
-  async function setDate(item: SocialItem, date: string) {
+  async function schedule(item: SocialItem, date: string) {
     const prev = items
-    onItemsChange(list => list.map(i => i.id === item.id ? { ...i, scheduledDate: date } : i))
-    const { error } = await setItemScheduledDate(item, date)
-    if (error) { onItemsChange(() => prev); dbError(error, toast, 'definir data') }
+    onItemsChange(list => list.map(i => i.id === item.id ? { ...i, scheduledDate: date, column: 'agendado' } : i))
+    const { error } = await scheduleSocialItem(item, date)
+    if (error) { onItemsChange(() => prev); dbError(error, toast, 'agendar') }
   }
 
   const Section = ({ icon, title, color, list }: { icon: React.ReactNode; title: string; color: string; list: SocialItem[] }) => (
@@ -58,7 +58,7 @@ export default function SocialPendingView({ items, clients, onOpenItem, onItemsC
               client={getClient(item.clientId)}
               onClick={() => onOpenItem(item)}
               onPublish={() => publish(item)}
-              onSetDate={date => setDate(item, date)}
+              onSchedule={date => schedule(item, date)}
             />
           ))}
         </div>
