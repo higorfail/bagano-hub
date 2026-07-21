@@ -29,25 +29,23 @@ function WeekDayItem({ item, client, overdue, onClick }: {
   return (
     <button
       onClick={onClick}
-      className="rounded-lg overflow-hidden text-left border transition-opacity hover:opacity-85 flex flex-col"
+      className="rounded-lg overflow-hidden text-left border transition-opacity hover:opacity-85 flex items-start gap-1.5 px-2 py-1.5"
       style={published
         ? { background: accent, borderColor: accent }
         : { background: accent + '18', borderColor: accent + (overdue ? '80' : '55') }}
     >
       {thumbUrl && (
-        <div className="relative w-full bg-[var(--color-bg-subtle)]" style={{ aspectRatio: '16 / 9' }}>
-          <img src={thumbUrl} alt={item.title} className="absolute inset-0 w-full h-full object-cover"
+        <div className="relative w-8 h-8 rounded-md overflow-hidden bg-[var(--color-bg-subtle)] flex-shrink-0">
+          <img src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
             onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
           {isVideo && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
-              <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center shadow">
-                <Play size={11} className="text-[#111] ml-0.5" fill="currentColor" />
-              </div>
+              <Play size={9} className="text-white" fill="currentColor" />
             </div>
           )}
         </div>
       )}
-      <div className="px-2 py-1.5 flex flex-col gap-0.5">
+      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
         <div className="flex items-center gap-1">
           {overdue ? <AlertTriangle size={9} className="flex-shrink-0" style={{ color: published ? '#fff' : accent }} />
             : published ? <CheckCircle2 size={9} className="flex-shrink-0" style={{ color: '#fff' }} />
