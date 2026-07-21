@@ -162,19 +162,34 @@ Mês: ${monthLabel || 'não informado'}
 Cronograma para essa gravação:
 ${cronogramaText}`
 
-  try {
-    const res = await fetch(
+  // A busca do Google (grounding) tem cota própria, separada da geração de
+  // texto normal — pode estourar mesmo com crédito disponível pra IA em
+  // geral. Por isso: tenta com busca primeiro (melhor contexto sobre
+  // referências linkadas); se vier 429, tenta de novo sem a ferramenta de
+  // busca em vez de falhar — o prompt já foi escrito pra funcionar só com
+  // o briefing quando não há contexto de referência disponível.
+  async function callGemini(useSearch: boolean) {
+    return fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          tools: [{ google_search: {} }],
+          ...(useSearch ? { tools: [{ google_search: {} }] } : {}),
           generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
         }),
       }
     )
+  }
+
+  try {
+    let res = await callGemini(true)
+    if (res.status === 429) {
+      const groundingErr = await res.text()
+      console.warn('ai-preplist: grounding (google_search) esgotado, tentando sem busca:', groundingErr)
+      res = await callGemini(false)
+    }
 
     if (!res.ok) {
       const err = await res.text()
