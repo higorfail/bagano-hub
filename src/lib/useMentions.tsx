@@ -10,7 +10,7 @@ const URL_SPLIT_RE = /(https?:\/\/[^\s]+)/g
 const URL_TEST_RE = /^https?:\/\/[^\s]+$/
 const DRIVE_TEST_RE = /^https?:\/\/(drive|docs)\.google\.com\//
 
-function extractDriveFileId(url: string): string | null {
+export function extractDriveFileId(url: string): string | null {
   const folder = url.match(/\/folders\/([-\w]{25,})/)
   if (folder) return folder[1]
   const file = url.match(/[-\w]{25,}/)

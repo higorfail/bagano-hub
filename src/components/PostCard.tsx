@@ -14,7 +14,7 @@ import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import { renderWithMentions } from '@/lib/useMentions'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { generateAiLegenda } from '@/lib/aiLegenda'
-import { ensureWatching } from '@/lib/watch'
+import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
 import WatchButton from '@/components/WatchButton'
 import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
@@ -436,6 +436,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (data) setComments(c => [...c, data])
     setNewComment('')
     requestAnimationFrame(() => { if (commentTextareaRef.current) autoGrow(commentTextareaRef.current) })
+    await ensureWatchingFromMentions('schedules', pid, body, members)
     await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'commented', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} comentou` })
     setActivityKey(k => k + 1)
   }

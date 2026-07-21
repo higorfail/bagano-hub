@@ -26,3 +26,28 @@ export async function ensureWatching(tableName: string, recordId: string | undef
     { onConflict: 'table_name,record_id,member_id', ignoreDuplicates: true }
   )
 }
+
+// @Nome escrito num comentário — mesma convenção usada por useMentions.insert()
+// (que sempre grava "@PrimeiroNome "). Usado para achar quem foi mencionado.
+export function extractMentionedFirstNames(body: string): string[] {
+  const matches = body.matchAll(/@(\w+)/g)
+  return Array.from(new Set(Array.from(matches, m => m[1].toLowerCase())))
+}
+
+// Garante que @menções num comentário virem watchers do card, mesmo que a
+// pessoa mencionada nunca tenha aberto esse card antes — sem isso, o push de
+// logActivity() só alcança quem já era watcher e a menção passa batido.
+// Chame isto ANTES de logActivity() em qualquer lugar que salva um comentário.
+export async function ensureWatchingFromMentions(
+  tableName: string,
+  recordId: string | undefined,
+  commentBody: string,
+  members: { id: string; name: string }[],
+) {
+  const mentioned = extractMentionedFirstNames(commentBody)
+  if (!mentioned.length) return
+  const ids = members
+    .filter(m => mentioned.includes(m.name.split(' ')[0].toLowerCase()))
+    .map(m => m.id)
+  await ensureWatching(tableName, recordId, ids)
+}

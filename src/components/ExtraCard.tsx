@@ -7,7 +7,7 @@ import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { autoGrow } from '@/lib/autoGrow'
-import { ensureWatching } from '@/lib/watch'
+import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
 import WatchButton from '@/components/WatchButton'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { generateAiLegenda } from '@/lib/aiLegenda'
@@ -469,6 +469,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     if (data) setComments(c => [...c, data])
     setNewComment('')
     requestAnimationFrame(() => { if (mentions.textareaRef.current) autoGrow(mentions.textareaRef.current) })
+    await ensureWatchingFromMentions('extras', eid, body, members)
     await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action: 'commented', actorName: authorName, description: `${authorName} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
   }
