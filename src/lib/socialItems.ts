@@ -59,8 +59,8 @@ export type ExtraRow = {
   labels: { text: string; color: string }[] | null
   assigned_members: string[] | null
   assigned_member_id: string | null
-  needs_client_approval: boolean | null
   client_approval_status: string | null
+  published_at: string | null
 }
 
 // Tipos de post — mesmo vocabulário usado em schedules.post_type e extras.type
@@ -80,7 +80,7 @@ export const SOCIAL_COLUMNS: { key: SocialColumn; label: string; color: string }
 ]
 
 const SCHEDULE_SELECT ='id, post_number, title, post_type, status, scheduled_date, client_id, month, year, approval_status, copy, legenda, drive_url, drive_folder_url'
-const EXTRA_SELECT = 'id, title, type, status, client_id, due_date, due_time, copy, legenda, drive_url, labels, assigned_members, assigned_member_id, needs_client_approval, client_approval_status'
+const EXTRA_SELECT = 'id, title, type, status, client_id, due_date, due_time, copy, legenda, drive_url, labels, assigned_members, assigned_member_id, client_approval_status, published_at'
 
 export function scheduleToSocialItem(row: ScheduleRow): SocialItem | null {
   let column: SocialColumn
@@ -112,15 +112,15 @@ export function scheduleToSocialItem(row: ScheduleRow): SocialItem | null {
 
 export function extraToSocialItem(row: ExtraRow): SocialItem | null {
   let column: SocialColumn
-  if (row.status === 'done') {
+  if (row.published_at) {
     column = 'publicado'
-  } else if (row.due_date) {
-    if (row.needs_client_approval && row.client_approval_status !== 'aprovado') return null
-    column = 'agendado'
-  } else if (row.needs_client_approval && row.client_approval_status === 'aprovado') {
-    column = 'aprovado'
   } else {
-    return null // ainda não aprovado nem agendado — não é conteúdo pronto pra publicar
+    // Só é "pronto pra publicar" quando a produção terminou e, SE chegou a
+    // ser enviado pro cliente aprovar, a aprovação já veio (não bloqueia se
+    // nunca foi enviado — nem todo Extra passa por aprovação de cliente).
+    if (row.status !== 'done') return null
+    if (row.client_approval_status && row.client_approval_status !== 'aprovado') return null
+    column = row.due_date ? 'agendado' : 'aprovado'
   }
 
   const assignedMembers = row.assigned_members?.length
@@ -289,16 +289,19 @@ export async function moveSocialItem(item: SocialItem, toColumn: SocialColumn) {
     const status = toColumn // os nomes de coluna já são os valores de status de schedules
     return supabase.from('schedules').update({ status }).eq('id', item.id)
   }
-  // extras: não há status "aprovado"/"agendado" — cada coluna grava campos diferentes
+  // extras: não há status "aprovado"/"agendado" — cada coluna grava campos
+  // diferentes. status/client_approval_status não são tocados aqui: pra um
+  // extra chegar neste board ele já passou pelo gate (produção concluída e,
+  // se aplicável, aprovado) — mover entre colunas do board de Publicações
+  // nunca deveria voltar esse estado atrás.
   if (toColumn === 'publicado') {
-    return supabase.from('extras').update({ status: 'done' }).eq('id', item.id)
+    return supabase.from('extras').update({ published_at: new Date().toISOString() }).eq('id', item.id)
   }
   if (toColumn === 'agendado') {
-    const patch: Record<string, unknown> = {}
+    const patch: Record<string, unknown> = { published_at: null }
     if (!item.scheduledDate) patch.due_date = new Date().toISOString().slice(0, 10)
-    if (item.raw && (item.raw as ExtraRow).status === 'done') patch.status = 'doing'
     return supabase.from('extras').update(patch).eq('id', item.id)
   }
-  // toColumn === 'aprovado': só faz sentido pra extras que dependem de aprovação do cliente
-  return supabase.from('extras').update({ due_date: null, client_approval_status: 'aprovado', needs_client_approval: true }).eq('id', item.id)
+  // toColumn === 'aprovado'
+  return supabase.from('extras').update({ due_date: null, published_at: null }).eq('id', item.id)
 }
