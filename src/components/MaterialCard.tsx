@@ -262,7 +262,8 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     const old = STATUS_LABEL[status] || status
     setStatus(v)
     originalStatusRef.current = v
-    persist({ status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
+    const completedPatch = v === 'finalizado' ? { completed_at: new Date().toISOString() } : { completed_at: null }
+    persist({ status: v, ...completedPatch }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
   }
   function changeClient(v: string) {
     setClientManual(true)

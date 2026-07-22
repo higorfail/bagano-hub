@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, CheckSquare, AlertCircle, MessageSquare, Play } from 'lucide-react'
+import { Calendar, CheckSquare, AlertCircle, MessageSquare, Play, Archive } from 'lucide-react'
 
 interface ExtraLite {
   id: string
@@ -34,11 +34,12 @@ type Props = {
   onClick: () => void
   onDragStart: (e: React.DragEvent) => void
   onDragEnd: () => void
+  onArchive?: () => void
 }
 
 export default function ExtraMiniCard({
   extra, TypeIcon, typeColor, priorityColor, overdue, assignedData, chk, commentCount,
-  clientBadge, showGlobalBadge, formatDue, dragging, onClick, onDragStart, onDragEnd,
+  clientBadge, showGlobalBadge, formatDue, dragging, onClick, onDragStart, onDragEnd, onArchive,
 }: Props) {
   // Preview da entrega — resolve arquivo direto ou capa/vídeo de uma pasta do Drive
   const [thumbUrl, setThumbUrl] = useState<string | null>(() => {
@@ -83,6 +84,16 @@ export default function ExtraMiniCard({
       {/* Preview da entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16).
           Altura travada em 140 (não mínima) com overflow-hidden no card inteiro — nada
           consegue estourar além disso, custe o que custar em conteúdo cortado. */}
+      {onArchive && (
+        <button
+          onClick={e => { e.stopPropagation(); onArchive() }}
+          title="Arquivar"
+          className="absolute top-1.5 right-1.5 z-10 w-6 h-6 rounded-lg bg-[var(--color-bg-card)]/90 border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-faint)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-text-primary)] transition-opacity"
+        >
+          <Archive size={12} />
+        </button>
+      )}
+
       {thumbUrl && (
         <div className="relative w-28 self-stretch flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a

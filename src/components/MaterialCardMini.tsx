@@ -18,6 +18,7 @@ interface MaterialCardMiniProps {
   onMoveNext?: () => void
   draggable?: boolean
   onDragStart?: (e: React.DragEvent) => void
+  onArchive?: () => void
 }
 
 const MAT_TYPE_LABEL: Record<string, string> = {
@@ -52,7 +53,7 @@ function initials(name: string) {
   return (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
-export default function MaterialCardMini({ material: m, members, onClick, onMovePrev, onMoveNext, draggable, onDragStart }: MaterialCardMiniProps) {
+export default function MaterialCardMini({ material: m, members, onClick, onMovePrev, onMoveNext, draggable, onDragStart, onArchive }: MaterialCardMiniProps) {
   const due = m.due_date ? new Date(m.due_date + 'T23:59:59') : null
   const now = new Date()
   const diff = due ? Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
@@ -85,8 +86,8 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       className="group relative bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl flex overflow-hidden shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer"
       style={{ height: 140 }}
     >
-      {/* Move arrows — aparecem no hover */}
-      {(onMovePrev || onMoveNext) && (
+      {/* Move arrows + arquivar — aparecem no hover */}
+      {(onMovePrev || onMoveNext || onArchive) && (
         <div className="absolute top-2 right-2 hidden group-hover:flex items-center gap-1 z-10"
           onClick={e => e.stopPropagation()}>
           {onMovePrev && (
@@ -96,6 +97,12 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
           {onMoveNext && (
             <button onClick={onMoveNext}
               className="w-5 h-5 rounded bg-[var(--color-bg-subtle)] hover:bg-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-[10px] transition-colors">→</button>
+          )}
+          {onArchive && (
+            <button onClick={onArchive} title="Arquivar"
+              className="w-5 h-5 rounded bg-[var(--color-bg-subtle)] hover:bg-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] transition-colors">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></svg>
+            </button>
           )}
         </div>
       )}

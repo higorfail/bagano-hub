@@ -8,6 +8,7 @@ import MaterialCard from '@/components/MaterialCard'
 import MaterialCardMini from '@/components/MaterialCardMini'
 import Button from '@/components/ui/Button'
 import { logActivity } from '@/lib/activity'
+import { Archive, ArchiveRestore } from 'lucide-react'
 
 type Material = {
   id: string
@@ -24,6 +25,8 @@ type Material = {
   drive_url?: string
   notes?: string
   label?: string | null
+  completed_at?: string | null
+  archived_at?: string | null
 }
 
 const COLUMNS = [
@@ -44,6 +47,7 @@ function MateriaisContent() {
   const [cardOpen,    setCardOpen]    = useState<string | 'new' | null>(() => searchParams.get('post'))
   const [draggingId,  setDraggingId]  = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
 
   useEffect(() => {
     const p = searchParams.get('post')
@@ -54,7 +58,7 @@ function MateriaisContent() {
     async function load() {
       const supabase = createClient()
       const [{ data: mats }, { data: cls }] = await Promise.all([
-        supabase.from('materials').select('id, client_id, title, type, status, description, ai_summary, due_date, drive_url, assigned_to, assigned_members, labels, created_at').order('created_at', { ascending: false }),
+        supabase.from('materials').select('id, client_id, title, type, status, description, ai_summary, due_date, drive_url, assigned_to, assigned_members, labels, created_at, completed_at, archived_at').order('created_at', { ascending: false }),
         supabase.from('clients').select('id, name, color_hex').order('name'),
       ])
       setMaterials(mats || [])
@@ -77,7 +81,10 @@ function MateriaisContent() {
     load()
   }, [])
 
+  const archivedCount = materials.filter(m => m.archived_at).length
+
   const visible = materials.filter(m => {
+    if (showArchived ? !m.archived_at : !!m.archived_at) return false
     if (filterClient && m.client_id !== filterClient) return false
     if (showOnlyMine && currentMember) {
       const assigned = m.assigned_members?.length ? m.assigned_members : m.assigned_to ? [m.assigned_to] : []
@@ -105,10 +112,24 @@ function MateriaisContent() {
     const mat = materials.find(m => m.id === id)
     const oldLabel = labels[mat?.status || 'producao'] || mat?.status || ''
     const newLabel = labels[newStatus] || newStatus
-    setMaterials(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m))
+    const patch: Record<string, any> = { status: newStatus }
+    if (newStatus === 'finalizado' && mat?.status !== 'finalizado') patch.completed_at = new Date().toISOString()
+    if (newStatus !== 'finalizado') patch.completed_at = null
+    setMaterials(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m))
     const supabase = createClient()
-    await supabase.from('materials').update({ status: newStatus }).eq('id', id)
+    await supabase.from('materials').update(patch).eq('id', id)
     await logActivity({ tableName: 'materials', recordId: id, action: 'status_changed', actorName: currentMember?.name, actorId: currentMember?.id, field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
+  }
+
+  async function archiveMaterial(id: string) {
+    setMaterials(prev => prev.map(m => m.id === id ? { ...m, archived_at: new Date().toISOString() } : m))
+    const supabase = createClient()
+    await supabase.from('materials').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  }
+  async function unarchiveMaterial(id: string) {
+    setMaterials(prev => prev.map(m => m.id === id ? { ...m, archived_at: null } : m))
+    const supabase = createClient()
+    await supabase.from('materials').update({ archived_at: null }).eq('id', id)
   }
 
   function handleDeleted(id: string) {
@@ -130,10 +151,42 @@ function MateriaisContent() {
             <option value="">Todos os clientes</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          <button
+            onClick={() => setShowArchived(s => !s)}
+            className="flex items-center gap-1.5 text-sm font-medium px-2.5 py-1.5 rounded-lg border transition-colors"
+            style={showArchived
+              ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }
+              : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            {showArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+            {showArchived ? 'Ver board' : `Arquivo${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
+          </button>
           <Button variant="dark" onClick={() => setCardOpen('new')}>+ Novo material</Button>
         </div>
       </div>
 
+      {showArchived ? (
+        <div className="flex flex-col gap-2">
+          {visible.length === 0 && (
+            <p className="text-sm text-[var(--color-text-faint)] text-center py-8">Nenhum material arquivado.</p>
+          )}
+          {visible.map(m => (
+            <div key={m.id} className="flex items-center gap-3 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl px-3 py-2.5">
+              <button onClick={() => { setCardOpen(m.id); window.history.replaceState(null, '', `?post=${m.id}`) }} className="flex-1 min-w-0 text-left flex items-center gap-2">
+                {clients.find(c => c.id === m.client_id) && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white flex-shrink-0" style={{ background: clients.find(c => c.id === m.client_id).color_hex }}>
+                    {clients.find(c => c.id === m.client_id).name}
+                  </span>
+                )}
+                <span className="text-sm text-[var(--color-text-primary)] truncate">{m.title}</span>
+              </button>
+              <button onClick={() => unarchiveMaterial(m.id)} title="Desarquivar" className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors flex-shrink-0">
+                <ArchiveRestore size={13} /> Desarquivar
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="flex gap-4 flex-1 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0">
         {COLUMNS.map((col, colIdx) => {
           const items      = colMaterials(col.key)
@@ -167,6 +220,7 @@ function MateriaisContent() {
                       onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingId(m.id) }}
                       onMovePrev={prevCol ? () => moveStatus(m.id, prevCol.key) : undefined}
                       onMoveNext={nextCol ? () => moveStatus(m.id, nextCol.key) : undefined}
+                      onArchive={col.key === 'finalizado' ? () => archiveMaterial(m.id) : undefined}
                     />
                   )
                 })}
@@ -190,6 +244,7 @@ function MateriaisContent() {
           )
         })}
       </div>
+      )}
 
       {cardOpen && (
         <MaterialCard

@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 
 type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post'
-type ExtraStatus   = 'backlog' | 'doing' | 'done'
+type ExtraStatus   = 'backlog' | 'aguardando_aprovacao' | 'done'
 type ExtraPriority = 'low' | 'normal' | 'high'
 
 const TYPE_OPTIONS: { value: ExtraType; label: string; icon: React.ElementType; color: string }[] = [
@@ -35,9 +35,9 @@ const TYPE_OPTIONS: { value: ExtraType; label: string; icon: React.ElementType; 
   { value: 'post',              label: 'Post',              icon: ImageIcon, color: '#f59e0b' },
 ]
 const STATUS_OPTIONS: { value: ExtraStatus; label: string; color: string }[] = [
-  { value: 'backlog', label: 'A fazer',      color: '#6b7280' },
-  { value: 'doing',   label: 'Em andamento', color: '#3b82f6' },
-  { value: 'done',    label: 'Concluído',    color: '#22c55e' },
+  { value: 'backlog',              label: 'A fazer',       color: '#F59E0B' },
+  { value: 'aguardando_aprovacao', label: 'Em aprovação',  color: '#EC4899' },
+  { value: 'done',                 label: 'Finalizado',    color: '#22C55E' },
 ]
 const PRIORITY_OPTIONS: { value: ExtraPriority; label: string; color: string }[] = [
   { value: 'low',    label: 'Baixa',  color: '#94a3b8' },
@@ -335,12 +335,13 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     if (path) supabase.storage.from('bagano-materiais').remove([path])
   }
 
-  const STATUS_LABEL: Record<ExtraStatus,string> = { backlog: 'A fazer', doing: 'Em andamento', done: 'Concluído' }
+  const STATUS_LABEL: Record<ExtraStatus,string> = { backlog: 'A fazer', aguardando_aprovacao: 'Em aprovação', done: 'Finalizado' }
   function changeStatus(v: ExtraStatus) {
     const old = STATUS_LABEL[status]
     setStatus(v)
     originalStatusRef.current = v
-    persist({ status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v]}"`, 'status_changed')
+    const completedPatch = v === 'done' ? { completed_at: new Date().toISOString() } : { completed_at: null }
+    persist({ status: v, ...completedPatch }, `${who} moveu de "${old}" para "${STATUS_LABEL[v]}"`, 'status_changed')
   }
   function changeType(v: ExtraType) {
     const oldLabel = TYPE_OPTIONS.find(t => t.value === type)?.label || type

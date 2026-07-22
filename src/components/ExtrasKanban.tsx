@@ -3,12 +3,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
-import { Plus, Link2, Check, Camera, Images, Video, Image as ImageIcon } from 'lucide-react'
+import { Plus, Link2, Check, Camera, Images, Video, Image as ImageIcon, Archive, ArchiveRestore } from 'lucide-react'
 import ExtraCard from './ExtraCard'
 import ExtraMiniCard from './ExtraMiniCard'
 
 type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post'
-type ExtraStatus   = 'backlog' | 'doing' | 'done'
+type ExtraStatus   = 'backlog' | 'aguardando_aprovacao' | 'done'
 type ExtraPriority = 'low' | 'normal' | 'high'
 
 interface Extra {
@@ -25,6 +25,8 @@ interface Extra {
   assigned_members?: string[] | null
   labels?: { text: string; color: string }[] | null
   created_at: string
+  completed_at?: string | null
+  archived_at?: string | null
   clients?: { name: string; color_hex: string } | null
   team_members?: { name: string } | null
 }
@@ -33,9 +35,9 @@ interface Member { id: string; name: string; role: string }
 interface Client { id: string; name: string; color_hex: string }
 
 const COLUMNS: { key: ExtraStatus; label: string; color: string }[] = [
-  { key: 'backlog', label: 'A fazer',      color: '#6b7280' },
-  { key: 'doing',   label: 'Em andamento', color: '#3b82f6' },
-  { key: 'done',    label: 'Concluído',    color: '#22c55e' },
+  { key: 'backlog',              label: 'A fazer',      color: '#F59E0B' },
+  { key: 'aguardando_aprovacao', label: 'Em aprovação', color: '#EC4899' },
+  { key: 'done',                 label: 'Finalizados',  color: '#22C55E' },
 ]
 
 const TYPE_CONFIG: Record<ExtraType, { icon: React.ElementType; color: string }> = {
@@ -56,6 +58,9 @@ interface ExtrasKanbanProps {
   globalMode?: boolean
   members?: Member[]
   initialOpenId?: string | null
+  filterClient?: string
+  onFilterClientChange?: (v: string) => void
+  hideClientFilterUI?: boolean
 }
 
 function formatDue(d: string) {
@@ -72,7 +77,7 @@ function isOverdue(due_date?: string | null, status?: ExtraStatus) {
   return new Date(due_date + 'T23:59:59') < new Date()
 }
 
-export default function ExtrasKanban({ clientId, globalMode = false, members = [], initialOpenId }: ExtrasKanbanProps) {
+export default function ExtrasKanban({ clientId, globalMode = false, members = [], initialOpenId, filterClient: filterClientProp, onFilterClientChange, hideClientFilterUI = false }: ExtrasKanbanProps) {
   const supabase = createClient()
   const { currentMember, showOnlyMine } = useUser()
   const [extras,  setExtras]  = useState<Extra[]>([])
@@ -85,8 +90,10 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   useEffect(() => { if (initialOpenId) setOpenExtraId(initialOpenId) }, [initialOpenId])
   const [newStatus,       setNewStatus]       = useState<ExtraStatus | null>(null)
 
-  // Client filter (global mode)
-  const [filterClient, setFilterClient] = useState<string>('all')
+  // Client filter (global mode) — controlado pelo pai (header da página) quando as props vêm preenchidas
+  const [internalFilterClient, setInternalFilterClient] = useState<string>('all')
+  const filterClient = filterClientProp !== undefined ? filterClientProp : internalFilterClient
+  const setFilterClient = onFilterClientChange || setInternalFilterClient
 
   // Drag and drop
   const [draggingId,   setDraggingId]   = useState<string | null>(null)
@@ -94,6 +101,16 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   const [checkCounts,  setCheckCounts]  = useState<Record<string, { done: number; total: number }>>({})
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
   const [copiedLink, setCopiedLink] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+
+  async function archiveExtra(id: string) {
+    setExtras(prev => prev.map(e => e.id === id ? { ...e, archived_at: new Date().toISOString() } : e))
+    await supabase.from('extras').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  }
+  async function unarchiveExtra(id: string) {
+    setExtras(prev => prev.map(e => e.id === id ? { ...e, archived_at: null } : e))
+    await supabase.from('extras').update({ archived_at: null }).eq('id', id)
+  }
 
   async function copyExtrasApprovalLink() {
     if (!clientId) return
@@ -149,8 +166,12 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   useEffect(() => { load() }, [clientId])
 
   async function moveStatus(id: string, status: ExtraStatus) {
-    setExtras(prev => prev.map(e => e.id === id ? { ...e, status } : e))
-    const { error } = await supabase.from('extras').update({ status }).eq('id', id)
+    const prevStatus = extras.find(e => e.id === id)?.status
+    const patch: Record<string, any> = { status }
+    if (status === 'done' && prevStatus !== 'done') patch.completed_at = new Date().toISOString()
+    if (status !== 'done') patch.completed_at = null
+    setExtras(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e))
+    const { error } = await supabase.from('extras').update(patch).eq('id', id)
     if (error) console.error('moveStatus error:', error)
   }
 
@@ -171,7 +192,10 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])), [clients])
 
+  const archivedCount = useMemo(() => extras.filter(e => e.archived_at).length, [extras])
+
   const filtered = useMemo(() => extras.filter(e => {
+    if (showArchived ? !e.archived_at : !!e.archived_at) return false
     if (showOnlyMine && currentMember) {
       const assigned = e.assigned_members?.length ? e.assigned_members : e.assigned_member_id ? [e.assigned_member_id] : []
       if (!assigned.includes(currentMember.id)) return false
@@ -180,7 +204,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
     if (filterClient === 'all')    return true
     if (filterClient === 'global') return !e.client_id
     return e.client_id === filterClient
-  }), [extras, globalMode, filterClient, showOnlyMine, currentMember])
+  }), [extras, globalMode, filterClient, showOnlyMine, currentMember, showArchived])
 
   if (loading) return (
     <div className="flex items-center justify-center py-12">
@@ -204,8 +228,9 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
         </div>
       )}
 
-      {/* Filtro de cliente — select compacto (20+ clientes não cabem como chips) */}
-      {globalMode && (
+      {/* Filtro de cliente — select compacto (20+ clientes não cabem como chips).
+          Some some no header da página quando hideClientFilterUI é passado. */}
+      {globalMode && !hideClientFilterUI && (
         <div className="flex items-center gap-2">
           <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
             className="text-sm rounded-lg border bg-[var(--color-bg-card)] px-3 py-1.5 outline-none cursor-pointer font-medium"
@@ -222,7 +247,43 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
         </div>
       )}
 
-      {/* Kanban columns — no mobile rola tipo Trello (1 coluna por vez, com snap) */}
+      {/* Toggle de arquivados — some depois de finalizado deixa de ocupar espaço aqui */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowArchived(s => !s)}
+          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors"
+          style={showArchived
+            ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent)/8' }
+            : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+        >
+          {showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+          {showArchived ? 'Ver board' : `Arquivo${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
+        </button>
+      </div>
+
+      {showArchived ? (
+        <div className="flex flex-col gap-2">
+          {filtered.length === 0 && (
+            <p className="text-sm text-[var(--color-text-faint)] text-center py-8">Nenhum item arquivado.</p>
+          )}
+          {filtered.map(extra => (
+            <div key={extra.id} className="flex items-center gap-3 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl px-3 py-2.5">
+              <button onClick={() => { setOpenExtraId(extra.id); window.history.replaceState(null, '', `?post=${extra.id}`) }} className="flex-1 min-w-0 text-left flex items-center gap-2">
+                {globalMode && extra.client_id && clientMap[extra.client_id] && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white flex-shrink-0" style={{ background: clientMap[extra.client_id].color_hex }}>
+                    {clientMap[extra.client_id].name}
+                  </span>
+                )}
+                <span className="text-sm text-[var(--color-text-primary)] truncate">{extra.title}</span>
+              </button>
+              <button onClick={() => unarchiveExtra(extra.id)} title="Desarquivar" className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors flex-shrink-0">
+                <ArchiveRestore size={13} /> Desarquivar
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+      /* Kanban columns — no mobile rola tipo Trello (1 coluna por vez, com snap) */
       <div className="flex md:grid md:grid-cols-3 gap-5 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
         {COLUMNS.map(col => {
           const colExtras = filtered.filter(e => e.status === col.key)
@@ -285,6 +346,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                       }}
                       onDragEnd={() => { setDraggingId(null); setDragOverCol(null) }}
                       onClick={() => { if (!draggingId) { setOpenExtraId(extra.id); window.history.replaceState(null, '', `?post=${extra.id}`) } }}
+                      onArchive={col.key === 'done' ? () => archiveExtra(extra.id) : undefined}
                     />
                   )
                 })}
@@ -303,6 +365,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
           )
         })}
       </div>
+      )}
 
       {/* ExtraCard — edit existing */}
       {openExtraId && (

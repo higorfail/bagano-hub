@@ -53,7 +53,7 @@ export type ExtraRow = {
   id: string
   title: string
   type: string
-  status: 'backlog' | 'doing' | 'done'
+  status: 'backlog' | 'aguardando_aprovacao' | 'done'
   client_id: string | null
   due_date: string | null
   due_time: string | null
