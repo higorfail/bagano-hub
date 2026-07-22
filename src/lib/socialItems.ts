@@ -150,8 +150,11 @@ export function extraToSocialItem(row: ExtraRow): SocialItem | null {
     scheduledTime: row.due_time,
     copy: row.copy,
     legenda: row.legenda,
-    driveUrl: row.drive_url,
-    driveFolderUrl: null,
+    // Extras guardam pasta e arquivo único no mesmo campo drive_url (sem coluna
+    // separada como schedules) — mesma detecção já usada pros extras em
+    // AprovarClient.tsx, senão uma pasta tenta virar miniatura de arquivo e falha.
+    driveUrl: /\/folders\//.test(row.drive_url || '') ? null : row.drive_url,
+    driveFolderUrl: /\/folders\//.test(row.drive_url || '') ? row.drive_url : null,
     labels: row.labels,
     assignedMembers,
     productionMonth: null,

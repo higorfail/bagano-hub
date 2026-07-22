@@ -100,10 +100,17 @@ function PostThumb({ post, className = 'w-14' }: { post: Post; className?: strin
   )
 }
 
-// Miniatura de Extra — mesmo componente/estilo do PostThumb (Extra só não tem
-// drive_folder_url, é sempre arquivo único).
+// Extras guardam pasta e arquivo único no mesmo campo drive_url (sem coluna
+// separada como schedules) — detecta pelo padrão da URL antes de resolver a miniatura.
+function splitExtraDrive(driveUrl?: string | null) {
+  const isFolder = /\/folders\//.test(driveUrl || '')
+  return { fileUrl: isFolder ? null : driveUrl, folderUrl: isFolder ? driveUrl : null }
+}
+
+// Miniatura de Extra — mesmo componente/estilo do PostThumb.
 function ExtraThumb({ extra, className = 'w-14' }: { extra: ExtraPending; className?: string }) {
-  const { thumbUrl, isThumbVideo } = useDriveThumb(extra.drive_url, null, extra.type === 'reels')
+  const { fileUrl, folderUrl } = splitExtraDrive(extra.drive_url)
+  const { thumbUrl, isThumbVideo } = useDriveThumb(fileUrl, folderUrl, extra.type === 'reels')
   return (
     <div className={`relative flex-shrink-0 overflow-hidden rounded-lg bg-[var(--color-bg-subtle)] flex items-center justify-center ${className}`} style={{ aspectRatio: '4 / 5' }}>
       {thumbUrl ? (
@@ -129,7 +136,8 @@ function ExtraThumb({ extra, className = 'w-14' }: { extra: ExtraPending; classN
 function ExtraLightbox({ extra, client, onClose, onOpenFull }: {
   extra: ExtraPending; client?: Client; onClose: () => void; onOpenFull: () => void
 }) {
-  const { thumbUrl, isThumbVideo } = useDriveThumb(extra.drive_url, null, extra.type === 'reels')
+  const { fileUrl, folderUrl } = splitExtraDrive(extra.drive_url)
+  const { thumbUrl, isThumbVideo } = useDriveThumb(fileUrl, folderUrl, extra.type === 'reels')
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
