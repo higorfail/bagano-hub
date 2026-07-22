@@ -155,6 +155,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const commentTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
   const [createdAt,    setCreatedAt]    = useState<string | null>(null)
+  // postNumber (prop) só vem preenchido na criação de um post novo — ao abrir
+  // um post já existente, precisa ler o número de verdade do registro.
+  const [loadedPostNumber, setLoadedPostNumber] = useState<number | undefined>(postNumber)
   const [showDetails,  setShowDetails]  = useState(false)
   // No mobile as duas colunas (conteúdo/comentários) viram abas — trocar em vez de empilhar (padrão Trello)
   const [mobilePane, setMobilePane] = useState<'details' | 'comments'>('details')
@@ -279,6 +282,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         setAssignedMembers(Array.isArray(data.assigned_members) ? data.assigned_members : [])
         setLabels(Array.isArray(data.labels) ? data.labels : [])
         setCreatedAt(data.created_at || null)
+        if (data.post_number) setLoadedPostNumber(data.post_number)
       }
       setLoading(false)
     }
@@ -698,7 +702,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         {/* HEADER — título */}
         <div className="flex items-start justify-between gap-4 px-4 md:px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
           <div className="flex-1 min-w-0">
-            {postNumber && <span className="text-[11px] font-black text-[var(--color-border-strong)]">#{postNumber}</span>}
+            {loadedPostNumber && <span className="text-[11px] font-black text-[var(--color-border-strong)]">#{loadedPostNumber}</span>}
             {editingField === 'title' ? (
               <input autoFocus value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                 onBlur={() => blurCommit('title')} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { e.preventDefault(); discardEdit('title') } }}

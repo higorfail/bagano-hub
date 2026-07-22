@@ -24,7 +24,18 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
   const { isCollapsed, toggleCollapse, draggingGroup, setDraggingGroup, dragCounters } = useClientGrouping()
 
   function getClient(id: string | null) { return clients.find(c => c.id === id) }
-  function getColItems(col: SocialColumn) { return items.filter(i => i.column === col) }
+
+  // Sem data primeiro (precisam de atenção pra ganhar uma), depois cronológico —
+  // sem isso a ordem era só a da consulta ao banco, sem nenhum sentido visual.
+  function sortByDate(list: SocialItem[]) {
+    return [...list].sort((a, b) => {
+      if (!a.scheduledDate && !b.scheduledDate) return 0
+      if (!a.scheduledDate) return -1
+      if (!b.scheduledDate) return 1
+      return a.scheduledDate.localeCompare(b.scheduledDate) || (a.scheduledTime || '').localeCompare(b.scheduledTime || '')
+    })
+  }
+  function getColItems(col: SocialColumn) { return sortByDate(items.filter(i => i.column === col)) }
 
   async function moveItem(itemId: string, toColumn: SocialColumn) {
     const item = items.find(i => i.id === itemId)
@@ -57,7 +68,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
   }
 
   return (
-    <div className="flex-1 overflow-x-auto p-4 snap-x snap-mandatory md:snap-none">
+    <div className="flex-1 overflow-x-auto p-4 snap-x snap-mandatory lg:snap-none">
       <div className="flex gap-4 h-full">
         {SOCIAL_COLUMNS.map(col => {
           const colItems = getColItems(col.key)
@@ -66,7 +77,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
           return (
             <div
               key={col.key}
-              className={`flex flex-col w-[calc(100vw-2rem)] md:w-auto md:flex-1 md:min-w-[300px] md:max-w-[460px] flex-shrink-0 snap-center md:snap-align-none rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
+              className={`flex flex-col w-[calc(100vw-2rem)] md:w-[380px] lg:w-auto lg:flex-1 lg:min-w-[300px] lg:max-w-[460px] flex-shrink-0 snap-center lg:snap-align-none rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
               style={isDragOver ? { outline: `2px solid ${col.color}`, outlineOffset: 1 } : {}}
               onDragEnter={() => {
                 dragCounters.current[col.key] = (dragCounters.current[col.key] || 0) + 1

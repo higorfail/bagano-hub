@@ -2,6 +2,7 @@
 // num único formato (`SocialItem`) para as visões de board/calendário/semana.
 import { createClient } from '@/lib/supabase'
 import { extractDriveFileId } from '@/lib/useMentions'
+import { todayBrasiliaISO } from '@/lib/timezone'
 
 export type SocialColumn = 'aprovado' | 'agendado' | 'publicado'
 export type SocialSource = 'schedule' | 'extra'
@@ -12,6 +13,9 @@ export type SocialItem = {
   title: string
   clientId: string | null
   postType: string | null
+  // Número do post no cronograma (igual ao Kanban/Cronograma) — só existe em
+  // schedules; extras não têm essa numeração.
+  postNumber: number | null
   column: SocialColumn
   scheduledDate: string | null
   scheduledTime: string | null
@@ -96,6 +100,7 @@ export function scheduleToSocialItem(row: ScheduleRow): SocialItem | null {
     title: row.title,
     clientId: row.client_id,
     postType: row.post_type,
+    postNumber: row.post_number,
     column,
     scheduledDate: row.scheduled_date,
     scheduledTime: null,
@@ -139,6 +144,7 @@ export function extraToSocialItem(row: ExtraRow): SocialItem | null {
     title: row.title,
     clientId: row.client_id,
     postType: row.type,
+    postNumber: null,
     column,
     scheduledDate: row.due_date,
     scheduledTime: row.due_time,
@@ -189,10 +195,14 @@ export type SocialFilters = {
   search: string
 }
 
-// Agendado cuja data já passou e ainda não foi marcado como Publicado — o
-// mesmo critério usado pelo cron de push em /api/cron/overdue-posts.
-export function isOverdue(item: SocialItem, todayISO = new Date().toISOString().slice(0, 10)): boolean {
-  return item.column === 'agendado' && !!item.scheduledDate && item.scheduledDate < todayISO
+// Qualquer coisa com uma data marcada que já passou e ainda não foi
+// publicada — não só "Agendado": um post que ficou parado em "Aprovado"
+// com uma data vencida também é atrasado (às vezes mais grave, já que nem
+// chegou a ser agendado de fato). Mesmo critério usado pelo cron de push em
+// /api/cron/overdue-posts. Sempre calcula "hoje" no fuso de Brasília — nunca
+// UTC puro, que vira o dia errado entre 21h e meia-noite.
+export function isOverdue(item: SocialItem, todayISO = todayBrasiliaISO()): boolean {
+  return item.column !== 'publicado' && !!item.scheduledDate && item.scheduledDate < todayISO
 }
 
 function startOfWeek(d: Date) {
@@ -202,8 +212,8 @@ function startOfWeek(d: Date) {
 }
 
 export function filterSocialItems(items: SocialItem[], filters: SocialFilters): SocialItem[] {
-  const now = new Date()
-  const todayStr = now.toISOString().slice(0, 10)
+  const todayStr = todayBrasiliaISO()
+  const now = new Date(todayStr + 'T12:00:00') // ancorado no "hoje" de Brasília, não no fuso do dispositivo
   const weekStart = startOfWeek(now)
   const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6)
 
@@ -276,6 +286,21 @@ export async function downloadDriveContent(driveUrl: string | null | undefined, 
   }
 }
 
+// Só muda a data (e opcionalmente hora) sem mexer na coluna/status — usado
+// quando ela arrasta um item já agendado/publicado pra outro dia no
+// Calendário/Semana. Diferente de scheduleSocialItem, que também comete a
+// coluna pra Agendado (o que reverteria um item já Publicado de volta pra
+// Agendado só por mudar a data, o que não faz sentido).
+export async function updateItemDate(item: SocialItem, date: string, time?: string) {
+  const supabase = createClient()
+  if (item.source === 'schedule') {
+    return supabase.from('schedules').update({ scheduled_date: date }).eq('id', item.id)
+  }
+  const patch: Record<string, unknown> = { due_date: date }
+  if (time !== undefined) patch.due_time = time
+  return supabase.from('extras').update(patch).eq('id', item.id)
+}
+
 // Agenda de vez: define a data (e opcionalmente hora) E move pro Agendado
 // numa ação só — usado pelo botão "Agendar". Diferente de moveSocialItem
 // pro caso 'agendado', porque também precisa gravar a data escolhida (não
@@ -307,7 +332,7 @@ export async function moveSocialItem(item: SocialItem, toColumn: SocialColumn) {
   }
   if (toColumn === 'agendado') {
     const patch: Record<string, unknown> = { scheduled_at: new Date().toISOString(), published_at: null }
-    if (!item.scheduledDate) patch.due_date = new Date().toISOString().slice(0, 10)
+    if (!item.scheduledDate) patch.due_date = todayBrasiliaISO()
     return supabase.from('extras').update(patch).eq('id', item.id)
   }
   // toColumn === 'aprovado' — due_date fica como está (é só informativo);

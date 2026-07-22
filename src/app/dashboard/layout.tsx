@@ -12,6 +12,7 @@ import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider } from '@/lib/ToastContext'
 import LogoIcon from '@/components/logos/LogoIcon'
 import { pushSupported, isSubscribedToPush, subscribeToPush } from '@/lib/push'
+import { todayBrasiliaISO, addDaysISO } from '@/lib/timezone'
 import { BellRing } from 'lucide-react'
 
 const navItems = [
@@ -146,13 +147,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   async function loadNotifications() {
     const supabase = createClient()
-    const now = new Date()
-    const month = now.getMonth() + 1
-    const year  = now.getFullYear()
-    const today           = now.toISOString().slice(0, 10)
-    const tomorrow        = new Date(Date.now() + 1 * 86400000).toISOString().slice(0, 10)
-    const threeDaysFromNow= new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
-    const threeDaysAgo    = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10)
+    const today           = todayBrasiliaISO()
+    const [year, month]   = today.split('-').map(Number) as [number, number]
+    const tomorrow        = addDaysISO(today, 1)
+    const threeDaysFromNow= addDaysISO(today, 3)
+    const threeDaysAgo    = addDaysISO(today, -3)
     const sevenDaysAgo    = new Date(Date.now() - 7 * 86400000).toISOString()
     const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString()
 

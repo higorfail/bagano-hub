@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { SocialItem, isOverdue, moveSocialItem, scheduleSocialItem } from '@/lib/socialItems'
+import { SocialItem, isOverdue, moveSocialItem, scheduleSocialItem, updateItemDate } from '@/lib/socialItems'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
+import { todayBrasiliaISO } from '@/lib/timezone'
 import SocialItemPopover, { PopoverAnchor } from './SocialItemPopover'
 import { ChevronLeft, ChevronRight, CheckCircle2, Clock3, BadgeCheck, AlertTriangle } from 'lucide-react'
 
@@ -34,6 +35,8 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year, setYear] = useState(now.getFullYear())
   const [popover, setPopover] = useState<{ item: SocialItem; anchor: PopoverAnchor } | null>(null)
+  const [dragging, setDragging] = useState<SocialItem | null>(null)
+  const [dragOverDay, setDragOverDay] = useState<number | null>(null)
 
   function getClient(id: string | null) { return clients.find(c => c.id === id) }
 
@@ -62,12 +65,24 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
     setPopover({ item, anchor: { top: r.top, bottom: r.bottom, left: r.left, right: r.right } })
   }
 
+  async function dropOnDay(day: number) {
+    const item = dragging
+    setDragging(null); setDragOverDay(null)
+    if (!item) return
+    const newDate = dayISO(day)
+    if (item.scheduledDate === newDate) return
+    const prev = items
+    onItemsChange(list => list.map(i => i.id === item.id ? { ...i, scheduledDate: newDate } : i))
+    const { error } = await updateItemDate(item, newDate)
+    if (error) { onItemsChange(() => prev); dbError(error, toast, 'mudar a data') }
+  }
+
   const firstDay = (new Date(year, month - 1, 1).getDay() + 6) % 7 // semana começa na segunda
   const daysInMonth = new Date(year, month, 0).getDate()
   const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
   while (cells.length % 7 !== 0) cells.push(null)
 
-  const todayISO = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const todayISO = todayBrasiliaISO()
   function dayISO(day: number) { return `${year}-${pad(month)}-${pad(day)}` }
   function itemsForDay(day: number) { return items.filter(i => i.scheduledDate === dayISO(day)) }
 
@@ -102,8 +117,15 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
             const dayItems = day ? itemsForDay(day) : []
             const todayCell = day ? dayISO(day) === todayISO : false
             const maxShow = 3
+            const isDragOver = day != null && dragOverDay === day
             return (
-              <div key={i} className={`min-h-[128px] border-r border-b border-[var(--color-border)] p-1.5 flex flex-col gap-1 last:border-r-0 ${!day ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
+              <div
+                key={i}
+                className={`min-h-[128px] border-r border-b p-1.5 flex flex-col gap-1 last:border-r-0 transition-colors ${!day ? 'bg-[var(--color-bg-subtle)] border-[var(--color-border)]' : isDragOver ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5' : 'border-[var(--color-border)]'}`}
+                onDragOver={e => { if (day && dragging) { e.preventDefault(); setDragOverDay(day) } }}
+                onDragLeave={() => setDragOverDay(prev => (prev === day ? null : prev))}
+                onDrop={e => { e.preventDefault(); if (day) dropOnDay(day) }}
+              >
                 {day && (
                   <span className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full ${todayCell ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)]'}`}>
                     {day}
@@ -119,8 +141,12 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
                   return (
                     <button
                       key={item.id}
+                      draggable
+                      onDragStart={() => setDragging(item)}
+                      onDragEnd={() => { setDragging(null); setDragOverDay(null) }}
                       onClick={e => openPopover(e, item)}
-                      className="rounded-lg px-1.5 py-1 text-left w-full border transition-opacity hover:opacity-85 flex flex-col gap-0.5"
+                      title="Arraste pra outro dia pra mudar a data"
+                      className={`rounded-lg px-1.5 py-1 text-left w-full border transition-opacity hover:opacity-85 flex flex-col gap-0.5 cursor-grab active:cursor-grabbing ${dragging?.id === item.id ? 'opacity-40' : ''}`}
                       style={published
                         ? { background: accent, borderColor: accent }
                         : { background: accent + '16', borderColor: accent + (overdue ? '80' : '55') }}
@@ -130,7 +156,7 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
                         {client?.name || 'Sem cliente'}
                       </span>
                       <span className="text-[9px] truncate" style={{ color: published ? 'rgba(255,255,255,0.85)' : 'var(--color-text-muted)' }}>
-                        {item.scheduledTime ? item.scheduledTime.slice(0, 5) + ' · ' : ''}{item.title}
+                        {item.scheduledTime ? item.scheduledTime.slice(0, 5) + ' · ' : ''}{item.postNumber ? `#${item.postNumber} ` : ''}{item.title}
                       </span>
                     </button>
                   )

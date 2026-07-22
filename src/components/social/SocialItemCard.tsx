@@ -102,7 +102,10 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
               {client?.name}
               <span className="flex-shrink-0" style={{ color: item.source === 'extra' ? '#6366f1' : 'var(--color-text-faint)' }}>· {item.source === 'extra' ? 'Extra' : 'Crono'}</span>
             </span>
-            <p className="text-xs font-semibold text-[var(--color-text-primary)] leading-snug line-clamp-2">{item.title}</p>
+            <p className="text-xs font-semibold text-[var(--color-text-primary)] leading-snug line-clamp-2">
+              {item.postNumber && <span className="text-[var(--color-text-faint)]">#{item.postNumber} · </span>}
+              {item.title}
+            </p>
           </div>
         </div>
 

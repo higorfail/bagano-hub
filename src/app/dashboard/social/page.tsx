@@ -61,6 +61,17 @@ export default function SocialPage() {
 
   return (
     <div className="flex flex-col h-full">
+      {overdueCount > 0 && (
+        <button
+          onClick={() => setView('pendencias')}
+          className="flex items-center justify-center gap-2.5 text-sm font-bold px-4 py-3 text-left w-full text-white animate-pulse-slow"
+          style={{ background: 'var(--ds-error-accent)' }}
+        >
+          <AlertTriangle size={17} className="flex-shrink-0" />
+          {overdueCount} {overdueCount === 1 ? 'publicação passou da data' : 'publicações passaram da data'} e ainda não {overdueCount === 1 ? 'foi marcada' : 'foram marcadas'} como publicada{overdueCount === 1 ? '' : 's'}
+          <span className="underline ml-1">— resolver agora</span>
+        </button>
+      )}
       <SocialFilterBar
         clients={clients}
         filters={filters}
@@ -92,18 +103,6 @@ export default function SocialPage() {
           </div>
         }
       />
-
-      {view !== 'pendencias' && overdueCount > 0 && (
-        <button
-          onClick={() => setView('pendencias')}
-          className="mx-4 md:mx-6 mt-3 flex items-center gap-2 text-xs font-bold px-3 py-2.5 rounded-xl border-2 transition-colors text-left w-fit"
-          style={{ background: 'var(--ds-error-bg)', borderColor: 'var(--ds-error-border)', color: 'var(--ds-error-text)' }}
-        >
-          <AlertTriangle size={15} />
-          {overdueCount} {overdueCount === 1 ? 'publicação passou da data' : 'publicações passaram da data'} e ainda não {overdueCount === 1 ? 'foi marcada' : 'foram marcadas'} como publicada{overdueCount === 1 ? '' : 's'}
-          <span className="underline ml-1">— resolver agora</span>
-        </button>
-      )}
 
       {view !== 'pendencias' && missingDateCount > 0 && (
         <button
@@ -158,6 +157,7 @@ export default function SocialPage() {
           clientColor={getClient(openItem.clientId)?.color_hex}
           month={(openItem.raw as ScheduleRow).month}
           year={(openItem.raw as ScheduleRow).year}
+          postNumber={openItem.postNumber ?? undefined}
           onClose={() => setOpenItem(null)}
           onSaved={load}
           onDeleted={load}

@@ -91,7 +91,10 @@ export default function SocialItemPopover({ item, clientName, anchor, onClose, o
                 )}
               </div>
             )}
-            <p className="text-xs font-semibold text-[var(--color-text-primary)] leading-snug flex-1 min-w-0">{item.title}</p>
+            <p className="text-xs font-semibold text-[var(--color-text-primary)] leading-snug flex-1 min-w-0">
+              {item.postNumber && <span className="text-[var(--color-text-faint)]">#{item.postNumber} · </span>}
+              {item.title}
+            </p>
           </div>
           {caption && <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed line-clamp-3">{caption}</p>}
           <div className="flex items-center gap-1.5 text-[10px] text-[var(--color-text-faint)]">
