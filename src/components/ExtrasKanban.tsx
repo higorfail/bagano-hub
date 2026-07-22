@@ -61,6 +61,10 @@ interface ExtrasKanbanProps {
   filterClient?: string
   onFilterClientChange?: (v: string) => void
   hideClientFilterUI?: boolean
+  showArchived?: boolean
+  onShowArchivedChange?: (v: boolean) => void
+  hideArchiveToggleUI?: boolean
+  onArchivedCountChange?: (n: number) => void
 }
 
 function formatDue(d: string) {
@@ -77,7 +81,7 @@ function isOverdue(due_date?: string | null, status?: ExtraStatus) {
   return new Date(due_date + 'T23:59:59') < new Date()
 }
 
-export default function ExtrasKanban({ clientId, globalMode = false, members = [], initialOpenId, filterClient: filterClientProp, onFilterClientChange, hideClientFilterUI = false }: ExtrasKanbanProps) {
+export default function ExtrasKanban({ clientId, globalMode = false, members = [], initialOpenId, filterClient: filterClientProp, onFilterClientChange, hideClientFilterUI = false, showArchived: showArchivedProp, onShowArchivedChange, hideArchiveToggleUI = false, onArchivedCountChange }: ExtrasKanbanProps) {
   const supabase = createClient()
   const { currentMember, showOnlyMine } = useUser()
   const [extras,  setExtras]  = useState<Extra[]>([])
@@ -101,7 +105,9 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   const [checkCounts,  setCheckCounts]  = useState<Record<string, { done: number; total: number }>>({})
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
   const [copiedLink, setCopiedLink] = useState(false)
-  const [showArchived, setShowArchived] = useState(false)
+  const [internalShowArchived, setInternalShowArchived] = useState(false)
+  const showArchived = showArchivedProp !== undefined ? showArchivedProp : internalShowArchived
+  const setShowArchived = onShowArchivedChange || setInternalShowArchived
 
   async function archiveExtra(id: string) {
     setExtras(prev => prev.map(e => e.id === id ? { ...e, archived_at: new Date().toISOString() } : e))
@@ -193,6 +199,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])), [clients])
 
   const archivedCount = useMemo(() => extras.filter(e => e.archived_at).length, [extras])
+  useEffect(() => { onArchivedCountChange?.(archivedCount) }, [archivedCount, onArchivedCountChange])
 
   const filtered = useMemo(() => extras.filter(e => {
     if (showArchived ? !e.archived_at : !!e.archived_at) return false
@@ -247,10 +254,12 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
         </div>
       )}
 
-      {/* Toggle de arquivados — some depois de finalizado deixa de ocupar espaço aqui */}
+      {/* Toggle de arquivados — some depois de finalizado deixa de ocupar espaço aqui.
+          Some daqui quando hideArchiveToggleUI é passado (o header da página renderiza). */}
+      {!hideArchiveToggleUI && (
       <div className="flex justify-end">
         <button
-          onClick={() => setShowArchived(s => !s)}
+          onClick={() => setShowArchived(!showArchived)}
           className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors"
           style={showArchived
             ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent)/8' }
@@ -260,6 +269,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
           {showArchived ? 'Ver board' : `Arquivo${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
         </button>
       </div>
+      )}
 
       {showArchived ? (
         <div className="flex flex-col gap-2">
