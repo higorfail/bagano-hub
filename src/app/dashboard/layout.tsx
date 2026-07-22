@@ -268,13 +268,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       // Criação hoje: agenda_criacao do dia atual para o membro logado
       (() => {
         if (!currentMember) return Promise.resolve({ data: [] })
-        const d = new Date()
-        const dow = d.getDay() // 0=Dom, 1=Seg...5=Sex
+        const todayISO = todayBrasiliaISO()
+        const dow = new Date(todayISO + 'T12:00:00').getDay() // 0=Dom, 1=Seg...5=Sex
         if (dow === 0 || dow === 6) return Promise.resolve({ data: [] })
-        const monday = new Date(d)
-        monday.setDate(d.getDate() - dow + 1)
-        monday.setHours(0, 0, 0, 0)
-        const weekStart = monday.toISOString().slice(0, 10)
+        const weekStart = addDaysISO(todayISO, -(dow - 1))
         return supabase.from('agenda_criacao')
           .select('id, client_id, member_ids, notes, clients(name, color_hex)')
           .eq('week_start', weekStart)

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { logActivity } from '@/lib/activity'
 import { useUser } from '@/lib/UserContext'
 import { useToast } from '@/lib/ToastContext'
+import { todayBrasiliaISO, addDaysISO } from '@/lib/timezone'
 import { CheckCircle2, Loader2, Pencil, X, Check, Filter, ChevronDown } from 'lucide-react'
 import PostCard from '@/components/PostCard'
 import MaterialCard from '@/components/MaterialCard'
@@ -116,13 +117,11 @@ export default function CriacaoPage() {
   const load = useCallback(async () => {
     setLoadError(false)
     try {
-      const now   = new Date()
-      const year  = now.getFullYear()
+      const todayISO = todayBrasiliaISO()
+      const year  = Number(todayISO.slice(0, 4))
       // agenda_criacao for the past 4 weeks + next 4 weeks
-      const from  = new Date(now); from.setDate(from.getDate() - 28)
-      const to    = new Date(now); to.setDate(to.getDate() + 28)
-      const fromStr = from.toISOString().slice(0, 10)
-      const toStr   = to.toISOString().slice(0, 10)
+      const fromStr = addDaysISO(todayISO, -28)
+      const toStr   = addDaysISO(todayISO, 28)
 
       const [{ data: cl, error: e1 }, { data: mb, error: e2 }, { data: po, error: e3 }, { data: cs }, { data: ex }, { data: mat }, { data: ag }, { data: ct }] = await Promise.all([
         supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
