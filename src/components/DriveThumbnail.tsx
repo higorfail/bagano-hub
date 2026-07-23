@@ -16,16 +16,16 @@ function kindOf(mimeType: string): OtherItem['kind'] {
   return 'other'
 }
 
-function OtherFileChip({ item, folderUrl }: { item: OtherItem; folderUrl: string }) {
+function OtherFileChip({ item }: { item: OtherItem }) {
   const Icon = item.kind === 'folder' ? Folder : item.kind === 'pdf' ? FileText : FileIcon
   const href = item.kind === 'folder' ? `https://drive.google.com/drive/folders/${item.id}` : `https://drive.google.com/file/d/${item.id}/view`
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
       title={item.name}
-      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium max-w-[160px]"
+      className="w-[110px] aspect-[4/5] flex-shrink-0 rounded-lg flex flex-col items-center justify-center gap-2 px-2 text-center"
       style={{ background: 'var(--color-bg-alt)', color: 'var(--color-text-secondary)' }}>
-      <Icon size={13} className="flex-shrink-0" />
-      <span className="truncate">{item.name}</span>
+      <Icon size={36} strokeWidth={1.5} className="flex-shrink-0" />
+      <span className="text-sm font-semibold leading-snug line-clamp-2 break-words">{item.name}</span>
     </a>
   )
 }
@@ -93,8 +93,8 @@ export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
         </div>
       )}
       {others.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {others.map(item => <OtherFileChip key={item.id} item={item} folderUrl={folderUrl} />)}
+        <div className="flex flex-wrap gap-2">
+          {others.map(item => <OtherFileChip key={item.id} item={item} />)}
         </div>
       )}
     </div>
