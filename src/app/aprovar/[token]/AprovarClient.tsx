@@ -211,6 +211,11 @@ function mapType(t: string): FeedPost['type'] {
   return 'photo'
 }
 function mapStatus(s: Post): FeedPost['status'] {
+  // Agendado/publicado é sempre "decidido" pro feed, mesmo que approval_status
+  // nunca tenha sido setado (post movido direto pelo time, sem passar pela
+  // aprovação do cliente) — sem isso aparecia com botão de aprovar um post
+  // que já foi ao ar.
+  if (s.status === 'agendado' || s.status === 'publicado') return 'approved'
   if (s.approval_status === 'aprovado') return 'approved'
   if (s.approval_status === 'não aprovado') return 'changes_requested'
   return 'pending'
