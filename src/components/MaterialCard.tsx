@@ -7,10 +7,10 @@ import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
+import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { autoGrow } from '@/lib/autoGrow'
 import { hostOf, formatBytes } from '@/lib/url'
-import { ensureWatching } from '@/lib/watch'
 import WatchButton from '@/components/WatchButton'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import EditableField from '@/components/EditableField'
@@ -350,9 +350,11 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       material_id: mid, body: newComment, author_name: author,
     }).select().single()
     if (data) setComments(c => [...c, data])
+    const commentBody = newComment
     setNewComment('')
     requestAnimationFrame(() => { if (mentions.textareaRef.current) autoGrow(mentions.textareaRef.current) })
-    await logActivity({ tableName: 'materials', recordId: mid, action: 'commented', actorName: author, description: `${author} comentou: "${newComment.slice(0, 80)}${newComment.length > 80 ? '…' : ''}"` })
+    await ensureWatchingFromMentions('materials', mid, commentBody, members)
+    await logActivity({ tableName: 'materials', recordId: mid, action: 'commented', actorName: author, description: `${author} comentou: "${commentBody.slice(0, 80)}${commentBody.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
   }
 
