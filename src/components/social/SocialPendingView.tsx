@@ -2,6 +2,7 @@
 
 import { SocialItem, isOverdue, moveSocialItem, scheduleSocialItem } from '@/lib/socialItems'
 import { useToast } from '@/lib/ToastContext'
+import { useUser } from '@/lib/UserContext'
 import { dbError } from '@/lib/dbError'
 import SocialItemCard from './SocialItemCard'
 import { CalendarPlus, AlertTriangle } from 'lucide-react'
@@ -20,6 +21,7 @@ type Props = {
 // Junta o que os alertas do topo já contam, em formato de lista pra resolver.
 export default function SocialPendingView({ items, clients, onOpenItem, onItemsChange }: Props) {
   const { toast } = useToast()
+  const { currentMember } = useUser()
 
   function getClient(id: string | null) { return clients.find(c => c.id === id) }
 
@@ -29,14 +31,14 @@ export default function SocialPendingView({ items, clients, onOpenItem, onItemsC
   async function publish(item: SocialItem) {
     const prev = items
     onItemsChange(list => list.map(i => i.id === item.id ? { ...i, column: 'publicado' } : i))
-    const { error } = await moveSocialItem(item, 'publicado')
+    const { error } = await moveSocialItem(item, 'publicado', currentMember)
     if (error) { onItemsChange(() => prev); dbError(error, toast, 'marcar como publicado') }
   }
 
   async function schedule(item: SocialItem, date: string) {
     const prev = items
     onItemsChange(list => list.map(i => i.id === item.id ? { ...i, scheduledDate: date, column: 'agendado' } : i))
-    const { error } = await scheduleSocialItem(item, date)
+    const { error } = await scheduleSocialItem(item, date, undefined, currentMember)
     if (error) { onItemsChange(() => prev); dbError(error, toast, 'agendar') }
   }
 

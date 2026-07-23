@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { SocialItem, isOverdue, moveSocialItem, scheduleSocialItem, updateItemDate, POST_TYPE_LABEL } from '@/lib/socialItems'
 import { useToast } from '@/lib/ToastContext'
+import { useUser } from '@/lib/UserContext'
 import { dbError } from '@/lib/dbError'
 import { todayBrasiliaISO } from '@/lib/timezone'
 import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
@@ -92,6 +93,7 @@ function toISO(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).
 
 export default function SocialWeekView({ items, clients, onOpenItem, onItemsChange }: Props) {
   const { toast } = useToast()
+  const { currentMember } = useUser()
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
   const [popover, setPopover] = useState<{ item: SocialItem; anchor: PopoverAnchor } | null>(null)
   const [dragging, setDragging] = useState<SocialItem | null>(null)
@@ -111,7 +113,7 @@ export default function SocialWeekView({ items, clients, onOpenItem, onItemsChan
   async function publish(item: SocialItem) {
     const prev = items
     onItemsChange(list => list.map(i => i.id === item.id ? { ...i, column: 'publicado' } : i))
-    const { error } = await moveSocialItem(item, 'publicado')
+    const { error } = await moveSocialItem(item, 'publicado', currentMember)
     if (error) { onItemsChange(() => prev); dbError(error, toast, 'marcar como publicado') }
     setPopover(null)
   }
@@ -120,7 +122,7 @@ export default function SocialWeekView({ items, clients, onOpenItem, onItemsChan
     if (!item.scheduledDate) return
     const prev = items
     onItemsChange(list => list.map(i => i.id === item.id ? { ...i, column: 'agendado' } : i))
-    const { error } = await scheduleSocialItem(item, item.scheduledDate)
+    const { error } = await scheduleSocialItem(item, item.scheduledDate, undefined, currentMember)
     if (error) { onItemsChange(() => prev); dbError(error, toast, 'agendar') }
     setPopover(null)
   }
@@ -136,7 +138,7 @@ export default function SocialWeekView({ items, clients, onOpenItem, onItemsChan
     if (!item || item.scheduledDate === iso) return
     const prev = items
     onItemsChange(list => list.map(i => i.id === item.id ? { ...i, scheduledDate: iso } : i))
-    const { error } = await updateItemDate(item, iso)
+    const { error } = await updateItemDate(item, iso, undefined, currentMember)
     if (error) { onItemsChange(() => prev); dbError(error, toast, 'mudar a data') }
   }
 

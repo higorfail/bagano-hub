@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { SocialItem, SOCIAL_COLUMNS, SocialColumn, moveSocialItem, scheduleSocialItem } from '@/lib/socialItems'
 import { groupByClient, useClientGrouping } from '@/lib/useClientGrouping'
 import { useToast } from '@/lib/ToastContext'
+import { useUser } from '@/lib/UserContext'
 import { dbError } from '@/lib/dbError'
 import SocialItemCard from './SocialItemCard'
 import { ChevronDown, ChevronRight } from 'lucide-react'
@@ -19,6 +20,7 @@ type Props = {
 
 export default function SocialBoard({ items, clients, onOpenItem, onItemsChange }: Props) {
   const { toast } = useToast()
+  const { currentMember } = useUser()
   const [dragging, setDragging] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const { isCollapsed, toggleCollapse, draggingGroup, setDraggingGroup, dragCounters } = useClientGrouping()
@@ -42,7 +44,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
     if (!item || item.column === toColumn) return
     const prev = items
     onItemsChange(list => list.map(i => i.id === itemId ? { ...i, column: toColumn } : i))
-    const { error } = await moveSocialItem(item, toColumn)
+    const { error } = await moveSocialItem(item, toColumn, currentMember)
     if (error) { onItemsChange(() => prev); dbError(error, toast, 'mover publicação') }
   }
 
@@ -51,7 +53,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
     if (!item) return
     const prev = items
     onItemsChange(list => list.map(i => i.id === itemId ? { ...i, scheduledDate: date, column: 'agendado' } : i))
-    const { error } = await scheduleSocialItem(item, date)
+    const { error } = await scheduleSocialItem(item, date, undefined, currentMember)
     if (error) { onItemsChange(() => prev); dbError(error, toast, 'agendar') }
   }
 
@@ -62,7 +64,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
     const prev = items
     const ids = new Set(groupItems.map(i => i.id))
     onItemsChange(list => list.map(i => ids.has(i.id) ? { ...i, column: toCol } : i))
-    const results = await Promise.all(groupItems.map(i => moveSocialItem(i, toCol)))
+    const results = await Promise.all(groupItems.map(i => moveSocialItem(i, toCol, currentMember)))
     const failed = results.find(r => r.error)
     if (failed?.error) { onItemsChange(() => prev); dbError(failed.error, toast, 'mover cliente') }
   }

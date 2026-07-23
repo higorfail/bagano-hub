@@ -3,6 +3,9 @@
 import { createClient } from '@/lib/supabase'
 import { extractDriveFileId } from '@/lib/useMentions'
 import { todayBrasiliaISO } from '@/lib/timezone'
+import { logActivity } from '@/lib/activity'
+
+export type SocialActor = { id?: string | null; name?: string | null }
 
 export type SocialColumn = 'aprovado' | 'agendado' | 'publicado'
 export type SocialSource = 'schedule' | 'extra'
@@ -294,51 +297,76 @@ export async function downloadDriveContent(driveUrl: string | null | undefined, 
 // Calendário/Semana. Diferente de scheduleSocialItem, que também comete a
 // coluna pra Agendado (o que reverteria um item já Publicado de volta pra
 // Agendado só por mudar a data, o que não faz sentido).
-export async function updateItemDate(item: SocialItem, date: string, time?: string) {
+function logSocialActivity(item: SocialItem, description: string, actor?: SocialActor) {
+  // Sem isso, o card nunca mostra na Atividade quando a social media agendou
+  // ou publicou pelo board de Publicações (drag-and-drop, botão Agendar/
+  // Publicar) — só ações feitas dentro do card completo (PostCard/ExtraCard)
+  // eram logadas.
+  logActivity({
+    tableName: item.source === 'schedule' ? 'schedules' : 'extras',
+    recordId: item.id,
+    clientId: item.clientId,
+    action: 'status_changed',
+    actorName: actor?.name,
+    actorId: actor?.id,
+    description,
+  })
+}
+
+export async function updateItemDate(item: SocialItem, date: string, time?: string, actor?: SocialActor) {
   const supabase = createClient()
-  if (item.source === 'schedule') {
-    return supabase.from('schedules').update({ scheduled_date: date }).eq('id', item.id)
-  }
-  const patch: Record<string, unknown> = { due_date: date }
-  if (time !== undefined) patch.due_time = time
-  return supabase.from('extras').update(patch).eq('id', item.id)
+  const who = actor?.name || 'Alguém'
+  const result = item.source === 'schedule'
+    ? await supabase.from('schedules').update({ scheduled_date: date }).eq('id', item.id)
+    : await supabase.from('extras').update(time !== undefined ? { due_date: date, due_time: time } : { due_date: date }).eq('id', item.id)
+  if (!result.error) logSocialActivity(item, `${who} mudou a data de "${item.title}" pra ${date}`, actor)
+  return result
 }
 
 // Agenda de vez: define a data (e opcionalmente hora) E move pro Agendado
 // numa ação só — usado pelo botão "Agendar". Diferente de moveSocialItem
 // pro caso 'agendado', porque também precisa gravar a data escolhida (não
 // só cair no default de hoje quando não houver uma ainda).
-export async function scheduleSocialItem(item: SocialItem, date: string, time?: string) {
+export async function scheduleSocialItem(item: SocialItem, date: string, time?: string, actor?: SocialActor) {
   const supabase = createClient()
+  const who = actor?.name || 'Alguém'
+  let result
   if (item.source === 'schedule') {
-    return supabase.from('schedules').update({ scheduled_date: date, status: 'agendado' }).eq('id', item.id)
+    result = await supabase.from('schedules').update({ scheduled_date: date, status: 'agendado' }).eq('id', item.id)
+  } else {
+    const patch: Record<string, unknown> = { due_date: date, scheduled_at: new Date().toISOString(), published_at: null }
+    if (time) patch.due_time = time
+    result = await supabase.from('extras').update(patch).eq('id', item.id)
   }
-  const patch: Record<string, unknown> = { due_date: date, scheduled_at: new Date().toISOString(), published_at: null }
-  if (time) patch.due_time = time
-  return supabase.from('extras').update(patch).eq('id', item.id)
+  if (!result.error) logSocialActivity(item, `${who} agendou "${item.title}" pra ${date}`, actor)
+  return result
 }
 
 // Atualiza o campo que determina a coluna, de volta na tabela de origem.
-export async function moveSocialItem(item: SocialItem, toColumn: SocialColumn) {
+export async function moveSocialItem(item: SocialItem, toColumn: SocialColumn, actor?: SocialActor) {
   const supabase = createClient()
+  const who = actor?.name || 'Alguém'
+  const COLUMN_LABEL: Record<SocialColumn, string> = { aprovado: 'Aprovado', agendado: 'Agendado', publicado: 'Publicado' }
+  let result
   if (item.source === 'schedule') {
     const status = toColumn // os nomes de coluna já são os valores de status de schedules
-    return supabase.from('schedules').update({ status }).eq('id', item.id)
-  }
-  // extras: não há status "aprovado"/"agendado" — cada coluna grava campos
-  // diferentes. status/client_approval_status não são tocados aqui: pra um
-  // extra chegar neste board ele já passou pelo gate (produção concluída e,
-  // se aplicável, aprovado) — mover entre colunas do board de Publicações
-  // nunca deveria voltar esse estado atrás.
-  if (toColumn === 'publicado') {
-    return supabase.from('extras').update({ published_at: new Date().toISOString() }).eq('id', item.id)
-  }
-  if (toColumn === 'agendado') {
+    result = await supabase.from('schedules').update({ status }).eq('id', item.id)
+  } else if (toColumn === 'publicado') {
+    // extras: não há status "aprovado"/"agendado" — cada coluna grava campos
+    // diferentes. status/client_approval_status não são tocados aqui: pra um
+    // extra chegar neste board ele já passou pelo gate (produção concluída e,
+    // se aplicável, aprovado) — mover entre colunas do board de Publicações
+    // nunca deveria voltar esse estado atrás.
+    result = await supabase.from('extras').update({ published_at: new Date().toISOString() }).eq('id', item.id)
+  } else if (toColumn === 'agendado') {
     const patch: Record<string, unknown> = { scheduled_at: new Date().toISOString(), published_at: null }
     if (!item.scheduledDate) patch.due_date = todayBrasiliaISO()
-    return supabase.from('extras').update(patch).eq('id', item.id)
+    result = await supabase.from('extras').update(patch).eq('id', item.id)
+  } else {
+    // toColumn === 'aprovado' — due_date fica como está (é só informativo);
+    // só desfaz os marcadores manuais de agendado/publicado.
+    result = await supabase.from('extras').update({ scheduled_at: null, published_at: null }).eq('id', item.id)
   }
-  // toColumn === 'aprovado' — due_date fica como está (é só informativo);
-  // só desfaz os marcadores manuais de agendado/publicado.
-  return supabase.from('extras').update({ scheduled_at: null, published_at: null }).eq('id', item.id)
+  if (!result.error) logSocialActivity(item, `${who} moveu "${item.title}" para ${COLUMN_LABEL[toColumn]}`, actor)
+  return result
 }
