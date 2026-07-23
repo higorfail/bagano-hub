@@ -68,16 +68,8 @@ export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
   const MAX = 6
   const visible = items.slice(0, MAX)
   const extra = items.length - visible.length
-  const hasSubfolder = others.some(o => o.kind === 'folder')
-
   return (
     <div className="flex flex-col gap-2 mb-2">
-      {hasSubfolder && (
-        <p className="text-[11px] font-medium flex items-center gap-1.5" style={{ color: 'var(--ds-warn-text)' }}>
-          <Folder size={12} className="flex-shrink-0" />
-          Tem pasta dentro dessa pasta — abra "Abrir pasta no Drive" acima pra ver tudo, não só o que está nas pastas abaixo.
-        </p>
-      )}
       {items.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {visible.map(item => (
