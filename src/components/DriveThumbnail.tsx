@@ -19,13 +19,17 @@ function kindOf(mimeType: string): OtherItem['kind'] {
 function OtherFileChip({ item }: { item: OtherItem }) {
   const Icon = item.kind === 'folder' ? Folder : item.kind === 'pdf' ? FileText : FileIcon
   const href = item.kind === 'folder' ? `https://drive.google.com/drive/folders/${item.id}` : `https://drive.google.com/file/d/${item.id}/view`
+  const isFolder = item.kind === 'folder'
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-      title={item.name}
-      className="w-[110px] aspect-[4/5] flex-shrink-0 rounded-lg flex flex-col items-center justify-center gap-2 px-2 text-center"
-      style={{ background: 'var(--color-bg-alt)', color: 'var(--color-text-secondary)' }}>
+      title={isFolder ? `Pasta dentro da pasta principal: ${item.name}` : item.name}
+      className="w-[110px] aspect-[4/5] flex-shrink-0 rounded-lg flex flex-col items-center justify-center gap-2 px-2 text-center border"
+      style={isFolder
+        ? { background: 'var(--ds-warn-bg)', borderColor: 'var(--ds-warn-border)', color: 'var(--ds-warn-text)' }
+        : { background: 'var(--color-bg-alt)', borderColor: 'transparent', color: 'var(--color-text-secondary)' }}>
       <Icon size={36} strokeWidth={1.5} className="flex-shrink-0" />
       <span className="text-sm font-semibold leading-snug line-clamp-2 break-words">{item.name}</span>
+      {isFolder && <span className="text-[9px] font-bold uppercase tracking-wide opacity-80">pasta extra</span>}
     </a>
   )
 }
@@ -64,9 +68,16 @@ export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
   const MAX = 6
   const visible = items.slice(0, MAX)
   const extra = items.length - visible.length
+  const hasSubfolder = others.some(o => o.kind === 'folder')
 
   return (
     <div className="flex flex-col gap-2 mb-2">
+      {hasSubfolder && (
+        <p className="text-[11px] font-medium flex items-center gap-1.5" style={{ color: 'var(--ds-warn-text)' }}>
+          <Folder size={12} className="flex-shrink-0" />
+          Tem pasta dentro dessa pasta — abra "Abrir pasta no Drive" acima pra ver tudo, não só o que está nas pastas abaixo.
+        </p>
+      )}
       {items.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {visible.map(item => (

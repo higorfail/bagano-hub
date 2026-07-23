@@ -52,8 +52,11 @@ export default function DeliverySection({ value, isVideo = false, onCommit }: Pr
           <>
             <div className="flex items-center gap-2 mb-2">
               <a href={value} target="_blank" rel="noopener noreferrer"
-                className="flex-1 flex items-center gap-2 bg-[var(--color-bg-card)] rounded-lg px-3 py-2 text-sm font-semibold truncate hover:opacity-90 transition-opacity" style={{ color: 'var(--ds-success-text)' }}>
-                <ExternalLink size={13} className="flex-shrink-0" />
+                className="flex-1 flex items-center gap-2.5 rounded-xl px-4 py-3 text-base font-bold truncate border-2 transition-colors"
+                style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--ds-success-accent)'; e.currentTarget.style.color = '#fff' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--ds-success-bg)'; e.currentTarget.style.color = 'var(--ds-success-text)' }}>
+                <ExternalLink size={18} className="flex-shrink-0" />
                 <span className="truncate">✓ {isFolder ? 'Abrir pasta no Drive' : 'Conteúdo entregue — Abrir no Drive'}</span>
               </a>
               <button onClick={startEdit} className="text-[11px] hover:underline flex-shrink-0" style={{ color: 'var(--ds-success-text)' }}>editar</button>
