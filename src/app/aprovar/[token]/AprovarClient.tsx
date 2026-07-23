@@ -627,11 +627,17 @@ export default function ApprovalPage({ token }: { token: string }) {
     await requestChanges(fp.id, c)
   }
 
+  // Posts já agendados/publicados só têm lugar no feed visual (grid) e no
+  // calendário — na revisão em lista (scroll, tab "posts") não faz sentido
+  // pedir pra aprovar/ajustar algo que já foi ao ar, então nem entram nessa
+  // lista nem nas contagens de progresso.
+  const reviewPosts = posts.filter(p => p.status !== 'agendado' && p.status !== 'publicado')
+
   // Stats
-  const totalPosts    = posts.length
-  const approvedCount = posts.filter(p => p.approval_status === 'aprovado').length
-  const changesCount  = posts.filter(p => p.approval_status === 'não aprovado').length
-  const pendingCount  = posts.filter(p => !p.approval_status || !['aprovado','não aprovado'].includes(p.approval_status)).length
+  const totalPosts    = reviewPosts.length
+  const approvedCount = reviewPosts.filter(p => p.approval_status === 'aprovado').length
+  const changesCount  = reviewPosts.filter(p => p.approval_status === 'não aprovado').length
+  const pendingCount  = reviewPosts.filter(p => !p.approval_status || !['aprovado','não aprovado'].includes(p.approval_status)).length
   const pct           = totalPosts > 0 ? (approvedCount / totalPosts) * 100 : 0
   const allDone       = totalPosts > 0 && approvedCount === totalPosts
 
@@ -1309,7 +1315,7 @@ export default function ApprovalPage({ token }: { token: string }) {
                 </p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {posts.map(p => (
+                {reviewPosts.map(p => (
                   <div key={p.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, border: '1px solid #ebebeb' }}>
                     <span style={{ fontSize: 22, flexShrink: 0 }}>{TYPE_EMOJIS[p.post_type] || '📄'}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1336,7 +1342,7 @@ export default function ApprovalPage({ token }: { token: string }) {
 
               {/* Post cards */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {posts.map((post, idx) => renderFinalCard(post, idx))}
+                {reviewPosts.map((post, idx) => renderFinalCard(post, idx))}
               </div>
 
               {/* Extras pendentes de aprovação */}
@@ -1436,9 +1442,10 @@ export default function ApprovalPage({ token }: { token: string }) {
                         {day}
                       </div>
                       {dayPosts.slice(0, 2).map(p => {
-                        const isApproved = p.approval_status === 'aprovado'
-                        const isChanges  = p.approval_status === 'não aprovado'
-                        const dotColor   = isApproved ? '#22c55e' : isChanges ? '#f59e0b' : '#d1d5db'
+                        const isLive     = p.status === 'agendado' || p.status === 'publicado'
+                        const isApproved = isLive || p.approval_status === 'aprovado'
+                        const isChanges  = !isLive && p.approval_status === 'não aprovado'
+                        const dotColor   = p.status === 'publicado' ? '#22c55e' : p.status === 'agendado' ? '#2563eb' : isApproved ? '#22c55e' : isChanges ? '#f59e0b' : '#d1d5db'
                         return (
                           <button key={p.id}
                             onClick={() => { setSheetPost(p); setSheetComment(p.approval_comment || '') }}
@@ -1469,8 +1476,9 @@ export default function ApprovalPage({ token }: { token: string }) {
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {postsWithoutDate.map(p => {
-                    const isApproved = p.approval_status === 'aprovado'
-                    const isChanges  = p.approval_status === 'não aprovado'
+                    const isLive     = p.status === 'agendado' || p.status === 'publicado'
+                    const isApproved = isLive || p.approval_status === 'aprovado'
+                    const isChanges  = !isLive && p.approval_status === 'não aprovado'
                     return (
                       <button key={p.id}
                         onClick={() => { setSheetPost(p); setSheetComment(p.approval_comment || '') }}
@@ -1497,8 +1505,13 @@ export default function ApprovalPage({ token }: { token: string }) {
 
       {/* ── FEED TAB: post approval bottom sheet ────────────────────── */}
       {(tab === 'feed' || tab === 'calendario') && sheetPost && (() => {
-        const isApproved      = sheetPost.approval_status === 'aprovado'
-        const isChanges       = sheetPost.approval_status === 'não aprovado'
+        // Agendado/publicado é definitivo — já saiu da etapa de aprovação de
+        // verdade, então nem oferece aprovar/pedir ajuste/desfazer aqui, só
+        // mostra o status. Isso é o que faz esses posts poderem continuar
+        // visíveis no feed/calendário sem parecer que ainda dependem do cliente.
+        const isLive           = sheetPost.status === 'agendado' || sheetPost.status === 'publicado'
+        const isApproved      = !isLive && sheetPost.approval_status === 'aprovado'
+        const isChanges       = !isLive && sheetPost.approval_status === 'não aprovado'
         const isLoading       = submitting === sheetPost.id
         const driveId         = sheetPost.drive_url?.match(/[-\w]{25,}/)?.[0]
         const sheetFolder     = sheetPost.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
@@ -1518,6 +1531,8 @@ export default function ApprovalPage({ token }: { token: string }) {
                   <span style={{ fontSize: 13, fontWeight: 700, color: '#555', background: '#f0f0ee', padding: '3px 10px', borderRadius: 100, flexShrink: 0 }}>
                     {TYPE_EMOJIS[sheetPost.post_type]} {TYPE_LABELS[sheetPost.post_type] || sheetPost.post_type}
                   </span>
+                  {isLive && sheetPost.status === 'publicado' && <span style={{ fontSize: 12, fontWeight: 700, color: '#16a34a', flexShrink: 0 }}>✓ Publicado</span>}
+                  {isLive && sheetPost.status === 'agendado'  && <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', flexShrink: 0 }}>📅 Agendado</span>}
                   {isApproved && <span style={{ fontSize: 12, fontWeight: 700, color: '#16a34a', flexShrink: 0 }}>✓ Aprovado</span>}
                   {isChanges  && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', flexShrink: 0 }}>⚠ Alteração pedida</span>}
                 </div>
@@ -1567,7 +1582,7 @@ export default function ApprovalPage({ token }: { token: string }) {
                   )}
 
                   {/* Comment */}
-                  {!isApproved && (
+                  {!isApproved && !isLive && (
                     <div style={{ marginBottom: 14 }}>
                       <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px', fontWeight: 600 }}>Pedir ajuste (opcional)</p>
                       <textarea value={sheetComment} onChange={e => setSheetComment(e.target.value)}
@@ -1581,7 +1596,11 @@ export default function ApprovalPage({ token }: { token: string }) {
                   )}
 
                   {/* Actions */}
-                  {isApproved ? (
+                  {isLive ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: sheetPost.status === 'publicado' ? '#f0fdf4' : '#eff6ff', border: `1.5px solid ${sheetPost.status === 'publicado' ? '#86efac' : '#bfdbfe'}`, fontSize: 15, fontWeight: 700, color: sheetPost.status === 'publicado' ? '#16a34a' : '#2563eb' }}>
+                      {sheetPost.status === 'publicado' ? <><CheckCircle size={17} strokeWidth={2.5} /> Já publicado</> : <>📅 Agendado para publicar</>}
+                    </div>
+                  ) : isApproved ? (
                     <div style={{ display: 'flex', gap: 10 }}>
                       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#f0fdf4', border: '1.5px solid #86efac', fontSize: 15, fontWeight: 700, color: '#16a34a' }}>
                         <CheckCircle size={17} strokeWidth={2.5} /> Aprovado
