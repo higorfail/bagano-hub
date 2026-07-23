@@ -90,6 +90,17 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     if (!pushSupported()) { setPushState('unsupported'); return }
     isSubscribedToPush().then(sub => setPushState(sub ? 'on' : 'off'))
   }, [])
+  // Banner de ativação — some do sino discretinho de antes: agora aparece
+  // logo no topo até a pessoa ativar ou dispensar (some por 7 dias se dispensado).
+  const [pushBannerDismissed, setPushBannerDismissed] = useState(true)
+  useEffect(() => {
+    const dismissedAt = Number(localStorage.getItem('push-banner-dismissed-at') || 0)
+    setPushBannerDismissed(Date.now() - dismissedAt < 7 * 86400000)
+  }, [])
+  function dismissPushBanner() {
+    localStorage.setItem('push-banner-dismissed-at', String(Date.now()))
+    setPushBannerDismissed(true)
+  }
   async function enablePush() {
     if (!currentMember) return
     setPushState('busy')
@@ -902,6 +913,21 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </div>
           </div>{/* flex items-center gap-1 */}
         </div>
+
+        {pushState === 'off' && !pushBannerDismissed && (
+          <div className="flex items-center gap-3 px-4 md:px-6 py-2.5 border-b border-[var(--color-border)]" style={{ background: 'var(--color-accent-bg)' }}>
+            <BellRing size={15} className="flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
+            <p className="text-xs font-medium flex-1 min-w-0" style={{ color: 'var(--color-accent)' }}>
+              Ative as notificações pra saber na hora quando te marcarem ou adicionarem num card — inclusive no celular.
+            </p>
+            <button onClick={enablePush} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white flex-shrink-0" style={{ background: 'var(--color-accent)' }}>
+              Ativar
+            </button>
+            <button onClick={dismissPushBanner} className="text-xs text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] flex-shrink-0 transition-colors">
+              Agora não
+            </button>
+          </div>
+        )}
 
         <main className="flex-1 overflow-auto page-content" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           {children}
