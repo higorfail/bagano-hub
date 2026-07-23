@@ -312,9 +312,13 @@ export default function ApprovalPage({ token }: { token: string }) {
       .eq('month', tk.month)
       .eq('year',  tk.year)
       .order('post_number', { ascending: true })
+    // No feed final, um post aprovado ou com ajuste pedido continua no grid —
+    // só sai visualmente com o indicador de status (ver mapStatus), nunca some
+    // da lista. O cronograma (aprovação de estratégia) já muda de tela ao
+    // decidir, então continua só mostrando o que está pendente mesmo.
     const schedulesQuery = tk.type === 'cronograma'
       ? baseQuery.eq('status', 'aguardando_aprovacao_crono')
-      : baseQuery.eq('status', 'aguardando_aprovacao')
+      : baseQuery.in('status', ['aguardando_aprovacao', 'aprovado', 'ajuste'])
 
     const [{ data: sc }, { data: ex }] = await Promise.all([schedulesQuery, extrasQuery])
     setPosts(sc || [])

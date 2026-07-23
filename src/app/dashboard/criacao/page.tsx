@@ -26,6 +26,7 @@ type Post = {
   id: string
   title: string
   post_type: string
+  status: string
   scheduled_date: string | null
   briefing: string | null
   copy: string | null
@@ -35,6 +36,7 @@ type Post = {
   year: number
   client_id: string
   assigned_members: string[] | null
+  approval_comment: string | null
 }
 
 type CronoStatus = {
@@ -127,8 +129,11 @@ export default function CriacaoPage() {
         supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
         supabase.from('team_members').select('id, name, role, color').order('name'),
         supabase.from('schedules')
-          .select('id, title, post_type, scheduled_date, briefing, copy, funil, post_number, month, year, client_id, assigned_members')
-          .in('status', ['producao', 'captacao'])
+          // 'ajuste' = cliente pediu alteração no conteúdo final (ver AprovarClient.tsx
+          // requestChanges) — sem isso, o post some da Criação assim que sai de
+          // producao/captacao, mesmo precisando ser refeito por quem está atribuído.
+          .select('id, title, post_type, status, scheduled_date, briefing, copy, funil, post_number, month, year, client_id, assigned_members, approval_comment')
+          .in('status', ['producao', 'captacao', 'ajuste'])
           .order('scheduled_date', { ascending: true, nullsFirst: false }),
         supabase.from('cronograma_status')
           .select('client_id, month, year, production_note')
@@ -595,6 +600,11 @@ export default function CriacaoPage() {
                                 </p>
                                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: ptype.color + '22', color: ptype.color }}>{ptype.label}</span>
+                                  {post.status === 'ajuste' && (
+                                    <span title={post.approval_comment || undefined} className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>
+                                      ⚠ Ajuste pedido pelo cliente
+                                    </span>
+                                  )}
                                   {post.funil && <span className="text-[10px] text-[var(--color-text-muted)]">{post.funil}</span>}
                                   {post.scheduled_date && <span className="text-[10px] text-[var(--color-text-muted)]">📅 {formatDate(post.scheduled_date)}</span>}
                                 </div>
