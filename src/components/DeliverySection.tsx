@@ -50,8 +50,7 @@ export default function DeliverySection({ value, isVideo = false, onCommit }: Pr
             className="w-full bg-[var(--color-bg-card)] border border-[var(--ds-success-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none" />
         ) : hasDelivery ? (
           <>
-            {isFolder ? <FolderThumbnail folderUrl={value} /> : <DriveThumbnail driveUrl={value} isVideo={isVideo} />}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-2">
               <a href={value} target="_blank" rel="noopener noreferrer"
                 className="flex-1 flex items-center gap-2 bg-[var(--color-bg-card)] rounded-lg px-3 py-2 text-sm font-semibold truncate hover:opacity-90 transition-opacity" style={{ color: 'var(--ds-success-text)' }}>
                 <ExternalLink size={13} className="flex-shrink-0" />
@@ -59,6 +58,7 @@ export default function DeliverySection({ value, isVideo = false, onCommit }: Pr
               </a>
               <button onClick={startEdit} className="text-[11px] hover:underline flex-shrink-0" style={{ color: 'var(--ds-success-text)' }}>editar</button>
             </div>
+            {isFolder ? <FolderThumbnail folderUrl={value} /> : <DriveThumbnail driveUrl={value} isVideo={isVideo} />}
           </>
         ) : (
           <button onClick={startEdit}
