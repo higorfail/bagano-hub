@@ -1,17 +1,43 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Folder, FileText, File as FileIcon } from 'lucide-react'
 
 type DriveFile = { id: string; name: string; mimeType: string }
 
 type GalleryItem = DriveFile & { isVideo: boolean }
+type OtherItem = DriveFile & { kind: 'folder' | 'pdf' | 'other' }
+
+const FOLDER_MIME = 'application/vnd.google-apps.folder'
+
+function kindOf(mimeType: string): OtherItem['kind'] {
+  if (mimeType === FOLDER_MIME) return 'folder'
+  if (mimeType === 'application/pdf') return 'pdf'
+  return 'other'
+}
+
+function OtherFileChip({ item, folderUrl }: { item: OtherItem; folderUrl: string }) {
+  const Icon = item.kind === 'folder' ? Folder : item.kind === 'pdf' ? FileText : FileIcon
+  const href = item.kind === 'folder' ? `https://drive.google.com/drive/folders/${item.id}` : `https://drive.google.com/file/d/${item.id}/view`
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+      title={item.name}
+      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium max-w-[160px]"
+      style={{ background: 'var(--color-bg-alt)', color: 'var(--color-text-secondary)' }}>
+      <Icon size={13} className="flex-shrink-0" />
+      <span className="truncate">{item.name}</span>
+    </a>
+  )
+}
 
 // Preview de uma pasta do Google Drive: mostra imagens E vídeos lado a lado (até 6),
 // com "capa.*" em primeiro se existir. Vídeo aparece com ícone de play — clicar abre
-// o arquivo específico no Drive pra assistir. Sem nada disso, cai pra 1ª página de um PDF.
+// o arquivo específico no Drive pra assistir. Qualquer outra coisa que não seja
+// imagem/vídeo (pasta, PDF, doc etc.) aparece como chip abaixo — sem isso, ficava
+// invisível mesmo quando tinha mais conteúdo lá dentro (ex: uma subpasta "Stories").
 export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
   const [items, setItems] = useState<GalleryItem[]>([])
-  const [pdf, setPdf] = useState<DriveFile | null>(null)
+  const [others, setOthers] = useState<OtherItem[]>([])
 
   useEffect(() => {
     const folderId = folderUrl.match(/\/folders\/([-\w]{25,})/)?.[1]
@@ -22,46 +48,54 @@ export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
         const files: DriveFile[] = d.files || []
         const imgs = files.filter(f => f.mimeType.startsWith('image/'))
         const vids = files.filter(f => f.mimeType.startsWith('video/'))
-        if (imgs.length > 0 || vids.length > 0) {
-          const cover = imgs.find(f => /^capa\./i.test(f.name))
-          const orderedImgs = cover ? [cover, ...imgs.filter(f => f.id !== cover.id)] : imgs
-          setItems([...orderedImgs.map(f => ({ ...f, isVideo: false })), ...vids.map(f => ({ ...f, isVideo: true }))])
-          return
-        }
-        const doc = files.find(f => f.mimeType === 'application/pdf')
-        if (doc) setPdf(doc)
+        const cover = imgs.find(f => /^capa\./i.test(f.name))
+        const orderedImgs = cover ? [cover, ...imgs.filter(f => f.id !== cover.id)] : imgs
+        setItems([...orderedImgs.map(f => ({ ...f, isVideo: false })), ...vids.map(f => ({ ...f, isVideo: true }))])
+        setOthers(
+          files
+            .filter(f => !f.mimeType.startsWith('image/') && !f.mimeType.startsWith('video/'))
+            .map(f => ({ ...f, kind: kindOf(f.mimeType) }))
+        )
       })
       .catch(() => {})
   }, [folderUrl])
 
-  const shown = items.length > 0 ? items : pdf ? [{ ...pdf, isVideo: false }] : []
-  if (shown.length === 0) return null
+  if (items.length === 0 && others.length === 0) return null
   const MAX = 6
-  const visible = shown.slice(0, MAX)
-  const extra = shown.length - visible.length
+  const visible = items.slice(0, MAX)
+  const extra = items.length - visible.length
 
   return (
-    <div className="flex flex-wrap gap-2 mb-2">
-      {visible.map(item => (
-        <a key={item.id} href={`https://drive.google.com/file/d/${item.id}/view`} target="_blank" rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="relative w-[110px] aspect-[4/5] flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-bg-alt)] block">
-          <img src={`/api/drive-thumb?id=${item.id}&sz=w400`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
-          {item.isVideo && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-              <div className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="#111" className="ml-0.5"><polygon points="5,3 19,12 5,21" /></svg>
-              </div>
-            </div>
+    <div className="flex flex-col gap-2 mb-2">
+      {items.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {visible.map(item => (
+            <a key={item.id} href={`https://drive.google.com/file/d/${item.id}/view`} target="_blank" rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              className="relative w-[110px] aspect-[4/5] flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-bg-alt)] block">
+              <img src={`/api/drive-thumb?id=${item.id}&sz=w400`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
+              {item.isVideo && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+                  <div className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#111" className="ml-0.5"><polygon points="5,3 19,12 5,21" /></svg>
+                  </div>
+                </div>
+              )}
+            </a>
+          ))}
+          {extra > 0 && (
+            <a href={folderUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+              className="w-[110px] aspect-[4/5] flex-shrink-0 rounded-lg flex items-center justify-center text-sm font-semibold"
+              style={{ background: 'var(--color-bg-alt)', color: 'var(--color-text-muted)' }}>
+              +{extra}
+            </a>
           )}
-        </a>
-      ))}
-      {extra > 0 && (
-        <a href={folderUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-          className="w-[110px] aspect-[4/5] flex-shrink-0 rounded-lg flex items-center justify-center text-sm font-semibold"
-          style={{ background: 'var(--color-bg-alt)', color: 'var(--color-text-muted)' }}>
-          +{extra}
-        </a>
+        </div>
+      )}
+      {others.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {others.map(item => <OtherFileChip key={item.id} item={item} folderUrl={folderUrl} />)}
+        </div>
       )}
     </div>
   )
