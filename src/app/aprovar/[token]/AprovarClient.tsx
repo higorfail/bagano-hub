@@ -842,7 +842,7 @@ export default function ApprovalPage({ token }: { token: string }) {
         }}>
           {children}
         </div>
-        <span style={{ fontSize: 10, color: hover ? cc : '#9ca3af', textAlign: 'center', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, fontWeight: hover ? 700 : 500 }}>
+        <span style={{ fontSize: 10, color: hover ? cc : '#9ca3af', textAlign: 'center', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, fontWeight: hover ? 700 : 500, width: '100%', wordBreak: 'break-all' }}>
           {title}
         </span>
       </a>
