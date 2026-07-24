@@ -86,6 +86,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   const [clientManual,setClientManual]= useState(false)
   const [extraClient, setExtraClient] = useState('')
   const [description, setDescription] = useState('')
+  const [referenceNotes, setReferenceNotes] = useState('')
   const [dueDate,     setDueDate]     = useState('')
   const [dueTime,     setDueTime]     = useState('')
   const [driveUrl,    setDriveUrl]    = useState('')
@@ -163,6 +164,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         setClientId(data.client_id || '')
         setExtraClient(data.extra_client || '')
         setDescription(data.description || '')
+        setReferenceNotes(data.reference_notes || '')
         setDueDate(data.due_date || '')
         setDriveUrl(data.drive_url || '')
         setCreatedAt(data.created_at || null)
@@ -219,6 +221,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       client_id: clientId || null,
       extra_client: extraClient || null,
       description,
+      reference_notes: referenceNotes,
       due_date: dueDate || null,
       assigned_members: assignedMembers,
       assigned_to: assignedMembers[0] || null,
@@ -231,7 +234,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       originalStatusRef.current = status
       snapshotRef.current = JSON.stringify({
         title, type, clientId: fixedClientId || clientId || '', extraClient,
-        description, dueDate: dueDate || '', driveUrl: driveUrl || '', labels, assignedMembers,
+        description, referenceNotes, dueDate: dueDate || '', driveUrl: driveUrl || '', labels, assignedMembers,
       })
       ensureWatching('materials', data.id, [currentMember?.id, ...assignedMembers])
       await logActivity({ tableName: 'materials', recordId: data.id, clientId: fixedClientId || clientId || null, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
@@ -283,6 +286,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       client_id: clientId || null,
       extra_client: extraClient || null,
       description,
+      reference_notes: referenceNotes,
       due_date: dueDate || null,
       assigned_members: assignedMembers,
       assigned_to: assignedMembers[0] || null,
@@ -774,6 +778,19 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 />
                 <button onClick={addCheck} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">Adicionar</button>
               </div>
+            </div>
+
+            {/* Referências — notas/links; imagem/arquivo entra por Anexos & Arquivos */}
+            <div>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
+                <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração, links, observações</span>
+              </div>
+              <EditableField
+                label="" placeholder="Cole links de referência, observações…"
+                value={referenceNotes} minH={40}
+                onCommit={v => { const hadId = !!id; setReferenceNotes(v); persist({ reference_notes: v }, hadId ? `${who} editou as referências` : undefined) }}
+              />
             </div>
 
             {/* ANEXOS & UPLOADS */}
