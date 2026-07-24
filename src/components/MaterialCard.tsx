@@ -419,6 +419,8 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   // Trello-style: colar imagem/link solto no card já anexa; arrastar arquivo
   // do Finder também.
   async function handleCardPaste(e: React.ClipboardEvent) {
+    const tag = (e.target as HTMLElement).tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return
     const imgItem = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
     if (imgItem) {
       const file = imgItem.getAsFile()

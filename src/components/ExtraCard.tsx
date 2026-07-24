@@ -486,6 +486,11 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   // clicar em "Enviar arquivo"/"Colar link" antes. Arrastar um arquivo do Finder
   // faz o mesmo via onDrop.
   async function handleCardPaste(e: React.ClipboardEvent) {
+    // Só anexa sozinho quando o clique/paste NÃO é dentro de um campo de texto
+    // (igual Trello: colar "no card" anexa; colar dentro de um campo, inclusive
+    // o de Colar link/Nome, só cola o texto ali normalmente).
+    const tag = (e.target as HTMLElement).tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return
     const imgItem = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
     if (imgItem) {
       const file = imgItem.getAsFile()
@@ -877,19 +882,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               ) : undefined}
             />
 
-            {/* Referências — só notas/links agora; imagem entra por Anexos & Arquivos */}
-            <div>
-              <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
-                <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração, links, observações</span>
-              </div>
-              <EditableField
-                label="" placeholder="Cole links de referência, observações…"
-                value={referenceNotes} minH={40}
-                onCommit={v => { const hadId = !!id; setReferenceNotes(v); persist({ reference_notes: v }, hadId ? `${who} editou as referências` : undefined) }}
-              />
-            </div>
-
             {/* CHECKLIST */}
             <div>
               <div className="flex items-baseline gap-2 mb-2">
@@ -919,6 +911,19 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                   placeholder="Novo item… (Enter)"
                   className="flex-1 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] transition-colors" />
               </div>
+            </div>
+
+            {/* Referências — só notas/links agora; imagem entra por Anexos & Arquivos */}
+            <div>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
+                <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração, links, observações</span>
+              </div>
+              <EditableField
+                label="" placeholder="Cole links de referência, observações…"
+                value={referenceNotes} minH={40}
+                onCommit={v => { const hadId = !!id; setReferenceNotes(v); persist({ reference_notes: v }, hadId ? `${who} editou as referências` : undefined) }}
+              />
             </div>
 
             {/* ANEXOS & ARQUIVOS — mesmo padrão de Materiais: uploads e links */}

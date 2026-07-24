@@ -817,6 +817,38 @@ export default function ApprovalPage({ token }: { token: string }) {
 
   // Referências (notas) + anexos/arquivos do post — precisam aparecer pro
   // cliente aqui também, não só no card interno do time.
+  function linkifyText(text: string) {
+    const parts = text.split(/(https?:\/\/\S+)/g)
+    return parts.map((part, i) =>
+      /^https?:\/\//.test(part)
+        ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: cc, textDecoration: 'underline', fontWeight: 600 }}>{part}</a>
+        : <span key={i}>{part}</span>
+    )
+  }
+
+  function AttachmentTile({ href, title, children }: { href: string; title: string; children: React.ReactNode }) {
+    const [hover, setHover] = useState(false)
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" title={title}
+        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 64, textDecoration: 'none' }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 10, overflow: 'hidden', background: '#f5f5f3',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: `1.5px solid ${hover ? cc : '#ebebeb'}`,
+          boxShadow: hover ? '0 3px 10px rgba(0,0,0,0.12)' : 'none',
+          transform: hover ? 'translateY(-1px)' : 'none',
+          transition: 'all 0.15s',
+        }}>
+          {children}
+        </div>
+        <span style={{ fontSize: 10, color: hover ? cc : '#9ca3af', textAlign: 'center', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, fontWeight: hover ? 700 : 500 }}>
+          {title}
+        </span>
+      </a>
+    )
+  }
+
   function renderRefsAndAttachments(post: Post) {
     const uploads = uploadsByPost[post.id] || []
     const attachments = attachmentsByPost[post.id] || []
@@ -825,23 +857,21 @@ export default function ApprovalPage({ token }: { token: string }) {
       <div style={{ marginBottom: 14 }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Referências & anexos</p>
         {post.reference_notes && (
-          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 8px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{post.reference_notes}</p>
+          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 8px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(post.reference_notes)}</p>
         )}
         {(uploads.length > 0 || attachments.length > 0) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {uploads.map(u => (
-              <a key={u.id} href={u.file_url} target="_blank" rel="noopener noreferrer" title={u.filename}
-                style={{ width: 48, height: 48, borderRadius: 8, overflow: 'hidden', background: '#f5f5f3', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #ebebeb', flexShrink: 0 }}>
+              <AttachmentTile key={u.id} href={u.file_url} title={u.filename}>
                 {u.mime_type?.startsWith('image/')
                   ? <img src={u.file_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <span style={{ fontSize: 18 }}>📄</span>}
-              </a>
+                  : <span style={{ fontSize: 20 }}>📄</span>}
+              </AttachmentTile>
             ))}
             {attachments.map(a => (
-              <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer" title={a.title || a.url}
-                style={{ width: 48, height: 48, borderRadius: 8, background: '#f5f5f3', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #ebebeb', flexShrink: 0 }}>
-                <img src={`https://www.google.com/s2/favicons?domain=${hostOf(a.url)}&sz=32`} alt="" style={{ width: 20, height: 20 }} />
-              </a>
+              <AttachmentTile key={a.id} href={a.url} title={a.title || hostOf(a.url)}>
+                <img src={`https://www.google.com/s2/favicons?domain=${hostOf(a.url)}&sz=32`} alt="" style={{ width: 22, height: 22 }} />
+              </AttachmentTile>
             ))}
           </div>
         )}

@@ -30,11 +30,13 @@ function UploadTile({ item, onRemove }: { item: UploadItem; onRemove: () => void
         ) : (
           <Icon size={20} className="text-[var(--color-text-muted)]" />
         )}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
-          <a href={item.file_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-            className="w-6 h-6 rounded-md bg-white/90 flex items-center justify-center text-[#111]"><ExternalLink size={11} /></a>
-          <button onClick={e => { e.stopPropagation(); onRemove() }}
-            className="w-6 h-6 rounded-md bg-white/90 flex items-center justify-center text-[var(--ds-error-text)]"><Trash2 size={11} /></button>
+        {/* Cantos opostos (não lado a lado) — de propósito, pra não ter como clicar
+            em excluir por engano tentando abrir, ou vice-versa. */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors opacity-0 group-hover:opacity-100">
+          <a href={item.file_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir"
+            className="absolute top-1 left-1 w-6 h-6 rounded-md bg-white shadow-sm flex items-center justify-center text-[#111]"><ExternalLink size={11} /></a>
+          <button onClick={e => { e.stopPropagation(); onRemove() }} title="Excluir"
+            className="absolute top-1 right-1 w-6 h-6 rounded-md bg-white shadow-sm flex items-center justify-center text-[var(--ds-error-text)]"><Trash2 size={11} /></button>
         </div>
       </div>
       <span title={item.filename} className="text-[10px] text-[var(--color-text-muted)] text-center truncate w-full leading-tight">{item.filename}</span>
@@ -49,11 +51,11 @@ function LinkTile({ item, onRemove }: { item: LinkItem; onRemove: () => void }) 
     <div className="group flex flex-col items-center gap-1" style={{ width: TILE + 16 }}>
       <div className="relative rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg-alt)] flex items-center justify-center" style={{ width: TILE, height: TILE }}>
         <img src={`https://www.google.com/s2/favicons?domain=${hostOf(item.url)}&sz=64`} alt="" className="w-6 h-6" />
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
-          <a href={item.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-            className="w-6 h-6 rounded-md bg-white/90 flex items-center justify-center text-[#111]"><ExternalLink size={11} /></a>
-          <button onClick={e => { e.stopPropagation(); onRemove() }}
-            className="w-6 h-6 rounded-md bg-white/90 flex items-center justify-center text-[var(--ds-error-text)]"><Trash2 size={11} /></button>
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors opacity-0 group-hover:opacity-100">
+          <a href={item.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir"
+            className="absolute top-1 left-1 w-6 h-6 rounded-md bg-white shadow-sm flex items-center justify-center text-[#111]"><ExternalLink size={11} /></a>
+          <button onClick={e => { e.stopPropagation(); onRemove() }} title="Excluir"
+            className="absolute top-1 right-1 w-6 h-6 rounded-md bg-white shadow-sm flex items-center justify-center text-[var(--ds-error-text)]"><Trash2 size={11} /></button>
         </div>
       </div>
       <span title={item.url} className="text-[10px] text-[var(--color-text-muted)] text-center truncate w-full leading-tight">{label}</span>
