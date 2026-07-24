@@ -11,6 +11,8 @@ import { useUser } from '@/lib/UserContext'
 
 type Client = { id: string; name: string; color_hex: string; logo_url?: string | null }
 
+const LAST_CLIENT_KEY = 'crono-last-client'
+
 function CronogramaPageInner() {
   const { currentMember } = useUser()
   const [clients, setClients] = useState<Client[]>([])
@@ -49,8 +51,16 @@ function CronogramaPageInner() {
         setClients(data || [])
         if (clientParam && data?.some(c => c.id === clientParam)) {
           setSelectedClient(clientParam)
-        } else if (data && data.length > 0) {
-          setSelectedClient(data[0].id)
+        } else {
+          // Sem cliente na URL (ex: clicou em "Cronograma" na sidebar, sem
+          // vir de um link específico) — volta pro último cliente visto em
+          // vez de sempre cair no primeiro em ordem alfabética.
+          const lastClient = localStorage.getItem(LAST_CLIENT_KEY)
+          if (lastClient && data?.some(c => c.id === lastClient)) {
+            setSelectedClient(lastClient)
+          } else if (data && data.length > 0) {
+            setSelectedClient(data[0].id)
+          }
         }
       } catch {
         setLoadError(true)
@@ -75,6 +85,7 @@ function CronogramaPageInner() {
   // Mantém a URL sincronizada com a seleção atual, pra um refresh voltar pro mesmo cliente/mês/ano
   useEffect(() => {
     if (!selectedClient) return
+    localStorage.setItem(LAST_CLIENT_KEY, selectedClient)
     const params = new URLSearchParams(searchParams.toString())
     params.set('client', selectedClient)
     params.set('m', String(selectedMonth))
