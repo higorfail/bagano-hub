@@ -204,6 +204,7 @@ function SheetReelFolderVideo({ folderId, folderUrl }: { folderId: string; folde
 function initials(name: string) {
   return (name || '?').split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
 }
+function hostOf(url: string) { try { return new URL(url).hostname.replace('www.', '') } catch { return url } }
 function mapType(t: string): FeedPost['type'] {
   if (t === 'reels') return 'reel'
   if (t === 'carrossel' || t === 'carrossel_stories') return 'carousel'
@@ -221,9 +222,13 @@ function mapStatus(s: Post): FeedPost['status'] {
   return 'pending'
 }
 
+type ScheduleUpload = { id: string; filename: string; file_url: string; file_size?: number | null; mime_type?: string | null }
+type ScheduleAttachment = { id: string; url: string; title?: string | null }
+
 interface Post {
   id: string; title: string; post_type: string; status: string
   drive_url?: string; drive_folder_url?: string; copy?: string; legenda?: string; briefing?: string; scheduled_date?: string; reference_images?: string[] | null
+  reference_notes?: string | null
   post_number?: number; approval_comment?: string; approval_status?: string
   funil?: string; campaign_type?: string
 }
@@ -236,6 +241,8 @@ export default function ApprovalPage({ token }: { token: string }) {
   const [tokenData,    setTokenData]    = useState<any>(null)
   const [client,       setClient]       = useState<any>(null)
   const [posts,        setPosts]        = useState<Post[]>([])
+  const [uploadsByPost,     setUploadsByPost]     = useState<Record<string, ScheduleUpload[]>>({})
+  const [attachmentsByPost, setAttachmentsByPost] = useState<Record<string, ScheduleAttachment[]>>({})
   const [extras,       setExtras]       = useState<any[]>([])
   const [submitting,       setSubmitting]       = useState<string | null>(null)
   const [extraSubmitting,  setExtraSubmitting]  = useState<string | null>(null)
@@ -269,6 +276,24 @@ export default function ApprovalPage({ token }: { token: string }) {
     setToast({ msg, ok }); setTimeout(() => setToast(null), 3500)
   }
 
+  // Anexos/arquivos/referências do post final também precisam aparecer pro
+  // cliente aqui, não só no card interno do Cronograma — sem isso, o time
+  // pode ter deixado o print/documento/link de referência anexado e o
+  // cliente nunca vê nada disso na hora de aprovar.
+  async function loadAttachments(scheduleIds: string[]) {
+    if (scheduleIds.length === 0) { setUploadsByPost({}); setAttachmentsByPost({}); return }
+    const [{ data: ups }, { data: atts }] = await Promise.all([
+      supabase.from('schedule_uploads').select('*').in('schedule_id', scheduleIds),
+      supabase.from('schedule_attachments').select('*').in('schedule_id', scheduleIds),
+    ])
+    const um: Record<string, ScheduleUpload[]> = {}
+    ;(ups || []).forEach((u: any) => { (um[u.schedule_id] ||= []).push(u) })
+    const am: Record<string, ScheduleAttachment[]> = {}
+    ;(atts || []).forEach((a: any) => { (am[a.schedule_id] ||= []).push(a) })
+    setUploadsByPost(um)
+    setAttachmentsByPost(am)
+  }
+
   async function load() {
     setLoading(true)
     const { data: tk } = await supabase
@@ -300,19 +325,20 @@ export default function ApprovalPage({ token }: { token: string }) {
       // recorte de mês — diferente do crono/final que são de um mês
       // específico, aqui é "o que falta aprovar, período".
       const geralSchedulesQuery = supabase.from('schedules')
-        .select('id, title, post_type, status, drive_url, drive_folder_url, copy, legenda, briefing, scheduled_date, post_number, approval_comment, approval_status, funil, campaign_type, reference_images')
+        .select('id, title, post_type, status, drive_url, drive_folder_url, copy, legenda, briefing, scheduled_date, post_number, approval_comment, approval_status, funil, campaign_type, reference_images, reference_notes')
         .eq('client_id', tk.client_id)
         .in('status', ['aguardando_aprovacao_crono', 'aguardando_aprovacao'])
         .order('post_number', { ascending: true })
       const [{ data: sc }, { data: ex }] = await Promise.all([geralSchedulesQuery, extrasQuery])
       setPosts(sc || [])
       setExtras(ex || [])
+      await loadAttachments((sc || []).map((p: any) => p.id))
       setLoading(false)
       return
     }
 
     const baseQuery = supabase.from('schedules')
-      .select('id, title, post_type, status, drive_url, drive_folder_url, copy, legenda, briefing, scheduled_date, post_number, approval_comment, approval_status, funil, campaign_type, reference_images')
+      .select('id, title, post_type, status, drive_url, drive_folder_url, copy, legenda, briefing, scheduled_date, post_number, approval_comment, approval_status, funil, campaign_type, reference_images, reference_notes')
       .eq('client_id', tk.client_id)
       .eq('month', tk.month)
       .eq('year',  tk.year)
@@ -332,6 +358,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     const [{ data: sc }, { data: ex }] = await Promise.all([schedulesQuery, extrasQuery])
     setPosts(sc || [])
     setExtras(ex || [])
+    await loadAttachments((sc || []).map((p: any) => p.id))
     setLoading(false)
   }
 
@@ -733,6 +760,8 @@ export default function ApprovalPage({ token }: { token: string }) {
             </div>
           )}
 
+          {renderRefsAndAttachments(post)}
+
           {isChanged && post.approval_comment && (
             <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
               <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sua solicitação</p>
@@ -782,6 +811,40 @@ export default function ApprovalPage({ token }: { token: string }) {
             </div>
           )}
         </div>
+      </div>
+    )
+  }
+
+  // Referências (notas) + anexos/arquivos do post — precisam aparecer pro
+  // cliente aqui também, não só no card interno do time.
+  function renderRefsAndAttachments(post: Post) {
+    const uploads = uploadsByPost[post.id] || []
+    const attachments = attachmentsByPost[post.id] || []
+    if (!post.reference_notes && uploads.length === 0 && attachments.length === 0) return null
+    return (
+      <div style={{ marginBottom: 14 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Referências & anexos</p>
+        {post.reference_notes && (
+          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 8px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{post.reference_notes}</p>
+        )}
+        {(uploads.length > 0 || attachments.length > 0) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {uploads.map(u => (
+              <a key={u.id} href={u.file_url} target="_blank" rel="noopener noreferrer" title={u.filename}
+                style={{ width: 48, height: 48, borderRadius: 8, overflow: 'hidden', background: '#f5f5f3', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #ebebeb', flexShrink: 0 }}>
+                {u.mime_type?.startsWith('image/')
+                  ? <img src={u.file_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 18 }}>📄</span>}
+              </a>
+            ))}
+            {attachments.map(a => (
+              <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer" title={a.title || a.url}
+                style={{ width: 48, height: 48, borderRadius: 8, background: '#f5f5f3', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #ebebeb', flexShrink: 0 }}>
+                <img src={`https://www.google.com/s2/favicons?domain=${hostOf(a.url)}&sz=32`} alt="" style={{ width: 20, height: 20 }} />
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     )
   }
@@ -870,6 +933,8 @@ export default function ApprovalPage({ token }: { token: string }) {
               <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{post.approval_comment}"</p>
             </div>
           )}
+
+          {renderRefsAndAttachments(post)}
 
           {/* Comment input */}
           {isComm && (
@@ -1580,6 +1645,8 @@ export default function ApprovalPage({ token }: { token: string }) {
                       <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic' }}>"{sheetPost.approval_comment}"</p>
                     </div>
                   )}
+
+                  {renderRefsAndAttachments(sheetPost)}
 
                   {/* Comment */}
                   {!isApproved && !isLive && (

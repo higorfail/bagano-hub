@@ -3,14 +3,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, ImagePlus, XCircle, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, Upload, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
 import { autoGrow } from '@/lib/autoGrow'
+import { fetchLinkTitle } from '@/lib/linkTitle'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
+import AttachmentsGrid from '@/components/AttachmentsGrid'
 import { renderWithMentions } from '@/lib/useMentions'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { generateAiLegenda } from '@/lib/aiLegenda'
@@ -54,9 +56,9 @@ const DIAS  = ['dom','seg','ter','qua','qui','sex','sáb']
 type PostForm = {
   title: string; briefing: string; copy: string; legenda: string
   post_type: string; scheduled_date: string; status: string; drive_url: string; drive_folder_url: string
-  reference_notes: string; funil: string; campaign_type: string; reference_images: string[]
+  reference_notes: string; funil: string; campaign_type: string
 }
-const EMPTY: PostForm = { title:'', briefing:'', copy:'', legenda:'', post_type:'carrossel', scheduled_date:'', status:'estrategia', drive_url:'', drive_folder_url:'', reference_notes:'', funil:'', campaign_type:'', reference_images:[] }
+const EMPTY: PostForm = { title:'', briefing:'', copy:'', legenda:'', post_type:'carrossel', scheduled_date:'', status:'estrategia', drive_url:'', drive_folder_url:'', reference_notes:'', funil:'', campaign_type:'' }
 
 type Props = {
   postId?: string
@@ -138,7 +140,14 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [loading,      setLoading]      = useState(!!postId)
   const [deleting,     setDeleting]     = useState(false)
   const [confirmDelete,setConfirmDelete]= useState(false)
-  const [uploadingRef, setUploadingRef] = useState(false)
+  const [uploading,    setUploading]    = useState(false)
+  const [cardDragOver, setCardDragOver] = useState(false)
+  const [uploads,      setUploads]      = useState<any[]>([])
+  const [attachments,  setAttachments]  = useState<any[]>([])
+  const [showAttachInput, setShowAttachInput] = useState(false)
+  const [newAttachUrl,    setNewAttachUrl]    = useState('')
+  const [newAttachTitle,  setNewAttachTitle]  = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [currentId,    setCurrentId]    = useState<string | undefined>(postId)
   const [campaigns,    setCampaigns]    = useState<{ id: string; name: string; type: string }[]>([])
   const [editingField, setEditingField] = useState<TextField | null>(null)
@@ -166,7 +175,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [moveOpen,     setMoveOpen]     = useState(false)
   const [moveMonth,    setMoveMonth]    = useState(month)
   const [moveYear,     setMoveYear]     = useState(year)
-  const refInputRef = useRef<HTMLInputElement>(null)
   const [clientManual,     setClientManual]     = useState<any>(null)
   const [generatingLegenda, setGeneratingLegenda] = useState(false)
 
@@ -276,7 +284,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           post_type: data.post_type || 'carrossel', scheduled_date: data.scheduled_date || '', status: data.status || 'producao',
           drive_url: data.drive_url || '', drive_folder_url: data.drive_folder_url || '', reference_notes: data.reference_notes || '',
           funil: data.funil || '', campaign_type: data.campaign_type || '',
-          reference_images: Array.isArray(data.reference_images) ? data.reference_images : [],
         })
         setApprovalStatus(data.approval_status || '')
         setAssignedMembers(Array.isArray(data.assigned_members) ? data.assigned_members : [])
@@ -293,6 +300,14 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (!currentId) return
     supabase.from('schedule_comments').select('id, author_name, body, created_at').eq('schedule_id', currentId).order('created_at', { ascending: true })
       .then(({ data }) => { if (data) setComments(data) })
+  }, [currentId])
+
+  useEffect(() => {
+    if (!currentId) return
+    supabase.from('schedule_uploads').select('*').eq('schedule_id', currentId).order('created_at', { ascending: true })
+      .then(({ data }) => { if (data) setUploads(data) })
+    supabase.from('schedule_attachments').select('*').eq('schedule_id', currentId).order('created_at', { ascending: true })
+      .then(({ data }) => { if (data) setAttachments(data) })
   }, [currentId])
 
   useEffect(() => {
@@ -325,7 +340,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       title: f.title.trim() || 'Sem título', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
       post_type: f.post_type, status: f.status, scheduled_date: f.scheduled_date || null,
       drive_url: f.drive_url, drive_folder_url: f.drive_folder_url || null, reference_notes: f.reference_notes, funil: f.funil,
-      campaign_type: f.campaign_type || null, reference_images: f.reference_images, labels,
+      campaign_type: f.campaign_type || null, labels,
     }).select().single()
     if (dbError(error, toast, 'criar post')) return undefined
     if (data) {
@@ -479,44 +494,92 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (error) { setComments(prev); dbError(error, toast, 'excluir comentário') }
   }
 
-  async function uploadImageFile(file: File) {
-    setUploadingRef(true)
+  // ANEXOS & ARQUIVOS — mesmo padrão de Extras/Materiais (upload real + colar link)
+  async function uploadFile(file: File) {
+    setUploading(true)
     const pid = await ensurePostId()
-    if (!pid) { toast('Adicione um título antes de subir imagens'); setUploadingRef(false); return }
-    const safeName = file.name.normalize('NFD').replace(/[^a-zA-Z0-9._-]/g, '_') || `img_${Date.now()}.png`
-    const path = `posts/${pid}/${Date.now()}_${safeName}`
+    if (!pid) { toast('Adicione um título antes de anexar arquivos'); setUploading(false); return }
+    const path = `posts/${pid}/${Date.now()}_${file.name}`
     const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false })
-    if (error) { toast('Erro no upload: ' + error.message); setUploadingRef(false); return }
+    if (error) { toast('Erro no upload: ' + error.message); setUploading(false); return }
     const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
-    const newImages = [...formRef.current.reference_images, publicUrl]
-    setForm(f => ({ ...f, reference_images: newImages }))
-    await supabase.from('schedules').update({ reference_images: newImages }).eq('id', pid)
-    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} anexou uma imagem de referência` })
+    const { data: row } = await supabase.from('schedule_uploads').insert({
+      schedule_id: pid, filename: file.name, file_url: publicUrl, file_size: file.size, mime_type: file.type,
+    }).select().single()
+    if (row) setUploads(u => [...u, row])
+    setUploading(false)
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} enviou o arquivo "${file.name}"` })
     setActivityKey(k => k + 1)
-    flashSaved(); setUploadingRef(false)
   }
-  async function handleRefImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return
-    await uploadImageFile(file)
-    if (refInputRef.current) refInputRef.current.value = ''
+    await uploadFile(file)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
-  async function handlePaste(e: React.ClipboardEvent) {
-    const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
-    if (!item) return
-    const file = item.getAsFile(); if (!file) return
-    e.preventDefault(); await uploadImageFile(file)
-  }
-
-  async function removeRefImage(url: string) {
-    const newImages = formRef.current.reference_images.filter(u => u !== url)
-    setForm(f => ({ ...f, reference_images: newImages }))
+  async function removeUpload(uid: string, fileUrl: string) {
+    const upload = uploads.find(u => u.id === uid)
+    const path = fileUrl.split('/bagano-materiais/')[1]
+    if (path) await supabase.storage.from('bagano-materiais').remove([path])
+    await supabase.from('schedule_uploads').delete().eq('id', uid)
+    setUploads(u => u.filter(x => x.id !== uid))
     if (currentId) {
-      await supabase.from('schedules').update({ reference_images: newImages }).eq('id', currentId)
-      await logActivity({ tableName: 'schedules', recordId: currentId, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} removeu uma imagem de referência` })
+      await logActivity({ tableName: 'schedules', recordId: currentId, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} removeu o arquivo "${upload?.filename || ''}"` })
       setActivityKey(k => k + 1)
     }
-    const path = url.split('/bagano-materiais/')[1]
-    if (path) supabase.storage.from('bagano-materiais').remove([path])
+  }
+  async function addAttachment() {
+    if (!newAttachUrl.trim()) return
+    const pid = await ensurePostId(); if (!pid) return
+    const url = newAttachUrl.trim()
+    const customTitle = newAttachTitle.trim() || null
+    const { data } = await supabase.from('schedule_attachments').insert({ schedule_id: pid, url, title: customTitle }).select().single()
+    if (data) setAttachments(a => [...a, data])
+    setNewAttachUrl(''); setNewAttachTitle(''); setShowAttachInput(false)
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} anexou "${customTitle || hostOf(url)}"` })
+    setActivityKey(k => k + 1)
+    if (!customTitle && data) {
+      const fetched = await fetchLinkTitle(url)
+      if (fetched) {
+        await supabase.from('schedule_attachments').update({ title: fetched }).eq('id', data.id)
+        setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
+      }
+    }
+  }
+  async function addAttachmentUrl(url: string) {
+    const pid = await ensurePostId(); if (!pid) return
+    const { data } = await supabase.from('schedule_attachments').insert({ schedule_id: pid, url, title: null }).select().single()
+    if (data) setAttachments(a => [...a, data])
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} anexou "${hostOf(url)}"` })
+    setActivityKey(k => k + 1)
+    const fetched = await fetchLinkTitle(url)
+    if (fetched && data) {
+      await supabase.from('schedule_attachments').update({ title: fetched }).eq('id', data.id)
+      setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
+    }
+  }
+  async function removeAttachment(aid: string) {
+    const att = attachments.find(a => a.id === aid)
+    await supabase.from('schedule_attachments').delete().eq('id', aid)
+    setAttachments(a => a.filter(x => x.id !== aid))
+    if (currentId) {
+      await logActivity({ tableName: 'schedules', recordId: currentId, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} removeu o anexo "${att?.title || ''}"` })
+      setActivityKey(k => k + 1)
+    }
+  }
+  // Trello-style: colar imagem/link solto no card já anexa; arrastar arquivo do Finder também.
+  async function handlePaste(e: React.ClipboardEvent) {
+    const imgItem = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
+    if (imgItem) {
+      const file = imgItem.getAsFile()
+      if (file) { e.preventDefault(); await uploadFile(file); return }
+    }
+    const text = e.clipboardData.getData('text/plain').trim()
+    if (/^https?:\/\/\S+$/.test(text)) { e.preventDefault(); await addAttachmentUrl(text) }
+  }
+  async function handleCardDrop(e: React.DragEvent) {
+    if (e.dataTransfer.files.length === 0) return
+    e.preventDefault()
+    for (const file of Array.from(e.dataTransfer.files)) await uploadFile(file)
   }
 
   async function handleDelete() {
@@ -536,7 +599,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       client_id: clientId, month, year, post_number: (count || 0) + 1,
       title: (f.title || 'Post') + ' (cópia)', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
       post_type: f.post_type, status: 'estrategia', scheduled_date: null, drive_url: f.drive_url, drive_folder_url: f.drive_folder_url || null,
-      reference_notes: f.reference_notes, funil: f.funil, campaign_type: f.campaign_type || null, reference_images: f.reference_images, labels,
+      reference_notes: f.reference_notes, funil: f.funil, campaign_type: f.campaign_type || null, labels,
     }).select().single()
     if (dbError(error, toast, 'duplicar')) return
     if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} duplicou de "${f.title}"` })
@@ -675,7 +738,18 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       onMouseDown={e => { backdropDown.current = e.target === e.currentTarget }}
       onMouseUp={e => { if (backdropDown.current && e.target === e.currentTarget) onClose(); backdropDown.current = false }}
       onPaste={handlePaste}>
-      <div className="bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div
+        className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setCardDragOver(true) } }}
+        onDragLeave={e => { if (e.currentTarget === e.target) setCardDragOver(false) }}
+        onDrop={e => { setCardDragOver(false); handleCardDrop(e) }}
+      >
+        {cardDragOver && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--color-accent)]/10 pointer-events-none">
+            <span className="text-sm font-bold px-4 py-2 rounded-xl bg-[var(--color-accent)] text-white shadow-lg">Solte pra anexar</span>
+          </div>
+        )}
 
         <div className="h-[3px] flex-shrink-0 md:rounded-t-2xl" style={{ background: clientColor || typeObj.color }} />
 
@@ -992,18 +1066,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             )}
 
 
-            {/* Referências */}
+            {/* Referências — só notas/links agora; imagem/arquivo entra por Anexos & Arquivos */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
-                  <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração · cole imagens (Ctrl+V)</span>
-                </div>
-                <button onClick={() => refInputRef.current?.click()} disabled={uploadingRef}
-                  className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50">
-                  <ImagePlus size={13} /> {uploadingRef ? 'Enviando…' : 'Imagem'}
-                </button>
-                <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefImageUpload} />
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
+                <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração, links, observações</span>
               </div>
               {editingField === 'reference_notes' ? (
                 <textarea autoFocus ref={el => { if (el) autoGrow(el, 9999) }} value={form.reference_notes}
@@ -1029,22 +1096,53 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                   ))}
                 </div>
               )}
-              {/* imagens */}
-              {form.reference_images.length > 0 && (
-                <div className="grid grid-cols-4 gap-2 mt-2.5">
-                  {form.reference_images.map((url, i) => (
-                    <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-[var(--color-border)]">
-                      <img src={url} alt={`Referência ${i + 1}`} className="w-full h-full object-cover" style={{ height: '100%' }} />
-                      <button onClick={() => removeRefImage(url)} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5">
-                        <XCircle size={14} className="text-white" />
-                      </button>
-                      <a href={url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 flex items-end p-1.5">
-                        <span className="text-[9px] text-white font-medium bg-black/40 rounded px-1">abrir</span>
-                      </a>
+            </div>
+
+            {/* ANEXOS & ARQUIVOS — mesmo padrão de Extras/Materiais */}
+            <div>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Anexos & Arquivos</span>
+                <span className="text-[10px] text-[var(--color-text-faint)]">· uploads e links</span>
+              </div>
+
+              <AttachmentsGrid
+                uploads={uploads}
+                links={attachments}
+                onRemoveUpload={u => removeUpload(u.id, u.file_url)}
+                onRemoveLink={l => removeAttachment(l.id)}
+              />
+
+              <div className="flex gap-2">
+                <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] border border-dashed border-[var(--color-border-hover)] flex-1 justify-center disabled:opacity-50">
+                  {uploading ? (
+                    <><div className="w-3 h-3 border border-[#A8A59E] border-t-transparent rounded-full animate-spin" /> Enviando…</>
+                  ) : (
+                    <><Upload size={13} /> Enviar arquivo</>
+                  )}
+                </button>
+
+                {!showAttachInput ? (
+                  <button onClick={() => setShowAttachInput(true)}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] border border-dashed border-[var(--color-border-hover)] flex-1 justify-center">
+                    <Link2 size={13} /> Colar link
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-2 flex-1 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-lg p-3">
+                    <input value={newAttachUrl} onChange={e => setNewAttachUrl(e.target.value)} placeholder="https://…"
+                      className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]" />
+                    <input value={newAttachTitle} onChange={e => setNewAttachTitle(e.target.value)} placeholder="Nome (opcional)"
+                      className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]" />
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setShowAttachInput(false)} className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
+                      <button onClick={addAttachment} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">Anexar</button>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 📦 Entrega — padrão design system */}

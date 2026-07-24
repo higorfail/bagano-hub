@@ -11,8 +11,10 @@ import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { autoGrow } from '@/lib/autoGrow'
 import { hostOf, formatBytes } from '@/lib/url'
+import { fetchLinkTitle } from '@/lib/linkTitle'
 import WatchButton from '@/components/WatchButton'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
+import AttachmentsGrid from '@/components/AttachmentsGrid'
 import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
@@ -119,6 +121,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   const [checklist,   setChecklist]   = useState<any[]>([])
   const [newCheckText,setNewCheckText]= useState('')
   const [uploading,   setUploading]   = useState(false)
+  const [cardDragOver, setCardDragOver] = useState(false)
 
   // UI toggles
   const [showLabelPicker,  setShowLabelPicker]  = useState(false)
@@ -306,16 +309,13 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
   }
 
   // Upload de arquivo real
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function uploadFile(file: File) {
     setUploading(true)
     const mid = await ensureId()
-    if (!mid) { setUploading(false); return }
-    const ext = file.name.split('.').pop()
+    if (!mid) { toast('Adicione um título antes de anexar arquivos'); setUploading(false); return }
     const path = `materials/${mid}/${Date.now()}_${file.name}`
-    const { data: upData, error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false })
-    if (error) { alert('Erro no upload: ' + error.message); setUploading(false); return }
+    const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false })
+    if (error) { toast('Erro no upload: ' + error.message); setUploading(false); return }
     const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
     const { data: row } = await supabase.from('material_uploads').insert({
       material_id: mid,
@@ -326,8 +326,13 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     }).select().single()
     if (row) setUploads(u => [...u, row])
     setUploading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
     await logMat(mid, `${who} enviou o arquivo "${file.name}"`)
+  }
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await uploadFile(file)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   async function removeUpload(uid: string, fileUrl: string) {
@@ -377,13 +382,32 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     if (!newAttachUrl.trim()) return
     const mid = await ensureId()
     if (!mid) return
-    const attachTitle = newAttachTitle || newAttachUrl
+    const url = newAttachUrl.trim()
+    const customTitle = newAttachTitle.trim() || null
     const { data } = await supabase.from('material_attachments').insert({
-      material_id: mid, url: newAttachUrl, title: attachTitle,
+      material_id: mid, url, title: customTitle,
     }).select().single()
     if (data) setAttachments(a => [...a, data])
     setNewAttachUrl(''); setNewAttachTitle(''); setShowAttachInput(false)
-    await logMat(mid, `${who} anexou "${attachTitle}"`)
+    await logMat(mid, `${who} anexou "${customTitle || hostOf(url)}"`)
+    if (!customTitle && data) {
+      const fetched = await fetchLinkTitle(url)
+      if (fetched) {
+        await supabase.from('material_attachments').update({ title: fetched }).eq('id', data.id)
+        setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
+      }
+    }
+  }
+  async function addAttachmentUrl(url: string) {
+    const mid = await ensureId(); if (!mid) return
+    const { data } = await supabase.from('material_attachments').insert({ material_id: mid, url, title: null }).select().single()
+    if (data) setAttachments(a => [...a, data])
+    await logMat(mid, `${who} anexou "${hostOf(url)}"`)
+    const fetched = await fetchLinkTitle(url)
+    if (fetched && data) {
+      await supabase.from('material_attachments').update({ title: fetched }).eq('id', data.id)
+      setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
+    }
   }
   async function removeAttachment(aid: string) {
     const att = attachments.find(a => a.id === aid)
@@ -391,6 +415,22 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
     setAttachments(a => a.filter(x => x.id !== aid))
     const mid = id || materialId
     if (mid) await logMat(mid, `${who} removeu o anexo "${att?.title || ''}"`)
+  }
+  // Trello-style: colar imagem/link solto no card já anexa; arrastar arquivo
+  // do Finder também.
+  async function handleCardPaste(e: React.ClipboardEvent) {
+    const imgItem = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
+    if (imgItem) {
+      const file = imgItem.getAsFile()
+      if (file) { e.preventDefault(); await uploadFile(file); return }
+    }
+    const text = e.clipboardData.getData('text/plain').trim()
+    if (/^https?:\/\/\S+$/.test(text)) { e.preventDefault(); await addAttachmentUrl(text) }
+  }
+  async function handleCardDrop(e: React.DragEvent) {
+    if (e.dataTransfer.files.length === 0) return
+    e.preventDefault()
+    for (const file of Array.from(e.dataTransfer.files)) await uploadFile(file)
   }
 
   // Checklist
@@ -476,7 +516,19 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center md:py-6 md:px-4"
       onClick={e => { if (e.target === e.currentTarget) { handleSaveMain(); onClose() } }}
     >
-      <div className="bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div
+        className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        onPaste={handleCardPaste}
+        onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setCardDragOver(true) } }}
+        onDragLeave={e => { if (e.currentTarget === e.target) setCardDragOver(false) }}
+        onDrop={e => { setCardDragOver(false); handleCardDrop(e) }}
+      >
+        {cardDragOver && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--color-accent)]/10 pointer-events-none">
+            <span className="text-sm font-bold px-4 py-2 rounded-xl bg-[var(--color-accent)] text-white shadow-lg">Solte pra anexar</span>
+          </div>
+        )}
 
         {/* Abas Detalhes/Comentários — só no mobile (padrão Trello: alterna em vez de empilhar) */}
         <div className="md:hidden flex items-center border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
@@ -729,54 +781,12 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
                 <span className="text-[10px] text-[var(--color-text-faint)]">· uploads e links</span>
               </div>
 
-              {/* Arquivos enviados */}
-              {uploads.length > 0 && (
-                <div className="flex flex-col gap-2 mb-3">
-                  {uploads.map(u => (
-                    <div key={u.id} className="group flex items-center gap-3 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
-                      <div className="w-8 h-8 rounded bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0">
-                        <File size={15} className="text-[var(--color-text-secondary)]" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <a href={u.file_url} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-text-primary)] truncate block font-medium hover:underline" style={{ color: undefined }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-info-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
-                          {u.filename}
-                        </a>
-                        {u.file_size && <p className="text-[10px] text-[var(--color-text-muted)]">{formatBytes(u.file_size)}</p>}
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <a href={u.file_url} target="_blank" rel="noopener noreferrer" className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]">
-                          <ExternalLink size={13} />
-                        </a>
-                        <button onClick={() => removeUpload(u.id, u.file_url)} className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] transition-colors" onMouseEnter={e => { e.currentTarget.style.background = 'var(--ds-error-bg)'; e.currentTarget.style.color = 'var(--ds-error-text)' }} onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = '' }}>
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Links externos */}
-              {attachments.length > 0 && (
-                <div className="flex flex-col gap-2 mb-3">
-                  {attachments.map(a => {
-                    const hasCustomTitle = a.title && a.title !== a.url
-                    return (
-                    <div key={a.id} className="group flex items-center gap-3 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
-                      <div className="w-8 h-8 rounded bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        <img src={`https://www.google.com/s2/favicons?domain=${hostOf(a.url)}&sz=32`} alt="" className="w-4 h-4" />
-                      </div>
-                      <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 hover:underline">
-                        <span className="text-sm block truncate" style={{ color: 'var(--ds-info-text)' }}>{hasCustomTitle ? a.title : hostOf(a.url)}</span>
-                        {hasCustomTitle && <span className="text-[10px] text-[var(--color-text-faint)] block truncate">{hostOf(a.url)}</span>}
-                      </a>
-                      <button onClick={() => removeAttachment(a.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-opacity" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  )})}
-                </div>
-              )}
+              <AttachmentsGrid
+                uploads={uploads}
+                links={attachments}
+                onRemoveUpload={u => removeUpload(u.id, u.file_url)}
+                onRemoveLink={l => removeAttachment(l.id)}
+              />
 
               {/* Botões de ação */}
               <div className="flex gap-2">

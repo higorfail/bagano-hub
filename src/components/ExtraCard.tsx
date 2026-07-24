@@ -12,15 +12,17 @@ import WatchButton from '@/components/WatchButton'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { generateAiLegenda } from '@/lib/aiLegenda'
 import { hostOf, formatBytes } from '@/lib/url'
+import { fetchLinkTitle } from '@/lib/linkTitle'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
+import AttachmentsGrid from '@/components/AttachmentsGrid'
 import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 import {
   X, Calendar, CheckSquare, Paperclip,
-  Trash2, Link2, Check, Upload, File,
-  ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag, Pencil, ImagePlus, XCircle,
+  Trash2, Link2, Check, Upload,
+  ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag, Pencil,
   Camera, Images, Video, Image as ImageIcon, Sparkles
 } from 'lucide-react'
 
@@ -106,11 +108,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [copy,            setCopy]            = useState('')
   const [legenda,         setLegenda]         = useState('')
   const [referenceNotes,  setReferenceNotes]  = useState('')
-  const [referenceImages, setReferenceImages] = useState<string[]>([])
-  const [uploadingRef,    setUploadingRef]    = useState(false)
   const [clientManual,      setClientManual]      = useState<any>(null)
   const [generatingLegenda, setGeneratingLegenda]  = useState(false)
-  const refInputRef = useRef<HTMLInputElement>(null)
   const [dueDate,         setDueDate]         = useState('')
   const [dueTime,         setDueTime]         = useState('')
   const [driveUrl,        setDriveUrl]        = useState('')
@@ -145,6 +144,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [attachments,    setAttachments]    = useState<any[]>([])
   const [uploads,        setUploads]        = useState<any[]>([])
   const [uploading,      setUploading]      = useState(false)
+  const [cardDragOver,   setCardDragOver]   = useState(false)
   const fileInputRef     = useRef<HTMLInputElement>(null)
   const [newAttachUrl,   setNewAttachUrl]   = useState('')
   const [newAttachTitle, setNewAttachTitle] = useState('')
@@ -226,7 +226,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         setCopy(data.copy || '')
         setLegenda(data.legenda || '')
         setReferenceNotes(data.reference_notes || '')
-        setReferenceImages(Array.isArray(data.reference_images) ? data.reference_images : [])
         setDueDate(data.due_date || '')
         setDueTime(data.due_time || '')
         setDriveUrl(data.drive_url || '')
@@ -256,7 +255,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const payload = {
       title, type, status, priority,
       client_id: fixedClientId || clientId || null,
-      description, briefing, copy, legenda, reference_notes: referenceNotes, reference_images: referenceImages,
+      description, briefing, copy, legenda, reference_notes: referenceNotes,
       due_date: dueDate || null, due_time: dueTime || null, drive_url: driveUrl || null,
       assigned_members: assignedMembers, assigned_member_id: assignedMembers[0] || null, labels,
     }
@@ -267,7 +266,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       originalStatusRef.current = status
       snapshotRef.current = JSON.stringify({
         title, type, priority, clientId: fixedClientId || clientId || '', description,
-        briefing, copy, legenda, referenceNotes, referenceImages,
+        briefing, copy, legenda, referenceNotes,
         dueDate: dueDate || '', dueTime: dueTime || '', driveUrl: driveUrl || '', labels,
         assignedMembers,
       })
@@ -294,45 +293,6 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   async function logExt(eid: string, description: string, action = 'updated') {
     await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action, actorName: currentMember?.name, actorId: currentMember?.id, description })
     setActivityKey(k => k + 1)
-  }
-
-  // Imagens de referência — mesmo padrão do PostCard (upload real + colar do clipboard)
-  async function uploadRefImageFile(file: File) {
-    setUploadingRef(true)
-    const eid = await ensureId()
-    if (!eid) { toast('Adicione um título antes de subir imagens'); setUploadingRef(false); return }
-    const safeName = file.name.normalize('NFD').replace(/[^a-zA-Z0-9._-]/g, '_') || `img_${Date.now()}.png`
-    const path = `extras/${eid}/${Date.now()}_${safeName}`
-    const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false })
-    if (error) { toast('Erro no upload: ' + error.message); setUploadingRef(false); return }
-    const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
-    const newImages = [...referenceImages, publicUrl]
-    setReferenceImages(newImages)
-    await supabase.from('extras').update({ reference_images: newImages }).eq('id', eid)
-    await logExt(eid, `${who} anexou uma imagem de referência`)
-    setUploadingRef(false)
-  }
-  async function handleRefImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]; if (!file) return
-    await uploadRefImageFile(file)
-    if (refInputRef.current) refInputRef.current.value = ''
-  }
-  async function handleRefPaste(e: React.ClipboardEvent) {
-    const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
-    if (!item) return
-    const file = item.getAsFile(); if (!file) return
-    e.preventDefault(); await uploadRefImageFile(file)
-  }
-  async function removeRefImage(url: string) {
-    const newImages = referenceImages.filter(u => u !== url)
-    setReferenceImages(newImages)
-    const eid = id || extraId
-    if (eid) {
-      await supabase.from('extras').update({ reference_images: newImages }).eq('id', eid)
-      await logExt(eid, `${who} removeu uma imagem de referência`)
-    }
-    const path = url.split('/bagano-materiais/')[1]
-    if (path) supabase.storage.from('bagano-materiais').remove([path])
   }
 
   const STATUS_LABEL: Record<ExtraStatus,string> = { backlog: 'A fazer', aguardando_aprovacao: 'Em aprovação', done: 'Finalizado' }
@@ -391,7 +351,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     const payload: any = {
       title, type, status, priority,
       client_id: fixedClientId || clientId || null,
-      description, briefing, copy, legenda, reference_notes: referenceNotes, reference_images: referenceImages,
+      description, briefing, copy, legenda, reference_notes: referenceNotes,
       due_date: dueDate || null, due_time: dueTime || null, drive_url: driveUrl || null,
       assigned_members: assignedMembers, assigned_member_id: assignedMembers[0] || null, labels,
     }
@@ -490,12 +450,10 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   }
 
   // Upload de arquivo real (mesmo bucket e padrão do MaterialCard)
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function uploadFile(file: File) {
     setUploading(true)
     const eid = await ensureId()
-    if (!eid) { setUploading(false); return }
+    if (!eid) { toast('Adicione um título antes de anexar arquivos'); setUploading(false); return }
     const path = `extras/${eid}/${Date.now()}_${file.name}`
     const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false })
     if (error) { toast('Erro no upload: ' + error.message); setUploading(false); return }
@@ -505,8 +463,41 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     }).select().single()
     if (row) setUploads(u => [...u, row])
     setUploading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
     await logExt(eid, `${who} enviou o arquivo "${file.name}"`)
+  }
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await uploadFile(file)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+  async function addAttachmentUrl(url: string) {
+    const eid = await ensureId(); if (!eid) return
+    const { data } = await supabase.from('extra_attachments').insert({ extra_id: eid, url, title: null }).select().single()
+    if (data) setAttachments(a => [...a, data])
+    await logExt(eid, `${who} anexou "${hostOf(url)}"`)
+    const fetched = await fetchLinkTitle(url)
+    if (fetched && data) {
+      await supabase.from('extra_attachments').update({ title: fetched }).eq('id', data.id)
+      setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
+    }
+  }
+  // Trello-style: colar uma imagem ou link solto no card já anexa, sem precisar
+  // clicar em "Enviar arquivo"/"Colar link" antes. Arrastar um arquivo do Finder
+  // faz o mesmo via onDrop.
+  async function handleCardPaste(e: React.ClipboardEvent) {
+    const imgItem = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
+    if (imgItem) {
+      const file = imgItem.getAsFile()
+      if (file) { e.preventDefault(); await uploadFile(file); return }
+    }
+    const text = e.clipboardData.getData('text/plain').trim()
+    if (/^https?:\/\/\S+$/.test(text)) { e.preventDefault(); await addAttachmentUrl(text) }
+  }
+  async function handleCardDrop(e: React.DragEvent) {
+    if (e.dataTransfer.files.length === 0) return
+    e.preventDefault()
+    for (const file of Array.from(e.dataTransfer.files)) await uploadFile(file)
   }
   async function removeUpload(uid: string, fileUrl: string) {
     const upload = uploads.find(u => u.id === uid)
@@ -521,11 +512,22 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   async function addAttachment() {
     if (!newAttachUrl.trim()) return
     const eid = await ensureId(); if (!eid) return
-    const attachTitle = newAttachTitle || newAttachUrl
-    const { data } = await supabase.from('extra_attachments').insert({ extra_id: eid, url: newAttachUrl, title: attachTitle }).select().single()
+    const url = newAttachUrl.trim()
+    const customTitle = newAttachTitle.trim() || null
+    const { data } = await supabase.from('extra_attachments').insert({ extra_id: eid, url, title: customTitle }).select().single()
     if (data) setAttachments(a => [...a, data])
     setNewAttachUrl(''); setNewAttachTitle(''); setShowAttachInput(false)
-    await logExt(eid, `${who} anexou "${attachTitle}"`)
+    await logExt(eid, `${who} anexou "${customTitle || hostOf(url)}"`)
+    // Sem título próprio, busca o título real da página (ex: nome do post do
+    // Instagram) em vez de deixar a URL inteira aparecendo — não bloqueia o
+    // fluxo, só atualiza quando (e se) a busca voltar.
+    if (!customTitle && data) {
+      const fetched = await fetchLinkTitle(url)
+      if (fetched) {
+        await supabase.from('extra_attachments').update({ title: fetched }).eq('id', data.id)
+        setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
+      }
+    }
   }
   async function removeAttachment(aid: string) {
     const att = attachments.find(a => a.id === aid)
@@ -600,7 +602,19 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center md:py-6 md:px-4"
       onClick={e => { if (e.target === e.currentTarget) { handleSaveMain(); onClose() } }}
     >
-      <div className="bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div
+        className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        onPaste={handleCardPaste}
+        onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setCardDragOver(true) } }}
+        onDragLeave={e => { if (e.currentTarget === e.target) setCardDragOver(false) }}
+        onDrop={e => { setCardDragOver(false); handleCardDrop(e) }}
+      >
+        {cardDragOver && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--color-accent)]/10 pointer-events-none">
+            <span className="text-sm font-bold px-4 py-2 rounded-xl bg-[var(--color-accent)] text-white shadow-lg">Solte pra anexar</span>
+          </div>
+        )}
 
         {/* Colored accent bar */}
         <div className="h-[3px] flex-shrink-0 md:rounded-t-2xl" style={{ background: typeObj.color }} />
@@ -863,41 +877,17 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               ) : undefined}
             />
 
-            {/* Referências — mesmo padrão do cronograma (notas + upload de imagem) */}
+            {/* Referências — só notas/links agora; imagem entra por Anexos & Arquivos */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
-                  <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração · cole imagens (Ctrl+V)</span>
-                </div>
-                <button onClick={() => refInputRef.current?.click()} disabled={uploadingRef}
-                  className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors disabled:opacity-50">
-                  <ImagePlus size={13} /> {uploadingRef ? 'Enviando…' : 'Imagem'}
-                </button>
-                <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefImageUpload} />
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
+                <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração, links, observações</span>
               </div>
-              <div onPaste={handleRefPaste}>
-                <EditableField
-                  label="" placeholder="Cole links de referência, observações…"
-                  value={referenceNotes} minH={40}
-                  onCommit={v => { const hadId = !!id; setReferenceNotes(v); persist({ reference_notes: v }, hadId ? `${who} editou as referências` : undefined) }}
-                />
-              </div>
-              {referenceImages.length > 0 && (
-                <div className="grid grid-cols-4 gap-2 mt-2.5">
-                  {referenceImages.map((url, i) => (
-                    <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-[var(--color-border)]">
-                      <img src={url} alt={`Referência ${i + 1}`} className="w-full h-full object-cover" style={{ height: '100%' }} />
-                      <button onClick={() => removeRefImage(url)} className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-0.5">
-                        <XCircle size={14} className="text-white" />
-                      </button>
-                      <a href={url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 flex items-end p-1.5">
-                        <span className="text-[9px] text-white font-medium bg-black/40 rounded px-1">abrir</span>
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <EditableField
+                label="" placeholder="Cole links de referência, observações…"
+                value={referenceNotes} minH={40}
+                onCommit={v => { const hadId = !!id; setReferenceNotes(v); persist({ reference_notes: v }, hadId ? `${who} editou as referências` : undefined) }}
+              />
             </div>
 
             {/* CHECKLIST */}
@@ -938,44 +928,12 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 <span className="text-[10px] text-[var(--color-text-faint)]">· uploads e links</span>
               </div>
 
-              {/* Arquivos enviados */}
-              {uploads.length > 0 && (
-                <div className="flex flex-col gap-2 mb-3">
-                  {uploads.map(u => (
-                    <div key={u.id} className="group flex items-center gap-3 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl px-3 py-2">
-                      <div className="w-8 h-8 rounded bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0">
-                        <File size={15} className="text-[var(--color-text-secondary)]" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <a href={u.file_url} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-text-primary)] truncate block font-medium hover:underline">{u.filename}</a>
-                        {u.file_size && <p className="text-[10px] text-[var(--color-text-muted)]">{formatBytes(u.file_size)}</p>}
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <a href={u.file_url} target="_blank" rel="noopener noreferrer" className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-text-secondary)]"><ExternalLink size={13} /></a>
-                        <button onClick={() => removeUpload(u.id, u.file_url)} className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] transition-colors" onMouseEnter={e => { e.currentTarget.style.background = 'var(--ds-error-bg)'; e.currentTarget.style.color = 'var(--ds-error-text)' }} onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = '' }}><Trash2 size={13} /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Links externos */}
-              {attachments.length > 0 && (
-                <div className="flex flex-col gap-2 mb-3">
-                  {attachments.map(a => {
-                    const hasCustomTitle = a.title && a.title !== a.url
-                    return (
-                    <div key={a.id} className="group flex items-center gap-3 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl px-3 py-2">
-                      <img src={`https://www.google.com/s2/favicons?domain=${hostOf(a.url)}&sz=32`} alt="" className="w-4 h-4 flex-shrink-0" />
-                      <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 hover:underline">
-                        <span className="text-sm block truncate" style={{ color: 'var(--ds-info-text)' }}>{hasCustomTitle ? a.title : hostOf(a.url)}</span>
-                        {hasCustomTitle && <span className="text-[10px] text-[var(--color-text-faint)] block truncate">{hostOf(a.url)}</span>}
-                      </a>
-                      <button onClick={() => removeAttachment(a.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-opacity" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}><Trash2 size={13} /></button>
-                    </div>
-                  )})}
-                </div>
-              )}
+              <AttachmentsGrid
+                uploads={uploads}
+                links={attachments}
+                onRemoveUpload={u => removeUpload(u.id, u.file_url)}
+                onRemoveLink={l => removeAttachment(l.id)}
+              />
 
               {/* Botões de ação */}
               <div className="flex gap-2">
