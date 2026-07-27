@@ -19,7 +19,7 @@ const navItems = [
   { href: '/dashboard',          icon: Home,          label: 'Início' },
   { href: '/dashboard/clientes', icon: Users,         label: 'Clientes' },
   { href: '/dashboard/equipe',   icon: UserCircle2,   label: 'Equipe' },
-  { href: '/dashboard/tarefas',  icon: ListTodo,      label: 'Minhas tarefas' },
+  { href: '/dashboard/tarefas',  icon: ListTodo,      label: 'Quadro pessoal' },
 ]
 const productionItems = [
   { href: '/dashboard/agenda',     icon: CalendarDays,   label: 'Agenda' },

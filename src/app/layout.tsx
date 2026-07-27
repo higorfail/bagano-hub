@@ -129,6 +129,13 @@ export default function RootLayout({
   --ds-purple-border:#e9d5ff;
   --ds-purple-text:#6b21a8;
   --ds-purple-accent:#9333ea;
+  /* Post-its (Minhas tarefas · Nota) — c1/c2 = gradiente do papel, ink = texto */
+  --note-c1-0:#FEF6C8; --note-c2-0:#FDECA0; --note-ink-0:#5C4A0A;
+  --note-c1-1:#FCE4EC; --note-c2-1:#FAD1DE; --note-ink-1:#7A2E4A;
+  --note-c1-2:#E0F2FE; --note-c2-2:#C7E7FB; --note-ink-2:#1E4F6B;
+  --note-c1-3:#DCFCE7; --note-c2-3:#C3F5D3; --note-ink-3:#1D5C3A;
+  --note-c1-4:#FFE8D6; --note-c2-4:#FFD9B8; --note-ink-4:#7A3D14;
+  --note-c1-5:#EDE4FF; --note-c2-5:#DCCCFA; --note-ink-5:#4A2E7A;
 }
 
 /* ── Dark tokens ──────────────────────────────────────────────────────── */
@@ -145,6 +152,7 @@ export default function RootLayout({
   --ds-success-bg:#052e16;--ds-success-border:#14532d;--ds-success-text:#86efac;--ds-success-accent:#4ade80;
   --ds-info-bg:#0d1628;--ds-info-border:#1e3a5f;--ds-info-text:#93c5fd;--ds-info-accent:#60a5fa;
   --ds-purple-bg:#150c2a;--ds-purple-border:#4c1d95;--ds-purple-text:#d8b4fe;--ds-purple-accent:#c084fc;
+  --note-c1-0:#6B5B12;--note-c2-0:#54450C;--note-ink-0:#F0DFA0;--note-c1-1:#5A2438;--note-c2-1:#45202F;--note-ink-1:#F0C9D8;--note-c1-2:#1E3A4A;--note-c2-2:#16303C;--note-ink-2:#BFE3F7;--note-c1-3:#1A3B2A;--note-c2-3:#123024;--note-ink-3:#B9EFCB;--note-c1-4:#5A3418;--note-c2-4:#452810;--note-ink-4:#FAD1A8;--note-c1-5:#362350;--note-c2-5:#2A1B40;--note-ink-5:#D8C7F5;
 }}
 
 [data-theme="dark"]{
@@ -160,6 +168,7 @@ export default function RootLayout({
   --ds-success-bg:#052e16;--ds-success-border:#14532d;--ds-success-text:#86efac;--ds-success-accent:#4ade80;
   --ds-info-bg:#0d1628;--ds-info-border:#1e3a5f;--ds-info-text:#93c5fd;--ds-info-accent:#60a5fa;
   --ds-purple-bg:#150c2a;--ds-purple-border:#4c1d95;--ds-purple-text:#d8b4fe;--ds-purple-accent:#c084fc;
+  --note-c1-0:#6B5B12;--note-c2-0:#54450C;--note-ink-0:#F0DFA0;--note-c1-1:#5A2438;--note-c2-1:#45202F;--note-ink-1:#F0C9D8;--note-c1-2:#1E3A4A;--note-c2-2:#16303C;--note-ink-2:#BFE3F7;--note-c1-3:#1A3B2A;--note-c2-3:#123024;--note-ink-3:#B9EFCB;--note-c1-4:#5A3418;--note-c2-4:#452810;--note-ink-4:#FAD1A8;--note-c1-5:#362350;--note-c2-5:#2A1B40;--note-ink-5:#D8C7F5;
 }
 
 [data-theme="light"]{
@@ -175,6 +184,7 @@ export default function RootLayout({
   --ds-success-bg:#f0fdf4;--ds-success-border:#bbf7d0;--ds-success-text:#166534;--ds-success-accent:#16a34a;
   --ds-info-bg:#eff6ff;--ds-info-border:#bfdbfe;--ds-info-text:#1e40af;--ds-info-accent:#2563eb;
   --ds-purple-bg:#faf5ff;--ds-purple-border:#e9d5ff;--ds-purple-text:#6b21a8;--ds-purple-accent:#9333ea;
+  --note-c1-0:#FEF6C8;--note-c2-0:#FDECA0;--note-ink-0:#5C4A0A;--note-c1-1:#FCE4EC;--note-c2-1:#FAD1DE;--note-ink-1:#7A2E4A;--note-c1-2:#E0F2FE;--note-c2-2:#C7E7FB;--note-ink-2:#1E4F6B;--note-c1-3:#DCFCE7;--note-c2-3:#C3F5D3;--note-ink-3:#1D5C3A;--note-c1-4:#FFE8D6;--note-c2-4:#FFD9B8;--note-ink-4:#7A3D14;--note-c1-5:#EDE4FF;--note-c2-5:#DCCCFA;--note-ink-5:#4A2E7A;
 }
         `}} />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

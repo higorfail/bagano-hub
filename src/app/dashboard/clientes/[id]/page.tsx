@@ -18,6 +18,9 @@ import ExtrasKanban from '@/components/ExtrasKanban'
 import ActivityLog from '@/components/ActivityLog'
 import OnboardingTab from '@/components/OnboardingTab'
 import ManualTab from '@/components/ManualTab'
+import TaskMiniCard from '@/components/TaskMiniCard'
+import TaskCard from '@/components/TaskCard'
+import { Plus } from 'lucide-react'
 
 type Client = {
   id: string; name: string; color_hex: string; logo_url: string
@@ -65,6 +68,9 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [loading, setLoading] = useState(true)
   const [team, setTeam] = useState<any[]>([])
   const [allMembers, setAllMembers] = useState<any[]>([])
+  const [myClientTasks, setMyClientTasks] = useState<any[]>([])
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
+  const [showNewTask, setShowNewTask] = useState(false)
   const [showAddMember, setShowAddMember] = useState(false)
   const [materials,    setMaterials]    = useState<any[]>([])
   const [matCounts,    setMatCounts]    = useState<Record<string,any>>({})
@@ -78,6 +84,33 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [savingClient, setSavingClient] = useState(false)
 
   useEffect(() => { document.title = client ? `${client.name} · Bagano Hub` : 'Cliente · Bagano Hub' }, [client])
+
+  // Tarefas do quadro pessoal vinculadas a este cliente — só as suas (mesma regra
+  // de privacidade do quadro: cada um só vê o que está atribuído a si mesmo).
+  async function loadMyClientTasks() {
+    if (!currentMember || !id) return
+    const supabase = createClient()
+    const { data } = await supabase.from('personal_tasks')
+      .select('*').eq('client_id', id).eq('assigned_to', currentMember.id)
+      .order('position', { ascending: true }).order('created_at', { ascending: false })
+    setMyClientTasks(data || [])
+  }
+  useEffect(() => { if (tab === 'tarefas') loadMyClientTasks() }, [tab, id, currentMember?.id])
+
+  async function markClientTaskDone(taskId: string) {
+    const supabase = createClient()
+    const prev = myClientTasks
+    setMyClientTasks(ts => ts.map(t => t.id === taskId ? { ...t, status: 'feito' } : t))
+    const { error } = await supabase.from('personal_tasks').update({ status: 'feito', completed_at: new Date().toISOString() }).eq('id', taskId)
+    if (error) setMyClientTasks(prev)
+  }
+  async function deleteClientTask(taskId: string) {
+    const supabase = createClient()
+    const prev = myClientTasks
+    setMyClientTasks(ts => ts.filter(t => t.id !== taskId))
+    const { error } = await supabase.from('personal_tasks').delete().eq('id', taskId)
+    if (error) setMyClientTasks(prev)
+  }
 
   // Mantém aba/mês/ano na URL, pra dar pra copiar e colar o link e cair direto na mesma view
   useEffect(() => {
@@ -279,7 +312,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           </div>
 
           <div className="flex items-center gap-1 mt-3 md:mt-5 overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
-            {[{key:'cronograma',label:'Cronograma'},{key:'feed',label:'Feed'},{key:'materiais',label:'Materiais'},{key:'campanhas',label:'Campanhas'},{key:'time',label:'Time'},{key:'extras',label:'Extras'},{key:'onboarding',label:'Onboarding'},{key:'drive',label:'Drive'},{key:'historico',label:'Histórico'},{key:'manual',label:'Manual'}].map(t => (
+            {[{key:'cronograma',label:'Cronograma'},{key:'feed',label:'Feed'},{key:'materiais',label:'Materiais'},{key:'campanhas',label:'Campanhas'},{key:'time',label:'Time'},{key:'extras',label:'Extras'},{key:'tarefas',label:'Tarefas'},{key:'onboarding',label:'Onboarding'},{key:'drive',label:'Drive'},{key:'historico',label:'Histórico'},{key:'manual',label:'Manual'}].map(t => (
               <button key={t.key} onClick={() => setTab(t.key)} className={`flex-shrink-0 px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all whitespace-nowrap ${tab===t.key?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
             ))}
           </div>
@@ -547,6 +580,35 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             </div>
           )}
 
+          {tab === 'tarefas' && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">Suas tarefas ligadas a {client.name}</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Só as suas — do seu Quadro pessoal, filtradas por este cliente</p>
+                </div>
+                <button onClick={() => setShowNewTask(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl text-white hover:opacity-90 transition-opacity"
+                  style={{ background: 'var(--color-brand)' }}>
+                  <Plus size={13} /> Nova tarefa
+                </button>
+              </div>
+              {myClientTasks.length === 0 ? (
+                <p className="text-sm text-[var(--color-text-muted)] py-8 text-center">Nada aqui ainda.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {myClientTasks.map(t => (
+                    <TaskMiniCard key={t.id} task={t} clientMap={{ [client.id]: { name: client.name, color_hex: client.color_hex } }}
+                      onClick={() => setOpenTaskId(t.id)}
+                      onMarkDone={t.status !== 'feito' ? () => markClientTaskDone(t.id) : undefined}
+                      onDelete={() => deleteClientTask(t.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {tab === 'onboarding' && (
             <OnboardingTab clientId={client.id} />
           )}
@@ -601,6 +663,18 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           )}
         </div>
       </div>
+
+      {(openTaskId || showNewTask) && currentMember && (
+        <TaskCard
+          taskId={openTaskId || undefined}
+          defaultAssignedTo={currentMember.id}
+          defaultClientId={client.id}
+          clients={[client].filter(Boolean)}
+          onClose={() => { setOpenTaskId(null); setShowNewTask(false) }}
+          onSaved={loadMyClientTasks}
+          onDeleted={() => { loadMyClientTasks(); setOpenTaskId(null); setShowNewTask(false) }}
+        />
+      )}
 
       {showEditClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center md:p-4">

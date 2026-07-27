@@ -52,13 +52,14 @@ type Props = {
   taskId?: string
   defaultAssignedTo?: string
   defaultStatus?: string
+  defaultClientId?: string
   clients?: any[]
   onClose: () => void
   onSaved: () => void
   onDeleted?: (id: string) => void
 }
 
-export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, clients = [], onClose, onSaved, onDeleted }: Props) {
+export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, defaultClientId, clients = [], onClose, onSaved, onDeleted }: Props) {
   const { members, currentMember } = useUser()
   const who = currentMember?.name || 'Alguém'
   const { toast } = useToast()
@@ -81,7 +82,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
   const [type, setType] = useState('tarefa')
   const [status, setStatus] = useState(defaultStatus || 'a_fazer')
   const [priority, setPriority] = useState('normal')
-  const [clientId, setClientId] = useState('')
+  const [clientId, setClientId] = useState(defaultClientId || '')
   const [note, setNote] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [assignedTo, setAssignedTo] = useState(defaultAssignedTo || currentMember?.id || '')

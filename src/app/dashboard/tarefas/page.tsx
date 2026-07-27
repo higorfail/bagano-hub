@@ -21,7 +21,7 @@ export default function TarefasPage() {
 }
 
 function TarefasPageInner() {
-  useEffect(() => { document.title = 'Minhas tarefas · Bagano Hub' }, [])
+  useEffect(() => { document.title = 'Quadro pessoal · Bagano Hub' }, [])
   const supabase = createClient()
   const searchParams = useSearchParams()
   const { currentMember } = useUser()
@@ -34,14 +34,21 @@ function TarefasPageInner() {
   const [showNewFor, setShowNewFor] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+  const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null)
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])), [clients])
+
+  // Ordem estável das notas (por criação) — decide a cor de cada post-it
+  const notesOrder = useMemo(
+    () => tasks.filter(t => t.type === 'nota').sort((a, b) => a.created_at.localeCompare(b.created_at)).map(t => t.id),
+    [tasks]
+  )
 
   async function load() {
     if (!currentMember) return
     setLoading(true)
     const [{ data: t }, { data: cl }] = await Promise.all([
-      supabase.from('personal_tasks').select('*').eq('assigned_to', currentMember.id).order('created_at', { ascending: false }),
+      supabase.from('personal_tasks').select('*').eq('assigned_to', currentMember.id).order('position', { ascending: true }).order('created_at', { ascending: false }),
       supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name'),
     ])
     setTasks(t || [])
@@ -69,6 +76,40 @@ function TarefasPageInner() {
     if (error) setTasks(prev)
   }
 
+  // Reordena dentro de uma coluna (drag manual, tipo Trello) — dropId é o card
+  // sobre o qual foi solto (o arrastado entra antes dele); dropId null = solto
+  // no fim da coluna (área vazia abaixo dos cards).
+  async function reorderColumn(colKey: string, draggedId: string, dropId: string | null) {
+    const prev = tasks
+    const already = tasks.filter(t => t.status === colKey && t.id !== draggedId)
+    const dragged = tasks.find(t => t.id === draggedId)
+    if (!dragged) return
+    const insertAt = dropId ? already.findIndex(t => t.id === dropId) : already.length
+    const nextOrder = [...already]
+    nextOrder.splice(insertAt < 0 ? already.length : insertAt, 0, dragged)
+
+    const wasAjusteStatus = dragged.status
+    const completedPatch = colKey === 'feito' ? { completed_at: new Date().toISOString() } : (wasAjusteStatus === 'feito' ? { completed_at: null } : {})
+
+    setTasks(ts => {
+      const others = ts.filter(t => t.status !== colKey && t.id !== draggedId)
+      const updated = nextOrder.map((t, i) => ({ ...t, status: colKey, position: i, ...(t.id === draggedId ? completedPatch : {}) }))
+      return [...others, ...updated]
+    })
+
+    const results = await Promise.all(
+      nextOrder.map((t, i) => supabase.from('personal_tasks').update({ position: i, status: colKey, ...(t.id === draggedId ? completedPatch : {}) }).eq('id', t.id))
+    )
+    if (results.some(r => r.error)) setTasks(prev)
+  }
+
+  async function deleteTask(taskId: string) {
+    const prev = tasks
+    setTasks(ts => ts.filter(t => t.id !== taskId))
+    const { error } = await supabase.from('personal_tasks').delete().eq('id', taskId)
+    if (error) setTasks(prev)
+  }
+
   function closeCard() {
     setOpenTaskId(null)
     setShowNewFor(null)
@@ -85,8 +126,8 @@ function TarefasPageInner() {
     <div className="min-h-screen bg-[var(--color-bg-page)]">
       <div className="max-w-[1200px] mx-auto px-4 md:px-8 py-6 md:py-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Minhas tarefas</h1>
-          <p className="text-sm text-[var(--color-text-muted)] mt-1">Seu quadro pessoal — tarefas, lembretes e notas. Só você vê isso, mas pode atribuir um cartão pra outra pessoa.</p>
+          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Quadro pessoal</h1>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">Seu quadro — tarefas, lembretes e notas. Só você vê isso, mas pode atribuir um cartão pra outra pessoa. Arraste pra reordenar ou mudar de coluna.</p>
         </div>
 
         {loading ? (
@@ -105,8 +146,8 @@ function TarefasPageInner() {
                   onDrop={e => {
                     e.preventDefault()
                     const tid = e.dataTransfer.getData('taskId')
-                    if (tid && col.key !== tasks.find(x => x.id === tid)?.status) moveStatus(tid, col.key)
-                    setDraggingId(null); setDragOverCol(null)
+                    if (tid) reorderColumn(col.key, tid, dragOverTaskId)
+                    setDraggingId(null); setDragOverCol(null); setDragOverTaskId(null)
                   }}>
                   <div className="flex items-center justify-between py-1">
                     <div className="flex items-center gap-2">
@@ -125,12 +166,17 @@ function TarefasPageInner() {
 
                   <div className={`flex flex-col gap-2 min-h-[80px] rounded-xl transition-colors ${isDragTarget ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
                     {colTasks.map(t => (
-                      <TaskMiniCard key={t.id} task={t} clientMap={clientMap} previewUrl={previewMap[t.id]}
-                        draggable
-                        onDragStart={e => { e.dataTransfer.setData('taskId', t.id); setDraggingId(t.id) }}
-                        onClick={() => { if (!draggingId) { setOpenTaskId(t.id); window.history.replaceState(null, '', `?task=${t.id}`) } }}
-                        onMarkDone={col.key !== 'feito' ? () => moveStatus(t.id, 'feito') : undefined}
-                      />
+                      <div key={t.id}
+                        onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverCol(col.key); setDragOverTaskId(t.id) }}>
+                        <TaskMiniCard task={t} clientMap={clientMap} previewUrl={previewMap[t.id]}
+                          noteIndex={notesOrder.indexOf(t.id)} totalNotes={notesOrder.length}
+                          draggable
+                          onDragStart={e => { e.dataTransfer.setData('taskId', t.id); setDraggingId(t.id) }}
+                          onClick={() => { if (!draggingId) { setOpenTaskId(t.id); window.history.replaceState(null, '', `?task=${t.id}`) } }}
+                          onMarkDone={col.key !== 'feito' ? () => moveStatus(t.id, 'feito') : undefined}
+                          onDelete={() => deleteTask(t.id)}
+                        />
+                      </div>
                     ))}
                     {colTasks.length === 0 && !isDragTarget && (
                       <button onClick={() => setShowNewFor(col.key)}
