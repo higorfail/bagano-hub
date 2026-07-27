@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check, Menu, X as XIcon } from 'lucide-react'
-import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, CheckCircle2, XCircle, Camera, Clock, MessageCircle, Trash2, Zap, CalendarClock, ListChecks, Eye, AtSign, Share2 } from 'lucide-react'
+import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, CheckCircle2, XCircle, Camera, Clock, MessageCircle, Trash2, Zap, CalendarClock, ListChecks, Eye, AtSign, Share2, ListTodo } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider } from '@/lib/ToastContext'
@@ -19,6 +19,7 @@ const navItems = [
   { href: '/dashboard',          icon: Home,          label: 'Início' },
   { href: '/dashboard/clientes', icon: Users,         label: 'Clientes' },
   { href: '/dashboard/equipe',   icon: UserCircle2,   label: 'Equipe' },
+  { href: '/dashboard/tarefas',  icon: ListTodo,      label: 'Minhas tarefas' },
 ]
 const productionItems = [
   { href: '/dashboard/agenda',     icon: CalendarDays,   label: 'Agenda' },
