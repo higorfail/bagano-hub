@@ -96,7 +96,7 @@ function pl(n: number, s: string, p: string) { return n === 1 ? s : p }
 
 const KIND_ICON: Record<string, string> = { post: '🎬', extra: '📎', material: '📦' }
 
-function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5 }: {
+function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap }: {
   label: string
   items: { id: string; kind: string; title: string; clientId: string; dueDate: string | null; ajuste: boolean; href: string }[]
   clientMap: Record<string, { name: string }>
@@ -104,6 +104,7 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
   todayStr: string
   muted?: boolean
   cap?: number
+  agingMap?: Record<string, string>
 }) {
   return (
     <div>
@@ -111,6 +112,10 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
       <div className="flex flex-col gap-1">
         {items.slice(0, cap).map(it => {
           const overdue = !!it.dueDate && it.dueDate < todayStr && !it.ajuste
+          const updatedAt = agingMap?.[it.id]
+          const ageDays = updatedAt ? Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000) : null
+          const ageThreshold = muted ? 1 : 3
+          const showAge = !overdue && ageDays !== null && ageDays >= ageThreshold
           return (
             <button key={it.id} onClick={() => router.push(it.href)}
               className={`w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors ${muted ? 'hover:bg-[var(--color-bg-subtle)]' : 'bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)]'}`}>
@@ -121,6 +126,11 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
               </div>
               {overdue && (
                 <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
+              )}
+              {showAge && (
+                <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>
+                  {muted ? `aguardando ${ageDays}d` : `parado ${ageDays}d`}
+                </span>
               )}
             </button>
           )
@@ -528,6 +538,33 @@ export default function DashboardPage() {
       .catch(() => {})
   }, [currentMember?.id, loading, todayStr, needsYou.length])
 
+  // "Parado há X dias" — busca updated_at à parte, isolado com try/catch: se a
+  // coluna ainda não existir (migração não rodada), falha em silêncio e o
+  // indicador simplesmente não aparece, sem quebrar o resto do dashboard.
+  useEffect(() => {
+    if (loading || paraVoceItems.length === 0) return
+    const postIds    = workItems.map(s => s.id)
+    const extraIds   = myExtras.map(e => e.id)
+    const materialIds = myMaterials.map(m => m.id)
+
+    async function fetchAging(table: string, ids: string[], prefix: string) {
+      if (ids.length === 0) return
+      try {
+        const { data, error } = await supabase.from(table).select('id, updated_at').in('id', ids)
+        if (error || !data) return
+        setAgingMap(prev => {
+          const next = { ...prev }
+          data.forEach((r: any) => { if (r.updated_at) next[`${prefix}-${r.id}`] = r.updated_at })
+          return next
+        })
+      } catch {}
+    }
+
+    fetchAging('schedules', postIds, 'post')
+    fetchAging('extras', extraIds, 'extra')
+    fetchAging('materials', materialIds, 'material')
+  }, [loading, workItems.length, myExtras.length, myMaterials.length])
+
   const upcomingByClient = Object.values(upcoming7.reduce((acc, s) => {
     (acc[s.client_id] ||= { cid: s.client_id, posts: [] as Schedule[] }).posts.push(s)
     return acc
@@ -623,13 +660,13 @@ export default function DashboardPage() {
                   )}
 
                   {needsYouAjusteItems.length > 0 && (
-                    <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} />
+                    <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} />
                   )}
                   {needsYouToday.length > 0 && (
-                    <ParaVoceGroup label="Hoje" items={needsYouToday} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} />
+                    <ParaVoceGroup label="Hoje" items={needsYouToday} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} />
                   )}
                   {needsYouWeek.length > 0 && (
-                    <ParaVoceGroup label="Esta semana" items={needsYouWeek} clientMap={clientMap} router={router} todayStr={todayStr} cap={3} />
+                    <ParaVoceGroup label="Esta semana" items={needsYouWeek} clientMap={clientMap} router={router} todayStr={todayStr} cap={3} agingMap={agingMap} />
                   )}
                   {needsYouLater.length > 0 && (
                     <ParaVoceSummaryRow icon="📦" label={`${needsYouLater.length} ${pl(needsYouLater.length, 'pendência sem prazo próximo', 'pendências sem prazo próximo')}`} onClick={() => router.push('/dashboard/cronograma')} />
