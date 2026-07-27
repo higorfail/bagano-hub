@@ -96,19 +96,20 @@ function pl(n: number, s: string, p: string) { return n === 1 ? s : p }
 
 const KIND_ICON: Record<string, string> = { post: '🎬', extra: '📎', material: '📦' }
 
-function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted }: {
+function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5 }: {
   label: string
   items: { id: string; kind: string; title: string; clientId: string; dueDate: string | null; ajuste: boolean; href: string }[]
   clientMap: Record<string, { name: string }>
   router: ReturnType<typeof useRouter>
   todayStr: string
   muted?: boolean
+  cap?: number
 }) {
   return (
     <div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5 px-0.5">{label}</p>
       <div className="flex flex-col gap-1">
-        {items.slice(0, 5).map(it => {
+        {items.slice(0, cap).map(it => {
           const overdue = !!it.dueDate && it.dueDate < todayStr && !it.ajuste
           return (
             <button key={it.id} onClick={() => router.push(it.href)}
@@ -124,11 +125,22 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted }: {
             </button>
           )
         })}
-        {items.length > 5 && (
-          <p className="text-[11px] text-[var(--color-text-faint)] px-0.5">+ {items.length - 5} {items.length - 5 === 1 ? 'item' : 'itens'}</p>
+        {items.length > cap && (
+          <p className="text-[11px] text-[var(--color-text-faint)] px-0.5">+ {items.length - cap} {items.length - cap === 1 ? 'item' : 'itens'}</p>
         )}
       </div>
     </div>
+  )
+}
+
+function ParaVoceSummaryRow({ icon, label, onClick, muted }: { icon: string; label: string; onClick: () => void; muted?: boolean }) {
+  return (
+    <button onClick={onClick}
+      className={`w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors ${muted ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)]' : 'bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] text-[var(--color-text-secondary)]'}`}>
+      <span className="text-sm flex-shrink-0">{icon}</span>
+      <span className="text-xs font-medium flex-1">{label}</span>
+      <ChevronRight size={13} className="text-[var(--color-text-faint)] flex-shrink-0" />
+    </button>
   )
 }
 
@@ -152,6 +164,7 @@ export default function DashboardPage() {
   const [myExtras,     setMyExtras]     = useState<any[]>([])
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
   const [digestText,   setDigestText]   = useState('')
+  const [agingMap,     setAgingMap]     = useState<Record<string, string>>({})
   const [loading,      setLoading]      = useState(true)
   const [loadError,    setLoadError]    = useState(false)
 
@@ -610,19 +623,19 @@ export default function DashboardPage() {
                   )}
 
                   {needsYouAjusteItems.length > 0 && (
-                    <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} />
+                    <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} />
                   )}
                   {needsYouToday.length > 0 && (
-                    <ParaVoceGroup label="Hoje" items={needsYouToday} clientMap={clientMap} router={router} todayStr={todayStr} />
+                    <ParaVoceGroup label="Hoje" items={needsYouToday} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} />
                   )}
                   {needsYouWeek.length > 0 && (
-                    <ParaVoceGroup label="Esta semana" items={needsYouWeek} clientMap={clientMap} router={router} todayStr={todayStr} />
+                    <ParaVoceGroup label="Esta semana" items={needsYouWeek} clientMap={clientMap} router={router} todayStr={todayStr} cap={3} />
                   )}
                   {needsYouLater.length > 0 && (
-                    <ParaVoceGroup label="Depois" items={needsYouLater} clientMap={clientMap} router={router} todayStr={todayStr} />
+                    <ParaVoceSummaryRow icon="📦" label={`${needsYouLater.length} ${pl(needsYouLater.length, 'pendência sem prazo próximo', 'pendências sem prazo próximo')}`} onClick={() => router.push('/dashboard/cronograma')} />
                   )}
                   {waitingOnClient.length > 0 && (
-                    <ParaVoceGroup label="Esperando o cliente" items={waitingOnClient} clientMap={clientMap} router={router} todayStr={todayStr} muted />
+                    <ParaVoceSummaryRow icon="⏳" label={`${waitingOnClient.length} ${pl(waitingOnClient.length, 'item esperando', 'itens esperando')} o cliente`} onClick={() => router.push('/dashboard/aprovacao')} muted />
                   )}
                 </SectionCard>
               )}
