@@ -168,6 +168,7 @@ export default function DashboardPage() {
   const [schedules,    setSchedules]    = useState<Schedule[]>([])
   const [specialDates, setSpecialDates] = useState<SpecialDate[]>([])
   const [captacoes,    setCaptacoes]    = useState<Captacao[]>([])
+  const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
   const [myExtras,     setMyExtras]     = useState<any[]>([])
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
   const [digestText,   setDigestText]   = useState('')
@@ -194,7 +195,7 @@ export default function DashboardPage() {
       try {
         const in90Str = new Date(now.getTime() + 90 * 86400000).toISOString().split('T')[0]
         const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
-        const [{ data: cls, error: e1 }, { data: sch }, { data: sd }, { data: cap }] = await Promise.all([
+        const [{ data: cls, error: e1 }, { data: sch }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
           supabase.from(CFG.t.clients)
             .select('id, name, color_hex, logo_url')
             .eq('status', 'active')
@@ -213,12 +214,16 @@ export default function DashboardPage() {
             .gte('scheduled_date', ago45Str)
             .lte('scheduled_date', in90Str)
             .order('scheduled_date'),
+          supabase.from('client_team')
+            .select('client_id, member_id, funcao')
+            .eq('funcao', 'estrategia'),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
         setClients(cls || [])
         setSchedules(sch || [])
         setSpecialDates(sd || [])
         setCaptacoes(cap || [])
+        setClientTeam(ct || [])
       } catch {
         setLoadError(true)
       }
@@ -402,11 +407,21 @@ export default function DashboardPage() {
   // (assigned_members), ainda não finalizado — sem misturar trabalho geral da
   // equipe por cliente/função. Pra quem enxerga o hub inteiro (dono/gestor),
   // isso evita que apareça tarefa de outras pessoas na sua lista pessoal.
-  const directAssigned = useMemo(() =>
-    currentMember
-      ? schedules.filter(s => (s.assigned_members || []).includes(currentMember.id) && ![CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status))
-      : [],
-  [schedules, currentMember])
+  // "Revisão interna" é etapa da estrategista do cliente, não de quem produziu o
+  // post — nessa etapa específica o card conta como "pra você" pra quem tem
+  // funcao='estrategia' com o cliente (client_team), não pelo assigned_members do card.
+  const myStrategistClients = useMemo(() =>
+    new Set(clientTeam.filter(t => t.member_id === currentMember?.id).map(t => t.client_id)),
+  [clientTeam, currentMember])
+
+  const directAssigned = useMemo(() => {
+    if (!currentMember) return []
+    return schedules.filter(s => {
+      if ([CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)) return false
+      if (s.status === CFG.S.revisaoInterna) return myStrategistClients.has(s.client_id)
+      return (s.assigned_members || []).includes(currentMember.id)
+    })
+  }, [schedules, currentMember, myStrategistClients])
 
   // Unifica posts + extras + materiais numa lista só, cada item marcado como
   // "precisa de você" (ação sua) ou "esperando o cliente" (aguardando aprovação) —
