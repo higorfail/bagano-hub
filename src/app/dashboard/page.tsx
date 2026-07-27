@@ -687,6 +687,23 @@ export default function DashboardPage() {
           {/* Região direita */}
           <div className="col-span-12 lg:col-span-4 space-y-5">
 
+            {/* Atalhos rápidos */}
+            <SectionCard title="Atalhos rápidos">
+              <div className="grid grid-cols-3 gap-2.5">
+                {shortcuts.map(s => (
+                  <button key={s.label} onClick={() => router.push(s.href)}
+                    className="relative rounded-xl py-4 px-2 flex flex-col items-center gap-2 border border-[var(--color-border)] hover:-translate-y-0.5 hover:shadow-card transition-all"
+                    style={{ background: TONE_BG[s.tone] }}>
+                    <s.icon size={22} strokeWidth={2} style={{ color: TONE_FG[s.tone] }} />
+                    <span className="text-[11px] font-medium text-[var(--color-text-primary)] text-center leading-tight">{s.label}</span>
+                    {!!s.badge && s.badge > 0 && (
+                      <span className="absolute top-1.5 right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: 'var(--color-accent)' }}>{s.badge}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </SectionCard>
+
             {/* Datas importantes */}
             <SectionCard
               title="Datas importantes" icon={CalendarDays} iconTone="neutral"
@@ -717,23 +734,6 @@ export default function DashboardPage() {
                   })}
                 </div>
               )}
-            </SectionCard>
-
-            {/* Atalhos rápidos */}
-            <SectionCard title="Atalhos rápidos">
-              <div className="grid grid-cols-3 gap-2.5">
-                {shortcuts.map(s => (
-                  <button key={s.label} onClick={() => router.push(s.href)}
-                    className="relative rounded-xl py-4 px-2 flex flex-col items-center gap-2 border border-[var(--color-border)] hover:-translate-y-0.5 hover:shadow-card transition-all"
-                    style={{ background: TONE_BG[s.tone] }}>
-                    <s.icon size={22} strokeWidth={2} style={{ color: TONE_FG[s.tone] }} />
-                    <span className="text-[11px] font-medium text-[var(--color-text-primary)] text-center leading-tight">{s.label}</span>
-                    {!!s.badge && s.badge > 0 && (
-                      <span className="absolute top-1.5 right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: 'var(--color-accent)' }}>{s.badge}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
             </SectionCard>
 
             {/* Aguardando aprovação por cliente — mês inteiro, não só a semana */}
