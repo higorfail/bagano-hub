@@ -63,6 +63,7 @@ type Schedule = {
   status: string; approval_status: string; post_type: string
   scheduled_date: string | null; funil: string | null
   month: number; year: number; created_at?: string | null
+  assigned_members?: string[] | null
 }
 type SpecialDate = { id: string; name: string; date: string }
 type Captacao    = { id: string; client_id: string; scheduled_date: string; status: string; months_covered: number }
@@ -139,7 +140,7 @@ export default function DashboardPage() {
             .eq('status', 'active')
             .order('name'),
           supabase.from(CFG.t.schedules)
-            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at')
+            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members')
             .eq('month', month)
             .eq('year', year),
           supabase.from(CFG.t.specialDates)
@@ -360,9 +361,20 @@ export default function DashboardPage() {
   const fallbackQueue = isProducer
     ? (isVideoRole ? productionQueue.filter(s => s.post_type === 'reels') : productionQueue)
     : []
-  const workItems = hasAssignments
+  // Cards com a pessoa marcada como responsável direto (assigned_members), ainda não
+  // finalizados — entram no "Pra você" independente de assignment por cliente/função.
+  const directAssigned = useMemo(() =>
+    currentMember
+      ? schedules.filter(s => (s.assigned_members || []).includes(currentMember.id) && ![CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status))
+      : [],
+  [schedules, currentMember])
+
+  const workItemsBase = hasAssignments
     ? [...myProductionQueue, ...myPendingApproval]
     : (isStrategist ? pendingApproval : fallbackQueue)
+  const workItems = Array.from(
+    new Map([...workItemsBase, ...directAssigned].map(s => [s.id, s])).values()
+  )
   const myClientCards = Object.values(workItems.reduce((acc, s) => {
     (acc[s.client_id] ||= { cid: s.client_id, posts: [] as Schedule[] }).posts.push(s)
     return acc
