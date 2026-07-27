@@ -112,17 +112,19 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
       <div className="flex flex-col gap-1">
         {items.slice(0, cap).map(it => {
           const overdue = !!it.dueDate && it.dueDate < todayStr && !it.ajuste
+          const isToday = it.dueDate === todayStr
           const updatedAt = agingMap?.[it.id]
           const ageDays = updatedAt ? Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000) : null
           const ageThreshold = muted ? 1 : 3
           const showAge = !overdue && ageDays !== null && ageDays >= ageThreshold
+          const dueLabel = it.dueDate ? (isToday ? 'hoje' : new Date(it.dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })) : null
           return (
             <button key={it.id} onClick={() => router.push(it.href)}
               className={`w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors ${muted ? 'hover:bg-[var(--color-bg-subtle)]' : 'bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)]'}`}>
               <span className="text-sm flex-shrink-0">{KIND_ICON[it.kind] || '•'}</span>
               <div className="flex-1 min-w-0">
                 <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>{it.title || 'Sem título'}</p>
-                <p className="text-[11px] text-[var(--color-text-muted)] truncate">{clientMap[it.clientId]?.name || 'Sem cliente'}</p>
+                <p className="text-[11px] text-[var(--color-text-muted)] truncate">{clientMap[it.clientId]?.name || 'Sem cliente'}{dueLabel ? ` · ${dueLabel}` : ''}</p>
               </div>
               {overdue && (
                 <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
@@ -170,7 +172,6 @@ export default function DashboardPage() {
   const [schedules,    setSchedules]    = useState<Schedule[]>([])
   const [specialDates, setSpecialDates] = useState<SpecialDate[]>([])
   const [captacoes,    setCaptacoes]    = useState<Captacao[]>([])
-  const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
   const [myExtras,     setMyExtras]     = useState<any[]>([])
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
   const [digestText,   setDigestText]   = useState('')
@@ -197,7 +198,7 @@ export default function DashboardPage() {
       try {
         const in90Str = new Date(now.getTime() + 90 * 86400000).toISOString().split('T')[0]
         const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
-        const [{ data: cls, error: e1 }, { data: sch }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
+        const [{ data: cls, error: e1 }, { data: sch }, { data: sd }, { data: cap }] = await Promise.all([
           supabase.from(CFG.t.clients)
             .select('id, name, color_hex, logo_url')
             .eq('status', 'active')
@@ -216,15 +217,12 @@ export default function DashboardPage() {
             .gte('scheduled_date', ago45Str)
             .lte('scheduled_date', in90Str)
             .order('scheduled_date'),
-          supabase.from('client_team')
-            .select('client_id, member_id, funcao'),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
         setClients(cls || [])
         setSchedules(sch || [])
         setSpecialDates(sd || [])
         setCaptacoes(cap || [])
-        setClientTeam(ct || [])
       } catch {
         setLoadError(true)
       }
@@ -298,39 +296,9 @@ export default function DashboardPage() {
       .sort((a, b) => (a.scheduled_date || '').localeCompare(b.scheduled_date || '')),
   [schedules, todayStr, in7Str])
 
-  const myAssignments = useMemo(() =>
-    clientTeam.filter(t => t.member_id === currentMember?.id),
-  [clientTeam, currentMember])
-  const hasAssignments = myAssignments.length > 0
-
-  function isMine(s: Schedule) {
-    return myAssignments.some(a => {
-      if (a.client_id !== s.client_id) return false
-      const types = FUNCAO_POST_TYPES[a.funcao]
-      return types ? types.includes(s.post_type) : true
-    })
-  }
-
-  const roleStr = (currentMember?.role || '').toLowerCase()
-  const isProducer   = ['video', 'post', 'foto', 'editor', 'design'].some(r => roleStr.includes(r))
-  const isStrategist = ['estrategia', 'social'].some(r => roleStr.includes(r))
-
-  const productionQueue = useMemo(() =>
-    schedules
-      .filter(s => [CFG.S.captacao, CFG.S.producao, CFG.S.revisaoInterna].includes(s.status))
-      .sort((a, b) => {
-        if (a.scheduled_date && !b.scheduled_date) return -1
-        if (!a.scheduled_date && b.scheduled_date) return 1
-        return (a.scheduled_date || '').localeCompare(b.scheduled_date || '')
-      }),
-  [schedules])
-
   const pendingApproval = useMemo(() =>
     schedules.filter(s => s.status === CFG.S.aguardandoAprovacao),
   [schedules])
-
-  const myProductionQueue = useMemo(() => hasAssignments ? productionQueue.filter(isMine) : [], [productionQueue, myAssignments, hasAssignments])
-  const myPendingApproval = useMemo(() => hasAssignments ? pendingApproval.filter(isMine) : [], [pendingApproval, myAssignments, hasAssignments])
 
   // Métricas
   const total      = schedules.length
@@ -434,26 +402,16 @@ export default function DashboardPage() {
     return out
   })()
 
-  // "Para você": meu trabalho agrupado por cliente
-  // Fallback quando não há assignments: filtra por tipo de acordo com o role
-  const isVideoRole = ['video', 'editor'].some(r => roleStr.includes(r))
-  const fallbackQueue = isProducer
-    ? (isVideoRole ? productionQueue.filter(s => s.post_type === 'reels') : productionQueue)
-    : []
-  // Cards com a pessoa marcada como responsável direto (assigned_members), ainda não
-  // finalizados — entram no "Pra você" independente de assignment por cliente/função.
+  // "Para você": SÓ o que tem a pessoa marcada como responsável direto no card
+  // (assigned_members), ainda não finalizado — sem misturar trabalho geral da
+  // equipe por cliente/função. Pra quem enxerga o hub inteiro (dono/gestor),
+  // isso evita que apareça tarefa de outras pessoas na sua lista pessoal.
   const directAssigned = useMemo(() =>
     currentMember
       ? schedules.filter(s => (s.assigned_members || []).includes(currentMember.id) && ![CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status))
       : [],
   [schedules, currentMember])
 
-  const workItemsBase = hasAssignments
-    ? [...myProductionQueue, ...myPendingApproval]
-    : (isStrategist ? pendingApproval : fallbackQueue)
-  const workItems = Array.from(
-    new Map([...workItemsBase, ...directAssigned].map(s => [s.id, s])).values()
-  )
   // Unifica posts + extras + materiais numa lista só, cada item marcado como
   // "precisa de você" (ação sua) ou "esperando o cliente" (aguardando aprovação) —
   // ajuste solicitado conta como "precisa de você" (é ação sua consertar).
@@ -462,7 +420,7 @@ export default function DashboardPage() {
     clientId: string; dueDate: string | null; ajuste: boolean; waitingClient: boolean; href: string
   }
   const paraVoceItems: ParaVoceItem[] = [
-    ...workItems.map((s): ParaVoceItem => ({
+    ...directAssigned.map((s): ParaVoceItem => ({
       id: `post-${s.id}`, kind: 'post', title: s.title, clientId: s.client_id,
       dueDate: s.scheduled_date, ajuste: s.status === CFG.S.ajuste,
       waitingClient: s.status === CFG.S.aguardandoAprovacao,
@@ -498,12 +456,9 @@ export default function DashboardPage() {
   waitingOnClient.sort(itemSort)
 
   // Ajuste pedido pelo cliente é sempre o grupo de maior prioridade, com ou sem prazo —
-  // o resto entra em Hoje/Esta semana/Depois puramente por data.
+  // o resto vira uma lista só ("Pendências"), já ordenada por urgência (itemSort).
   const needsYouAjusteItems = needsYou.filter(i => i.ajuste)
   const needsYouRest        = needsYou.filter(i => !i.ajuste)
-  const needsYouToday = needsYouRest.filter(i => i.dueDate && i.dueDate <= todayStr)
-  const needsYouWeek  = needsYouRest.filter(i => i.dueDate && i.dueDate > todayStr && i.dueDate <= in7Str)
-  const needsYouLater = needsYouRest.filter(i => !i.dueDate || i.dueDate > in7Str)
   const needsYouOverdue = needsYou.filter(i => i.dueDate && i.dueDate < todayStr).length
 
   // Resumo diário por IA — 1 frase, cacheada por pessoa+dia+conteúdo (evita gerar
@@ -543,7 +498,7 @@ export default function DashboardPage() {
   // indicador simplesmente não aparece, sem quebrar o resto do dashboard.
   useEffect(() => {
     if (loading || paraVoceItems.length === 0) return
-    const postIds    = workItems.map(s => s.id)
+    const postIds    = directAssigned.map(s => s.id)
     const extraIds   = myExtras.map(e => e.id)
     const materialIds = myMaterials.map(m => m.id)
 
@@ -563,7 +518,7 @@ export default function DashboardPage() {
     fetchAging('schedules', postIds, 'post')
     fetchAging('extras', extraIds, 'extra')
     fetchAging('materials', materialIds, 'material')
-  }, [loading, workItems.length, myExtras.length, myMaterials.length])
+  }, [loading, directAssigned.length, myExtras.length, myMaterials.length])
 
   const upcomingByClient = Object.values(upcoming7.reduce((acc, s) => {
     (acc[s.client_id] ||= { cid: s.client_id, posts: [] as Schedule[] }).posts.push(s)
@@ -662,14 +617,8 @@ export default function DashboardPage() {
                   {needsYouAjusteItems.length > 0 && (
                     <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} />
                   )}
-                  {needsYouToday.length > 0 && (
-                    <ParaVoceGroup label="Hoje" items={needsYouToday} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} />
-                  )}
-                  {needsYouWeek.length > 0 && (
-                    <ParaVoceGroup label="Esta semana" items={needsYouWeek} clientMap={clientMap} router={router} todayStr={todayStr} cap={3} agingMap={agingMap} />
-                  )}
-                  {needsYouLater.length > 0 && (
-                    <ParaVoceSummaryRow icon="📦" label={`${needsYouLater.length} ${pl(needsYouLater.length, 'pendência sem prazo próximo', 'pendências sem prazo próximo')}`} onClick={() => router.push('/dashboard/cronograma')} />
+                  {needsYouRest.length > 0 && (
+                    <ParaVoceGroup label="Pendências" items={needsYouRest} clientMap={clientMap} router={router} todayStr={todayStr} cap={5} agingMap={agingMap} />
                   )}
                   {waitingOnClient.length > 0 && (
                     <ParaVoceSummaryRow icon="⏳" label={`${waitingOnClient.length} ${pl(waitingOnClient.length, 'item esperando', 'itens esperando')} o cliente`} onClick={() => router.push('/dashboard/aprovacao')} muted />
