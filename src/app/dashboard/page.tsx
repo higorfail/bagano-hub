@@ -53,9 +53,6 @@ const TONE_FG: Record<BadgeTone, string> = {
 const MONTHS    = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const DAYS      = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
 const WEEKDAY_SHORT = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB']
-const TYPE_SHORT: Record<string, string> = {
-  reels: 'Reel', carrossel: 'Carrossel', post: 'Post', story: 'Story', carrossel_stories: 'Crsl/Story',
-}
 
 type Client   = { id: string; name: string; color_hex: string; logo_url?: string | null }
 type Schedule = {
@@ -95,6 +92,7 @@ function daysBetween(a: Date, b: Date) {
 function pl(n: number, s: string, p: string) { return n === 1 ? s : p }
 
 const KIND_ICON: Record<string, string> = { post: '🎬', extra: '📎', material: '📦' }
+const KIND_CHIP_BG: Record<string, string> = { post: 'var(--ds-purple-bg)', extra: 'var(--ds-info-bg)', material: 'var(--color-bg-subtle)' }
 
 function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap }: {
   label: string
@@ -120,8 +118,12 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
           const dueLabel = it.dueDate ? (isToday ? 'hoje' : new Date(it.dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })) : null
           return (
             <button key={it.id} onClick={() => router.push(it.href)}
-              className={`w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors ${muted ? 'hover:bg-[var(--color-bg-subtle)]' : 'bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)]'}`}>
-              <span className="text-sm flex-shrink-0">{KIND_ICON[it.kind] || '•'}</span>
+              className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
+              style={{ background: it.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
+              <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                style={{ background: it.ajuste ? 'var(--ds-error-accent)' : KIND_CHIP_BG[it.kind] || 'var(--color-bg-subtle)' }}>
+                {it.ajuste ? '⚠️' : KIND_ICON[it.kind] || '•'}
+              </span>
               <div className="flex-1 min-w-0">
                 <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>{it.title || 'Sem título'}</p>
                 <p className="text-[11px] text-[var(--color-text-muted)] truncate">{clientMap[it.clientId]?.name || 'Sem cliente'}{dueLabel ? ` · ${dueLabel}` : ''}</p>
@@ -154,12 +156,6 @@ function ParaVoceSummaryRow({ icon, label, onClick, muted }: { icon: string; lab
       <ChevronRight size={13} className="text-[var(--color-text-faint)] flex-shrink-0" />
     </button>
   )
-}
-
-function dominantTypeLabel(posts: { post_type: string }[]) {
-  const byType = posts.reduce((a, p) => { a[p.post_type] = (a[p.post_type] || 0) + 1; return a }, {} as Record<string, number>)
-  const d = Object.entries(byType).sort((a, b) => b[1] - a[1])[0]
-  return d ? `${d[1]}x ${TYPE_SHORT[d[0]] || d[0]}` : ''
 }
 
 export default function DashboardPage() {
@@ -599,65 +595,30 @@ export default function DashboardPage() {
           {/* Região esquerda */}
           <div className="col-span-12 lg:col-span-8 space-y-5">
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-
-              {/* Para você */}
-              {currentMember && (
-                <SectionCard title={`Para você, ${firstName}`} icon={Zap} iconTone="amber" bodyClassName="px-4 pb-4 space-y-3">
-                  {!paraVoceContent && (
-                    <p className="text-sm text-[var(--color-text-muted)] py-6 text-center">Nada pendente pra você 🎉</p>
-                  )}
-
-                  {paraVoceContent && (needsYouAjusteItems.length > 0 || needsYouOverdue > 0 || digestText) && (
-                    <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>
-                      {digestText || `${needsYouAjusteItems.length > 0 ? `${needsYouAjusteItems.length} ${pl(needsYouAjusteItems.length, 'ajuste pedido', 'ajustes pedidos')} pelo cliente. ` : ''}${needsYouOverdue > 0 ? `${needsYouOverdue} ${pl(needsYouOverdue, 'item atrasado', 'itens atrasados')}.` : ''}`}
-                    </div>
-                  )}
-
-                  {needsYouAjusteItems.length > 0 && (
-                    <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} />
-                  )}
-                  {needsYouRest.length > 0 && (
-                    <ParaVoceGroup label="Pendências" items={needsYouRest} clientMap={clientMap} router={router} todayStr={todayStr} cap={5} agingMap={agingMap} />
-                  )}
-                  {waitingOnClient.length > 0 && (
-                    <ParaVoceSummaryRow icon="⏳" label={`${waitingOnClient.length} ${pl(waitingOnClient.length, 'item esperando', 'itens esperando')} o cliente`} onClick={() => router.push('/dashboard/aprovacao')} muted />
-                  )}
-                </SectionCard>
-              )}
-
-              {/* Datas importantes */}
-              <SectionCard
-                title="Datas importantes" icon={CalendarDays} iconTone="neutral"
-                action={specialDates.length > 0 && (
-                  <button onClick={() => router.push('/dashboard/datas-especiais')} className="text-xs font-semibold text-[var(--color-accent)] hover:underline">Ver todas →</button>
+            {/* Para você — sozinha na linha, sem "buraco" causado por um vizinho mais curto */}
+            {currentMember && (
+              <SectionCard title={`Para você, ${firstName}`} icon={Zap} iconTone="amber" bodyClassName="px-4 pb-4 space-y-3">
+                {!paraVoceContent && (
+                  <p className="text-sm text-[var(--color-text-muted)] py-6 text-center">Nada pendente pra você 🎉</p>
                 )}
-                bodyClassName="px-3 pb-3"
-              >
-                {specialDates.length === 0 ? (
-                  <p className="text-sm text-[var(--color-text-muted)] py-6 text-center">Nenhuma data próxima</p>
-                ) : (
-                  <div className="space-y-1">
-                    {specialDates.slice(0, 3).map(sd => {
-                      const d = new Date(sd.date + 'T12:00:00')
-                      const diff = daysBetween(now, d)
-                      return (
-                        <div key={sd.id} className="flex items-center gap-3.5 px-2 py-2.5">
-                          <div className="flex flex-col items-center w-9 flex-shrink-0">
-                            <span className="text-2xl font-bold leading-none text-[var(--color-text-primary)] tabular-nums">{String(d.getDate()).padStart(2, '0')}</span>
-                            <span className="text-[10px] font-bold uppercase tracking-wide leading-none mt-1" style={{ color: 'var(--color-accent)' }}>{MONTHS[d.getMonth()].slice(0, 3)}</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{sd.name}</p>
-                            <p className="text-xs text-[var(--color-text-muted)]">{diff === 0 ? 'hoje' : `em ${diff} ${pl(diff, 'dia', 'dias')}`}</p>
-                          </div>
-                        </div>
-                      )
-                    })}
+
+                {paraVoceContent && (needsYouAjusteItems.length > 0 || needsYouOverdue > 0 || digestText) && (
+                  <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>
+                    {digestText || `${needsYouAjusteItems.length > 0 ? `${needsYouAjusteItems.length} ${pl(needsYouAjusteItems.length, 'ajuste pedido', 'ajustes pedidos')} pelo cliente. ` : ''}${needsYouOverdue > 0 ? `${needsYouOverdue} ${pl(needsYouOverdue, 'item atrasado', 'itens atrasados')}.` : ''}`}
                   </div>
                 )}
+
+                {needsYouAjusteItems.length > 0 && (
+                  <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} />
+                )}
+                {needsYouRest.length > 0 && (
+                  <ParaVoceGroup label="Pendências" items={needsYouRest} clientMap={clientMap} router={router} todayStr={todayStr} cap={5} agingMap={agingMap} />
+                )}
+                {waitingOnClient.length > 0 && (
+                  <ParaVoceSummaryRow icon="⏳" label={`${waitingOnClient.length} ${pl(waitingOnClient.length, 'item esperando', 'itens esperando')} o cliente`} onClick={() => router.push('/dashboard/aprovacao')} muted />
+                )}
               </SectionCard>
-            </div>
+            )}
 
             {/* Clientes do mês */}
             <div>
@@ -710,6 +671,38 @@ export default function DashboardPage() {
           {/* Região direita */}
           <div className="col-span-12 lg:col-span-4 space-y-5">
 
+            {/* Datas importantes */}
+            <SectionCard
+              title="Datas importantes" icon={CalendarDays} iconTone="neutral"
+              action={specialDates.length > 0 && (
+                <button onClick={() => router.push('/dashboard/datas-especiais')} className="text-xs font-semibold text-[var(--color-accent)] hover:underline">Ver todas →</button>
+              )}
+              bodyClassName="px-3 pb-3"
+            >
+              {specialDates.length === 0 ? (
+                <p className="text-sm text-[var(--color-text-muted)] py-6 text-center">Nenhuma data próxima</p>
+              ) : (
+                <div className="space-y-1">
+                  {specialDates.slice(0, 3).map(sd => {
+                    const d = new Date(sd.date + 'T12:00:00')
+                    const diff = daysBetween(now, d)
+                    return (
+                      <div key={sd.id} className="flex items-center gap-3.5 px-2 py-2.5">
+                        <div className="flex flex-col items-center w-9 flex-shrink-0">
+                          <span className="text-2xl font-bold leading-none text-[var(--color-text-primary)] tabular-nums">{String(d.getDate()).padStart(2, '0')}</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wide leading-none mt-1" style={{ color: 'var(--color-accent)' }}>{MONTHS[d.getMonth()].slice(0, 3)}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{sd.name}</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">{diff === 0 ? 'hoje' : `em ${diff} ${pl(diff, 'dia', 'dias')}`}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </SectionCard>
+
             {/* Atalhos rápidos */}
             <SectionCard title="Atalhos rápidos">
               <div className="grid grid-cols-3 gap-2.5">
@@ -739,8 +732,16 @@ export default function DashboardPage() {
                 <>
                   {upcomingByClient.slice(0, 4).map(({ cid, posts }) => {
                     const client = clientMap[cid]
-                    const totalForClient = schedules.filter(s => s.client_id === cid).length
-                    const pct = totalForClient ? Math.round((posts.length / totalForClient) * 100) : 0
+                    const pronto     = posts.filter(s => [CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)).length
+                    const comCliente = posts.filter(s => s.status === CFG.S.aguardandoAprovacao).length
+                    const ajuste     = posts.filter(s => s.status === CFG.S.ajuste).length
+                    const producao   = posts.length - pronto - comCliente - ajuste
+                    const segs = [
+                      { n: pronto,     color: 'var(--ds-success-accent)', label: pl(pronto, 'aprovado', 'aprovados') },
+                      { n: comCliente, color: 'var(--ds-info-accent)',    label: 'com cliente' },
+                      { n: producao,   color: 'var(--ds-warn-accent)',    label: 'em produção' },
+                      { n: ajuste,     color: 'var(--color-accent)',      label: pl(ajuste, 'ajuste', 'ajustes') },
+                    ].filter(s => s.n > 0)
                     return (
                       <button key={cid} onClick={() => router.push(`/dashboard/clientes/${cid}`)}
                         className="w-full text-left rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4 hover:border-[var(--color-border-hover)] hover:shadow-card transition-all">
@@ -748,16 +749,20 @@ export default function DashboardPage() {
                           <ClientAvatar clientId={cid} size={40} />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{client?.name}</p>
-                            <p className="text-xs text-[var(--color-text-muted)] truncate">{dominantTypeLabel(posts)} · esta semana</p>
+                            <p className="text-xs text-[var(--color-text-muted)] truncate">{posts.length} {pl(posts.length, 'post', 'posts')} · esta semana</p>
                           </div>
                           <ChevronRight size={15} className="text-[var(--color-text-faint)] flex-shrink-0" />
                         </div>
-                        <div className="h-1.5 rounded-full bg-[var(--color-bg-subtle)] mt-3 overflow-hidden">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: client?.color_hex || 'var(--color-accent)' }} />
+                        <div className="flex h-1.5 rounded-full bg-[var(--color-bg-subtle)] mt-3 overflow-hidden">
+                          {segs.map((s, i) => <div key={i} style={{ width: `${(s.n / posts.length) * 100}%`, background: s.color }} />)}
                         </div>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-[11px] text-[var(--color-text-muted)] tabular-nums">{posts.length} / {totalForClient} posts</span>
-                          <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] tabular-nums">{pct}%</span>
+                        <div className="flex items-center gap-x-3 gap-y-1 mt-2 flex-wrap">
+                          {segs.map((s, i) => (
+                            <span key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]">
+                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                              {s.n} {s.label}
+                            </span>
+                          ))}
                         </div>
                       </button>
                     )
