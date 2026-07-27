@@ -94,6 +94,44 @@ function daysBetween(a: Date, b: Date) {
 
 function pl(n: number, s: string, p: string) { return n === 1 ? s : p }
 
+const KIND_ICON: Record<string, string> = { post: '🎬', extra: '📎', material: '📦' }
+
+function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted }: {
+  label: string
+  items: { id: string; kind: string; title: string; clientId: string; dueDate: string | null; ajuste: boolean; href: string }[]
+  clientMap: Record<string, { name: string }>
+  router: ReturnType<typeof useRouter>
+  todayStr: string
+  muted?: boolean
+}) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5 px-0.5">{label}</p>
+      <div className="flex flex-col gap-1">
+        {items.slice(0, 5).map(it => {
+          const overdue = !!it.dueDate && it.dueDate < todayStr && !it.ajuste
+          return (
+            <button key={it.id} onClick={() => router.push(it.href)}
+              className={`w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors ${muted ? 'hover:bg-[var(--color-bg-subtle)]' : 'bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)]'}`}>
+              <span className="text-sm flex-shrink-0">{KIND_ICON[it.kind] || '•'}</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>{it.title || 'Sem título'}</p>
+                <p className="text-[11px] text-[var(--color-text-muted)] truncate">{clientMap[it.clientId]?.name || 'Sem cliente'}</p>
+              </div>
+              {overdue && (
+                <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
+              )}
+            </button>
+          )
+        })}
+        {items.length > 5 && (
+          <p className="text-[11px] text-[var(--color-text-faint)] px-0.5">+ {items.length - 5} {items.length - 5 === 1 ? 'item' : 'itens'}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function dominantTypeLabel(posts: { post_type: string }[]) {
   const byType = posts.reduce((a, p) => { a[p.post_type] = (a[p.post_type] || 0) + 1; return a }, {} as Record<string, number>)
   const d = Object.entries(byType).sort((a, b) => b[1] - a[1])[0]
@@ -113,6 +151,7 @@ export default function DashboardPage() {
   const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
   const [myExtras,     setMyExtras]     = useState<any[]>([])
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
+  const [digestText,   setDigestText]   = useState('')
   const [loading,      setLoading]      = useState(true)
   const [loadError,    setLoadError]    = useState(false)
 
@@ -175,7 +214,7 @@ export default function DashboardPage() {
     if (!currentMember?.id) return
     supabase
       .from('extras')
-      .select('id, title, type, status, priority, client_id, due_date')
+      .select('id, title, type, status, priority, client_id, due_date, client_approval_status')
       .neq('status', 'done')
       .contains('assigned_members', [currentMember.id])
       .order('due_date', { ascending: true, nullsFirst: false })
@@ -392,10 +431,89 @@ export default function DashboardPage() {
   const workItems = Array.from(
     new Map([...workItemsBase, ...directAssigned].map(s => [s.id, s])).values()
   )
-  const myClientCards = Object.values(workItems.reduce((acc, s) => {
-    (acc[s.client_id] ||= { cid: s.client_id, posts: [] as Schedule[] }).posts.push(s)
-    return acc
-  }, {} as Record<string, { cid: string; posts: Schedule[] }>))
+  // Unifica posts + extras + materiais numa lista só, cada item marcado como
+  // "precisa de você" (ação sua) ou "esperando o cliente" (aguardando aprovação) —
+  // ajuste solicitado conta como "precisa de você" (é ação sua consertar).
+  type ParaVoceItem = {
+    id: string; kind: 'post' | 'extra' | 'material'; title: string
+    clientId: string; dueDate: string | null; ajuste: boolean; waitingClient: boolean; href: string
+  }
+  const paraVoceItems: ParaVoceItem[] = [
+    ...workItems.map((s): ParaVoceItem => ({
+      id: `post-${s.id}`, kind: 'post', title: s.title, clientId: s.client_id,
+      dueDate: s.scheduled_date, ajuste: s.status === CFG.S.ajuste,
+      waitingClient: s.status === CFG.S.aguardandoAprovacao,
+      href: `/dashboard/clientes/${s.client_id}?tab=cronograma`,
+    })),
+    ...myExtras.map((e): ParaVoceItem => ({
+      id: `extra-${e.id}`, kind: 'extra', title: e.title, clientId: e.client_id,
+      dueDate: e.due_date, ajuste: e.client_approval_status === 'recusado',
+      waitingClient: e.client_approval_status === 'aguardando',
+      href: e.client_id ? `/dashboard/clientes/${e.client_id}?tab=extras` : '/dashboard/kanban',
+    })),
+    ...myMaterials.map((m): ParaVoceItem => ({
+      id: `material-${m.id}`, kind: 'material', title: m.title, clientId: m.client_id,
+      dueDate: m.due_date, ajuste: m.status === 'ajuste',
+      waitingClient: m.status === 'aguardando_aprovacao',
+      href: m.client_id ? `/dashboard/clientes/${m.client_id}?tab=materiais` : '/dashboard/materiais',
+    })),
+  ]
+  const needsYou = paraVoceItems.filter(i => !i.waitingClient)
+  const waitingOnClient = paraVoceItems.filter(i => i.waitingClient)
+
+  function itemSort(a: ParaVoceItem, b: ParaVoceItem) {
+    if (a.ajuste !== b.ajuste) return a.ajuste ? -1 : 1
+    const aOverdue = !!a.dueDate && a.dueDate < todayStr
+    const bOverdue = !!b.dueDate && b.dueDate < todayStr
+    if (aOverdue !== bOverdue) return aOverdue ? -1 : 1
+    if (!a.dueDate && !b.dueDate) return 0
+    if (!a.dueDate) return 1
+    if (!b.dueDate) return -1
+    return a.dueDate.localeCompare(b.dueDate)
+  }
+  needsYou.sort(itemSort)
+  waitingOnClient.sort(itemSort)
+
+  // Ajuste pedido pelo cliente é sempre o grupo de maior prioridade, com ou sem prazo —
+  // o resto entra em Hoje/Esta semana/Depois puramente por data.
+  const needsYouAjusteItems = needsYou.filter(i => i.ajuste)
+  const needsYouRest        = needsYou.filter(i => !i.ajuste)
+  const needsYouToday = needsYouRest.filter(i => i.dueDate && i.dueDate <= todayStr)
+  const needsYouWeek  = needsYouRest.filter(i => i.dueDate && i.dueDate > todayStr && i.dueDate <= in7Str)
+  const needsYouLater = needsYouRest.filter(i => !i.dueDate || i.dueDate > in7Str)
+  const needsYouOverdue = needsYou.filter(i => i.dueDate && i.dueDate < todayStr).length
+
+  // Resumo diário por IA — 1 frase, cacheada por pessoa+dia+conteúdo (evita gerar
+  // de novo a cada reload; só refaz se a lista de pendências mudar de fato).
+  useEffect(() => {
+    if (!currentMember || loading) return
+    if (needsYou.length === 0) { setDigestText(''); return }
+    const itemsKey = needsYou.slice(0, 20).map(i => i.id).join(',')
+    const cacheKey = `bagano_digest_v1_${currentMember.id}_${todayStr}`
+    try {
+      const cached = localStorage.getItem(cacheKey)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed.itemsKey === itemsKey) { setDigestText(parsed.text); return }
+      }
+    } catch {}
+    const items = needsYou.slice(0, 20).map(i => ({
+      kind: i.kind, title: i.title, clientName: clientMap[i.clientId]?.name,
+      ajuste: i.ajuste, overdue: !!i.dueDate && i.dueDate < todayStr, dueDate: i.dueDate,
+    }))
+    fetch('/api/ai-daily-digest', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ memberName: currentMember.name?.split(' ')[0], items }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.digest) {
+          setDigestText(data.digest)
+          try { localStorage.setItem(cacheKey, JSON.stringify({ itemsKey, text: data.digest })) } catch {}
+        }
+      })
+      .catch(() => {})
+  }, [currentMember?.id, loading, todayStr, needsYou.length])
 
   const upcomingByClient = Object.values(upcoming7.reduce((acc, s) => {
     (acc[s.client_id] ||= { cid: s.client_id, posts: [] as Schedule[] }).posts.push(s)
@@ -438,7 +556,7 @@ export default function DashboardPage() {
   }
 
   const firstName = currentMember?.name.split(' ')[0]
-  const paraVoceContent = myClientCards.length > 0 || myExtras.length > 0 || myMaterials.length > 0
+  const paraVoceContent = paraVoceItems.length > 0
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-page)]">
@@ -480,70 +598,31 @@ export default function DashboardPage() {
 
               {/* Para você */}
               {currentMember && (
-                <SectionCard title={`Para você, ${firstName}`} icon={Zap} iconTone="amber" bodyClassName="px-4 pb-4 space-y-2.5">
+                <SectionCard title={`Para você, ${firstName}`} icon={Zap} iconTone="amber" bodyClassName="px-4 pb-4 space-y-3">
                   {!paraVoceContent && (
                     <p className="text-sm text-[var(--color-text-muted)] py-6 text-center">Nada pendente pra você 🎉</p>
                   )}
 
-                  {myClientCards.slice(0, 3).map(({ cid, posts }) => {
-                    const client = clientMap[cid]
-                    const totalForClient = schedules.filter(s => s.client_id === cid).length
-                    const pct = totalForClient ? Math.round((posts.length / totalForClient) * 100) : 0
-                    return (
-                      <button key={cid} onClick={() => router.push(`/dashboard/clientes/${cid}`)}
-                        className="w-full text-left rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4 hover:border-[var(--color-border-hover)] hover:shadow-card transition-all">
-                        <div className="flex items-center gap-3">
-                          <ClientAvatar clientId={cid} size={40} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{client?.name}</p>
-                            <p className="text-xs text-[var(--color-text-muted)] truncate">{dominantTypeLabel(posts)} · em produção</p>
-                          </div>
-                          <span className="text-xs font-semibold text-[var(--color-text-secondary)] tabular-nums flex-shrink-0">{posts.length} / {totalForClient} posts</span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-[var(--color-bg-subtle)] mt-3 overflow-hidden">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: 'var(--color-accent)' }} />
-                        </div>
-                        <div className="flex justify-end mt-3">
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: 'var(--color-accent-bg)', color: 'var(--color-accent)' }}>
-                            {posts.length} {pl(posts.length, 'post', 'posts')} →
-                          </span>
-                        </div>
-                      </button>
-                    )
-                  })}
-
-                  {myClientCards.length > 3 && (
-                    <button onClick={() => router.push('/dashboard/cronograma')} className="w-full text-center text-xs font-semibold text-[var(--color-accent)] hover:underline py-1">
-                      + {myClientCards.length - 3} {pl(myClientCards.length - 3, 'cliente', 'clientes')} →
-                    </button>
+                  {paraVoceContent && (needsYouAjusteItems.length > 0 || needsYouOverdue > 0 || digestText) && (
+                    <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>
+                      {digestText || `${needsYouAjusteItems.length > 0 ? `${needsYouAjusteItems.length} ${pl(needsYouAjusteItems.length, 'ajuste pedido', 'ajustes pedidos')} pelo cliente. ` : ''}${needsYouOverdue > 0 ? `${needsYouOverdue} ${pl(needsYouOverdue, 'item atrasado', 'itens atrasados')}.` : ''}`}
+                    </div>
                   )}
 
-                  {myExtras.length > 0 && (
-                    <button onClick={() => myExtras[0].client_id ? router.push(`/dashboard/clientes/${myExtras[0].client_id}?tab=extras`) : router.push('/dashboard/kanban')}
-                      className="w-full text-left rounded-2xl bg-[var(--color-bg-subtle)] p-4 flex items-center gap-3 hover:bg-[var(--color-bg-page)] transition-colors">
-                      <div className="w-10 h-10 rounded-xl border-2 border-dashed flex items-center justify-center flex-shrink-0" style={{ borderColor: 'var(--color-accent)' }}>
-                        <CheckSquare size={15} style={{ color: 'var(--color-accent)' }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[var(--color-text-primary)]">{myExtras.length} {pl(myExtras.length, 'tarefa pendente', 'tarefas pendentes')}</p>
-                        <p className="text-xs text-[var(--color-text-muted)] truncate">“{myExtras[0].title}”{clientMap[myExtras[0].client_id] ? ` · ${clientMap[myExtras[0].client_id].name}` : ''}</p>
-                      </div>
-                      <ChevronRight size={14} className="text-[var(--color-text-faint)] flex-shrink-0" />
-                    </button>
+                  {needsYouAjusteItems.length > 0 && (
+                    <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} />
                   )}
-
-                  {myMaterials.length > 0 && (
-                    <button onClick={() => myMaterials[0].client_id ? router.push(`/dashboard/clientes/${myMaterials[0].client_id}?tab=materiais`) : router.push('/dashboard/materiais')}
-                      className="w-full text-left rounded-2xl bg-[var(--color-bg-subtle)] p-4 flex items-center gap-3 hover:bg-[var(--color-bg-page)] transition-colors">
-                      <div className="w-10 h-10 rounded-xl border-2 border-dashed flex items-center justify-center flex-shrink-0" style={{ borderColor: 'var(--color-accent)' }}>
-                        <Package size={15} style={{ color: 'var(--color-accent)' }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[var(--color-text-primary)]">{myMaterials.length} {pl(myMaterials.length, 'material pendente', 'materiais pendentes')}</p>
-                        <p className="text-xs text-[var(--color-text-muted)] truncate">“{myMaterials[0].title}”{clientMap[myMaterials[0].client_id] ? ` · ${clientMap[myMaterials[0].client_id].name}` : ''}</p>
-                      </div>
-                      <ChevronRight size={14} className="text-[var(--color-text-faint)] flex-shrink-0" />
-                    </button>
+                  {needsYouToday.length > 0 && (
+                    <ParaVoceGroup label="Hoje" items={needsYouToday} clientMap={clientMap} router={router} todayStr={todayStr} />
+                  )}
+                  {needsYouWeek.length > 0 && (
+                    <ParaVoceGroup label="Esta semana" items={needsYouWeek} clientMap={clientMap} router={router} todayStr={todayStr} />
+                  )}
+                  {needsYouLater.length > 0 && (
+                    <ParaVoceGroup label="Depois" items={needsYouLater} clientMap={clientMap} router={router} todayStr={todayStr} />
+                  )}
+                  {waitingOnClient.length > 0 && (
+                    <ParaVoceGroup label="Esperando o cliente" items={waitingOnClient} clientMap={clientMap} router={router} todayStr={todayStr} muted />
                   )}
                 </SectionCard>
               )}
