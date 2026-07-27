@@ -7,12 +7,16 @@ import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { useMentions } from '@/lib/useMentions'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
+import { generateAiSummary } from '@/lib/aiSummary'
 import { autoGrow } from '@/lib/autoGrow'
+import { hostOf } from '@/lib/url'
+import { fetchLinkTitle } from '@/lib/linkTitle'
 import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
 import WatchButton from '@/components/WatchButton'
+import AttachmentsGrid from '@/components/AttachmentsGrid'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
-import { X, Calendar, ChevronDown, Send, Pencil, Trash2, Check, Link2 } from 'lucide-react'
+import { X, Calendar, ChevronDown, Send, Pencil, Trash2, Check, Link2, Tag, Upload } from 'lucide-react'
 
 const TYPE_OPTIONS = [
   { value: 'tarefa',   label: 'Tarefa',   color: '#3B82F6' },
@@ -23,6 +27,21 @@ const STATUS_OPTIONS = [
   { value: 'a_fazer', label: 'A fazer', color: '#6B7280' },
   { value: 'fazendo',  label: 'Fazendo', color: '#F59E0B' },
   { value: 'feito',    label: 'Feito',    color: '#22C55E' },
+]
+const PRIORITY_OPTIONS = [
+  { value: 'low',    label: 'Baixa',  color: '#94a3b8' },
+  { value: 'normal', label: 'Normal', color: '#6b7280' },
+  { value: 'high',   label: 'Alta',   color: '#ef4444' },
+]
+const LABEL_PALETTE = [
+  { name: 'Vermelho', color: '#EF4444' },
+  { name: 'Laranja',  color: '#F59E0B' },
+  { name: 'Amarelo',  color: '#EAB308' },
+  { name: 'Verde',    color: '#22C55E' },
+  { name: 'Azul',     color: '#3B82F6' },
+  { name: 'Roxo',     color: '#8B5CF6' },
+  { name: 'Rosa',     color: '#EC4899' },
+  { name: 'Cinza',    color: '#6B7280' },
 ]
 
 function initials(name: string) {
@@ -54,22 +73,42 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [id, setId] = useState<string | undefined>(taskId)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [cardDragOver, setCardDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [title, setTitle] = useState('')
   const [type, setType] = useState('tarefa')
   const [status, setStatus] = useState(defaultStatus || 'a_fazer')
+  const [priority, setPriority] = useState('normal')
   const [clientId, setClientId] = useState('')
   const [note, setNote] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [assignedTo, setAssignedTo] = useState(defaultAssignedTo || currentMember?.id || '')
   const [createdAt, setCreatedAt] = useState<string | null>(null)
   const [createdByName, setCreatedByName] = useState<string | null>(null)
+  const [labels, setLabels] = useState<{ text: string; color: string }[]>([])
+  const [showLabelPicker, setShowLabelPicker] = useState(false)
+  const [globalLabels, setGlobalLabels] = useState<any[]>([])
+  const [labelDraft, setLabelDraft] = useState({ text: '', color: '#3B82F6' })
+  const [editingLabel, setEditingLabel] = useState<any>(null)
+
+  const [attachments, setAttachments] = useState<any[]>([])
+  const [uploads, setUploads] = useState<any[]>([])
+  const [newAttachUrl, setNewAttachUrl] = useState('')
+  const [newAttachTitle, setNewAttachTitle] = useState('')
+  const [showAttachInput, setShowAttachInput] = useState(false)
 
   const [comments, setComments] = useState<any[]>([])
   const [newComment, setNewComment] = useState('')
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editCommentText, setEditCommentText] = useState('')
   const mentions = useMentions(newComment, setNewComment, members)
+
+  useEffect(() => {
+    supabase.from('labels').select('*').order('created_at', { ascending: true })
+      .then(({ data }) => { if (data) setGlobalLabels(data) })
+  }, [])
 
   useEffect(() => {
     const rid = id || taskId
@@ -80,9 +119,15 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, taskId, activityKey])
 
-  const loadComments = useCallback(async (tid: string) => {
-    const { data } = await supabase.from('personal_task_comments').select('*').eq('task_id', tid).order('created_at', { ascending: true })
-    setComments(data || [])
+  const loadSub = useCallback(async (tid: string) => {
+    const [{ data: cms }, { data: atts }, { data: ups }] = await Promise.all([
+      supabase.from('personal_task_comments').select('*').eq('task_id', tid).order('created_at', { ascending: true }),
+      supabase.from('personal_task_attachments').select('*').eq('task_id', tid).order('created_at', { ascending: true }),
+      supabase.from('personal_task_uploads').select('*').eq('task_id', tid).order('created_at', { ascending: true }),
+    ])
+    setComments(cms || [])
+    setAttachments(atts || [])
+    setUploads(ups || [])
   }, [])
 
   useEffect(() => {
@@ -93,37 +138,40 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
         setTitle(data.title || '')
         setType(data.type || 'tarefa')
         setStatus(data.status || 'a_fazer')
+        setPriority(data.priority || 'normal')
         setClientId(data.client_id || '')
         setNote(data.note || '')
         setDueDate(data.due_date || '')
         setAssignedTo(data.assigned_to || '')
         setCreatedAt(data.created_at || null)
+        setLabels(Array.isArray(data.labels) ? data.labels : [])
         if (data.created_by) {
           const creator = members.find((m: any) => m.id === data.created_by)
           setCreatedByName(creator?.name || null)
         }
       }
-      await loadComments(taskId)
+      await loadSub(taskId)
       setLoading(false)
     }
     load()
-  }, [taskId, loadComments, members])
+  }, [taskId, loadSub, members])
 
   async function ensureId(): Promise<string | undefined> {
     if (id) return id
-    if (!title.trim()) return undefined
+    // Salva mesmo sem título ainda preenchido — "Sem título" até a pessoa nomear.
     const payload = {
-      title, type, status, note,
+      title: title.trim() || 'Sem título', type, status, priority, note,
       client_id: clientId || null,
       assigned_to: assignedTo,
       created_by: currentMember?.id || null,
       due_date: dueDate || null,
+      labels,
     }
     const { data } = await supabase.from('personal_tasks').insert(payload).select().single()
     if (data) {
       setId(data.id)
       ensureWatching('personal_tasks', data.id, [currentMember?.id, assignedTo])
-      await logActivity({ tableName: 'personal_tasks', recordId: data.id, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
+      await logActivity({ tableName: 'personal_tasks', recordId: data.id, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title.trim() || 'Sem título'}"` })
       setActivityKey(k => k + 1)
       return data.id
     }
@@ -151,6 +199,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
     persist({ status: v, ...completedPatch }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
   }
   function changeType(v: string) {
+    typeManualRef.current = true
     setType(v)
     persist({ type: v }, `${who} mudou o tipo para "${TYPE_OPTIONS.find(t => t.value === v)?.label || v}"`)
   }
@@ -164,6 +213,129 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
     const name = members.find((m: any) => m.id === v)?.name || 'alguém'
     persist({ assigned_to: v }, `${who} atribuiu essa tarefa pra ${name}`, 'member_assigned')
     if (id) ensureWatching('personal_tasks', id, [v])
+  }
+  function changePriority(v: string) {
+    setPriority(v)
+    persist({ priority: v }, `${who} definiu a prioridade: ${PRIORITY_OPTIONS.find(p => p.value === v)?.label || v}`)
+  }
+  const typeManualRef = useRef(!!taskId)
+  function onTitleChange(v: string) {
+    setTitle(v)
+    if (!typeManualRef.current) {
+      const lower = v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      if (/lembr/.test(lower)) setType('lembrete')
+      else if (/^nota|anota|observ/.test(lower)) setType('nota')
+    }
+  }
+
+  // Etiquetas globais (mesmo padrão de Cronograma/Extras/Materiais)
+  async function createGlobalLabel(text: string, color: string) {
+    const { data } = await supabase.from('labels').insert({ text, color }).select().single()
+    if (data) setGlobalLabels(g => [...g, data])
+    return data
+  }
+  async function updateGlobalLabel(labelId: string, text: string, color: string) {
+    const old = globalLabels.find(g => g.id === labelId)
+    await supabase.from('labels').update({ text, color }).eq('id', labelId)
+    setGlobalLabels(g => g.map(x => x.id === labelId ? { ...x, text, color } : x))
+    if (old) setLabels(ls => ls.map(l => (l.text === old.text && l.color === old.color) ? { text, color } : l))
+    setEditingLabel(null)
+  }
+  async function deleteGlobalLabel(labelId: string) {
+    const old = globalLabels.find(g => g.id === labelId)
+    await supabase.from('labels').delete().eq('id', labelId)
+    setGlobalLabels(g => g.filter(x => x.id !== labelId))
+    if (old) setLabels(ls => ls.filter(l => !(l.text === old.text && l.color === old.color)))
+    setEditingLabel(null)
+  }
+
+  // Anexos & Arquivos — mesmo padrão de Cronograma/Extras/Materiais (upload real + colar link)
+  async function uploadFile(file: File) {
+    setUploading(true)
+    const tid = await ensureId()
+    if (!tid) { toast('Erro ao criar a tarefa'); setUploading(false); return }
+    const path = `tasks/${tid}/${Date.now()}_${file.name}`
+    const { error } = await supabase.storage.from('bagano-materiais').upload(path, file, { upsert: false })
+    if (error) { toast('Erro no upload: ' + error.message); setUploading(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
+    const { data: row } = await supabase.from('personal_task_uploads').insert({
+      task_id: tid, filename: file.name, file_url: publicUrl, file_size: file.size, mime_type: file.type,
+    }).select().single()
+    if (row) setUploads(u => [...u, row])
+    setUploading(false)
+    await logActivity({ tableName: 'personal_tasks', recordId: tid, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} enviou o arquivo "${file.name}"` })
+    setActivityKey(k => k + 1)
+  }
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return
+    await uploadFile(file)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+  async function removeUpload(uid: string, fileUrl: string) {
+    const upload = uploads.find(u => u.id === uid)
+    const path = fileUrl.split('/bagano-materiais/')[1]
+    if (path) await supabase.storage.from('bagano-materiais').remove([path])
+    await supabase.from('personal_task_uploads').delete().eq('id', uid)
+    setUploads(u => u.filter(x => x.id !== uid))
+    if (id) {
+      await logActivity({ tableName: 'personal_tasks', recordId: id, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} removeu o arquivo "${upload?.filename || ''}"` })
+      setActivityKey(k => k + 1)
+    }
+  }
+  async function addAttachment() {
+    if (!newAttachUrl.trim()) return
+    const tid = await ensureId(); if (!tid) return
+    const url = newAttachUrl.trim()
+    const customTitle = newAttachTitle.trim() || null
+    const { data } = await supabase.from('personal_task_attachments').insert({ task_id: tid, url, title: customTitle }).select().single()
+    if (data) setAttachments(a => [...a, data])
+    setNewAttachUrl(''); setNewAttachTitle(''); setShowAttachInput(false)
+    await logActivity({ tableName: 'personal_tasks', recordId: tid, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} anexou "${customTitle || hostOf(url)}"` })
+    setActivityKey(k => k + 1)
+    if (!customTitle && data) {
+      const fetched = await fetchLinkTitle(url)
+      if (fetched) {
+        await supabase.from('personal_task_attachments').update({ title: fetched }).eq('id', data.id)
+        setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
+      }
+    }
+  }
+  async function addAttachmentUrl(url: string) {
+    const tid = await ensureId(); if (!tid) return
+    const { data } = await supabase.from('personal_task_attachments').insert({ task_id: tid, url, title: null }).select().single()
+    if (data) setAttachments(a => [...a, data])
+    await logActivity({ tableName: 'personal_tasks', recordId: tid, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} anexou "${hostOf(url)}"` })
+    setActivityKey(k => k + 1)
+    const fetched = await fetchLinkTitle(url)
+    if (fetched && data) {
+      await supabase.from('personal_task_attachments').update({ title: fetched }).eq('id', data.id)
+      setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
+    }
+  }
+  async function removeAttachment(aid: string) {
+    const att = attachments.find(a => a.id === aid)
+    await supabase.from('personal_task_attachments').delete().eq('id', aid)
+    setAttachments(a => a.filter(x => x.id !== aid))
+    if (id) {
+      await logActivity({ tableName: 'personal_tasks', recordId: id, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} removeu o anexo "${att?.title || ''}"` })
+      setActivityKey(k => k + 1)
+    }
+  }
+  async function handlePaste(e: React.ClipboardEvent) {
+    const tag = (e.target as HTMLElement).tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return
+    const imgItem = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
+    if (imgItem) {
+      const file = imgItem.getAsFile()
+      if (file) { e.preventDefault(); await uploadFile(file); return }
+    }
+    const text = e.clipboardData.getData('text/plain').trim()
+    if (/^https?:\/\/\S+$/.test(text)) { e.preventDefault(); await addAttachmentUrl(text) }
+  }
+  async function handleCardDrop(e: React.DragEvent) {
+    if (e.dataTransfer.files.length === 0) return
+    e.preventDefault()
+    for (const file of Array.from(e.dataTransfer.files)) await uploadFile(file)
   }
 
   async function handleDelete() {
@@ -203,6 +375,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
   const clientName = clients.find(c => c.id === clientId)?.name
   const typeObj = TYPE_OPTIONS.find(t => t.value === type)
   const statusObj = STATUS_OPTIONS.find(s => s.value === status)
+  const priorityObj = PRIORITY_OPTIONS.find(p => p.value === priority)
 
   if (loading) return (
     <ModalPortal>
@@ -230,8 +403,17 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
     <ModalPortal>
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center md:py-6 md:px-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[880px] max-h-full md:max-h-[88vh] flex flex-col shadow-pop overflow-hidden animate-scale-in"
-        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        onPaste={handlePaste}
+        onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setCardDragOver(true) } }}
+        onDragLeave={e => { if (e.currentTarget === e.target) setCardDragOver(false) }}
+        onDrop={e => { setCardDragOver(false); handleCardDrop(e) }}>
+        {cardDragOver && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--color-accent)]/10 pointer-events-none">
+            <span className="text-sm font-bold px-4 py-2 rounded-xl bg-[var(--color-accent)] text-white shadow-lg">Solte pra anexar</span>
+          </div>
+        )}
 
         <div className="md:hidden flex items-center border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
           <button onClick={() => setMobilePane('details')} className="flex-1 text-center py-2.5 text-sm font-semibold relative"
@@ -254,7 +436,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
           <div className="flex-1 min-w-0">
             <input value={title}
               onFocus={() => { if (titleOriginal.current === null) titleOriginal.current = title }}
-              onChange={e => setTitle(e.target.value)}
+              onChange={e => onTitleChange(e.target.value)}
               onBlur={() => {
                 const orig = titleOriginal.current
                 titleOriginal.current = null
@@ -289,8 +471,8 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
         </div>
 
         {/* PROPRIEDADES */}
-        <div className="px-4 md:px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2">
+        <div className="px-4 md:px-7 py-2.5 bg-[var(--color-bg-card)] border-b border-[var(--color-border)] flex flex-col gap-1.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-3 gap-y-2">
             <PropertyPill label="Tipo">
               <div className="relative min-w-0">
                 <select value={type} onChange={e => changeType(e.target.value)}
@@ -328,12 +510,38 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
                 <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
               </div>
             </PropertyPill>
+            <PropertyPill label="Prioridade">
+              <div className="relative min-w-0">
+                <select value={priority} onChange={e => changePriority(e.target.value)}
+                  className={pillSelectCls} style={{ background: (priorityObj?.color || '#6b7280') + '18', color: priorityObj?.color || '#6b7280', borderColor: (priorityObj?.color || '#6b7280') + '44' }}>
+                  {PRIORITY_OPTIONS.map(p => <option key={p.value} value={p.value} style={{ color: 'var(--color-text-primary)' }}>{p.label}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: priorityObj?.color || '#6b7280' }} />
+              </div>
+            </PropertyPill>
           </div>
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Calendar size={12} className="text-[var(--color-text-muted)] flex-shrink-0" />
             <input type="date" value={dueDate}
               onChange={e => { setDueDate(e.target.value); persist({ due_date: e.target.value || null }, e.target.value ? `${who} definiu o prazo` : `${who} removeu o prazo`) }}
               className="text-xs font-medium bg-transparent outline-none text-[var(--color-text-secondary)]" />
+            <Tag size={12} className="text-[var(--color-text-muted)] flex-shrink-0 ml-2" />
+            <div className="flex flex-wrap gap-1.5 items-center min-w-0">
+              {labels.map((l, i) => (
+                <span key={i} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md text-white" style={{ background: l.color }}>
+                  {l.text}
+                  <button onClick={() => {
+                    const next = labels.filter((_, idx) => idx !== i)
+                    setLabels(next)
+                    persist({ labels: next }, `${who} removeu a etiqueta "${l.text}"`)
+                  }}><X size={9} /></button>
+                </span>
+              ))}
+              <button onClick={() => setShowLabelPicker(true)}
+                className="text-[11px] px-2 py-0.5 rounded-full border border-dashed border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-strong)] transition-colors">
+                + Etiqueta
+              </button>
+            </div>
           </div>
         </div>
 
@@ -343,8 +551,58 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
             label="Nota" hint="· detalhes, contexto, checklist em texto"
             placeholder="Detalhes da tarefa, contexto, o que precisa ser feito…"
             value={note} minH={120}
-            onCommit={v => { const hadId = !!id; setNote(v); persist({ note: v }, hadId ? `${who} editou a nota` : undefined) }}
+            onCommit={async v => {
+              const hadId = !!id
+              setNote(v)
+              const tid = await persist({ note: v }, hadId ? `${who} editou a nota` : undefined)
+              if (tid) {
+                const summary = await generateAiSummary(v, title)
+                if (summary != null) await supabase.from('personal_tasks').update({ ai_summary: summary }).eq('id', tid)
+              }
+            }}
           />
+
+          {/* ANEXOS & ARQUIVOS */}
+          <div>
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Anexos & Arquivos</span>
+              <span className="text-[10px] text-[var(--color-text-faint)]">· uploads e links</span>
+            </div>
+
+            <AttachmentsGrid
+              uploads={uploads}
+              links={attachments}
+              onRemoveUpload={u => removeUpload(u.id, u.file_url)}
+              onRemoveLink={l => removeAttachment(l.id)}
+            />
+
+            <div className="flex gap-2">
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+              <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-alt)] border border-dashed border-[var(--color-border-hover)] flex-1 justify-center disabled:opacity-50">
+                {uploading ? (
+                  <><div className="w-3 h-3 border border-[#A8A59E] border-t-transparent rounded-full animate-spin" /> Enviando…</>
+                ) : (
+                  <><Upload size={13} /> Enviar arquivo</>
+                )}
+              </button>
+              {!showAttachInput ? (
+                <button onClick={() => setShowAttachInput(true)}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-alt)] border border-dashed border-[var(--color-border-hover)] flex-1 justify-center">
+                  <Link2 size={13} /> Colar link
+                </button>
+              ) : (
+                <div className="flex flex-col gap-2 flex-1 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg p-3">
+                  <input value={newAttachUrl} onChange={e => setNewAttachUrl(e.target.value)} placeholder="https://drive.google.com/…" className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]" />
+                  <input value={newAttachTitle} onChange={e => setNewAttachTitle(e.target.value)} placeholder="Nome (opcional)" className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-card)]" />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => setShowAttachInput(false)} className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
+                    <button onClick={addAttachment} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">Anexar</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
           {id && (
             <button onClick={() => setConfirmDelete(true)}
@@ -447,6 +705,68 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, cli
         </div>
       </div>
     </div>
+
+    {showLabelPicker && (
+      <div className="fixed inset-0 bg-black/40 z-[80] flex items-center justify-center p-4" onClick={() => { setShowLabelPicker(false); setEditingLabel(null) }}>
+        <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-xl w-full max-w-sm p-4" onClick={e => e.stopPropagation()}>
+          <p className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider mb-3">Etiquetas</p>
+          {globalLabels.length > 0 && (
+            <div className="flex flex-col gap-1 mb-3 max-h-[240px] overflow-y-auto">
+              {globalLabels.map(gl => {
+                const applied = labels.some(l => l.text === gl.text && l.color === gl.color)
+                const isEditing = editingLabel?.id === gl.id
+                return isEditing ? (
+                  <div key={gl.id} className="flex flex-col gap-2 p-2 rounded-lg bg-[var(--color-bg-subtle)]">
+                    <input value={editingLabel.text} onChange={e => setEditingLabel((d: any) => ({ ...d, text: e.target.value }))}
+                      className="border border-[var(--color-border)] rounded-lg px-2 py-1 text-xs bg-[var(--color-bg-card)] outline-none" />
+                    <div className="flex gap-1.5">
+                      {LABEL_PALETTE.map(p => <button key={p.color} onClick={() => setEditingLabel((d: any) => ({ ...d, color: p.color }))}
+                        className={`w-6 h-6 rounded-md ${editingLabel.color === p.color ? 'ring-2 ring-offset-1 ring-[var(--color-brand)]' : ''}`} style={{ background: p.color }} />)}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => updateGlobalLabel(gl.id, editingLabel.text, editingLabel.color)} className="flex-1 py-1.5 text-xs font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Salvar</button>
+                      <button onClick={() => deleteGlobalLabel(gl.id)} className="px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors" style={{ borderColor: 'var(--ds-error-border)', color: 'var(--ds-error-text)' }}>Excluir</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={gl.id} className="flex items-center gap-2">
+                    <button onClick={() => {
+                      const next = applied ? labels.filter(l => !(l.text === gl.text && l.color === gl.color)) : [...labels, { text: gl.text, color: gl.color }]
+                      setLabels(next)
+                      persist({ labels: next }, applied ? `${who} removeu a etiqueta "${gl.text}"` : `${who} aplicou a etiqueta "${gl.text}"`)
+                    }} className={`flex-1 flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors ${applied ? '' : 'hover:bg-[var(--color-bg-subtle)]'}`}
+                      style={applied ? { background: gl.color + '22', border: `1px solid ${gl.color}66` } : {}}>
+                      <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: gl.color }} />
+                      <span className="text-xs font-medium text-[var(--color-text-primary)] flex-1 truncate">{gl.text}</span>
+                      {applied && <Check size={12} style={{ color: gl.color }} />}
+                    </button>
+                    <button onClick={() => setEditingLabel(gl)} className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)]"><Pencil size={12} /></button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          <div className="border-t border-[var(--color-border)] pt-3 flex flex-col gap-2">
+            <input value={labelDraft.text} onChange={e => setLabelDraft(d => ({ ...d, text: e.target.value }))} placeholder="Texto da etiqueta"
+              className="border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs bg-[var(--color-bg-input)] outline-none focus:border-[var(--color-accent)]" />
+            <div className="flex gap-1.5">
+              {LABEL_PALETTE.map(p => <button key={p.color} onClick={() => setLabelDraft(d => ({ ...d, color: p.color }))}
+                className={`w-7 h-7 rounded-lg ${labelDraft.color === p.color ? 'ring-2 ring-offset-1 ring-[var(--color-brand)]' : ''}`} style={{ background: p.color }} />)}
+            </div>
+            <button onClick={async () => {
+              if (labelDraft.text.trim()) {
+                await createGlobalLabel(labelDraft.text, labelDraft.color)
+                const next = [...labels, { ...labelDraft }]
+                setLabels(next)
+                persist({ labels: next }, `${who} criou e aplicou a etiqueta "${labelDraft.text}"`)
+                setLabelDraft({ text: '', color: '#3B82F6' })
+              }
+            }} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">+ Nova etiqueta</button>
+          </div>
+          <button onClick={() => { setShowLabelPicker(false); setEditingLabel(null) }} className="w-full mt-3 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] py-1.5">Fechar</button>
+        </div>
+      </div>
+    )}
     </ModalPortal>
   )
 }

@@ -28,6 +28,7 @@ function TarefasPageInner() {
 
   const [tasks, setTasks] = useState<any[]>([])
   const [clients, setClients] = useState<Client[]>([])
+  const [previewMap, setPreviewMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [openTaskId, setOpenTaskId] = useState<string | null>(searchParams.get('task'))
   const [showNewFor, setShowNewFor] = useState<string | null>(null)
@@ -46,6 +47,16 @@ function TarefasPageInner() {
     setTasks(t || [])
     setClients(cl || [])
     setLoading(false)
+
+    const ids = (t || []).map((x: any) => x.id)
+    if (ids.length > 0) {
+      const { data: ups } = await supabase.from('personal_task_uploads').select('task_id, file_url, mime_type').in('task_id', ids).order('created_at', { ascending: true })
+      const map: Record<string, string> = {}
+      ;(ups || []).forEach((u: any) => { if (!map[u.task_id] && (u.mime_type || '').startsWith('image/')) map[u.task_id] = u.file_url })
+      setPreviewMap(map)
+    } else {
+      setPreviewMap({})
+    }
   }
 
   useEffect(() => { load() }, [currentMember?.id])
@@ -114,10 +125,11 @@ function TarefasPageInner() {
 
                   <div className={`flex flex-col gap-2 min-h-[80px] rounded-xl transition-colors ${isDragTarget ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
                     {colTasks.map(t => (
-                      <TaskMiniCard key={t.id} task={t} clientMap={clientMap}
+                      <TaskMiniCard key={t.id} task={t} clientMap={clientMap} previewUrl={previewMap[t.id]}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('taskId', t.id); setDraggingId(t.id) }}
                         onClick={() => { if (!draggingId) { setOpenTaskId(t.id); window.history.replaceState(null, '', `?task=${t.id}`) } }}
+                        onMarkDone={col.key !== 'feito' ? () => moveStatus(t.id, 'feito') : undefined}
                       />
                     ))}
                     {colTasks.length === 0 && !isDragTarget && (
