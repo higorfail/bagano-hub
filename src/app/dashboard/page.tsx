@@ -112,6 +112,7 @@ export default function DashboardPage() {
   const [captacoes,    setCaptacoes]    = useState<Captacao[]>([])
   const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
   const [myExtras,     setMyExtras]     = useState<any[]>([])
+  const [myMaterials,  setMyMaterials]  = useState<any[]>([])
   const [loading,      setLoading]      = useState(true)
   const [loadError,    setLoadError]    = useState(false)
 
@@ -179,6 +180,22 @@ export default function DashboardPage() {
       .contains('assigned_members', [currentMember.id])
       .order('due_date', { ascending: true, nullsFirst: false })
       .then(({ data }) => { if (data) setMyExtras(data) })
+  }, [currentMember?.id])
+
+  useEffect(() => {
+    if (!currentMember?.id) return
+    supabase
+      .from('materials')
+      .select('id, title, status, client_id, due_date, assigned_members, assigned_to')
+      .neq('status', 'finalizado')
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .then(({ data }) => {
+        if (!data) return
+        setMyMaterials(data.filter(m => {
+          const assigned = m.assigned_members?.length ? m.assigned_members : m.assigned_to ? [m.assigned_to] : []
+          return assigned.includes(currentMember.id)
+        }))
+      })
   }, [currentMember?.id])
 
   // Donut do "Visão geral" — busca o mês escolhido (só quando difere do mês atual; o atual reusa `schedules`)
@@ -421,7 +438,7 @@ export default function DashboardPage() {
   }
 
   const firstName = currentMember?.name.split(' ')[0]
-  const paraVoceContent = myClientCards.length > 0 || myExtras.length > 0
+  const paraVoceContent = myClientCards.length > 0 || myExtras.length > 0 || myMaterials.length > 0
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-page)]">
@@ -510,6 +527,20 @@ export default function DashboardPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-[var(--color-text-primary)]">{myExtras.length} {pl(myExtras.length, 'tarefa pendente', 'tarefas pendentes')}</p>
                         <p className="text-xs text-[var(--color-text-muted)] truncate">“{myExtras[0].title}”{clientMap[myExtras[0].client_id] ? ` · ${clientMap[myExtras[0].client_id].name}` : ''}</p>
+                      </div>
+                      <ChevronRight size={14} className="text-[var(--color-text-faint)] flex-shrink-0" />
+                    </button>
+                  )}
+
+                  {myMaterials.length > 0 && (
+                    <button onClick={() => myMaterials[0].client_id ? router.push(`/dashboard/clientes/${myMaterials[0].client_id}?tab=materiais`) : router.push('/dashboard/materiais')}
+                      className="w-full text-left rounded-2xl bg-[var(--color-bg-subtle)] p-4 flex items-center gap-3 hover:bg-[var(--color-bg-page)] transition-colors">
+                      <div className="w-10 h-10 rounded-xl border-2 border-dashed flex items-center justify-center flex-shrink-0" style={{ borderColor: 'var(--color-accent)' }}>
+                        <Package size={15} style={{ color: 'var(--color-accent)' }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[var(--color-text-primary)]">{myMaterials.length} {pl(myMaterials.length, 'material pendente', 'materiais pendentes')}</p>
+                        <p className="text-xs text-[var(--color-text-muted)] truncate">“{myMaterials[0].title}”{clientMap[myMaterials[0].client_id] ? ` · ${clientMap[myMaterials[0].client_id].name}` : ''}</p>
                       </div>
                       <ChevronRight size={14} className="text-[var(--color-text-faint)] flex-shrink-0" />
                     </button>
