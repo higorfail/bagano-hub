@@ -46,8 +46,8 @@ export default function KanbanPage() {
   const [loading, setLoading] = useState(true)
   const [dragging, setDragging] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
-  const [selectedYear] = useState(new Date().getFullYear())
+  // null = mostra todos os meses; senão filtra pelo mês/ano escolhido
+  const [filterPeriod, setFilterPeriod] = useState<{ month: number; year: number } | null>(null)
   const [showPostCard, setShowPostCard] = useState(false)
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
   const [editingClientId, setEditingClientId] = useState<string | null>(null)
@@ -57,14 +57,15 @@ export default function KanbanPage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
+      // Sem filtro de mês/ano na query — o Kanban mostra todos os posts por padrão;
+      // o filtro de período é só client-side (visiblePosts), pra poder alternar sem recarregar.
       const [{ data: clientData }, { data: postData }, { data: cronoData }] = await Promise.all([
         supabase.from('clients').select('id, name, color_hex').eq('status', 'active'),
         supabase.from('schedules')
           .select('id, post_number, title, post_type, status, scheduled_date, client_id, month, year, approval_status, approval_comment, drive_url, funil, copy, campaign_type')
-          .eq('month', selectedMonth).eq('year', selectedYear).order('post_number'),
+          .order('year', { ascending: false }).order('month', { ascending: false }).order('post_number'),
         supabase.from('cronograma_status')
-          .select('client_id, month, year, status')
-          .eq('month', selectedMonth).eq('year', selectedYear),
+          .select('client_id, month, year, status'),
       ])
       setClients(clientData || [])
       setPosts(postData || [])
@@ -74,7 +75,7 @@ export default function KanbanPage() {
       setLoading(false)
     }
     load()
-  }, [selectedMonth, selectedYear])
+  }, [])
 
   async function movePost(postId: string, toColKey: string) {
     const dbStatus = toColKey === 'crono_feito' ? 'producao' : toColKey
@@ -103,20 +104,29 @@ export default function KanbanPage() {
     if (error) { setPosts(prev); dbError(error, toast, 'mover cliente') }
   }
 
+  const visiblePosts = filterPeriod
+    ? posts.filter(p => p.month === filterPeriod.month && p.year === filterPeriod.year)
+    : posts
+
+  // Opções de período disponíveis — derivadas do que existe nos posts carregados
+  const periodOptions = Array.from(
+    new Map(posts.map(p => [`${p.month}-${p.year}`, { month: p.month, year: p.year }])).values()
+  ).sort((a, b) => b.year - a.year || b.month - a.month)
+
   function getColPosts(colKey: string): Post[] {
     if (colKey === 'crono_feito') {
-      return posts.filter(p => {
+      return visiblePosts.filter(p => {
         const key = `${p.client_id}-${p.month}-${p.year}`
         return p.status === 'producao' && cronoStatuses[key] === 'finalizado'
       })
     }
     if (colKey === 'producao') {
-      return posts.filter(p => {
+      return visiblePosts.filter(p => {
         const key = `${p.client_id}-${p.month}-${p.year}`
         return p.status === 'producao' && cronoStatuses[key] !== 'finalizado'
       })
     }
-    return posts.filter(p => p.status === colKey)
+    return visiblePosts.filter(p => p.status === colKey)
   }
 
   function openPostCard(post: Post) {
@@ -131,16 +141,17 @@ export default function KanbanPage() {
     const { data } = await createClient()
       .from('schedules')
       .select('id, post_number, title, post_type, status, scheduled_date, client_id, month, year, approval_status, approval_comment, drive_url, funil, copy, campaign_type')
-      .eq('month', selectedMonth).eq('year', selectedYear).order('post_number')
+      .order('year', { ascending: false }).order('month', { ascending: false }).order('post_number')
     setPosts(data || [])
   }
 
   if (loading) return <div className="p-6 text-sm text-[var(--color-text-muted)]">Carregando...</div>
 
-  const totalPosts = posts.length
-  const publishedPosts = posts.filter(p => p.status === 'publicado').length
-  const pendingApproval = posts.filter(p => p.approval_status === 'não aprovado' && !['aprovado', 'agendado', 'publicado'].includes(p.status)).length
+  const totalPosts = visiblePosts.length
+  const publishedPosts = visiblePosts.filter(p => p.status === 'publicado').length
+  const pendingApproval = visiblePosts.filter(p => p.approval_status === 'não aprovado' && !['aprovado', 'agendado', 'publicado'].includes(p.status)).length
   const cronoFeitoCount = getColPosts('crono_feito').length
+  const editingPost = editingPostId ? posts.find(p => p.id === editingPostId) : null
 
   return (
     <div className="flex flex-col h-full">
@@ -149,7 +160,7 @@ export default function KanbanPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Kanban</h1>
-            <p className="text-[var(--color-text-muted)] text-xs mt-0.5">{publishedPosts}/{totalPosts} publicados · {MONTHS_FULL[selectedMonth - 1]}</p>
+            <p className="text-[var(--color-text-muted)] text-xs mt-0.5">{publishedPosts}/{totalPosts} publicados · {filterPeriod ? `${MONTHS_FULL[filterPeriod.month - 1]} ${filterPeriod.year}` : 'todos os meses'}</p>
           </div>
           {cronoFeitoCount > 0 && (
             <div className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 border" style={{ background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
@@ -162,10 +173,21 @@ export default function KanbanPage() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <button onClick={() => setSelectedMonth(m => m === 1 ? 12 : m - 1)} className="w-8 h-8 rounded-xl border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
-          <span className="text-sm font-medium text-[var(--color-text-primary)] w-28 text-center">{MONTHS_FULL[selectedMonth - 1]} {selectedYear}</span>
-          <button onClick={() => setSelectedMonth(m => m === 12 ? 1 : m + 1)} className="w-8 h-8 rounded-xl border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">›</button>
+        <div className="relative">
+          <select
+            value={filterPeriod ? `${filterPeriod.month}-${filterPeriod.year}` : 'all'}
+            onChange={e => {
+              if (e.target.value === 'all') { setFilterPeriod(null); return }
+              const [m, y] = e.target.value.split('-').map(Number)
+              setFilterPeriod({ month: m, year: y })
+            }}
+            className="appearance-none text-sm font-medium rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] pl-3 pr-8 py-1.5 text-[var(--color-text-primary)] outline-none cursor-pointer hover:border-[var(--color-border-hover)]">
+            <option value="all">Todos os meses</option>
+            {periodOptions.map(p => (
+              <option key={`${p.month}-${p.year}`} value={`${p.month}-${p.year}`}>{MONTHS_FULL[p.month - 1]} {p.year}</option>
+            ))}
+          </select>
+          <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
         </div>
       </div>
 
@@ -346,8 +368,8 @@ export default function KanbanPage() {
           clientId={editingClientId}
           clientColor={getClient(editingClientId)?.color_hex}
           clientName={getClient(editingClientId)?.name}
-          month={selectedMonth}
-          year={selectedYear}
+          month={editingPost?.month || new Date().getMonth() + 1}
+          year={editingPost?.year || new Date().getFullYear()}
           onClose={() => { setShowPostCard(false); setEditingPostId(null); setEditingClientId(null) }}
           onSaved={reloadPosts}
           onDeleted={reloadPosts}
