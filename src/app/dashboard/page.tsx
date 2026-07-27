@@ -187,7 +187,6 @@ export default function DashboardPage() {
   const month    = now.getMonth() + 1
   const year     = now.getFullYear()
   const todayStr = now.toISOString().split('T')[0]
-  const in7Str   = new Date(now.getTime() +   7 * 86400000).toISOString().split('T')[0]
   const in120Str = new Date(now.getTime() + 120 * 86400000).toISOString().split('T')[0]
 
   useEffect(() => {
@@ -291,11 +290,18 @@ export default function DashboardPage() {
   [schedules])
 
 
-  const upcoming7 = useMemo(() =>
-    schedules
-      .filter(s => s.scheduled_date && s.scheduled_date >= todayStr && s.scheduled_date <= in7Str)
-      .sort((a, b) => (a.scheduled_date || '').localeCompare(b.scheduled_date || '')),
-  [schedules, todayStr, in7Str])
+  // Pendências de aprovação por cliente — mês inteiro (não só o que publica essa
+  // semana), pra responder "quanto cada cliente tem esperando resposta AGORA".
+  const pendingApprovalByClient = useMemo(() => {
+    const byClient = schedules.reduce((acc, s) => {
+      (acc[s.client_id] ||= { cid: s.client_id, posts: [] as Schedule[] }).posts.push(s)
+      return acc
+    }, {} as Record<string, { cid: string; posts: Schedule[] }>)
+    return Object.values(byClient)
+      .map(g => ({ ...g, pendingCount: g.posts.filter(s => [CFG.S.aguardandoAprovacao, CFG.S.ajuste].includes(s.status)).length }))
+      .filter(g => g.pendingCount > 0)
+      .sort((a, b) => b.pendingCount - a.pendingCount)
+  }, [schedules])
 
   const pendingApproval = useMemo(() =>
     schedules.filter(s => s.status === CFG.S.aguardandoAprovacao),
@@ -531,11 +537,6 @@ export default function DashboardPage() {
     fetchAging('materials', materialIds, 'material')
   }, [loading, directAssigned.length, myExtras.length, myMaterials.length])
 
-  const upcomingByClient = Object.values(upcoming7.reduce((acc, s) => {
-    (acc[s.client_id] ||= { cid: s.client_id, posts: [] as Schedule[] }).posts.push(s)
-    return acc
-  }, {} as Record<string, { cid: string; posts: Schedule[] }>))
-
   if (loading) return (
     <div className="flex items-center justify-center h-full">
       <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[var(--color-accent)] rounded-full animate-spin" />
@@ -735,17 +736,17 @@ export default function DashboardPage() {
               </div>
             </SectionCard>
 
-            {/* Próximos 7 dias */}
+            {/* Aguardando aprovação por cliente — mês inteiro, não só a semana */}
             <SectionCard
-              title="Próximos 7 dias"
-              action={<span className="text-xs text-[var(--color-text-muted)]">{upcoming7.length} {pl(upcoming7.length, 'post', 'posts')}</span>}
+              title="Aguardando aprovação"
+              action={<span className="text-xs text-[var(--color-text-muted)]">{pendingApprovalByClient.reduce((n, g) => n + g.pendingCount, 0)} {pl(pendingApprovalByClient.reduce((n, g) => n + g.pendingCount, 0), 'post', 'posts')}</span>}
               bodyClassName="px-4 pb-4 space-y-2.5"
             >
-              {upcoming7.length === 0 ? (
-                <p className="text-sm text-[var(--color-text-muted)] py-6 text-center">Nada agendado</p>
+              {pendingApprovalByClient.length === 0 ? (
+                <p className="text-sm text-[var(--color-text-muted)] py-6 text-center">Nada esperando o cliente 🎉</p>
               ) : (
                 <>
-                  {upcomingByClient.slice(0, 4).map(({ cid, posts }) => {
+                  {pendingApprovalByClient.slice(0, 4).map(({ cid, posts, pendingCount }) => {
                     const client = clientMap[cid]
                     const pronto     = posts.filter(s => [CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)).length
                     const comCliente = posts.filter(s => s.status === CFG.S.aguardandoAprovacao).length
@@ -764,7 +765,7 @@ export default function DashboardPage() {
                           <ClientAvatar clientId={cid} size={40} />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{client?.name}</p>
-                            <p className="text-xs text-[var(--color-text-muted)] truncate">{posts.length} {pl(posts.length, 'post', 'posts')} · esta semana</p>
+                            <p className="text-xs text-[var(--color-text-muted)] truncate">{pendingCount} {pl(pendingCount, 'post esperando', 'posts esperando')} resposta</p>
                           </div>
                           <ChevronRight size={15} className="text-[var(--color-text-faint)] flex-shrink-0" />
                         </div>
@@ -782,9 +783,9 @@ export default function DashboardPage() {
                       </button>
                     )
                   })}
-                  {upcomingByClient.length > 4 && (
-                    <button onClick={() => router.push('/dashboard/cronograma')} className="w-full text-center text-xs font-semibold text-[var(--color-accent)] hover:underline py-1">
-                      Ver cronograma →
+                  {pendingApprovalByClient.length > 4 && (
+                    <button onClick={() => router.push('/dashboard/aprovacao')} className="w-full text-center text-xs font-semibold text-[var(--color-accent)] hover:underline py-1">
+                      Ver aprovações →
                     </button>
                   )}
                 </>
