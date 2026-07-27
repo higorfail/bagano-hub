@@ -9,6 +9,8 @@ interface TaskMiniCardProps {
   /** Posição desse post-it entre todas as notas do quadro (0-based) — decide a cor. */
   noteIndex?: number
   totalNotes?: number
+  /** Só usado quando o card aparece fora do Quadro pessoal de quem está vendo (ex: aba do cliente, geral pra todo mundo) */
+  assignee?: { name: string; color: string }
   onClick: () => void
   onMarkDone?: () => void
   onDelete?: () => void
@@ -16,12 +18,6 @@ interface TaskMiniCardProps {
   onDragStart?: (e: React.DragEvent) => void
 }
 
-const TYPE_LABEL: Record<string, string> = { tarefa: 'Tarefa', lembrete: 'Lembrete', nota: 'Nota' }
-const TYPE_COLOR: Record<string, string> = {
-  tarefa:   'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]',
-  lembrete: 'bg-[var(--ds-warn-bg)] text-[var(--ds-warn-text)]',
-}
-const TYPE_EMOJI: Record<string, string> = { tarefa: '✅', lembrete: '⏰', nota: '📝' }
 const PRIORITY_COLOR: Record<string, string> = { low: '#94a3b8', normal: '#6b7280', high: '#ef4444' }
 const PRIORITY_LABEL: Record<string, string> = { low: 'Baixa', normal: 'Normal', high: 'Alta' }
 
@@ -31,6 +27,10 @@ const PRIORITY_LABEL: Record<string, string> = { low: 'Baixa', normal: 'Normal',
 // nota no quadro (senão fica tudo amarelo).
 const NOTE_PALETTE_SIZE = 6
 
+function initials(name: string) {
+  return (name || '?').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+}
+
 // Ângulo pequeno e estável por tarefa (não randomiza a cada render)
 function hashAngle(id: string) {
   let h = 0
@@ -38,7 +38,7 @@ function hashAngle(id: string) {
   return (h / 1000 - 0.5) * 1.4 // entre -0.7° e 0.7°
 }
 
-export default function TaskMiniCard({ task: t, clientMap, previewUrl, noteIndex = 0, totalNotes = 1, onClick, onMarkDone, onDelete, draggable, onDragStart }: TaskMiniCardProps) {
+export default function TaskMiniCard({ task: t, clientMap, previewUrl, noteIndex = 0, totalNotes = 1, assignee, onClick, onMarkDone, onDelete, draggable, onDragStart }: TaskMiniCardProps) {
   const [checked, setChecked] = useState(t.status === 'feito')
   const [leaving, setLeaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -70,12 +70,18 @@ export default function TaskMiniCard({ task: t, clientMap, previewUrl, noteIndex
 
   const deleteButton = onDelete && (
     <button onClick={handleDeleteClick} title={confirmDelete ? 'Clique de novo pra confirmar' : 'Excluir'}
-      className="absolute top-1.5 right-1.5 z-20 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+      className="absolute bottom-1.5 right-1.5 z-20 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
       style={{ background: confirmDelete ? 'var(--ds-error-accent)' : 'rgba(0,0,0,0.14)', color: '#fff' }}>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
       </svg>
     </button>
+  )
+
+  const assigneeChip = assignee && (
+    <div title={assignee.name} className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0" style={{ background: assignee.color }}>
+      {initials(assignee.name)}
+    </div>
   )
 
   // ─── NOTA — post-it ────────────────────────────────────────────────────
@@ -91,7 +97,7 @@ export default function TaskMiniCard({ task: t, clientMap, previewUrl, noteIndex
         className="group relative flex flex-col gap-2 cursor-pointer overflow-hidden"
         style={{
           padding: '14px 14px 12px',
-          borderRadius: 3,
+          borderRadius: 8,
           borderTopRightRadius: 0,
           background: `linear-gradient(160deg, var(--note-c1-${paletteIdx}) 0%, var(--note-c2-${paletteIdx}) 100%)`,
           transform: leaving ? 'scale(0.9) rotate(0deg)' : `rotate(${angle}deg)`,
@@ -100,28 +106,23 @@ export default function TaskMiniCard({ task: t, clientMap, previewUrl, noteIndex
           boxShadow: '0 3px 7px rgba(60, 45, 5, 0.16), 0 1px 2px rgba(60, 45, 5, 0.1)',
         }}
       >
-        {onDelete && (
-          <button onClick={handleDeleteClick} title={confirmDelete ? 'Clique de novo pra confirmar' : 'Excluir'}
-            className="absolute top-1.5 left-1.5 z-20 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-            style={{ background: confirmDelete ? 'var(--ds-error-accent)' : 'rgba(0,0,0,0.14)', color: '#fff' }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-            </svg>
-          </button>
-        )}
+        {deleteButton}
         {/* Dobra do canto — recorte triangular + sombra, encaixado no canto reto (top-right sem radius) */}
         <div className="absolute top-0 right-0 pointer-events-none" style={{ width: 15, height: 15, zIndex: 2,
           clipPath: 'polygon(0 0, 100% 0, 100% 100%)',
           background: 'linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(0,0,0,0.14) 65%)',
           filter: 'drop-shadow(-1px 1px 1.5px rgba(60,45,5,0.25))',
         }} />
-        {labels.length > 0 && (
-          <div className="flex flex-wrap gap-1 relative z-[1]">
-            {labels.map((l, i) => (
-              <span key={i} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white flex-shrink-0" style={{ background: l.color }}>{l.text}</span>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center justify-between gap-1 relative z-[1]">
+          {labels.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {labels.map((l, i) => (
+                <span key={i} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white flex-shrink-0" style={{ background: l.color }}>{l.text}</span>
+              ))}
+            </div>
+          ) : <span />}
+          {assigneeChip}
+        </div>
         <p className="text-sm leading-snug break-words relative z-[1]" style={{ color: inkVar, fontFamily: 'Georgia, serif' }}>{t.title}</p>
         {(t.ai_summary || t.note) && (
           <p className="text-[11px] leading-relaxed overflow-hidden relative z-[1]" style={{ color: inkVar, opacity: 0.75, maxHeight: '3em', WebkitMaskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 70%, transparent 100%)' }}>
@@ -152,7 +153,7 @@ export default function TaskMiniCard({ task: t, clientMap, previewUrl, noteIndex
         <div className="absolute -left-[6px] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full z-10"
           style={{ background: 'var(--color-bg-page)', border: '1px solid var(--color-border)' }} />
 
-        <div className="rounded-l-xl overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] flex w-full">
+        <div className="rounded-xl overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] flex w-full">
           {/* Canhoto */}
           <div className="w-8 flex-shrink-0 flex flex-col items-center justify-center gap-1 border-r border-dashed border-[var(--color-border-strong)]"
             style={{ background: 'var(--ds-warn-bg)' }}>
@@ -167,6 +168,7 @@ export default function TaskMiniCard({ task: t, clientMap, previewUrl, noteIndex
               {client && (
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: client.color_hex }}>{client.name}</span>
               )}
+              {assigneeChip}
               {!isDone && (
                 <button onClick={handleMarkDone} title="Marcar como feito"
                   className="ml-auto relative w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors"
@@ -201,10 +203,10 @@ export default function TaskMiniCard({ task: t, clientMap, previewUrl, noteIndex
     )
   }
 
-  // ─── TAREFA (padrão) — papel pautado ──────────────────────────────────
+  // ─── TAREFA (padrão) — papel pautado, bem sutil ───────────────────────
   return (
     <div onClick={onClick} draggable={draggable} onDragStart={onDragStart}
-      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-hidden flex flex-col shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 cursor-pointer"
+      className="group relative bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-hidden flex flex-col shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 cursor-pointer"
       style={{
         transform: leaving ? 'scale(0.92)' : undefined,
         opacity: leaving ? 0 : 1,
@@ -218,8 +220,8 @@ export default function TaskMiniCard({ task: t, clientMap, previewUrl, noteIndex
         </div>
       )}
       <div className="relative p-3 pl-4 flex flex-col gap-2"
-        style={{ backgroundImage: 'repeating-linear-gradient(to bottom, transparent, transparent 20px, var(--color-border) 20px, var(--color-border) 21px)', backgroundPosition: '0 4px' }}>
-        <div className="absolute left-2.5 top-0 bottom-0 w-px" style={{ background: 'var(--color-accent)', opacity: 0.25 }} />
+        style={{ backgroundImage: 'repeating-linear-gradient(to bottom, transparent, transparent 21px, var(--ruled-line) 21px, var(--ruled-line) 22px)', backgroundPosition: '0 6px' }}>
+        <div className="absolute left-2.5 top-0 bottom-0 w-px" style={{ background: 'var(--color-accent)', opacity: 0.12 }} />
         <div className="flex items-start gap-2">
           {!isDone && (
             <button onClick={handleMarkDone} title="Marcar como feito"
@@ -233,13 +235,13 @@ export default function TaskMiniCard({ task: t, clientMap, previewUrl, noteIndex
           )}
           <div className="flex-1 min-w-0 flex flex-col gap-2">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOR.tarefa}`}>{TYPE_EMOJI.tarefa} Tarefa</span>
               {t.priority && t.priority !== 'normal' && (
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: PRIORITY_COLOR[t.priority], background: PRIORITY_COLOR[t.priority] + '18' }}>{PRIORITY_LABEL[t.priority]}</span>
               )}
               {client && (
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: client.color_hex }}>{client.name}</span>
               )}
+              {assigneeChip}
             </div>
             {labels.length > 0 && (
               <div className="flex flex-wrap gap-1">

@@ -87,15 +87,18 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 
   // Tarefas do quadro pessoal vinculadas a este cliente — só as suas (mesma regra
   // de privacidade do quadro: cada um só vê o que está atribuído a si mesmo).
+  // Geral, de todos da equipe — tarefas vinculadas a este cliente não são privadas
+  // aqui (diferente do Quadro pessoal de cada um), já que o time inteiro precisa
+  // ver o que está pendente pra esse cliente.
   async function loadMyClientTasks() {
-    if (!currentMember || !id) return
+    if (!id) return
     const supabase = createClient()
     const { data } = await supabase.from('personal_tasks')
-      .select('*').eq('client_id', id).eq('assigned_to', currentMember.id)
+      .select('*').eq('client_id', id)
       .order('position', { ascending: true }).order('created_at', { ascending: false })
     setMyClientTasks(data || [])
   }
-  useEffect(() => { if (tab === 'tarefas') loadMyClientTasks() }, [tab, id, currentMember?.id])
+  useEffect(() => { if (tab === 'tarefas') loadMyClientTasks() }, [tab, id])
 
   async function markClientTaskDone(taskId: string) {
     const supabase = createClient()
@@ -584,8 +587,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-[var(--color-text-primary)]">Suas tarefas ligadas a {client.name}</p>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Só as suas — do seu Quadro pessoal, filtradas por este cliente</p>
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">Tarefas ligadas a {client.name}</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">De todo mundo da equipe — do Quadro pessoal de cada um, filtradas por este cliente</p>
                 </div>
                 <button onClick={() => setShowNewTask(true)}
                   className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl text-white hover:opacity-90 transition-opacity"
@@ -597,13 +600,17 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 <p className="text-sm text-[var(--color-text-muted)] py-8 text-center">Nada aqui ainda.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {myClientTasks.map(t => (
-                    <TaskMiniCard key={t.id} task={t} clientMap={{ [client.id]: { name: client.name, color_hex: client.color_hex } }}
-                      onClick={() => setOpenTaskId(t.id)}
-                      onMarkDone={t.status !== 'feito' ? () => markClientTaskDone(t.id) : undefined}
-                      onDelete={() => deleteClientTask(t.id)}
-                    />
-                  ))}
+                  {myClientTasks.map(t => {
+                    const assigneeMember = allMembers.find((m: any) => m.id === t.assigned_to)
+                    return (
+                      <TaskMiniCard key={t.id} task={t} clientMap={{ [client.id]: { name: client.name, color_hex: client.color_hex } }}
+                        assignee={assigneeMember ? { name: assigneeMember.name, color: assigneeMember.color || 'var(--color-brand)' } : undefined}
+                        onClick={() => setOpenTaskId(t.id)}
+                        onMarkDone={t.status !== 'feito' ? () => markClientTaskDone(t.id) : undefined}
+                        onDelete={() => deleteClientTask(t.id)}
+                      />
+                    )
+                  })}
                 </div>
               )}
             </div>
