@@ -605,7 +605,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
     <ModalPortal>
     <div
       className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center md:py-6 md:px-4"
-      onClick={e => { if (e.target === e.currentTarget) { handleSaveMain(); onClose() } }}
+      onClick={e => { if (e.target === e.currentTarget) { (document.activeElement as HTMLElement)?.blur(); handleSaveMain(); onClose() } }}
     >
       <div
         className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
@@ -691,7 +691,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
                 {approvalLinkCopied ? <><Check size={13} /> Copiado!</> : <><Send size={13} /> Link de aprovação</>}
               </button>
             )}
-            <button onClick={() => { handleSaveMain(); onClose() }}
+            <button onClick={() => { (document.activeElement as HTMLElement)?.blur(); handleSaveMain(); onClose() }}
               className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] transition-colors">
               <X size={16} />
             </button>
@@ -1109,7 +1109,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
             <button onClick={() => { onClose() }} className="px-4 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
               Cancelar
             </button>
-            <button onClick={() => { handleSaveMain(); onClose() }} disabled={saving || !title.trim()}
+            <button onClick={() => { (document.activeElement as HTMLElement)?.blur(); handleSaveMain(); onClose() }} disabled={saving || !title.trim()}
               className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg disabled:opacity-40 transition-opacity">
               {saving ? 'Salvando…' : 'Salvar'} {!saving && <ChevronRight size={14} />}
             </button>

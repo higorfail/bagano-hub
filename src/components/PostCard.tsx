@@ -738,7 +738,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     <ModalPortal>
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center md:py-4 md:px-4"
       onMouseDown={e => { backdropDown.current = e.target === e.currentTarget }}
-      onMouseUp={e => { if (backdropDown.current && e.target === e.currentTarget) onClose(); backdropDown.current = false }}
+      onMouseUp={e => { if (backdropDown.current && e.target === e.currentTarget) { (document.activeElement as HTMLElement)?.blur(); onClose() }; backdropDown.current = false }}
       onPaste={handlePaste}>
       <div
         className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
@@ -815,7 +815,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 {linkCopied ? <Check size={14} /> : <Link2 size={14} />}
               </button>
             )}
-            <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] transition-colors">
+            <button onClick={() => { (document.activeElement as HTMLElement)?.blur(); onClose() }} className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] transition-colors">
               <X size={16} />
             </button>
           </div>
