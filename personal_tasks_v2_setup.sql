@@ -39,5 +39,5 @@ BEGIN
   END IF;
 END $plpg$;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON personal_task_uploads TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON personal_task_attachments TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON personal_task_uploads TO authenticated, anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON personal_task_attachments TO authenticated, anon;

@@ -49,5 +49,8 @@ BEGIN
   END IF;
 END $plpg$;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON personal_tasks TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON personal_task_comments TO authenticated;
+-- O hub roda sem sessão de auth de verdade (login não é obrigatório) — todo
+-- request do navegador chega como role "anon", não "authenticated". Sem esse
+-- grant pro anon, insert dá 401 "permission denied for table" mesmo com RLS ok.
+GRANT SELECT, INSERT, UPDATE, DELETE ON personal_tasks TO authenticated, anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON personal_task_comments TO authenticated, anon;
