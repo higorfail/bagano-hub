@@ -24,9 +24,10 @@ function TarefasPageInner() {
   useEffect(() => { document.title = 'Quadro pessoal · Bagano Hub' }, [])
   const supabase = createClient()
   const searchParams = useSearchParams()
-  const { currentMember } = useUser()
+  const { currentMember, members } = useUser()
 
   const [tasks, setTasks] = useState<any[]>([])
+  const [delegatedTasks, setDelegatedTasks] = useState<any[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [previewMap, setPreviewMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -47,12 +48,16 @@ function TarefasPageInner() {
   async function load() {
     if (!currentMember) return
     setLoading(true)
-    const [{ data: t }, { data: cl }] = await Promise.all([
+    const [{ data: t }, { data: cl }, { data: dt }] = await Promise.all([
       supabase.from('personal_tasks').select('*').eq('assigned_to', currentMember.id).order('position', { ascending: true }).order('created_at', { ascending: false }),
       supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name'),
+      // Cartões que VOCÊ criou pra outra pessoa — some do seu quadro, mas você
+      // ainda quer acompanhar o andamento do que delegou.
+      supabase.from('personal_tasks').select('*').eq('created_by', currentMember.id).neq('assigned_to', currentMember.id).order('created_at', { ascending: false }),
     ])
     setTasks(t || [])
     setClients(cl || [])
+    setDelegatedTasks(dt || [])
     setLoading(false)
 
     const ids = (t || []).map((x: any) => x.id)
@@ -188,6 +193,24 @@ function TarefasPageInner() {
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {!loading && delegatedTasks.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-sm font-bold text-[var(--color-text-secondary)] uppercase tracking-wider mb-1">📤 Delegadas por você</h2>
+            <p className="text-xs text-[var(--color-text-muted)] mb-3">Cartões que você criou pra outra pessoa — não ficam no seu quadro, mas aqui dá pra acompanhar o andamento.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {delegatedTasks.map(t => {
+                const assigneeMember = members.find((m: any) => m.id === t.assigned_to)
+                return (
+                  <TaskMiniCard key={t.id} task={t} clientMap={clientMap}
+                    assignee={assigneeMember ? { name: assigneeMember.name, color: assigneeMember.color || 'var(--color-brand)' } : undefined}
+                    onClick={() => { setOpenTaskId(t.id); window.history.replaceState(null, '', `?task=${t.id}`) }}
+                  />
+                )
+              })}
+            </div>
           </div>
         )}
       </div>
