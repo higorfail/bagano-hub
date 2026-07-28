@@ -72,6 +72,8 @@ export default function CampanhasPage() {
   const [creatingMaterial, setCreatingMaterial] = useState<{ clientId: string; campType: string } | null>(null)
   const [createPostNumber, setCreatePostNumber] = useState(1)
   const [availablePostsByClient, setAvailablePostsByClient] = useState<Record<string, any[]>>({})
+  const [availableKanbanExtrasByClient, setAvailableKanbanExtrasByClient] = useState<Record<string, any[]>>({})
+  const [availableMaterialsByClient, setAvailableMaterialsByClient] = useState<Record<string, any[]>>({})
 
   useEffect(() => { load() }, [])
 
@@ -82,7 +84,7 @@ export default function CampanhasPage() {
     setExpanded(prev => {
       const next = new Set(prev)
       if (next.has(campId)) next.delete(campId)
-      else { next.add(campId); loadAvailablePosts(clientId) }
+      else { next.add(campId); loadAvailablePosts(clientId); loadAvailableKanbanExtras(clientId); loadAvailableMaterials(clientId) }
       localStorage.setItem(`campanhas:lastExpanded:${selected}`, JSON.stringify([...next]))
       return next
     })
@@ -99,6 +101,32 @@ export default function CampanhasPage() {
   async function linkExistingPost(clientId: string, postId: string, campType: string) {
     await supabase.from('schedules').update({ campaign_type: campType }).eq('id', postId)
     setAvailablePostsByClient(s => ({ ...s, [clientId]: (s[clientId] || []).filter(p => p.id !== postId) }))
+    await load()
+  }
+
+  // Extras (Kanban) desse cliente que ainda não estão em nenhuma campanha.
+  async function loadAvailableKanbanExtras(clientId: string) {
+    const { data } = await supabase.from('extras')
+      .select('id, title').eq('client_id', clientId).is('campaign_type', null).is('archived_at', null)
+    setAvailableKanbanExtrasByClient(s => ({ ...s, [clientId]: data || [] }))
+  }
+
+  async function linkExistingKanbanExtra(clientId: string, extraId: string, campType: string) {
+    await supabase.from('extras').update({ campaign_type: campType }).eq('id', extraId)
+    setAvailableKanbanExtrasByClient(s => ({ ...s, [clientId]: (s[clientId] || []).filter(e => e.id !== extraId) }))
+    await load()
+  }
+
+  // Materiais desse cliente que ainda não estão em nenhuma campanha.
+  async function loadAvailableMaterials(clientId: string) {
+    const { data } = await supabase.from('materials')
+      .select('id, title').eq('client_id', clientId).is('campaign_type', null).is('archived_at', null)
+    setAvailableMaterialsByClient(s => ({ ...s, [clientId]: data || [] }))
+  }
+
+  async function linkExistingMaterial(clientId: string, materialId: string, campType: string) {
+    await supabase.from('materials').update({ campaign_type: campType }).eq('id', materialId)
+    setAvailableMaterialsByClient(s => ({ ...s, [clientId]: (s[clientId] || []).filter(m => m.id !== materialId) }))
     await load()
   }
 
@@ -325,37 +353,47 @@ export default function CampanhasPage() {
                         )}
                       </div>
 
-                      {/* Extras do Kanban + Materiais vinculados */}
-                      {(campKanbanExtras.length > 0 || campMaterials.length > 0) && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Extras do Kanban + Materiais — vinculados e a vincular */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Extras (Kanban)</p>
                           {campKanbanExtras.length > 0 && (
-                            <div>
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Extras (Kanban)</p>
-                              <div className="flex flex-col gap-1.5">
-                                {campKanbanExtras.map(e => (
-                                  <div key={e.id} className="flex items-center gap-2 text-xs">
-                                    <span className="flex-1 text-[var(--color-text-primary)] truncate">{e.title || 'Sem título'}</span>
-                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={e.status === 'done' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{e.status === 'done' ? 'Feito' : 'Pendente'}</span>
-                                  </div>
-                                ))}
-                              </div>
+                            <div className="flex flex-col gap-1.5 mb-2">
+                              {campKanbanExtras.map(e => (
+                                <div key={e.id} className="flex items-center gap-2 text-xs">
+                                  <span className="flex-1 text-[var(--color-text-primary)] truncate">{e.title || 'Sem título'}</span>
+                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={e.status === 'done' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{e.status === 'done' ? 'Feito' : 'Pendente'}</span>
+                                </div>
+                              ))}
                             </div>
                           )}
-                          {campMaterials.length > 0 && (
-                            <div>
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Materiais</p>
-                              <div className="flex flex-col gap-1.5">
-                                {campMaterials.map(m => (
-                                  <div key={m.id} className="flex items-center gap-2 text-xs">
-                                    <span className="flex-1 text-[var(--color-text-primary)] truncate">{m.title || 'Sem título'}</span>
-                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={m.status === 'finalizado' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{m.status === 'finalizado' ? 'Feito' : 'Pendente'}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+                          {(availableKanbanExtrasByClient[client.id] || []).length > 0 && (
+                            <select onChange={e => { if (e.target.value) { linkExistingKanbanExtra(client.id, e.target.value, selected); e.target.value = '' } }} className="w-full text-xs border border-dashed border-[var(--color-border-hover)] rounded-lg px-2.5 py-1.5 bg-[var(--color-bg-card)] outline-none text-[var(--color-text-secondary)] cursor-pointer">
+                              <option value="">+ Vincular extra do Kanban...</option>
+                              {availableKanbanExtrasByClient[client.id].map(e => <option key={e.id} value={e.id}>{e.title || 'Sem título'}</option>)}
+                            </select>
                           )}
                         </div>
-                      )}
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Materiais</p>
+                          {campMaterials.length > 0 && (
+                            <div className="flex flex-col gap-1.5 mb-2">
+                              {campMaterials.map(m => (
+                                <div key={m.id} className="flex items-center gap-2 text-xs">
+                                  <span className="flex-1 text-[var(--color-text-primary)] truncate">{m.title || 'Sem título'}</span>
+                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={m.status === 'finalizado' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{m.status === 'finalizado' ? 'Feito' : 'Pendente'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {(availableMaterialsByClient[client.id] || []).length > 0 && (
+                            <select onChange={e => { if (e.target.value) { linkExistingMaterial(client.id, e.target.value, selected); e.target.value = '' } }} className="w-full text-xs border border-dashed border-[var(--color-border-hover)] rounded-lg px-2.5 py-1.5 bg-[var(--color-bg-card)] outline-none text-[var(--color-text-secondary)] cursor-pointer">
+                              <option value="">+ Vincular material...</option>
+                              {availableMaterialsByClient[client.id].map(m => <option key={m.id} value={m.id}>{m.title || 'Sem título'}</option>)}
+                            </select>
+                          )}
+                        </div>
+                      </div>
 
                       {/* Extras (checklist da campanha) */}
                       <div>
