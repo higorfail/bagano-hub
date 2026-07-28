@@ -505,6 +505,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
               clientId={id as string}
               clientColor={client.color_hex}
               members={allMembers}
+              initialType={searchParams.get('camp')}
             />
           )}
 

@@ -41,6 +41,14 @@ const STATUS_LABEL: Record<string, string> = { producao: 'Produção', revisao_i
 
 function getInitials(name: string) { return (name || '?').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() }
 
+// % da janela de preparo (leadDays) já decorrida até hoje — 0% quando a
+// data ainda está longe, 100% quando já chegou ou passou.
+function getTimeProgress(days: number, leadDays: number) {
+  if (days <= 0) return 100
+  if (days >= leadDays) return 0
+  return ((leadDays - days) / leadDays) * 100
+}
+
 export default function CampanhasPage() {
   useEffect(() => { document.title = 'Campanhas · Bagano Hub' }, [])
   const supabase = createClient()
@@ -49,6 +57,8 @@ export default function CampanhasPage() {
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
   const [posts, setPosts] = useState<any[]>([])
+  const [kanbanExtras, setKanbanExtras] = useState<any[]>([])
+  const [materials, setMaterials] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [addingExtra, setAddingExtra] = useState<string | null>(null)
@@ -67,14 +77,18 @@ export default function CampanhasPage() {
   }
 
   async function load() {
-    const [{ data: camps }, { data: cls }, { data: ps }] = await Promise.all([
+    const [{ data: camps }, { data: cls }, { data: ps }, { data: ke }, { data: mats }] = await Promise.all([
       supabase.from('campaigns').select('*, campaign_extras(*)').eq('active', true),
       supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
       supabase.from('schedules').select('id, client_id, post_number, title, post_type, status, campaign_type, month, year').not('campaign_type', 'is', null),
+      supabase.from('extras').select('id, client_id, title, status, campaign_type').not('campaign_type', 'is', null).is('archived_at', null),
+      supabase.from('materials').select('id, client_id, title, status, campaign_type').not('campaign_type', 'is', null).is('archived_at', null),
     ])
     setCampaigns(camps || [])
     setClients(cls || [])
     setPosts(ps || [])
+    setKanbanExtras(ke || [])
+    setMaterials(mats || [])
     setLoading(false)
   }
 
@@ -96,6 +110,7 @@ export default function CampanhasPage() {
     }
   }
 
+  const orderedSeasonal = [...SEASONAL].sort((a, b) => getDaysUntil(a.month, a.day) - getDaysUntil(b.month, b.day))
   const seasonal = SEASONAL.find(s => s.type === selected)!
   const days = getDaysUntil(seasonal.month, seasonal.day)
 
@@ -125,30 +140,60 @@ export default function CampanhasPage() {
         <p className="text-[var(--color-text-muted)] text-sm">todos os clientes por campanha</p>
       </div>
 
-      {/* Seletor de campanha */}
-      <div className="flex gap-2 flex-wrap">
-        {SEASONAL.map(s => {
+      {/* Seletor de campanha — ordenado pela data mais próxima primeiro */}
+      <div className="flex gap-2 flex-wrap items-stretch">
+        {orderedSeasonal.map(s => {
           const d = getDaysUntil(s.month, s.day)
           const isUrgent = d >= 0 && d <= s.leadDays
-          const activeCnt = campaigns.filter(c => c.type === s.type).length
+          const campsOfType = campaigns.filter(c => c.type === s.type)
+          const activeCnt = campsOfType.length
+          const campIds = campsOfType.map(c => c.id)
+          const clientIds = campsOfType.map(c => c.client_id)
+
+          // Progresso real: posts aprovados/publicados + extras do checklist +
+          // extras do Kanban + materiais finalizados, tudo que já foi
+          // vinculado a essa campanha, entre todos os clientes ativos nela.
+          const camPosts = posts.filter(p => clientIds.includes(p.client_id) && p.campaign_type === s.type)
+          const camChecklist = campsOfType.flatMap(c => c.campaign_extras || [])
+          const camKanban = kanbanExtras.filter(e => clientIds.includes(e.client_id) && e.campaign_type === s.type)
+          const camMaterials = materials.filter(m => clientIds.includes(m.client_id) && m.campaign_type === s.type)
+          const totalItems = camPosts.length + camChecklist.length + camKanban.length + camMaterials.length
+          const doneItems = camPosts.filter(p => ['aprovado', 'publicado'].includes(p.status)).length
+            + camChecklist.filter((e: any) => e.done).length
+            + camKanban.filter(e => e.status === 'done').length
+            + camMaterials.filter(m => m.status === 'finalizado').length
+          const workPct = totalItems > 0 ? (doneItems / totalItems) * 100 : 0
+          const timePct = getTimeProgress(d, s.leadDays)
+          const behind = totalItems > 0 && workPct < timePct - 10
+          const barColor = totalItems === 0 ? 'var(--color-text-faint)' : behind ? 'var(--ds-error-accent)' : s.theme.accent
+
           return (
             <button
               key={s.type}
               onClick={() => setSelected(s.type)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all text-xs"
+              className="flex flex-col gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all text-xs min-w-[132px]"
               style={selected === s.type
                 ? { background: isDark ? s.theme.darkBg : s.theme.bg, borderColor: isDark ? s.theme.darkBorder : s.theme.border, color: s.theme.accent, fontWeight: 500 }
                 : { background: 'var(--color-bg-card)', borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }
               }
             >
-              <span>{s.emoji}</span>
-              <span>{s.name}</span>
-              {activeCnt > 0 && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: selected === s.type ? s.theme.accent : 'var(--color-bg-subtle)', color: selected === s.type ? 'white' : 'var(--color-text-secondary)' }}>{activeCnt}</span>}
-              {isUrgent && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--ds-error-accent)' }} />}
+              <div className="flex items-center gap-1.5">
+                <span>{s.emoji}</span>
+                <span>{s.name}</span>
+                {activeCnt > 0 && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: selected === s.type ? s.theme.accent : 'var(--color-bg-subtle)', color: selected === s.type ? 'white' : 'var(--color-text-secondary)' }}>{activeCnt}</span>}
+                {isUrgent && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--ds-error-accent)' }} />}
+              </div>
+              {activeCnt > 0 && (
+                <div className="relative w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--color-bg-subtle)' }} title={`${Math.round(workPct)}% pronto · ${Math.round(timePct)}% do prazo decorrido`}>
+                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(workPct, 100)}%`, background: barColor }} />
+                  <div className="absolute top-0 bottom-0 w-[2px]" style={{ left: `${Math.min(timePct, 100)}%`, background: 'var(--color-text-primary)', opacity: 0.35 }} />
+                </div>
+              )}
             </button>
           )
         })}
       </div>
+      <p className="text-[11px] text-[var(--color-text-faint)] -mt-2">A barra mostra o quanto já está pronto; o traço marca quanto do prazo já passou — se a barra estiver atrás do traço, a campanha tá atrasada.</p>
 
       {/* Banner da campanha selecionada — slim */}
       <div className="rounded-2xl px-4 py-3 border flex items-center justify-between gap-3" style={{ background: isDark ? seasonal.theme.darkBg : seasonal.theme.bg, borderColor: isDark ? seasonal.theme.darkBorder : seasonal.theme.border }}>
@@ -172,6 +217,8 @@ export default function CampanhasPage() {
             {activeClients.map(client => {
               const camp = activeCamps.find(c => c.client_id === client.id)!
               const campPosts = posts.filter(p => p.client_id === client.id && p.campaign_type === selected)
+              const campKanbanExtras = kanbanExtras.filter(e => e.client_id === client.id && e.campaign_type === selected)
+              const campMaterials = materials.filter(m => m.client_id === client.id && m.campaign_type === selected)
               const extras = camp.campaign_extras || []
               const doneExtras = extras.filter((e: any) => e.done).length
               const donePosts = campPosts.filter(p => ['aprovado', 'publicado'].includes(p.status)).length
@@ -187,7 +234,7 @@ export default function CampanhasPage() {
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden" style={{ background: client.color_hex }}>{client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{client.name}</p>
-                      <p className="text-xs text-[var(--color-text-secondary)]">{campPosts.length} posts · {extras.length} extras</p>
+                      <p className="text-xs text-[var(--color-text-secondary)]">{campPosts.length} posts · {campKanbanExtras.length} extras · {campMaterials.length} materiais</p>
                     </div>
                     {/* Progress */}
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -224,9 +271,41 @@ export default function CampanhasPage() {
                         </div>
                       )}
 
-                      {/* Extras */}
+                      {/* Extras do Kanban + Materiais vinculados */}
+                      {(campKanbanExtras.length > 0 || campMaterials.length > 0) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {campKanbanExtras.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Extras (Kanban)</p>
+                              <div className="flex flex-col gap-1.5">
+                                {campKanbanExtras.map(e => (
+                                  <div key={e.id} className="flex items-center gap-2 text-xs">
+                                    <span className="flex-1 text-[var(--color-text-primary)] truncate">{e.title || 'Sem título'}</span>
+                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={e.status === 'done' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{e.status === 'done' ? 'Feito' : 'Pendente'}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {campMaterials.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Materiais</p>
+                              <div className="flex flex-col gap-1.5">
+                                {campMaterials.map(m => (
+                                  <div key={m.id} className="flex items-center gap-2 text-xs">
+                                    <span className="flex-1 text-[var(--color-text-primary)] truncate">{m.title || 'Sem título'}</span>
+                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={m.status === 'finalizado' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{m.status === 'finalizado' ? 'Feito' : 'Pendente'}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Extras (checklist da campanha) */}
                       <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Extras {extras.length > 0 && `· ${doneExtras}/${extras.length}`}</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Checklist da campanha {extras.length > 0 && `· ${doneExtras}/${extras.length}`}</p>
                         {extras.length > 0 && (
                           <div className="w-full h-1 bg-[var(--color-bg-subtle)] rounded-full mb-2 overflow-hidden">
                             <div className="h-full rounded-full" style={{ width: `${extras.length ? (doneExtras / extras.length) * 100 : 0}%`, background: seasonal.theme.accent }} />
@@ -261,7 +340,7 @@ export default function CampanhasPage() {
                         </div>
                       )}
 
-                      <a href={`/dashboard/clientes/${client.id}?tab=campanhas`} className="text-xs hover:underline" style={{ color: 'var(--ds-info-text)' }}>Abrir página do cliente →</a>
+                      <a href={`/dashboard/clientes/${client.id}?tab=campanhas&camp=${selected}`} className="text-xs hover:underline" style={{ color: 'var(--ds-info-text)' }}>Abrir página do cliente →</a>
                     </div>
                   )}
                 </div>
@@ -277,7 +356,7 @@ export default function CampanhasPage() {
           <p className="text-sm font-semibold text-[var(--color-text-muted)] mb-3">{inactiveClients.length} clientes sem esta campanha</p>
           <div className="flex flex-wrap gap-2">
             {inactiveClients.map(client => (
-              <a key={client.id} href={`/dashboard/clientes/${client.id}?tab=campanhas`} className="flex items-center gap-2 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 hover:border-[var(--color-border-hover)] transition-colors">
+              <a key={client.id} href={`/dashboard/clientes/${client.id}?tab=campanhas&camp=${selected}`} className="flex items-center gap-2 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 hover:border-[var(--color-border-hover)] transition-colors">
                 <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-semibold overflow-hidden" style={{ background: client.color_hex }}>{client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}</div>
                 <span className="text-xs text-[var(--color-text-secondary)]">{client.name}</span>
               </a>

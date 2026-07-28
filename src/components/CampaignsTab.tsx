@@ -50,13 +50,16 @@ interface CampaignsTabProps {
   clientId: string
   clientColor: string
   members: any[]
+  initialType?: string | null
 }
 
-export default function CampaignsTab({ clientId, clientColor, members }: CampaignsTabProps) {
+export default function CampaignsTab({ clientId, clientColor, members, initialType }: CampaignsTabProps) {
   const supabase = createClient()
   const isDark = useDarkMode()
   const [campaigns, setCampaigns]     = useState<any[]>([])
   const [posts, setPosts]             = useState<any[]>([])
+  const [kanbanExtras, setKanbanExtras] = useState<any[]>([])
+  const [materials, setMaterials]     = useState<any[]>([])
   const [expanded, setExpanded]       = useState<string | null>(null)
   const [loading, setLoading]         = useState(true)
   const [newExtra, setNewExtra]       = useState<Record<string,string>>({})
@@ -67,13 +70,23 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
 
   useEffect(() => { load() }, [clientId])
 
+  // Deep-link vindo da página de Campanhas: abre direto na campanha clicada.
+  useEffect(() => {
+    if (initialType) setExpanded(prev => prev ?? (campaigns.find(c => c.type === initialType)?.id || initialType))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialType, campaigns.length])
+
   async function load() {
-    const [{ data: camps }, { data: ps }] = await Promise.all([
+    const [{ data: camps }, { data: ps }, { data: ke }, { data: mats }] = await Promise.all([
       supabase.from('campaigns').select('*, campaign_extras(*)').eq('client_id', clientId),
       supabase.from('schedules').select('id, post_number, title, post_type, status, approval_status, drive_url, campaign_type').eq('client_id', clientId).order('post_number'),
+      supabase.from('extras').select('id, title, status, type, campaign_type').eq('client_id', clientId).is('archived_at', null),
+      supabase.from('materials').select('id, title, status, type, campaign_type').eq('client_id', clientId).is('archived_at', null),
     ])
     setCampaigns(camps || [])
     setPosts(ps || [])
+    setKanbanExtras(ke || [])
+    setMaterials(mats || [])
     setLoading(false)
   }
 
@@ -140,6 +153,26 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
     setPosts(p => p.map(x => x.id === postId ? { ...x, campaign_type: null } : x))
   }
 
+  async function linkKanbanExtra(extraId: string, campType: string) {
+    await supabase.from('extras').update({ campaign_type: campType }).eq('id', extraId)
+    setKanbanExtras(k => k.map(x => x.id === extraId ? { ...x, campaign_type: campType } : x))
+  }
+
+  async function unlinkKanbanExtra(extraId: string) {
+    await supabase.from('extras').update({ campaign_type: null }).eq('id', extraId)
+    setKanbanExtras(k => k.map(x => x.id === extraId ? { ...x, campaign_type: null } : x))
+  }
+
+  async function linkMaterial(materialId: string, campType: string) {
+    await supabase.from('materials').update({ campaign_type: campType }).eq('id', materialId)
+    setMaterials(m => m.map(x => x.id === materialId ? { ...x, campaign_type: campType } : x))
+  }
+
+  async function unlinkMaterial(materialId: string) {
+    await supabase.from('materials').update({ campaign_type: null }).eq('id', materialId)
+    setMaterials(m => m.map(x => x.id === materialId ? { ...x, campaign_type: null } : x))
+  }
+
   async function createCustom() {
     if (!customName.trim()) return
     const { data } = await supabase.from('campaigns')
@@ -152,6 +185,7 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
   if (loading) return <div className="p-4 text-sm text-[var(--color-text-muted)]">Carregando campanhas...</div>
 
   const customCampaigns = campaigns.filter(c => c.type === 'custom')
+  const orderedSeasonal = [...SEASONAL].sort((a, b) => getDaysUntil(a.month, a.day) - getDaysUntil(b.month, b.day))
 
   return (
     <div className="flex flex-col gap-3">
@@ -175,8 +209,8 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
         </div>
       )}
 
-      {/* Sazonais */}
-      {SEASONAL.map(s => {
+      {/* Sazonais — ordenadas pela data mais próxima primeiro */}
+      {orderedSeasonal.map(s => {
         const camp = campaigns.find(c => c.type === s.type)
         const isActive = camp?.active === true
         const isExpanded = expanded === (camp?.id || s.type)
@@ -184,6 +218,10 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
         const status = getStatus(days, s.leadDays, isDark)
         const campPosts = posts.filter(p => p.campaign_type === s.type)
         const availablePosts = posts.filter(p => !p.campaign_type)
+        const campKanbanExtras = kanbanExtras.filter(e => e.campaign_type === s.type)
+        const availableKanbanExtras = kanbanExtras.filter(e => !e.campaign_type)
+        const campMaterials = materials.filter(m => m.campaign_type === s.type)
+        const availableMaterials = materials.filter(m => !m.campaign_type)
         const extras = camp?.campaign_extras || []
         const doneExtras = extras.filter((e: any) => e.done).length
 
@@ -199,7 +237,7 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
                     <p className="text-sm font-semibold text-[var(--color-text-primary)]">{s.name}</p>
                     {camp && !isActive && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">inativa</span>}
                   </div>
-                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{s.day}/{s.month} · {campPosts.length} posts · {extras.length} extras</p>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{s.day}/{s.month} · {campPosts.length} posts · {campKanbanExtras.length} extras · {campMaterials.length} materiais</p>
                 </div>
                 <span className="text-[11px] font-medium px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: status.bg, color: status.color }}>{status.label}</span>
                 {isExpanded ? <ChevronUp size={14} className="text-[var(--color-text-muted)] flex-shrink-0" /> : <ChevronDown size={14} className="text-[var(--color-text-muted)] flex-shrink-0" />}
@@ -266,7 +304,59 @@ export default function CampaignsTab({ clientId, clientColor, members }: Campaig
                   {campPosts.length === 0 && availablePosts.length === 0 && <p className="text-xs text-[var(--color-text-faint)]">Nenhum post disponível no cronograma.</p>}
                 </div>
 
-                {/* Extras */}
+                {/* Extras do Kanban */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Extras (Kanban)</p>
+                    <span className="text-[11px] text-[var(--color-text-muted)]">{campKanbanExtras.length} vinculados</span>
+                  </div>
+                  {campKanbanExtras.length > 0 && (
+                    <div className="flex flex-col gap-1.5 mb-2">
+                      {campKanbanExtras.map(e => (
+                        <div key={e.id} className="group flex items-center gap-2 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                          <span className="text-xs text-[var(--color-text-primary)] flex-1 truncate">{e.title || 'Sem título'}</span>
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={e.status === 'done' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{e.status === 'done' ? 'Finalizado' : e.status === 'aguardando_aprovacao' ? 'Aguardando' : 'Backlog'}</span>
+                          <button onClick={() => unlinkKanbanExtra(e.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-all flex-shrink-0" onMouseEnter={ev => (ev.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={ev => (ev.currentTarget.style.color = '')}><Trash2 size={11} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {availableKanbanExtras.length > 0 && (
+                    <select onChange={e => { if (e.target.value) { linkKanbanExtra(e.target.value, s.type); e.target.value = '' } }} className="w-full text-xs border border-dashed border-[var(--color-border-hover)] rounded-lg px-3 py-1.5 bg-[var(--color-bg-card)] outline-none text-[var(--color-text-secondary)] cursor-pointer">
+                      <option value="">+ Vincular extra do Kanban...</option>
+                      {availableKanbanExtras.map(e => <option key={e.id} value={e.id}>{e.title || 'Sem título'}</option>)}
+                    </select>
+                  )}
+                  {campKanbanExtras.length === 0 && availableKanbanExtras.length === 0 && <p className="text-xs text-[var(--color-text-faint)]">Nenhum extra disponível no Kanban.</p>}
+                </div>
+
+                {/* Materiais */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Materiais</p>
+                    <span className="text-[11px] text-[var(--color-text-muted)]">{campMaterials.length} vinculados</span>
+                  </div>
+                  {campMaterials.length > 0 && (
+                    <div className="flex flex-col gap-1.5 mb-2">
+                      {campMaterials.map(m => (
+                        <div key={m.id} className="group flex items-center gap-2 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                          <span className="text-xs text-[var(--color-text-primary)] flex-1 truncate">{m.title || 'Sem título'}</span>
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={m.status === 'finalizado' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{m.status === 'finalizado' ? 'Finalizado' : m.status === 'aguardando_aprovacao' ? 'Aguardando' : 'Produção'}</span>
+                          <button onClick={() => unlinkMaterial(m.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-all flex-shrink-0" onMouseEnter={ev => (ev.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={ev => (ev.currentTarget.style.color = '')}><Trash2 size={11} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {availableMaterials.length > 0 && (
+                    <select onChange={e => { if (e.target.value) { linkMaterial(e.target.value, s.type); e.target.value = '' } }} className="w-full text-xs border border-dashed border-[var(--color-border-hover)] rounded-lg px-3 py-1.5 bg-[var(--color-bg-card)] outline-none text-[var(--color-text-secondary)] cursor-pointer">
+                      <option value="">+ Vincular material...</option>
+                      {availableMaterials.map(m => <option key={m.id} value={m.id}>{m.title || 'Sem título'}</option>)}
+                    </select>
+                  )}
+                  {campMaterials.length === 0 && availableMaterials.length === 0 && <p className="text-xs text-[var(--color-text-faint)]">Nenhum material disponível.</p>}
+                </div>
+
+                {/* Extras (checklist da campanha) */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Extras da campanha</p>
