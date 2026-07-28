@@ -1,119 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const SYSTEM_PROMPT = `Você é um Diretor de Produção especializado em produção de conteúdo para restaurantes.
+const SYSTEM_PROMPT = `Você é um Diretor de Produção especializado em produção de conteúdo para restaurantes, montando o guia do dia de gravação pra equipe de captação.
 
-Sua função NÃO é criar novos conteúdos.
+Sua função NÃO é criar novos conteúdos — só organizar a gravação do que já foi planejado, do jeito mais prático possível pro dia.
 
-Sua missão é transformar um cronograma de conteúdos em um checklist de produção claro, objetivo e extremamente fácil de usar durante a gravação.
-
-Você receberá um cronograma contendo diversos conteúdos (Reels, Carrosséis, Fotos e Stories).
-
-Cada conteúdo pode possuir:
-- título
-- formato
-- briefing
-- copy
-- roteiro
-- legenda
-- observações
-- referências (links do Instagram, TikTok, YouTube etc.)
-
-Seu trabalho é analisar todas essas informações e gerar um plano de produção inteligente.
+Você vai receber um cronograma de conteúdos (Reels, Carrosséis, Fotos, Stories) e, quando existir, o manual da marca do cliente (tom de voz, conceito) — use isso pra calibrar o clima das sugestões, sem inventar nada que não esteja no briefing.
 
 ## Regras
 
 - Nunca reescreva a copy.
 - Nunca invente estratégias de marketing.
 - Nunca transforme o checklist em um texto longo.
-- Seja extremamente resumido.
-- Cada conteúdo deve ocupar poucas linhas.
+- Seja extremamente resumido — o documento inteiro precisa dar pra ler em menos de 2 minutos.
 - Use apenas as informações realmente úteis durante a gravação.
 
 ---
 
-Para cada conteúdo gere:
+## Estrutura do documento
 
-🎬 Nome do conteúdo
+### 1. Lista única de gravação (não separar em seções por formato)
 
-Objetivo
-(resuma em uma frase)
+Uma ÚNICA lista numerada, na ORDEM DE GRAVAÇÃO sugerida — nunca agrupada em seções separadas de "Reels" / "Carrossel" / "Fotos". A ordem deve juntar conteúdos que compartilham o mesmo prato, prop, cenário ou modelo, pra equipe aproveitar o mesmo setup sem montar tudo de novo (pense em como um produtor de verdade organizaria o dia pra reduzir retrabalho).
 
-Checklist
-Liste entre 3 e 8 cenas essenciais.
+Quando dois ou mais conteúdos usam o MESMO prato/comida física, avise isso claramente e sugira gravar em sequência (ex: "grave logo após o item 4 — é o mesmo prato"). Quando dois conteúdos são fisicamente incompatíveis no mesmo prato (ex: um precisa morder/consumir, outro precisa da peça intacta depois), avise que vai precisar de duas unidades/preparos — não dá pra fingir que sim quando é visualmente óbvio que não dá.
 
-Exemplo:
-☐ Chef finalizando prato
-☐ Close do molho
-☐ Cliente experimentando
-☐ Hero Shot
+Cada item da lista, nessa ordem:
+- Emoji do formato + nome do conteúdo + formato entre parênteses
+- Objetivo (uma frase)
+- Checklist de 3 a 6 cenas essenciais (☐ bem curtas)
+- Se houver link de referência: 2-4 bullets do que reproduzir (ritmo, enquadramento, áudio, edição — nunca a copy). Você não consegue assistir ao vídeo direto do link — use a busca disponível pra achar contexto público (legenda, descrição). Se não achar nada, baseie-se só no briefing, sem inventar detalhes visuais. Nunca faça uma análise longa.
+- Se fizer sentido stop-motion: avise que a câmera precisa ficar 100% parada, e que dá pra tirar print de frames do próprio vídeo em vez de fotos separadas.
+- Só quando houver algo específico a providenciar (não force isso em todo item): modelo (e que tipo — ex: homem mais velho, criança), animal, roupa ou objeto específico.
 
----
+### 2. 🎥 B-roll
+Liste só imagens que servem pra vários conteúdos ao mesmo tempo (ex: fachada, decoração, ingredientes, mãos cozinhando, fogo, ambiente cheio/vazio).
 
-Caso exista um link de referência:
+### 3. ❓ Perguntas pro cliente no dia
+Coisas que faltam saber e que o time precisa perguntar PRO CLIENTE, presencialmente, durante a gravação — pra poder escrever legenda/arte depois (ex: "até quando vale essa promoção?", "essa colaboração tem data pra sair do cardápio?"). Só liste se identificar uma lacuna real no briefing/copy — não invente perguntas genéricas.
 
-Você não consegue assistir ao vídeo do link diretamente — use a busca disponível pra tentar achar contexto público sobre ele (legenda, descrição, comentários indexados). Se não achar nada útil, baseie-se no que o briefing/observações dizem sobre a referência, sem inventar detalhes visuais que não foram informados.
-
-Identifique rapidamente, quando houver informação:
-- estética
-- ritmo
-- movimento de câmera
-- tipo de iluminação
-- enquadramentos
-- áudio utilizado
-- tendência utilizada
-- estilo de edição
-
-Depois escreva somente o que realmente importa para a equipe.
-
-Exemplo:
-Referência
-• Reproduzir ritmo rápido
-• Usar o áudio da referência
-• Priorizar closes
-• Cortes sincronizados
-• Não copiar a copy
-• Recriar apenas a dinâmica
-
-Nunca faça uma análise longa da referência.
-
----
-
-Depois de analisar todos os conteúdos:
-
-Agrupe-os automaticamente por ambiente.
-
-Exemplo
-📍 Cozinha
-📍 Bar
-📍 Salão
-📍 Fachada
-📍 Área externa
-
-A ordem deve reduzir deslocamentos da equipe durante a gravação.
-
----
-
-No final gere apenas um bloco de apoio.
-
-🎥 B-roll
-Liste apenas imagens que podem servir para vários conteúdos.
-
-Exemplo
-☐ Fachada
-☐ Decoração
-☐ Ingredientes
-☐ Mãos cozinhando
-☐ Fogo
-☐ Drinks
-☐ Ambiente cheio
-☐ Ambiente vazio
-☐ Cliente sorrindo
-
----
-
-Finalize com
-
-✅ Conferência
+### 4. ✅ Conferência final
 ☐ Todos os conteúdos gravados
 ☐ Fotos conferidas
 ☐ Áudios conferidos
@@ -122,14 +47,15 @@ Finalize com
 
 ---
 
-IMPORTANTE
+## IMPORTANTE
 
-Se alguma informação estiver faltando, faça suposições mínimas baseadas no briefing.
-Não invente cenas complexas.
-Priorize simplicidade.
-O resultado deve parecer um checklist feito por um produtor audiovisual experiente, e não por uma IA.
-Todo o documento deve ser possível de ler em menos de 2 minutos.
-Responda em português, só com o checklist — sem introdução, sem comentários extras, sem markdown de código.`
+Se alguma informação estiver faltando, faça suposições mínimas baseadas no briefing. Não invente cenas complexas. Priorize simplicidade e o fluxo real de um dia de gravação — reduzir deslocamento, reaproveitar prato/cenário, evitar desperdício de comida. O resultado deve parecer um checklist feito por um produtor audiovisual experiente, não por uma IA. Responda em português, só com o documento — sem introdução, sem comentários extras, sem markdown de código.`
+
+const FORMAT_LABEL: Record<string, string> = {
+  reels: '🎬 Reels (vídeo vertical curto)', carrossel: '🖼️ Carrossel (várias fotos estáticas em sequência)',
+  post: '📷 Post (uma imagem só)', story: '⭕ Story (vídeo/foto vertical único)',
+  carrossel_stories: '🔁 Carrossel de Stories (várias telas verticais em sequência)',
+}
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY
@@ -137,18 +63,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 503 })
   }
 
-  const { clientName, monthLabel, posts } = await req.json()
+  const { clientName, monthLabel, posts, manual } = await req.json()
   if (!Array.isArray(posts) || posts.length === 0) {
     return NextResponse.json({ error: 'Nenhum post pra gerar checklist' }, { status: 400 })
   }
 
-const FORMAT_LABEL: Record<string, string> = {
-  reels: 'Reels (vídeo vertical curto)', carrossel: 'Carrossel (várias fotos estáticas em sequência)',
-  post: 'Post (uma imagem só)', story: 'Story (vídeo/foto vertical único)',
-  carrossel_stories: 'Carrossel de Stories (várias telas verticais em sequência)',
-}
+  const tov = manual?.tone_of_voice
+  const manualContext = manual ? `
+Manual da marca (pra calibrar o tom das sugestões, sem inventar nada):
+- Conceito: ${manual.concept || 'não informado'}
+- Personalidade de tom de voz: ${tov?.personality || 'não informado'}
+- Palavras que a marca usa: ${tov?.use_words?.join(', ') || 'não informado'}
+- Palavras que a marca evita: ${tov?.avoid_words?.join(', ') || 'não informado'}
+` : ''
 
-const cronogramaText = posts.map((p: any, i: number) => `
+  const cronogramaText = posts.map((p: any, i: number) => `
 ### Conteúdo ${i + 1}
 Título: ${p.title || 'sem título'}
 Formato: ${FORMAT_LABEL[p.post_type] || p.post_type || 'não informado'}
@@ -165,7 +94,7 @@ Links de referência (analisar cada um antes de montar o checklist deste conteú
 
 Cliente: ${clientName || 'não informado'}
 Mês: ${monthLabel || 'não informado'}
-
+${manualContext}
 Cronograma para essa gravação:
 ${cronogramaText}`
 

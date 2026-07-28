@@ -270,6 +270,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
       .select('id, title, post_type, briefing, copy, legenda, reference_notes, reference_images')
       .eq('client_id', clientId).eq('month', month).eq('year', year)
       .order('post_number')
+    const { data: manualData } = await supabase.from('client_manuals').select('concept, tone_of_voice').eq('client_id', clientId).maybeSingle()
     const ids = (fullPosts || []).map(p => p.id)
     let attachmentsByPost: Record<string, string[]> = {}
     if (ids.length > 0) {
@@ -294,7 +295,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     }))
     const res = await fetch('/api/ai-preplist', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ clientName, monthLabel: `${CRONO_MONTHS[month - 1]} ${year}`, posts: postsPayload }),
+      body: JSON.stringify({ clientName, monthLabel: `${CRONO_MONTHS[month - 1]} ${year}`, posts: postsPayload, manual: manualData }),
     })
     const data = await res.json()
     setGeneratingPreplist(false)
