@@ -142,14 +142,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Nenhum post pra gerar checklist' }, { status: 400 })
   }
 
-  const cronogramaText = posts.map((p: any, i: number) => `
+const FORMAT_LABEL: Record<string, string> = {
+  reels: 'Reels (vídeo vertical curto)', carrossel: 'Carrossel (várias fotos estáticas em sequência)',
+  post: 'Post (uma imagem só)', story: 'Story (vídeo/foto vertical único)',
+  carrossel_stories: 'Carrossel de Stories (várias telas verticais em sequência)',
+}
+
+const cronogramaText = posts.map((p: any, i: number) => `
 ### Conteúdo ${i + 1}
 Título: ${p.title || 'sem título'}
-Formato: ${p.post_type || 'não informado'}
+Formato: ${FORMAT_LABEL[p.post_type] || p.post_type || 'não informado'}
 Briefing: ${p.briefing || 'não informado'}
 Copy/roteiro: ${p.copy || 'não informado'}
 Legenda: ${p.legenda || 'não informado'}
-Observações/referência: ${p.reference_notes || 'não informado'}
+Observações: ${p.reference_notes || 'não informado'}
+Links de referência (analisar cada um antes de montar o checklist deste conteúdo): ${Array.isArray(p.reference_links) && p.reference_links.length > 0 ? p.reference_links.join(' | ') : 'nenhum link anexado'}
 `).join('\n')
 
   const prompt = `${SYSTEM_PROMPT}

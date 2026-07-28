@@ -267,12 +267,34 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     setGeneratingPreplist(true)
     setPreplistText('')
     const { data: fullPosts } = await supabase.from('schedules')
-      .select('title, post_type, briefing, copy, legenda, reference_notes')
+      .select('id, title, post_type, briefing, copy, legenda, reference_notes, reference_images')
       .eq('client_id', clientId).eq('month', month).eq('year', year)
       .order('post_number')
+    const ids = (fullPosts || []).map(p => p.id)
+    let attachmentsByPost: Record<string, string[]> = {}
+    if (ids.length > 0) {
+      const [{ data: atts }, { data: ups }] = await Promise.all([
+        supabase.from('schedule_attachments').select('schedule_id, url, title').in('schedule_id', ids),
+        supabase.from('schedule_uploads').select('schedule_id, filename, file_url').in('schedule_id', ids),
+      ])
+      ;(atts || []).forEach((a: any) => {
+        (attachmentsByPost[a.schedule_id] ||= []).push(a.title ? `${a.title}: ${a.url}` : a.url)
+      })
+      ;(ups || []).forEach((u: any) => {
+        (attachmentsByPost[u.schedule_id] ||= []).push(`${u.filename}: ${u.file_url}`)
+      })
+    }
+    const postsPayload = (fullPosts || []).map(p => ({
+      title: p.title, post_type: p.post_type, briefing: p.briefing, copy: p.copy, legenda: p.legenda,
+      reference_notes: p.reference_notes,
+      reference_links: [
+        ...(Array.isArray(p.reference_images) ? p.reference_images.map((r: any) => typeof r === 'string' ? r : r.url).filter(Boolean) : []),
+        ...(attachmentsByPost[p.id] || []),
+      ],
+    }))
     const res = await fetch('/api/ai-preplist', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ clientName, monthLabel: `${CRONO_MONTHS[month - 1]} ${year}`, posts: fullPosts || [] }),
+      body: JSON.stringify({ clientName, monthLabel: `${CRONO_MONTHS[month - 1]} ${year}`, posts: postsPayload }),
     })
     const data = await res.json()
     setGeneratingPreplist(false)
