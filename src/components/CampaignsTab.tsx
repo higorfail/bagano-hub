@@ -297,7 +297,7 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Posts do cronograma</p>
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] text-[var(--color-text-muted)]">{campPosts.length} vinculados</span>
-                      <button onClick={() => openCreatePost(s.type)} className="flex items-center gap-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"><Plus size={11} /> Novo</button>
+                      <button onClick={() => openCreatePost(s.type)} className="flex items-center gap-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"><Plus size={11} /> Post do crono</button>
                     </div>
                   </div>
                   {campPosts.length > 0 && (

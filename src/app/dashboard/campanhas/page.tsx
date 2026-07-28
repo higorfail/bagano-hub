@@ -71,20 +71,35 @@ export default function CampanhasPage() {
   const [creatingExtra, setCreatingExtra] = useState<{ clientId: string; campType: string } | null>(null)
   const [creatingMaterial, setCreatingMaterial] = useState<{ clientId: string; campType: string } | null>(null)
   const [createPostNumber, setCreatePostNumber] = useState(1)
+  const [availablePostsByClient, setAvailablePostsByClient] = useState<Record<string, any[]>>({})
 
   useEffect(() => { load() }, [])
 
   useEffect(() => { localStorage.setItem('campanhas:lastType', selected) }, [selected])
 
   // Vários cards podem ficar abertos ao mesmo tempo — abrir um não fecha os outros.
-  function selectClient(campId: string) {
+  function selectClient(campId: string, clientId: string) {
     setExpanded(prev => {
       const next = new Set(prev)
       if (next.has(campId)) next.delete(campId)
-      else next.add(campId)
+      else { next.add(campId); loadAvailablePosts(clientId) }
       localStorage.setItem(`campanhas:lastExpanded:${selected}`, JSON.stringify([...next]))
       return next
     })
+  }
+
+  // Posts do cronograma desse cliente que ainda não estão em nenhuma campanha —
+  // pra poder vincular um post já existente direto daqui, igual na aba do cliente.
+  async function loadAvailablePosts(clientId: string) {
+    const { data } = await supabase.from('schedules')
+      .select('id, post_number, title').eq('client_id', clientId).is('campaign_type', null).order('post_number')
+    setAvailablePostsByClient(s => ({ ...s, [clientId]: data || [] }))
+  }
+
+  async function linkExistingPost(clientId: string, postId: string, campType: string) {
+    await supabase.from('schedules').update({ campaign_type: campType }).eq('id', postId)
+    setAvailablePostsByClient(s => ({ ...s, [clientId]: (s[clientId] || []).filter(p => p.id !== postId) }))
+    await load()
   }
 
   async function openCreatePost(clientId: string, campType: string) {
@@ -255,7 +270,7 @@ export default function CampanhasPage() {
                   {/* Client header */}
                   <div
                     className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--color-bg-alt)] transition-colors"
-                    onClick={() => selectClient(camp.id)}
+                    onClick={() => selectClient(camp.id, client.id)}
                   >
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden" style={{ background: client.color_hex }}>{client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}</div>
                     <div className="flex-1 min-w-0">
@@ -281,16 +296,16 @@ export default function CampanhasPage() {
                     <div className="border-t border-[var(--color-border)] p-4 flex flex-col gap-4">
                       {/* Criar novo direto daqui, já vinculado a esta campanha */}
                       <div className="flex gap-2 flex-wrap">
-                        <button onClick={() => openCreatePost(client.id, selected)} className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg border border-dashed border-[var(--color-border-hover)] text-[var(--color-text-secondary)] hover:border-[var(--color-brand)] hover:text-[var(--color-brand)] transition-colors"><Plus size={11} /> Post</button>
+                        <button onClick={() => openCreatePost(client.id, selected)} className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg border border-dashed border-[var(--color-border-hover)] text-[var(--color-text-secondary)] hover:border-[var(--color-brand)] hover:text-[var(--color-brand)] transition-colors"><Plus size={11} /> Post do crono</button>
                         <button onClick={() => setCreatingExtra({ clientId: client.id, campType: selected })} className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg border border-dashed border-[var(--color-border-hover)] text-[var(--color-text-secondary)] hover:border-[var(--color-brand)] hover:text-[var(--color-brand)] transition-colors"><Plus size={11} /> Extra</button>
                         <button onClick={() => setCreatingMaterial({ clientId: client.id, campType: selected })} className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg border border-dashed border-[var(--color-border-hover)] text-[var(--color-text-secondary)] hover:border-[var(--color-brand)] hover:text-[var(--color-brand)] transition-colors"><Plus size={11} /> Material</button>
                       </div>
 
                       {/* Posts */}
-                      {campPosts.length > 0 && (
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Posts</p>
-                          <div className="flex flex-col gap-1.5">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Posts</p>
+                        {campPosts.length > 0 && (
+                          <div className="flex flex-col gap-1.5 mb-2">
                             {campPosts.map(p => (
                               <a key={p.id} href={`/dashboard/clientes/${client.id}?tab=cronograma&m=${p.month}&y=${p.year}&post=${p.id}`}
                                 className="flex items-center gap-2 text-xs -mx-1.5 px-1.5 py-0.5 rounded-lg hover:bg-[var(--color-bg-alt)] transition-colors">
@@ -301,8 +316,14 @@ export default function CampanhasPage() {
                               </a>
                             ))}
                           </div>
-                        </div>
-                      )}
+                        )}
+                        {(availablePostsByClient[client.id] || []).length > 0 && (
+                          <select onChange={e => { if (e.target.value) { linkExistingPost(client.id, e.target.value, selected); e.target.value = '' } }} className="w-full text-xs border border-dashed border-[var(--color-border-hover)] rounded-lg px-3 py-1.5 bg-[var(--color-bg-card)] outline-none text-[var(--color-text-secondary)] cursor-pointer">
+                            <option value="">+ Vincular post do cronograma...</option>
+                            {availablePostsByClient[client.id].map(p => <option key={p.id} value={p.id}>#{p.post_number} · {p.title || 'Post sem título'}</option>)}
+                          </select>
+                        )}
+                      </div>
 
                       {/* Extras do Kanban + Materiais vinculados */}
                       {(campKanbanExtras.length > 0 || campMaterials.length > 0) && (
