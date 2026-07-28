@@ -24,7 +24,10 @@ const URL_BY_TABLE: Record<string, (recordId: string, clientId?: string | null) 
 // sessão de usuário), então push_subscriptions/card_watchers precisam de GRANT
 // pro anon (ver push_subscriptions_setup.sql).
 export async function POST(req: NextRequest) {
-  if (!vapidPublic || !vapidPrivate) return NextResponse.json({ skipped: 'no vapid keys' })
+  if (!vapidPublic || !vapidPrivate) {
+    console.error('push/notify: VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY não configuradas no ambiente — nenhum push será enviado.')
+    return NextResponse.json({ skipped: 'no vapid keys' })
+  }
 
   const body = await req.json().catch(() => null)
   if (!body?.tableName || !body?.recordId) return NextResponse.json({ skipped: 'invalid body' })

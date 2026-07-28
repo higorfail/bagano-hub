@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { logActivity } from '@/lib/activity'
+import { ensureWatchingFromAssigned } from '@/lib/watch'
 import { CheckCircle, MessageSquare, RotateCcw, AlertTriangle } from 'lucide-react'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
 
@@ -376,6 +377,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     setSubmitting(postId)
     await supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null, status: 'aprovado' }).eq('id', postId)
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p))
+    await ensureWatchingFromAssigned('schedules', postId)
     await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post` })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setSheetPost(null); setSheetComment('')
@@ -388,6 +390,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     setSubmitting(postId)
     await supabase.from('schedules').update({ approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' }).eq('id', postId)
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' } : p))
+    await ensureWatchingFromAssigned('schedules', postId)
     await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente solicitou ajuste: "${c}"` })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setComments(cc => { const n = { ...cc }; delete n[postId]; return n })
@@ -409,6 +412,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     setApprovingAll(true)
     await Promise.all([
       ...pending.map(p => supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null, status: 'aprovado' }).eq('id', p.id)),
+      ...pending.map(p => ensureWatchingFromAssigned('schedules', p.id)),
       ...pending.map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post` })),
     ])
     setPosts(prev => prev.map(p =>
@@ -423,6 +427,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     setSubmitting(postId)
     await supabase.from('schedules').update({ status: 'producao', approval_status: 'aprovado', approval_comment: null }).eq('id', postId)
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'producao', approval_status: 'aprovado' } : p))
+    await ensureWatchingFromAssigned('schedules', postId)
     await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post' })
     showToast('Post aprovado! ✓')
     setSubmitting(null)
@@ -433,6 +438,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     setSubmitting(postId)
     await supabase.from('schedules').update({ status: 'estrategia', approval_status: 'não aprovado', approval_comment: c }).eq('id', postId)
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'estrategia', approval_status: 'não aprovado', approval_comment: c } : p))
+    await ensureWatchingFromAssigned('schedules', postId)
     await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste na estratégia: "${c}"` })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setComments(cc => { const n = { ...cc }; delete n[postId]; return n })
@@ -446,6 +452,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     setApprovingAll(true)
     await Promise.all([
       ...pending.map(p => supabase.from('schedules').update({ status: 'producao', approval_status: 'aprovado', approval_comment: null }).eq('id', p.id)),
+      ...pending.map(p => ensureWatchingFromAssigned('schedules', p.id)),
       ...pending.map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post' })),
     ])
     setPosts(prev => prev.map(p => pending.find(pp => pp.id === p.id) ? { ...p, status: 'producao', approval_status: 'aprovado' } : p))
@@ -457,6 +464,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     setExtraSubmitting(extraId)
     await supabase.from('extras').update({ client_approval_status: 'aprovado', client_approval_comment: null }).eq('id', extraId)
     setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aprovado', client_approval_comment: null } : e))
+    await ensureWatchingFromAssigned('extras', extraId)
     await logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou o extra' })
     showToast('Extra aprovado! ✓')
     setExtraSubmitting(null)
@@ -474,6 +482,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     setExtraSubmitting(extraId)
     await supabase.from('extras').update({ client_approval_status: 'recusado', client_approval_comment: c }).eq('id', extraId)
     setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'recusado', client_approval_comment: c } : e))
+    await ensureWatchingFromAssigned('extras', extraId)
     await logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste: "${c}"` })
     setExtraCommenting(s => { const n = new Set(s); n.delete(extraId); return n })
     setExtraComments(cc => { const n = { ...cc }; delete n[extraId]; return n })

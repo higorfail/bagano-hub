@@ -9,7 +9,7 @@ import { ChevronDown, Check, Menu, X as XIcon } from 'lucide-react'
 import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, CheckCircle2, XCircle, Camera, Clock, MessageCircle, Trash2, Zap, CalendarClock, ListChecks, Eye, AtSign, Share2, ListTodo } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
-import { ToastProvider } from '@/lib/ToastContext'
+import { ToastProvider, useToast } from '@/lib/ToastContext'
 import LogoIcon from '@/components/logos/LogoIcon'
 import { pushSupported, isSubscribedToPush, subscribeToPush } from '@/lib/push'
 import { todayBrasiliaISO, addDaysISO } from '@/lib/timezone'
@@ -67,6 +67,7 @@ function timeAgo(iso: string) {
 function DashboardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { members, currentMember, setCurrentMember, showOnlyMine, setShowOnlyMine } = useUser()
+  const { toast } = useToast()
   const [showMemberPicker, setShowMemberPicker] = useState(false)
   const memberRef = useRef<HTMLDivElement>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -105,8 +106,17 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   async function enablePush() {
     if (!currentMember) return
     setPushState('busy')
-    const res = await subscribeToPush(currentMember.id)
-    setPushState(res.ok ? 'on' : 'off')
+    try {
+      const res = await subscribeToPush(currentMember.id)
+      setPushState(res.ok ? 'on' : 'off')
+      if (!res.ok) toast(res.error || 'Não consegui ativar as notificações.')
+    } catch (err: any) {
+      // Rede de segurança: mesmo se subscribeToPush lançar algo inesperado,
+      // o botão não pode ficar preso em "busy" pra sempre sem explicação.
+      console.error('enablePush falhou:', err)
+      setPushState('off')
+      toast('Não consegui ativar as notificações — tenta de novo ou usa outro navegador.')
+    }
   }
 
   const [readIds, setReadIds] = useState<Set<string>>(() => {

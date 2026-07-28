@@ -27,6 +27,22 @@ export async function ensureWatching(tableName: string, recordId: string | undef
   )
 }
 
+// Ressincroniza os watchers de um card a partir de quem está atribuído a ele
+// AGORA — chamar antes de eventos importantes (aprovação/ajuste do cliente),
+// como rede de segurança contra qualquer brecha no fluxo normal de
+// ensureWatching() (ex: atribuição feita antes de existir o ensureWatching,
+// migração de dados, etc.). Sem isso, um responsável pode ficar "invisível"
+// pro push mesmo aparecendo corretamente na UI como atribuído ao card.
+export async function ensureWatchingFromAssigned(tableName: 'schedules' | 'extras' | 'materials', recordId: string) {
+  const supabase = createClient()
+  const { data } = await supabase.from(tableName).select('assigned_members, assigned_member_id').eq('id', recordId).maybeSingle()
+  if (!data) return
+  const ids = Array.isArray(data.assigned_members) && data.assigned_members.length > 0
+    ? data.assigned_members
+    : data.assigned_member_id ? [data.assigned_member_id] : []
+  await ensureWatching(tableName, recordId, ids)
+}
+
 // @Nome escrito num comentário — mesma convenção usada por useMentions.insert()
 // (que sempre grava "@PrimeiroNome "). Usado para achar quem foi mencionado.
 export function extractMentionedFirstNames(body: string): string[] {
