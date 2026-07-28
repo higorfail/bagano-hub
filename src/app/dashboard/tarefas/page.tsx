@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import TaskMiniCard from '@/components/TaskMiniCard'
 import TaskCard from '@/components/TaskCard'
-import { Plus } from 'lucide-react'
+import { Plus, ChevronRight, ChevronDown } from 'lucide-react'
 
 const COLUMNS = [
   { key: 'a_fazer', label: 'A fazer', color: '#6B7280' },
@@ -36,6 +36,7 @@ function TarefasPageInner() {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null)
+  const [showDelegated, setShowDelegated] = useState(false)
 
   const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])), [clients])
 
@@ -197,20 +198,34 @@ function TarefasPageInner() {
         )}
 
         {!loading && delegatedTasks.length > 0 && (
-          <div className="mt-8">
-            <h2 className="text-sm font-bold text-[var(--color-text-secondary)] uppercase tracking-wider mb-1">📤 Delegadas por você</h2>
-            <p className="text-xs text-[var(--color-text-muted)] mb-3">Cartões que você criou pra outra pessoa — não ficam no seu quadro, mas aqui dá pra acompanhar o andamento.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {delegatedTasks.map(t => {
-                const assigneeMember = members.find((m: any) => m.id === t.assigned_to)
-                return (
-                  <TaskMiniCard key={t.id} task={t} clientMap={clientMap}
-                    assignee={assigneeMember ? { name: assigneeMember.name, color: assigneeMember.color || 'var(--color-brand)' } : undefined}
-                    onClick={() => { setOpenTaskId(t.id); window.history.replaceState(null, '', `?task=${t.id}`) }}
-                  />
-                )
-              })}
-            </div>
+          <div className="mt-8 pt-4 border-t border-[var(--color-border)]">
+            <button onClick={() => setShowDelegated(v => !v)}
+              className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-faint)] hover:text-[var(--color-text-muted)] transition-colors">
+              {showDelegated ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              Delegadas por você
+              <span className="text-[10px] bg-[var(--color-bg-subtle)] px-1.5 py-0.5 rounded-full">{delegatedTasks.length}</span>
+            </button>
+
+            {showDelegated && (
+              <div className="mt-3 flex flex-col gap-1">
+                {delegatedTasks.map(t => {
+                  const assigneeMember = members.find((m: any) => m.id === t.assigned_to)
+                  const statusCol = COLUMNS.find(c => c.key === t.status)
+                  return (
+                    <button key={t.id}
+                      onClick={() => { setOpenTaskId(t.id); window.history.replaceState(null, '', `?task=${t.id}`) }}
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left hover:bg-[var(--color-bg-subtle)] transition-colors">
+                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: statusCol?.color || '#6B7280' }} />
+                      <span className="text-xs text-[var(--color-text-muted)] truncate flex-1">{t.title || 'Sem título'}</span>
+                      {assigneeMember && (
+                        <span className="text-[10px] text-[var(--color-text-faint)] flex-shrink-0">{assigneeMember.name}</span>
+                      )}
+                      <span className="text-[10px] text-[var(--color-text-faint)] flex-shrink-0">{statusCol?.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

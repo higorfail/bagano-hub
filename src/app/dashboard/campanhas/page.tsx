@@ -45,7 +45,7 @@ export default function CampanhasPage() {
   useEffect(() => { document.title = 'Campanhas · Bagano Hub' }, [])
   const supabase = createClient()
   const isDark = useDarkMode()
-  const [selected, setSelected] = useState('natal')
+  const [selected, setSelected] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('campanhas:lastType')) || 'natal')
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
   const [posts, setPosts] = useState<any[]>([])
@@ -56,11 +56,21 @@ export default function CampanhasPage() {
 
   useEffect(() => { load() }, [])
 
+  useEffect(() => { localStorage.setItem('campanhas:lastType', selected) }, [selected])
+
+  function selectClient(campId: string) {
+    setExpanded(prev => {
+      const next = prev === campId ? null : campId
+      if (next) localStorage.setItem(`campanhas:lastExpanded:${selected}`, next)
+      return next
+    })
+  }
+
   async function load() {
     const [{ data: camps }, { data: cls }, { data: ps }] = await Promise.all([
       supabase.from('campaigns').select('*, campaign_extras(*)').eq('active', true),
       supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
-      supabase.from('schedules').select('id, client_id, post_number, title, post_type, status, campaign_type').not('campaign_type', 'is', null),
+      supabase.from('schedules').select('id, client_id, post_number, title, post_type, status, campaign_type, month, year').not('campaign_type', 'is', null),
     ])
     setCampaigns(camps || [])
     setClients(cls || [])
@@ -93,6 +103,14 @@ export default function CampanhasPage() {
   const activeCamps = campaigns.filter(c => c.type === selected)
   const activeClientIds = activeCamps.map(c => c.client_id)
   const activeClients = clients.filter(c => activeClientIds.includes(c.id))
+
+  // Reabre o último cliente expandido nesta campanha (se ainda existir)
+  useEffect(() => {
+    if (loading) return
+    const lastId = localStorage.getItem(`campanhas:lastExpanded:${selected}`)
+    setExpanded(lastId && activeCamps.some(c => c.id === lastId) ? lastId : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, loading])
 
   // Clientes sem esta campanha ainda
   const inactiveClients = clients.filter(c => !activeClientIds.includes(c.id))
@@ -164,7 +182,7 @@ export default function CampanhasPage() {
                   {/* Client header */}
                   <div
                     className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--color-bg-alt)] transition-colors"
-                    onClick={() => setExpanded(isExp ? null : camp.id)}
+                    onClick={() => selectClient(camp.id)}
                   >
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden" style={{ background: client.color_hex }}>{client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}</div>
                     <div className="flex-1 min-w-0">
@@ -194,12 +212,13 @@ export default function CampanhasPage() {
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Posts</p>
                           <div className="flex flex-col gap-1.5">
                             {campPosts.map(p => (
-                              <div key={p.id} className="flex items-center gap-2 text-xs">
+                              <a key={p.id} href={`/dashboard/clientes/${client.id}?tab=cronograma&m=${p.month}&y=${p.year}&post=${p.id}`}
+                                className="flex items-center gap-2 text-xs -mx-1.5 px-1.5 py-0.5 rounded-lg hover:bg-[var(--color-bg-alt)] transition-colors">
                                 <span className="font-bold text-[var(--color-text-muted)] w-5">#{p.post_number}</span>
                                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: (isDark ? TYPE_BG_D : TYPE_BG_L)[p.post_type] || 'var(--color-bg-subtle)', color: (isDark ? TYPE_TX_D : TYPE_TX_L)[p.post_type] || 'var(--color-text-secondary)' }}>{TYPE_LABEL[p.post_type] || p.post_type}</span>
                                 <span className="flex-1 text-[var(--color-text-primary)] truncate">{p.title}</span>
                                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: (isDark ? STATUS_BG_D : STATUS_BG_L)[p.status] || 'var(--color-bg-subtle)', color: (isDark ? STATUS_TX_D : STATUS_TX_L)[p.status] || 'var(--color-text-secondary)' }}>{STATUS_LABEL[p.status] || p.status}</span>
-                              </div>
+                              </a>
                             ))}
                           </div>
                         </div>
