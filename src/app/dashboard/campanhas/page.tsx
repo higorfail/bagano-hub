@@ -150,7 +150,7 @@ export default function CampanhasPage() {
       {activeClients.length > 0 && (
         <div>
           <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Clientes com esta campanha</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
             {activeClients.map(client => {
               const camp = activeCamps.find(c => c.client_id === client.id)!
               const campPosts = posts.filter(p => p.client_id === client.id && p.campaign_type === selected)
