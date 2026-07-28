@@ -68,6 +68,7 @@ type Props = {
   extraId?: string
   initialStatus?: ExtraStatus
   fixedClientId?: string | null
+  initialCampaignType?: string
   clients?: { id: string; name: string; color_hex: string }[]
   members?: { id: string; name: string; role: string; color?: string }[]
   onClose: () => void
@@ -75,7 +76,7 @@ type Props = {
   onDeleted?: (id: string) => void
 }
 
-export default function ExtraCard({ extraId, initialStatus, fixedClientId, clients = [], members: membersProp, onClose, onSaved, onDeleted }: Props) {
+export default function ExtraCard({ extraId, initialStatus, fixedClientId, initialCampaignType, clients = [], members: membersProp, onClose, onSaved, onDeleted }: Props) {
   const { members: ctxMembers, currentMember } = useUser()
   const who = currentMember?.name || 'Alguém'
   const { toast } = useToast()
@@ -116,6 +117,16 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
   const [createdAt,       setCreatedAt]       = useState<string | null>(null)
   const [labels,          setLabels]          = useState<{ text: string; color: string }[]>([])
   const [assignedMembers, setAssignedMembers] = useState<string[]>([])
+  const [campaignType,    setCampaignType]    = useState(initialCampaignType || '')
+  const [campaigns,       setCampaigns]       = useState<{ id: string; name: string; type: string }[]>([])
+
+  useEffect(() => {
+    const cid = fixedClientId || clientId
+    if (!cid) { setCampaigns([]); return }
+    supabase.from('campaigns').select('id, name, type').eq('client_id', cid).eq('active', true)
+      .then(({ data }) => setCampaigns(data || []))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixedClientId, clientId])
 
   const [clientApprovalStatus,  setClientApprovalStatus]  = useState('')
   const [clientApprovalComment, setClientApprovalComment] = useState('')
@@ -231,6 +242,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
         setDriveUrl(data.drive_url || '')
         setCreatedAt(data.created_at || null)
         setLabels(Array.isArray(data.labels) ? data.labels : [])
+        setCampaignType(data.campaign_type || '')
         setClientApprovalStatus(data.client_approval_status || '')
         setClientApprovalComment(data.client_approval_comment || '')
         const am = Array.isArray(data.assigned_members) && data.assigned_members.length > 0
@@ -258,6 +270,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
       description, briefing, copy, legenda, reference_notes: referenceNotes,
       due_date: dueDate || null, due_time: dueTime || null, drive_url: driveUrl || null,
       assigned_members: assignedMembers, assigned_member_id: assignedMembers[0] || null, labels,
+      campaign_type: campaignType || null,
     }
     const { data, error } = await supabase.from('extras').insert(payload).select('*').single()
     if (error) console.error('ensureId error:', error)
@@ -752,6 +765,19 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, clien
               <Calendar size={12} className="flex-shrink-0" /> <span className="truncate">{dueDateLabel ? dueDateLabel.text : 'Definir'}</span>
             </button>
           </PropertyPill>
+          {/* Campanha */}
+          {campaigns.length > 0 && (
+            <PropertyPill label="Campanha">
+              <div className="relative min-w-0">
+                <select value={campaignType} onChange={e => { const nm = campaigns.find(c => c.type === e.target.value)?.name; setCampaignType(e.target.value); persist({ campaign_type: e.target.value || null }, e.target.value ? `${who} definiu a campanha: ${nm || ''}` : `${who} removeu a campanha`) }}
+                  className={pillSelectCls + ' bg-[var(--color-bg-card)] border-[var(--color-border)]'} style={{ color: campaignType ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+                  <option value="">Campanha</option>
+                  {campaigns.map(c => <option key={c.type} value={c.type}>{c.name}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+              </div>
+            </PropertyPill>
+          )}
           </div>
           {/* Linha 2 — grupos largos (chips) */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">

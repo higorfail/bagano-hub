@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Check, Trash2, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 import { useDarkMode } from '@/lib/useDarkMode'
+import PostCard from '@/components/PostCard'
+import ExtraCard from '@/components/ExtraCard'
+import MaterialCard from '@/components/MaterialCard'
 
 const SEASONAL = [
   { type: 'natal',     name: 'Natal & Réveillon', emoji: '🎄', color: '#DC2626', month: 12, day: 25, leadDays: 60,
@@ -60,20 +63,36 @@ export default function CampanhasPage() {
   const [kanbanExtras, setKanbanExtras] = useState<any[]>([])
   const [materials, setMaterials] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [addingExtra, setAddingExtra] = useState<string | null>(null)
   const [newExtraText, setNewExtraText] = useState<Record<string, string>>({})
+  const [editingBriefing, setEditingBriefing] = useState<Record<string, boolean>>({})
+  const [creatingPost, setCreatingPost] = useState<{ clientId: string; campType: string } | null>(null)
+  const [creatingExtra, setCreatingExtra] = useState<{ clientId: string; campType: string } | null>(null)
+  const [creatingMaterial, setCreatingMaterial] = useState<{ clientId: string; campType: string } | null>(null)
+  const [createPostNumber, setCreatePostNumber] = useState(1)
 
   useEffect(() => { load() }, [])
 
   useEffect(() => { localStorage.setItem('campanhas:lastType', selected) }, [selected])
 
+  // Vários cards podem ficar abertos ao mesmo tempo — abrir um não fecha os outros.
   function selectClient(campId: string) {
     setExpanded(prev => {
-      const next = prev === campId ? null : campId
-      if (next) localStorage.setItem(`campanhas:lastExpanded:${selected}`, next)
+      const next = new Set(prev)
+      if (next.has(campId)) next.delete(campId)
+      else next.add(campId)
+      localStorage.setItem(`campanhas:lastExpanded:${selected}`, JSON.stringify([...next]))
       return next
     })
+  }
+
+  async function openCreatePost(clientId: string, campType: string) {
+    const now = new Date()
+    const { count } = await supabase.from('schedules').select('id', { count: 'exact', head: true })
+      .eq('client_id', clientId).eq('month', now.getMonth() + 1).eq('year', now.getFullYear())
+    setCreatePostNumber((count || 0) + 1)
+    setCreatingPost({ clientId, campType })
   }
 
   async function load() {
@@ -110,6 +129,11 @@ export default function CampanhasPage() {
     }
   }
 
+  async function saveBriefing(campId: string, briefing: string) {
+    await supabase.from('campaigns').update({ briefing }).eq('id', campId)
+    setCampaigns(c => c.map(x => x.id === campId ? { ...x, briefing } : x))
+  }
+
   const orderedSeasonal = [...SEASONAL].sort((a, b) => getDaysUntil(a.month, a.day) - getDaysUntil(b.month, b.day))
   const seasonal = SEASONAL.find(s => s.type === selected)!
   const days = getDaysUntil(seasonal.month, seasonal.day)
@@ -119,11 +143,13 @@ export default function CampanhasPage() {
   const activeClientIds = activeCamps.map(c => c.client_id)
   const activeClients = clients.filter(c => activeClientIds.includes(c.id))
 
-  // Reabre o último cliente expandido nesta campanha (se ainda existir)
+  // Reabre os clientes que estavam expandidos nesta campanha (se ainda existirem)
   useEffect(() => {
     if (loading) return
-    const lastId = localStorage.getItem(`campanhas:lastExpanded:${selected}`)
-    setExpanded(lastId && activeCamps.some(c => c.id === lastId) ? lastId : null)
+    const raw = localStorage.getItem(`campanhas:lastExpanded:${selected}`)
+    let ids: string[] = []
+    try { ids = raw ? JSON.parse(raw) : [] } catch { ids = raw ? [raw] : [] }
+    setExpanded(new Set(ids.filter(cid => activeCamps.some(c => c.id === cid))))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, loading])
 
@@ -213,7 +239,7 @@ export default function CampanhasPage() {
       {activeClients.length > 0 && (
         <div>
           <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Clientes com esta campanha</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
             {activeClients.map(client => {
               const camp = activeCamps.find(c => c.client_id === client.id)!
               const campPosts = posts.filter(p => p.client_id === client.id && p.campaign_type === selected)
@@ -222,7 +248,7 @@ export default function CampanhasPage() {
               const extras = camp.campaign_extras || []
               const doneExtras = extras.filter((e: any) => e.done).length
               const donePosts = campPosts.filter(p => ['aprovado', 'publicado'].includes(p.status)).length
-              const isExp = expanded === camp.id
+              const isExp = expanded.has(camp.id)
 
               return (
                 <div key={client.id} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden shadow-card">
@@ -253,6 +279,13 @@ export default function CampanhasPage() {
                   {/* Expanded */}
                   {isExp && (
                     <div className="border-t border-[var(--color-border)] p-4 flex flex-col gap-4">
+                      {/* Criar novo direto daqui, já vinculado a esta campanha */}
+                      <div className="flex gap-2 flex-wrap">
+                        <button onClick={() => openCreatePost(client.id, selected)} className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg border border-dashed border-[var(--color-border-hover)] text-[var(--color-text-secondary)] hover:border-[var(--color-brand)] hover:text-[var(--color-brand)] transition-colors"><Plus size={11} /> Post</button>
+                        <button onClick={() => setCreatingExtra({ clientId: client.id, campType: selected })} className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg border border-dashed border-[var(--color-border-hover)] text-[var(--color-text-secondary)] hover:border-[var(--color-brand)] hover:text-[var(--color-brand)] transition-colors"><Plus size={11} /> Extra</button>
+                        <button onClick={() => setCreatingMaterial({ clientId: client.id, campType: selected })} className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg border border-dashed border-[var(--color-border-hover)] text-[var(--color-text-secondary)] hover:border-[var(--color-brand)] hover:text-[var(--color-brand)] transition-colors"><Plus size={11} /> Material</button>
+                      </div>
+
                       {/* Posts */}
                       {campPosts.length > 0 && (
                         <div>
@@ -332,13 +365,27 @@ export default function CampanhasPage() {
                         )}
                       </div>
 
-                      {/* Briefing */}
-                      {camp.briefing && (
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5">Briefing</p>
-                          <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed bg-[var(--color-bg-alt)] rounded-lg px-3 py-2">{camp.briefing}</p>
-                        </div>
-                      )}
+                      {/* Observação — clica pra editar, senão fica como texto normal */}
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-1.5">Observação</p>
+                        {editingBriefing[camp.id] ? (
+                          <textarea
+                            autoFocus
+                            defaultValue={camp.briefing || ''}
+                            rows={2}
+                            onBlur={e => { saveBriefing(camp.id, e.target.value); setEditingBriefing(s => ({ ...s, [camp.id]: false })) }}
+                            placeholder="Ex: o brinde de Dia dos Pais vai ser chopp em dobro..."
+                            className="w-full text-xs border border-[var(--color-border)] rounded-lg px-3 py-2 outline-none focus:border-[var(--color-brand)] resize-none text-[var(--color-text-primary)] leading-relaxed bg-[var(--color-bg-alt)]"
+                          />
+                        ) : (
+                          <p
+                            onClick={() => setEditingBriefing(s => ({ ...s, [camp.id]: true }))}
+                            className="text-xs text-[var(--color-text-secondary)] leading-relaxed bg-[var(--color-bg-alt)] rounded-lg px-3 py-2 cursor-text hover:bg-[var(--color-bg-subtle)] transition-colors min-h-[30px]"
+                          >
+                            {camp.briefing || <span className="text-[var(--color-text-faint)]">Clique pra adicionar uma observação...</span>}
+                          </p>
+                        )}
+                      </div>
 
                       <a href={`/dashboard/clientes/${client.id}?tab=campanhas&camp=${selected}`} className="text-xs hover:underline" style={{ color: 'var(--ds-info-text)' }}>Abrir página do cliente →</a>
                     </div>
@@ -371,6 +418,34 @@ export default function CampanhasPage() {
           <p className="text-sm font-medium text-[var(--color-text-primary)]">Nenhum cliente com {seasonal.name} ainda</p>
           <p className="text-xs text-[var(--color-text-muted)] mt-1">Ative a campanha na página de cada cliente</p>
         </div>
+      )}
+
+      {creatingPost && (
+        <PostCard
+          clientId={creatingPost.clientId}
+          month={new Date().getMonth() + 1}
+          year={new Date().getFullYear()}
+          postNumber={createPostNumber}
+          initialCampaignType={creatingPost.campType}
+          onClose={() => setCreatingPost(null)}
+          onSaved={() => { setCreatingPost(null); load() }}
+        />
+      )}
+      {creatingExtra && (
+        <ExtraCard
+          fixedClientId={creatingExtra.clientId}
+          initialCampaignType={creatingExtra.campType}
+          onClose={() => setCreatingExtra(null)}
+          onSaved={() => { setCreatingExtra(null); load() }}
+        />
+      )}
+      {creatingMaterial && (
+        <MaterialCard
+          fixedClientId={creatingMaterial.clientId}
+          initialCampaignType={creatingMaterial.campType}
+          onClose={() => setCreatingMaterial(null)}
+          onSaved={() => { setCreatingMaterial(null); load() }}
+        />
       )}
     </div>
   )

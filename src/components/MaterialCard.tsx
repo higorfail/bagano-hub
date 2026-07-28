@@ -50,13 +50,14 @@ function initials(name: string) {
 type Props = {
   materialId?: string
   fixedClientId?: string
+  initialCampaignType?: string
   clients?: any[]
   onClose: () => void
   onSaved: () => void
   onDeleted?: (id: string) => void
 }
 
-export default function MaterialCard({ materialId, fixedClientId, clients = [], onClose, onSaved, onDeleted }: Props) {
+export default function MaterialCard({ materialId, fixedClientId, initialCampaignType, clients = [], onClose, onSaved, onDeleted }: Props) {
   const { members, currentMember } = useUser()
   const who = currentMember?.name || 'Alguém'
   const { toast } = useToast()
@@ -95,6 +96,16 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
 
   // Múltiplos responsáveis
   const [assignedMembers, setAssignedMembers] = useState<string[]>([])
+  const [campaignType,    setCampaignType]    = useState(initialCampaignType || '')
+  const [campaigns,       setCampaigns]       = useState<{ id: string; name: string; type: string }[]>([])
+
+  useEffect(() => {
+    const cid = fixedClientId || clientId
+    if (!cid) { setCampaigns([]); return }
+    supabase.from('campaigns').select('id, name, type').eq('client_id', cid).eq('active', true)
+      .then(({ data }) => setCampaigns(data || []))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixedClientId, clientId])
 
   // Sub-entidades
   const [comments,    setComments]    = useState<any[]>([])
@@ -169,6 +180,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
         setDriveUrl(data.drive_url || '')
         setCreatedAt(data.created_at || null)
         setLabels(Array.isArray(data.labels) ? data.labels : [])
+        setCampaignType(data.campaign_type || '')
         // Múltiplos responsáveis: lê assigned_members, fallback para assigned_to legado
         const am = Array.isArray(data.assigned_members) && data.assigned_members.length > 0
           ? data.assigned_members
@@ -227,6 +239,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       assigned_to: assignedMembers[0] || null,
       labels,
       drive_url: driveUrl,
+      campaign_type: campaignType || null,
     }
     const { data } = await supabase.from('materials').insert(payload).select().single()
     if (data) {
@@ -292,6 +305,7 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
       assigned_to: assignedMembers[0] || null,
       labels,
       drive_url: driveUrl,
+      campaign_type: campaignType || null,
     }
     if (!id) {
       const { data } = await supabase.from('materials').insert(payload).select().single()
@@ -675,6 +689,19 @@ export default function MaterialCard({ materialId, fixedClientId, clients = [], 
               })()}
             </button>
           </PropertyPill>
+          {/* Campanha */}
+          {campaigns.length > 0 && (
+            <PropertyPill label="Campanha">
+              <div className="relative min-w-0">
+                <select value={campaignType} onChange={e => { const nm = campaigns.find(c => c.type === e.target.value)?.name; setCampaignType(e.target.value); persist({ campaign_type: e.target.value || null }, e.target.value ? `${who} definiu a campanha: ${nm || ''}` : `${who} removeu a campanha`) }}
+                  className={pillSelectCls + ' bg-[var(--color-bg-card)] border-[var(--color-border)]'} style={{ color: campaignType ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
+                  <option value="">Campanha</option>
+                  {campaigns.map(c => <option key={c.type} value={c.type}>{c.name}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+              </div>
+            </PropertyPill>
+          )}
           </div>
           {/* Linha 2 — grupos largos (chips) */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">

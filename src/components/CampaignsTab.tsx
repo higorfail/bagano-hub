@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Plus, ChevronDown, ChevronUp, Check, Trash2 } from 'lucide-react'
 import { useDarkMode } from '@/lib/useDarkMode'
+import PostCard from '@/components/PostCard'
+import ExtraCard from '@/components/ExtraCard'
+import MaterialCard from '@/components/MaterialCard'
 
 const SEASONAL = [
   { type: 'natal',     name: 'Natal & Réveillon', emoji: '🎄', month: 12, day: 25, leadDays: 60,
@@ -67,6 +70,18 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
   const [showCustom, setShowCustom]   = useState(false)
   const [customName, setCustomName]   = useState('')
   const [saving, setSaving]           = useState<string | null>(null)
+  const [creatingPost, setCreatingPost]         = useState<string | null>(null)
+  const [creatingExtra, setCreatingExtra]       = useState<string | null>(null)
+  const [creatingMaterial, setCreatingMaterial] = useState<string | null>(null)
+  const [createPostNumber, setCreatePostNumber] = useState(1)
+  const now = new Date()
+
+  async function openCreatePost(campType: string) {
+    const { count } = await supabase.from('schedules').select('id', { count: 'exact', head: true })
+      .eq('client_id', clientId).eq('month', now.getMonth() + 1).eq('year', now.getFullYear())
+    setCreatePostNumber((count || 0) + 1)
+    setCreatingPost(campType)
+  }
 
   useEffect(() => { load() }, [clientId])
 
@@ -280,7 +295,10 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Posts do cronograma</p>
-                    <span className="text-[11px] text-[var(--color-text-muted)]">{campPosts.length} vinculados</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-[var(--color-text-muted)]">{campPosts.length} vinculados</span>
+                      <button onClick={() => openCreatePost(s.type)} className="flex items-center gap-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"><Plus size={11} /> Novo</button>
+                    </div>
                   </div>
                   {campPosts.length > 0 && (
                     <div className="flex flex-col gap-1.5 mb-2">
@@ -308,7 +326,10 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Extras (Kanban)</p>
-                    <span className="text-[11px] text-[var(--color-text-muted)]">{campKanbanExtras.length} vinculados</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-[var(--color-text-muted)]">{campKanbanExtras.length} vinculados</span>
+                      <button onClick={() => setCreatingExtra(s.type)} className="flex items-center gap-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"><Plus size={11} /> Novo</button>
+                    </div>
                   </div>
                   {campKanbanExtras.length > 0 && (
                     <div className="flex flex-col gap-1.5 mb-2">
@@ -334,7 +355,10 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Materiais</p>
-                    <span className="text-[11px] text-[var(--color-text-muted)]">{campMaterials.length} vinculados</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-[var(--color-text-muted)]">{campMaterials.length} vinculados</span>
+                      <button onClick={() => setCreatingMaterial(s.type)} className="flex items-center gap-1 text-[11px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"><Plus size={11} /> Novo</button>
+                    </div>
                   </div>
                   {campMaterials.length > 0 && (
                     <div className="flex flex-col gap-1.5 mb-2">
@@ -461,6 +485,36 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
           </div>
         )
       })}
+
+      {creatingPost && (
+        <PostCard
+          clientId={clientId}
+          clientColor={clientColor}
+          month={now.getMonth() + 1}
+          year={now.getFullYear()}
+          postNumber={createPostNumber}
+          initialCampaignType={creatingPost}
+          onClose={() => setCreatingPost(null)}
+          onSaved={() => { setCreatingPost(null); load() }}
+        />
+      )}
+      {creatingExtra && (
+        <ExtraCard
+          fixedClientId={clientId}
+          members={members}
+          initialCampaignType={creatingExtra}
+          onClose={() => setCreatingExtra(null)}
+          onSaved={() => { setCreatingExtra(null); load() }}
+        />
+      )}
+      {creatingMaterial && (
+        <MaterialCard
+          fixedClientId={clientId}
+          initialCampaignType={creatingMaterial}
+          onClose={() => setCreatingMaterial(null)}
+          onSaved={() => { setCreatingMaterial(null); load() }}
+        />
+      )}
     </div>
   )
 }
