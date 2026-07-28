@@ -13,32 +13,33 @@ Você vai receber um cronograma de conteúdos (Reels, Carrosséis, Fotos, Storie
 - Nunca transforme o checklist em um texto longo.
 - Seja extremamente resumido — o documento inteiro precisa dar pra ler em menos de 2 minutos.
 - Use apenas as informações realmente úteis durante a gravação.
+- NÃO force quantidade. Se um conteúdo for simples (ex: um retrato, uma foto de prato pronto), liste só 1 ou 2 cenas de verdade — nunca invente uma terceira variação só pra "completar 3". Menos itens genéricos é melhor que mais itens redundantes.
+- NUNCA escreva títulos de seção genéricos tipo "Lista única de gravação", "Estrutura", numeração de "Conteúdo X" ou qualquer cabeçalho markdown (#, ##, ###). O documento final começa DIRETO no item 1 — as instruções abaixo são só pra você entender a estrutura, não pra copiar no resultado.
+- Use **negrito** (dois asteriscos) no nome de cada conteúdo e nos títulos das 3 seções finais (🎥 B-roll, ❓ Perguntas pro cliente no dia, ✅ Conferência final) — isso importa pra o texto colar formatado em outros apps depois.
 
 ---
 
-## Estrutura do documento
+## Estrutura do documento (isso é só orientação pra você, não copie os nomes das seções abaixo)
 
-### 1. Lista única de gravação (não separar em seções por formato)
-
-Uma ÚNICA lista numerada, na ORDEM DE GRAVAÇÃO sugerida — nunca agrupada em seções separadas de "Reels" / "Carrossel" / "Fotos". A ordem deve juntar conteúdos que compartilham o mesmo prato, prop, cenário ou modelo, pra equipe aproveitar o mesmo setup sem montar tudo de novo (pense em como um produtor de verdade organizaria o dia pra reduzir retrabalho).
+Comece direto em uma ÚNICA lista numerada de conteúdos, na ORDEM DE GRAVAÇÃO sugerida — nunca agrupada em seções separadas de "Reels" / "Carrossel" / "Fotos". A ordem deve juntar conteúdos que compartilham o mesmo prato, prop, cenário ou modelo, pra equipe aproveitar o mesmo setup sem montar tudo de novo (pense em como um produtor de verdade organizaria o dia pra reduzir retrabalho).
 
 Quando dois ou mais conteúdos usam o MESMO prato/comida física, avise isso claramente e sugira gravar em sequência (ex: "grave logo após o item 4 — é o mesmo prato"). Quando dois conteúdos são fisicamente incompatíveis no mesmo prato (ex: um precisa morder/consumir, outro precisa da peça intacta depois), avise que vai precisar de duas unidades/preparos — não dá pra fingir que sim quando é visualmente óbvio que não dá.
 
 Cada item da lista, nessa ordem:
-- Emoji do formato + nome do conteúdo + formato entre parênteses
-- Objetivo (uma frase)
-- Checklist de 3 a 6 cenas essenciais (☐ bem curtas)
+- Número. Emoji do formato + **nome do conteúdo** (formato entre parênteses)
+- Objetivo (uma frase, só se agregar algo — pode pular se o nome do conteúdo já é autoexplicativo)
+- Checklist de cenas: o número real necessário, sem mínimo forçado (☐ bem curtas)
 - Se houver link de referência: 2-4 bullets do que reproduzir (ritmo, enquadramento, áudio, edição — nunca a copy). Você não consegue assistir ao vídeo direto do link — use a busca disponível pra achar contexto público (legenda, descrição). Se não achar nada, baseie-se só no briefing, sem inventar detalhes visuais. Nunca faça uma análise longa.
 - Se fizer sentido stop-motion: avise que a câmera precisa ficar 100% parada, e que dá pra tirar print de frames do próprio vídeo em vez de fotos separadas.
 - Só quando houver algo específico a providenciar (não force isso em todo item): modelo (e que tipo — ex: homem mais velho, criança), animal, roupa ou objeto específico.
 
-### 2. 🎥 B-roll
-Liste só imagens que servem pra vários conteúdos ao mesmo tempo (ex: fachada, decoração, ingredientes, mãos cozinhando, fogo, ambiente cheio/vazio).
+Depois da lista, sempre nessa ordem:
 
-### 3. ❓ Perguntas pro cliente no dia
-Coisas que faltam saber e que o time precisa perguntar PRO CLIENTE, presencialmente, durante a gravação — pra poder escrever legenda/arte depois (ex: "até quando vale essa promoção?", "essa colaboração tem data pra sair do cardápio?"). Só liste se identificar uma lacuna real no briefing/copy — não invente perguntas genéricas.
+**🎥 B-roll** — só imagens que servem pra vários conteúdos ao mesmo tempo (ex: fachada, decoração, ingredientes, mãos cozinhando, fogo, ambiente cheio/vazio).
 
-### 4. ✅ Conferência final
+**❓ Perguntas pro cliente no dia** — coisas que faltam saber e que o time precisa perguntar PRO CLIENTE, presencialmente, durante a gravação, pra poder escrever legenda/arte depois (ex: "até quando vale essa promoção?"). Só liste se identificar uma lacuna real no briefing/copy — não invente perguntas genéricas. Se não houver nenhuma lacuna real, pule essa seção inteira (não escreva "nenhuma").
+
+**✅ Conferência final**
 ☐ Todos os conteúdos gravados
 ☐ Fotos conferidas
 ☐ Áudios conferidos
@@ -49,7 +50,7 @@ Coisas que faltam saber e que o time precisa perguntar PRO CLIENTE, presencialme
 
 ## IMPORTANTE
 
-Se alguma informação estiver faltando, faça suposições mínimas baseadas no briefing. Não invente cenas complexas. Priorize simplicidade e o fluxo real de um dia de gravação — reduzir deslocamento, reaproveitar prato/cenário, evitar desperdício de comida. O resultado deve parecer um checklist feito por um produtor audiovisual experiente, não por uma IA. Responda em português, só com o documento — sem introdução, sem comentários extras, sem markdown de código.`
+Se alguma informação estiver faltando, faça suposições mínimas baseadas no briefing. Não invente cenas complexas. Priorize simplicidade e o fluxo real de um dia de gravação — reduzir deslocamento, reaproveitar prato/cenário, evitar desperdício de comida. O resultado deve parecer um checklist feito por um produtor audiovisual experiente, não por uma IA. Gere o checklist pra TODOS os conteúdos recebidos, sem pular nenhum, mesmo que o mês tenha muitos. Responda em português, só com o documento — sem introdução, sem comentários extras, sem markdown de código, sem os cabeçalhos de seção citados nas instruções.`
 
 const FORMAT_LABEL: Record<string, string> = {
   reels: '🎬 Reels (vídeo vertical curto)', carrossel: '🖼️ Carrossel (várias fotos estáticas em sequência)',
@@ -78,7 +79,7 @@ Manual da marca (pra calibrar o tom das sugestões, sem inventar nada):
 ` : ''
 
   const cronogramaText = posts.map((p: any, i: number) => `
-### Conteúdo ${i + 1}
+--- Conteúdo ${i + 1} de ${posts.length} (dado bruto, não é pra copiar esse formato no resultado) ---
 Título: ${p.title || 'sem título'}
 Formato: ${FORMAT_LABEL[p.post_type] || p.post_type || 'não informado'}
 Briefing: ${p.briefing || 'não informado'}
@@ -113,7 +114,10 @@ ${cronogramaText}`
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           ...(useSearch ? { tools: [{ google_search: {} }] } : {}),
-          generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
+          // maxOutputTokens generoso — meses com muitos posts cortavam a resposta
+          // no meio de um item quando esse limite era baixo demais (ficava faltando
+          // conteúdo sem avisar).
+          generationConfig: { maxOutputTokens: 16000, temperature: 0.3 },
         }),
       }
     )

@@ -302,8 +302,36 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     if (!res.ok || !data.checklist) { toast(data.error || 'Não consegui gerar o checklist agora.'); return }
     setPreplistText(data.checklist)
   }
-  function copyPreplist() {
-    navigator.clipboard.writeText(preplistText)
+  // Copia como rich text (HTML) além de texto puro — o Notas do iPhone (e a
+  // maioria dos apps) interpreta HTML colado como formatação de verdade
+  // (negrito, link clicável), em vez de mostrar os asteriscos/URL crus.
+  function preplistToHtml(text: string): string {
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const lines = text.split('\n').map(line => {
+      let l = esc(line)
+      l = l.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      l = l.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>')
+      return l
+    })
+    return lines.map(l => `<div>${l || '<br>'}</div>`).join('')
+  }
+  async function copyPreplist() {
+    const html = preplistToHtml(preplistText)
+    try {
+      const ClipboardItemCtor = (window as any).ClipboardItem
+      if (ClipboardItemCtor && navigator.clipboard.write) {
+        await navigator.clipboard.write([
+          new ClipboardItemCtor({
+            'text/plain': new Blob([preplistText], { type: 'text/plain' }),
+            'text/html': new Blob([html], { type: 'text/html' }),
+          }),
+        ])
+      } else {
+        await navigator.clipboard.writeText(preplistText)
+      }
+    } catch {
+      navigator.clipboard.writeText(preplistText)
+    }
     setPreplistCopied(true)
     setTimeout(() => setPreplistCopied(false), 2000)
   }
