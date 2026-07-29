@@ -109,6 +109,14 @@ export async function GET(req: NextRequest) {
     overdue: (title, days) => ({ title: '⚠️ Publicação atrasada', body: `"${title}" devia ter sido publicado há ${days} dia${days === 1 ? '' : 's'}.` }),
   }
 
+  // Com vários clientes, o título genérico ("📅 Publicação chegando") não diz
+  // de qual — busca os nomes de uma vez só pros clientes envolvidos.
+  const clientIds = [...new Set(reminders.map(r => r.clientId).filter(Boolean))] as string[]
+  const { data: clientsData } = clientIds.length
+    ? await supabase.from('clients').select('id, name').in('id', clientIds)
+    : { data: [] as { id: string; name: string }[] }
+  const clientNameById = new Map((clientsData || []).map(c => [c.id, c.name]))
+
   let sent = 0
   for (const item of reminders) {
     const key = `${item.table}:${item.id}:${item.stage}`
@@ -142,7 +150,8 @@ export async function GET(req: NextRequest) {
 
     const daysLate = Math.max(1, Math.round((Date.now() - new Date(item.date + 'T00:00:00').getTime()) / 86400000))
     const { title, body } = MESSAGES[item.stage](item.title, daysLate)
-    const payload = JSON.stringify({ title, body, url: item.url })
+    const clientName = item.clientId ? clientNameById.get(item.clientId) : null
+    const payload = JSON.stringify({ title: clientName ? `${clientName} · ${title}` : title, body, url: item.url })
 
     let anySent = false
     await Promise.all(subs.map(async sub => {

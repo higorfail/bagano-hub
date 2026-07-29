@@ -47,8 +47,16 @@ export async function POST(req: NextRequest) {
     .select('id, member_id, endpoint, p256dh, auth').in('member_id', memberIds)
   if (!subs || subs.length === 0) return NextResponse.json({ sent: 0 })
 
+  // Com vários clientes, "Gee moveu de X pra Y" sozinho não diz de qual —
+  // antepõe o nome do cliente no título quando o card pertence a um.
+  let clientName: string | null = null
+  if (clientId) {
+    const { data: client } = await supabase.from('clients').select('name').eq('id', clientId).maybeSingle()
+    clientName = client?.name || null
+  }
+
   const payload = JSON.stringify({
-    title: actorName ? `${actorName}` : 'Bagano Hub',
+    title: clientName ? `${clientName} · ${actorName || 'Bagano Hub'}` : (actorName || 'Bagano Hub'),
     body: description || 'Atualização num card que você acompanha',
     url: buildUrl(recordId, clientId),
   })
