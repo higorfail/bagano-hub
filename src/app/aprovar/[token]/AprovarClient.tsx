@@ -595,10 +595,13 @@ export default function ApprovalPage({ token }: { token: string }) {
 
     const isApproved = extra.client_approval_status === 'aprovado'
     const isChanges  = extra.client_approval_status === 'recusado'
-    const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
-    const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#fafafa'
-    const statusClr  = isApproved ? '#16a34a'  : isChanges ? '#b45309' : '#9ca3af'
-    const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : '● Pendente'
+    // Time aplicou o ajuste e reenviou, mas o cliente ainda não olhou de novo
+    // — sem isso, o extra volta a parecer um pendente qualquer.
+    const isAdjustedPending = !isApproved && !isChanges && extra.client_approval_status === 'aguardando' && !!extra.client_approval_comment
+    const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : isAdjustedPending ? '#fcd34d' : '#ebebeb'
+    const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : isAdjustedPending ? '#fffbeb' : '#fafafa'
+    const statusClr  = isApproved ? '#16a34a'  : isChanges ? '#b45309' : isAdjustedPending ? '#b45309' : '#9ca3af'
+    const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : isAdjustedPending ? '🟡 Ajustado — revisar' : '● Pendente'
 
     // Mesma lógica de mídia do post final: pasta (reel/carrossel/capa) ou arquivo único (vídeo/imagem)
     const isFolder    = /\/folders\//.test(extra.drive_url || '')
@@ -696,9 +699,9 @@ export default function ApprovalPage({ token }: { token: string }) {
             </div>
           )}
 
-          {isChanges && extra.client_approval_comment && (
+          {(isChanges || isAdjustedPending) && extra.client_approval_comment && (
             <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
-              <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sua solicitação</p>
+              <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isChanges ? 'Sua solicitação' : 'Você pediu — já ajustado, dá uma olhada'}</p>
               <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{extra.client_approval_comment}"</p>
             </div>
           )}
@@ -989,6 +992,11 @@ export default function ApprovalPage({ token }: { token: string }) {
   function renderFinalCard(post: Post, idx: number) {
     const isApproved = post.approval_status === 'aprovado'
     const isChanges  = post.approval_status === 'não aprovado'
+    // Time aplicou o ajuste pedido e reenviou pra revisão, mas o cliente ainda
+    // não bateu o olho de novo — sem esse destaque, o post volta a aparecer
+    // como "pendente" igual a qualquer post novo, e o cliente pode nem notar
+    // que é justamente aquele que ele pediu pra mudar.
+    const isAdjustedPending = !isApproved && !isChanges && post.status === 'aguardando_aprovacao' && !!post.approval_comment
     const isComm     = commenting.has(post.id)
     const comment    = comments[post.id] || ''
     const isLoading  = submitting === post.id
@@ -1008,10 +1016,10 @@ export default function ApprovalPage({ token }: { token: string }) {
     const thumbUrl    = driveId && !isVideoPost && !(isCarrossel && folderId) && !isMultiFile ? `/api/drive-thumb?id=${driveId}&sz=w800` : null
     const embedVideoId = driveId && isVideoPost ? driveId : null
 
-    const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
-    const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#fafafa'
-    const statusClr  = isApproved ? '#16a34a'  : isChanges ? '#b45309' : '#9ca3af'
-    const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : '● Pendente'
+    const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : isAdjustedPending ? '#fcd34d' : '#ebebeb'
+    const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : isAdjustedPending ? '#fffbeb' : '#fafafa'
+    const statusClr  = isApproved ? '#16a34a'  : isChanges ? '#b45309' : isAdjustedPending ? '#b45309' : '#9ca3af'
+    const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : isAdjustedPending ? '🟡 Ajustado — revisar' : '● Pendente'
 
     return (
       <div key={post.id} style={{ background: '#fff', borderRadius: 22, border: `1.5px solid ${cardBorder}`, overflow: 'hidden', boxShadow: isApproved ? '0 2px 12px rgba(34,197,94,0.08)' : '0 1px 4px rgba(0,0,0,0.06)', transition: 'border-color 0.35s' }}>
@@ -1085,9 +1093,9 @@ export default function ApprovalPage({ token }: { token: string }) {
           )}
 
           {/* Previous change */}
-          {isChanges && post.approval_comment && (
+          {(isChanges || isAdjustedPending) && post.approval_comment && (
             <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
-              <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sua solicitação</p>
+              <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isChanges ? 'Sua solicitação' : 'Você pediu — já ajustado, dá uma olhada'}</p>
               <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{post.approval_comment}"</p>
             </div>
           )}
@@ -1742,6 +1750,7 @@ export default function ApprovalPage({ token }: { token: string }) {
         const isLive           = sheetPost.status === 'agendado' || sheetPost.status === 'publicado'
         const isApproved      = !isLive && sheetPost.approval_status === 'aprovado'
         const isChanges       = !isLive && sheetPost.approval_status === 'não aprovado'
+        const isAdjustedPending = !isLive && !isApproved && !isChanges && sheetPost.status === 'aguardando_aprovacao' && !!sheetPost.approval_comment
         const isLoading       = submitting === sheetPost.id
         const isSheetReel     = sheetPost.post_type === 'reels'
         const isSheetCarrossel = sheetPost.post_type === 'carrossel' || sheetPost.post_type === 'carrossel_stories'
@@ -1769,6 +1778,7 @@ export default function ApprovalPage({ token }: { token: string }) {
                   {isLive && sheetPost.status === 'agendado'  && <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', flexShrink: 0 }}>📅 Agendado</span>}
                   {isApproved && <span style={{ fontSize: 12, fontWeight: 700, color: '#16a34a', flexShrink: 0 }}>✓ Aprovado</span>}
                   {isChanges  && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', flexShrink: 0 }}>⚠ Alteração pedida</span>}
+                  {isAdjustedPending && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', flexShrink: 0 }}>🟡 Ajustado — revisar</span>}
                 </div>
                 <button onClick={closeSheet}
                   style={{ width: 36, height: 36, borderRadius: '50%', background: '#f3f4f6', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: '#374151', fontSize: 20, fontWeight: 400 }}>×</button>
@@ -1819,9 +1829,9 @@ export default function ApprovalPage({ token }: { token: string }) {
                   )}
 
                   {/* Previous change */}
-                  {isChanges && sheetPost.approval_comment && (
+                  {(isChanges || isAdjustedPending) && sheetPost.approval_comment && (
                     <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
-                      <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sua solicitação anterior</p>
+                      <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isChanges ? 'Sua solicitação anterior' : 'Você pediu — já ajustado, dá uma olhada'}</p>
                       <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic' }}>"{sheetPost.approval_comment}"</p>
                     </div>
                   )}
