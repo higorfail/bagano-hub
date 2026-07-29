@@ -270,7 +270,12 @@ export default function ApprovalPage({ token }: { token: string }) {
   // não tenha nenhum post com data marcada e algum mês seguinte tenha — nesse
   // caso já abre direto no mês certo, em vez de mostrar uma grade vazia.
   useEffect(() => {
-    if (!tokenData || calMonth !== null) return
+    // Espera o carregamento terminar de verdade — `posts` começa vazio e só é
+    // preenchido depois de `tokenData`/`client` (awaits em sequência dentro de
+    // load()), então decidir com base em "posts.length === 0" aqui rodava
+    // ANTES dos posts chegarem, travando o mês errado permanentemente (o
+    // efeito só roda uma vez, guardado por `calMonth !== null`).
+    if (loading || !tokenData || calMonth !== null) return
     const baseMonth = tokenData.month || new Date().getMonth() + 1
     const baseYear  = tokenData.year  || new Date().getFullYear()
     const baseKey = `${baseYear}-${baseMonth}`
@@ -280,7 +285,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     const next = datedPosts.find(d => d >= `${baseYear}-${String(baseMonth).padStart(2, '0')}-01`)
     if (next) { setCalMonth(Number(next.slice(5, 7))); setCalYear(Number(next.slice(0, 4))) }
     else { setCalMonth(baseMonth); setCalYear(baseYear) }
-  }, [tokenData, posts, calMonth])
+  }, [loading, tokenData, posts, calMonth])
 
   function shiftCalMonth(delta: number) {
     setCalMonth(m => {
