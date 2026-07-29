@@ -48,6 +48,15 @@ export async function subscribeToPush(memberId: string): Promise<{ ok: boolean; 
   if (!pushSupported()) return { ok: false, error: 'Notificações push não são suportadas neste navegador.' }
 
   try {
+    // Se já foi negada antes, o navegador nunca mais mostra o popup de
+    // permissão de novo — requestPermission() só devolve "denied" direto,
+    // sem perguntar nada. Sem essa checagem, a pessoa clica em "Ativar"
+    // achando que vai ser perguntada de novo e só recebe um erro genérico,
+    // sem entender que precisa liberar manualmente nas configurações do site.
+    if (Notification.permission === 'denied') {
+      return { ok: false, error: 'Notificações bloqueadas pra este site. Libere manualmente: nas configurações do navegador pra este site, mude "Notificações" de Negar/Bloquear pra Permitir, depois recarregue a página.' }
+    }
+
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') return { ok: false, error: 'Permissão negada pelo navegador.' }
 
