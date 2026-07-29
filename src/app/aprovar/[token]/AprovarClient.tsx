@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { logActivity } from '@/lib/activity'
 import { ensureWatchingFromAssigned } from '@/lib/watch'
+import { extractDriveIds } from '@/lib/driveLinks'
 import { CheckCircle, MessageSquare, RotateCcw, AlertTriangle } from 'lucide-react'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
 
@@ -140,17 +141,6 @@ function CarouselPreview({ folderId, folderUrl, ratio = '100%' }: { folderId: st
       </a>
     </div>
   )
-}
-
-// Lê o que foi REALMENTE entregue em drive_url, em vez de confiar no
-// post_type declarado — alguém pode entregar um carrossel como vários links
-// soltos (não uma pasta), ou um post simples como um único arquivo. Extrai
-// TODOS os IDs de arquivo do Drive presentes no texto (não só o primeiro),
-// pra nunca perder conteúdo que a pessoa realmente anexou.
-function extractDriveIds(driveUrl?: string | null): string[] {
-  if (!driveUrl) return []
-  const matches = driveUrl.match(/[-\w]{25,}/g) || []
-  return Array.from(new Set(matches))
 }
 
 // Galeria arrastável pra quando drive_url tem vários links de arquivo solto

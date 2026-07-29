@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Folder, FileText, File as FileIcon } from 'lucide-react'
+import { extractDriveIds } from '@/lib/driveLinks'
 
 type DriveFile = { id: string; name: string; mimeType: string }
 
@@ -105,8 +106,26 @@ export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
 }
 
 // Preview de um arquivo do Google Drive (imagem ou vídeo) — caixa única 4:5.
+// Se drive_url tiver vários links soltos (não uma pasta — ex: alguém colou
+// 4 fotos separadas em vez de subir uma pasta), mostra todos lado a lado,
+// mesmo grid usado em FolderThumbnail — sem isso só o primeiro arquivo
+// aparecia e os outros ficavam invisíveis pra sempre no card interno.
 export function DriveThumbnail({ driveUrl, isVideo }: { driveUrl: string; isVideo: boolean }) {
-  const driveId = driveUrl.match(/[-\w]{25,}/)?.[0]
+  const ids = extractDriveIds(driveUrl)
+  if (ids.length > 1) {
+    return (
+      <div className="flex flex-wrap gap-2 mb-2">
+        {ids.map(id => (
+          <a key={id} href={`https://drive.google.com/file/d/${id}/view`} target="_blank" rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="relative w-[110px] aspect-[4/5] flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-bg-alt)] block">
+            <img src={`/api/drive-thumb?id=${id}&sz=w400`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
+          </a>
+        ))}
+      </div>
+    )
+  }
+  const driveId = ids[0]
   const thumbUrl = driveId ? `/api/drive-thumb?id=${driveId}&sz=w600` : null
   if (!thumbUrl) return null
   return (

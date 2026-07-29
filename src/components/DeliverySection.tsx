@@ -7,6 +7,7 @@
 import { useRef, useState } from 'react'
 import { Package, Link2, ExternalLink } from 'lucide-react'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
+import { extractDriveIds } from '@/lib/driveLinks'
 
 type Props = {
   value: string
@@ -20,6 +21,11 @@ export default function DeliverySection({ value, isVideo = false, onCommit }: Pr
   const discardRef = useRef(false)
   const hasDelivery = !!value
   const isFolder = /\/folders\//.test(value)
+  const driveIds = isFolder ? [] : extractDriveIds(value)
+  const isMultiFile = driveIds.length > 1
+  // value pode ter vários links colados com espaço — não dá pra usar isso
+  // como href direto (não é uma URL válida). Abre o primeiro arquivo.
+  const openHref = isFolder ? value : isMultiFile ? `https://drive.google.com/file/d/${driveIds[0]}/view` : value
 
   function startEdit() { setDraft(value); discardRef.current = false; setEditing(true) }
   function commit() {
@@ -51,13 +57,13 @@ export default function DeliverySection({ value, isVideo = false, onCommit }: Pr
         ) : hasDelivery ? (
           <>
             <div className="flex items-center gap-2 mb-2">
-              <a href={value} target="_blank" rel="noopener noreferrer"
+              <a href={openHref} target="_blank" rel="noopener noreferrer"
                 className="flex-1 flex items-center gap-2.5 rounded-xl px-4 py-2 text-base font-bold truncate border-2 transition-colors"
                 style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--ds-success-accent)'; e.currentTarget.style.color = '#fff' }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'var(--ds-success-bg)'; e.currentTarget.style.color = 'var(--ds-success-text)' }}>
                 <ExternalLink size={16} className="flex-shrink-0" />
-                <span className="truncate">✓ {isFolder ? 'Abrir pasta no Drive' : 'Conteúdo entregue — Abrir no Drive'}</span>
+                <span className="truncate">✓ {isFolder ? 'Abrir pasta no Drive' : isMultiFile ? `Conteúdo entregue — ${driveIds.length} arquivos` : 'Conteúdo entregue — Abrir no Drive'}</span>
               </a>
               <button onClick={startEdit} className="text-[11px] hover:underline flex-shrink-0" style={{ color: 'var(--ds-success-text)' }}>editar</button>
             </div>
