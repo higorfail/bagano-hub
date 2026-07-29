@@ -25,12 +25,11 @@ function addDaysISO(iso: string, days: number) {
 type Stage = 'overdue' | 'dueday' | '2d'
 type Reminder = { table: 'schedules' | 'extras' | 'materials'; id: string; title: string; date: string; stage: Stage; fallbackMembers: string[]; url: string; clientId: string | null }
 
-// Roda de hora em hora (ver vercel.json) e avisa quem acompanha um post/extra
+// Roda 1x por dia (ver vercel.json) e avisa quem acompanha um post/extra
 // em 3 momentos: 2 dias antes da data marcada, no próprio dia, e quando já
 // passou da data sem ter sido publicado — sem isso, esses avisos só
 // aparecem se alguém abrir a página de Publicações por conta própria.
-// Cada estágio notifica no máximo 1x por dia por card (ver `alreadySentToday`),
-// mesmo rodando de hora em hora.
+// Cada estágio notifica no máximo 1x por dia por card (ver `alreadySent`).
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
   if (secret) {
@@ -126,6 +125,14 @@ export async function GET(req: NextRequest) {
       const { data: strategists } = await supabase.from('client_team')
         .select('member_id').eq('client_id', item.clientId).eq('funcao', 'estrategia')
       memberIds = (strategists || []).map(s => s.member_id)
+    }
+    // Social Media precisa saber que um post do Cronograma tá perto de
+    // publicar (é ela quem agenda/posta) mesmo quando não é watcher nem
+    // responsável atribuído do card.
+    if (item.table === 'schedules' && item.clientId) {
+      const { data: socialTeam } = await supabase.from('client_team')
+        .select('member_id').eq('client_id', item.clientId).eq('funcao', 'social')
+      memberIds = [...new Set([...memberIds, ...(socialTeam || []).map(s => s.member_id)])]
     }
     if (memberIds.length === 0) continue
 
