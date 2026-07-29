@@ -27,6 +27,7 @@ interface Extra {
   created_at: string
   completed_at?: string | null
   archived_at?: string | null
+  position?: number
   clients?: { name: string; color_hex: string } | null
   team_members?: { name: string } | null
 }
@@ -102,6 +103,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   // Drag and drop
   const [draggingId,   setDraggingId]   = useState<string | null>(null)
   const [dragOverCol,  setDragOverCol]  = useState<ExtraStatus | null>(null)
+  const [dragOverExtraId, setDragOverExtraId] = useState<string | null>(null)
   const [checkCounts,  setCheckCounts]  = useState<Record<string, { done: number; total: number }>>({})
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
   const [copiedLink, setCopiedLink] = useState(false)
@@ -139,6 +141,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
     let q = supabase
       .from('extras')
       .select('*')
+      .order('position', { ascending: true })
       .order('created_at', { ascending: true })
     if (clientId) q = q.eq('client_id', clientId)
 
@@ -179,6 +182,33 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
     setExtras(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e))
     const { error } = await supabase.from('extras').update(patch).eq('id', id)
     if (error) console.error('moveStatus error:', error)
+  }
+
+  // Reordena dentro de uma coluna (drag manual, tipo Trello) — dropId é o card
+  // sobre o qual foi solto (o arrastado entra antes dele); dropId null = solto
+  // no fim da coluna (área vazia abaixo dos cards).
+  async function reorderColumn(colKey: ExtraStatus, draggedId: string, dropId: string | null) {
+    const prev = extras
+    const already = extras.filter(e => e.status === colKey && e.id !== draggedId)
+    const dragged = extras.find(e => e.id === draggedId)
+    if (!dragged) return
+    const insertAt = dropId ? already.findIndex(e => e.id === dropId) : already.length
+    const nextOrder = [...already]
+    nextOrder.splice(insertAt < 0 ? already.length : insertAt, 0, dragged)
+
+    const prevStatus = dragged.status
+    const completedPatch = colKey === 'done' && prevStatus !== 'done' ? { completed_at: new Date().toISOString() } : (colKey !== 'done' ? { completed_at: null } : {})
+
+    setExtras(es => {
+      const others = es.filter(e => e.status !== colKey && e.id !== draggedId)
+      const updated = nextOrder.map((e, i) => ({ ...e, status: colKey, position: i, ...(e.id === draggedId ? completedPatch : {}) }))
+      return [...others, ...updated]
+    })
+
+    const results = await Promise.all(
+      nextOrder.map((e, i) => supabase.from('extras').update({ position: i, status: colKey, ...(e.id === draggedId ? completedPatch : {}) }).eq('id', e.id))
+    )
+    if (results.some(r => r.error)) setExtras(prev)
   }
 
   function handleSaved(extra: Extra) {
@@ -306,9 +336,10 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
               onDrop={e => {
                 e.preventDefault()
                 const id = e.dataTransfer.getData('extraId')
-                if (id && col.key !== extras.find(x => x.id === id)?.status) moveStatus(id, col.key)
+                if (id) reorderColumn(col.key, id, dragOverExtraId)
                 setDraggingId(null)
                 setDragOverCol(null)
+                setDragOverExtraId(null)
               }}
             >
               {/* Column header */}
@@ -336,28 +367,30 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                     ? members.filter(m => extra.assigned_members!.includes(m.id))
                     : []
                   return (
-                    <ExtraMiniCard
-                      key={extra.id}
-                      extra={extra}
-                      TypeIcon={(TYPE_CONFIG[extra.type] || TYPE_CONFIG.post).icon}
-                      typeColor={(TYPE_CONFIG[extra.type] || TYPE_CONFIG.post).color}
-                      priorityColor={PRIORITY_BORDER[extra.priority]}
-                      overdue={isOverdue(extra.due_date, extra.status)}
-                      assignedData={assignedData}
-                      chk={checkCounts[extra.id]}
-                      commentCount={commentCounts[extra.id] || 0}
-                      clientBadge={globalMode && extra.client_id && clientMap[extra.client_id] ? { name: clientMap[extra.client_id].name, color: clientMap[extra.client_id].color_hex } : null}
-                      showGlobalBadge={globalMode && !extra.client_id}
-                      formatDue={formatDue}
-                      dragging={draggingId === extra.id}
-                      onDragStart={e => {
-                        e.dataTransfer.setData('extraId', extra.id)
-                        setDraggingId(extra.id)
-                      }}
-                      onDragEnd={() => { setDraggingId(null); setDragOverCol(null) }}
-                      onClick={() => { if (!draggingId) { setOpenExtraId(extra.id); window.history.replaceState(null, '', `?post=${extra.id}`) } }}
-                      onArchive={col.key === 'done' ? () => archiveExtra(extra.id) : undefined}
-                    />
+                    <div key={extra.id}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverCol(col.key); setDragOverExtraId(extra.id) }}>
+                      <ExtraMiniCard
+                        extra={extra}
+                        TypeIcon={(TYPE_CONFIG[extra.type] || TYPE_CONFIG.post).icon}
+                        typeColor={(TYPE_CONFIG[extra.type] || TYPE_CONFIG.post).color}
+                        priorityColor={PRIORITY_BORDER[extra.priority]}
+                        overdue={isOverdue(extra.due_date, extra.status)}
+                        assignedData={assignedData}
+                        chk={checkCounts[extra.id]}
+                        commentCount={commentCounts[extra.id] || 0}
+                        clientBadge={globalMode && extra.client_id && clientMap[extra.client_id] ? { name: clientMap[extra.client_id].name, color: clientMap[extra.client_id].color_hex } : null}
+                        showGlobalBadge={globalMode && !extra.client_id}
+                        formatDue={formatDue}
+                        dragging={draggingId === extra.id}
+                        onDragStart={e => {
+                          e.dataTransfer.setData('extraId', extra.id)
+                          setDraggingId(extra.id)
+                        }}
+                        onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverExtraId(null) }}
+                        onClick={() => { if (!draggingId) { setOpenExtraId(extra.id); window.history.replaceState(null, '', `?post=${extra.id}`) } }}
+                        onArchive={col.key === 'done' ? () => archiveExtra(extra.id) : undefined}
+                      />
+                    </div>
                   )
                 })}
 

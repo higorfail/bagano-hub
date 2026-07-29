@@ -18,6 +18,7 @@ interface MaterialCardMiniProps {
   onMoveNext?: () => void
   draggable?: boolean
   onDragStart?: (e: React.DragEvent) => void
+  onDragEnd?: () => void
   onArchive?: () => void
 }
 
@@ -53,7 +54,7 @@ function initials(name: string) {
   return (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
-export default function MaterialCardMini({ material: m, members, onClick, onMovePrev, onMoveNext, draggable, onDragStart, onArchive }: MaterialCardMiniProps) {
+export default function MaterialCardMini({ material: m, members, onClick, onMovePrev, onMoveNext, draggable, onDragStart, onDragEnd, onArchive }: MaterialCardMiniProps) {
   const due = m.due_date ? new Date(m.due_date + 'T23:59:59') : null
   const now = new Date()
   const diff = due ? Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
@@ -83,6 +84,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       onClick={onClick}
       draggable={draggable}
       onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       className="group relative bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl flex overflow-hidden shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer"
       style={{ height: 140 }}
     >

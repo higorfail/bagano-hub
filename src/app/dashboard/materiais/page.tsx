@@ -27,6 +27,7 @@ type Material = {
   label?: string | null
   completed_at?: string | null
   archived_at?: string | null
+  position?: number
 }
 
 const COLUMNS = [
@@ -47,6 +48,7 @@ function MateriaisContent() {
   const [cardOpen,    setCardOpen]    = useState<string | 'new' | null>(() => searchParams.get('post'))
   const [draggingId,  setDraggingId]  = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+  const [dragOverMaterialId, setDragOverMaterialId] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
 
   useEffect(() => {
@@ -58,7 +60,7 @@ function MateriaisContent() {
     async function load() {
       const supabase = createClient()
       const [{ data: mats }, { data: cls }] = await Promise.all([
-        supabase.from('materials').select('id, client_id, title, type, status, description, ai_summary, due_date, drive_url, assigned_to, assigned_members, labels, created_at, completed_at, archived_at').order('created_at', { ascending: false }),
+        supabase.from('materials').select('id, client_id, title, type, status, description, ai_summary, due_date, drive_url, assigned_to, assigned_members, labels, created_at, completed_at, archived_at, position').order('position', { ascending: true }).order('created_at', { ascending: false }),
         supabase.from('clients').select('id, name, color_hex').order('name'),
       ])
       setMaterials(mats || [])
@@ -119,6 +121,38 @@ function MateriaisContent() {
     const supabase = createClient()
     await supabase.from('materials').update(patch).eq('id', id)
     await logActivity({ tableName: 'materials', recordId: id, action: 'status_changed', actorName: currentMember?.name, actorId: currentMember?.id, field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
+  }
+
+  // Reordena dentro de uma coluna (drag manual, tipo Trello) — dropId é o card
+  // sobre o qual foi solto (o arrastado entra antes dele); dropId null = solto
+  // no fim da coluna (área vazia abaixo dos cards).
+  async function reorderColumn(colKey: string, draggedId: string, dropId: string | null) {
+    const supabase = createClient()
+    const prev = materials
+    const already = materials.filter(m => {
+      if (m.id === draggedId || m.archived_at) return false
+      const s = m.status || 'producao'
+      return colKey === 'producao' ? (s === 'producao' || !['aguardando_aprovacao', 'finalizado'].includes(s)) : s === colKey
+    })
+    const dragged = materials.find(m => m.id === draggedId)
+    if (!dragged) return
+    const insertAt = dropId ? already.findIndex(m => m.id === dropId) : already.length
+    const nextOrder = [...already]
+    nextOrder.splice(insertAt < 0 ? already.length : insertAt, 0, dragged)
+
+    const prevStatus = dragged.status
+    const completedPatch = colKey === 'finalizado' && prevStatus !== 'finalizado' ? { completed_at: new Date().toISOString() } : (colKey !== 'finalizado' ? { completed_at: null } : {})
+
+    setMaterials(ms => {
+      const others = ms.filter(m => !(nextOrder.some(n => n.id === m.id)))
+      const updated = nextOrder.map((m, i) => ({ ...m, status: colKey, position: i, ...(m.id === draggedId ? completedPatch : {}) }))
+      return [...others, ...updated]
+    })
+
+    const results = await Promise.all(
+      nextOrder.map((m, i) => supabase.from('materials').update({ position: i, status: colKey, ...(m.id === draggedId ? completedPatch : {}) }).eq('id', m.id))
+    )
+    if (results.some(r => r.error)) setMaterials(prev)
   }
 
   async function archiveMaterial(id: string) {
@@ -199,8 +233,8 @@ function MateriaisContent() {
               onDragLeave={() => setDragOverCol(null)}
               onDrop={e => {
                 e.preventDefault()
-                if (draggingId) moveStatus(draggingId, col.key)
-                setDraggingId(null); setDragOverCol(null)
+                if (draggingId) reorderColumn(col.key, draggingId, dragOverMaterialId)
+                setDraggingId(null); setDragOverCol(null); setDragOverMaterialId(null)
               }}>
               <div className="flex items-center gap-2 mb-3 px-1">
                 <span className="w-2 h-2 rounded-full" style={{ background: col.color }} />
@@ -211,17 +245,20 @@ function MateriaisContent() {
                 {items.map(m => {
                   const ct = counts[m.id] || { checklist: 0, checkDone: 0, comments: 0, attachments: 0, preview: null }
                   return (
-                    <MaterialCardMini
-                      key={m.id}
-                      material={{ ...m, _checkTotal: ct.checklist, _checkDone: ct.checkDone, _comments: ct.comments, _attachments: ct.attachments, _preview: ct.preview }}
-                      members={members}
-                      onClick={() => { setCardOpen(m.id); window.history.replaceState(null, '', `?post=${m.id}`) }}
-                      draggable={true}
-                      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingId(m.id) }}
-                      onMovePrev={prevCol ? () => moveStatus(m.id, prevCol.key) : undefined}
-                      onMoveNext={nextCol ? () => moveStatus(m.id, nextCol.key) : undefined}
-                      onArchive={col.key === 'finalizado' ? () => archiveMaterial(m.id) : undefined}
-                    />
+                    <div key={m.id}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOverCol(col.key); setDragOverMaterialId(m.id) }}>
+                      <MaterialCardMini
+                        material={{ ...m, _checkTotal: ct.checklist, _checkDone: ct.checkDone, _comments: ct.comments, _attachments: ct.attachments, _preview: ct.preview }}
+                        members={members}
+                        onClick={() => { setCardOpen(m.id); window.history.replaceState(null, '', `?post=${m.id}`) }}
+                        draggable={true}
+                        onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingId(m.id) }}
+                        onDragEnd={() => { setDraggingId(null); setDragOverCol(null); setDragOverMaterialId(null) }}
+                        onMovePrev={prevCol ? () => moveStatus(m.id, prevCol.key) : undefined}
+                        onMoveNext={nextCol ? () => moveStatus(m.id, nextCol.key) : undefined}
+                        onArchive={col.key === 'finalizado' ? () => archiveMaterial(m.id) : undefined}
+                      />
+                    </div>
                   )
                 })}
                 {items.length === 0 && (
