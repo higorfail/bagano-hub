@@ -623,7 +623,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                     ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
                     : { borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)' }}>
                   {copiedLinkType === 'cronograma' ? <Check size={12} /> : <Link2 size={12} />}
-                  {copiedLinkType === 'cronograma' ? 'Copiado!' : `Link do crono · ${CRONO_MONTHS[month - 1].slice(0, 3)}/${String(year).slice(2)}`}
+                  {copiedLinkType === 'cronograma' ? 'Copiado!' : 'Link do crono'}
                 </button>
               </div>
 
@@ -644,7 +644,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                     ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
                     : { borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)' }}>
                   {copiedLinkType === 'final' ? <Check size={12} /> : <Link2 size={12} />}
-                  {copiedLinkType === 'final' ? 'Copiado!' : `Link final · ${CRONO_MONTHS[month - 1].slice(0, 3)}/${String(year).slice(2)}`}
+                  {copiedLinkType === 'final' ? 'Copiado!' : 'Link final'}
                 </button>
               </div>
 
@@ -690,19 +690,9 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                     </span>
                     <span className="text-sm font-medium text-[var(--color-text-primary)] flex-1 truncate">{post.title}</span>
                     {campaign && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
-                    {(() => {
-                      const dateOutOfMonth = !!(post.scheduled_date && (() => {
-                        const d = new Date(post.scheduled_date + 'T12:00:00')
-                        return d.getMonth() + 1 !== month || d.getFullYear() !== year
-                      })())
-                      return (
-                        <span className="text-xs flex-shrink-0" style={dateOutOfMonth ? { color: 'var(--ds-error-text)', fontWeight: 600 } : { color: 'var(--color-text-muted)' }}
-                          title={dateOutOfMonth ? 'A data marcada não bate com o mês deste cronograma' : undefined}>
-                          {post.scheduled_date ? new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : '—'}
-                          {dateOutOfMonth && ' ⚠️'}
-                        </span>
-                      )
-                    })()}
+                    <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0">
+                      {post.scheduled_date ? new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : '—'}
+                    </span>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {post.approval_status === 'não aprovado' && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>✗</span>}
                       {post.approval_status === 'aprovado' && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓</span>}
@@ -722,8 +712,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                   post={post}
                   clientColor={clientColor}
                   members={members}
-                  tabMonth={month}
-                  tabYear={year}
                   campaignName={campaigns.find(c => c.type === post.campaign_type)?.name || null}
                   onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
                   onDuplicate={() => duplicatePost(post)}
