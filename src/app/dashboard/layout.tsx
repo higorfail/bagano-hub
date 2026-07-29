@@ -109,7 +109,10 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     setPushBannerDismissed(true)
   }
   async function enablePush() {
-    if (!currentMember) return
+    // Sem escolher "quem você é" ainda não dá pra vincular a inscrição a
+    // ninguém — sem esse aviso, o clique não fazia NADA silenciosamente,
+    // parecendo um botão quebrado (relatado: "não tava sendo clicável").
+    if (!currentMember) { toast('Escolha quem você é primeiro (canto superior direito) pra ativar notificações.'); return }
     setPushState('busy')
     try {
       const res = await subscribeToPush(currentMember.id)
@@ -828,7 +831,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                     </p>
                   </div>
                 )}
-                {pushState === 'off' && (
+                {currentMember && pushState === 'off' && (
                   <button onClick={enablePush}
                     className="flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b border-[var(--color-border)] flex-shrink-0 transition-colors hover:bg-[var(--color-bg-subtle)] text-left w-full"
                     style={{ color: 'var(--color-accent)' }}>
@@ -951,7 +954,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         )}
-        {!needsIOSInstall && pushState === 'off' && !pushBannerDismissed && (
+        {currentMember && !needsIOSInstall && pushState === 'off' && !pushBannerDismissed && (
           <div className="flex items-center gap-3 px-4 md:px-6 py-2.5 border-b border-[var(--color-border)]" style={{ background: 'var(--color-accent-bg)' }}>
             <BellRing size={15} className="flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
             <p className="text-xs font-medium flex-1 min-w-0" style={{ color: 'var(--color-accent)' }}>
