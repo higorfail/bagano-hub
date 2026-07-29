@@ -142,6 +142,52 @@ function CarouselPreview({ folderId, folderUrl, ratio = '100%' }: { folderId: st
   )
 }
 
+// Lê o que foi REALMENTE entregue em drive_url, em vez de confiar no
+// post_type declarado — alguém pode entregar um carrossel como vários links
+// soltos (não uma pasta), ou um post simples como um único arquivo. Extrai
+// TODOS os IDs de arquivo do Drive presentes no texto (não só o primeiro),
+// pra nunca perder conteúdo que a pessoa realmente anexou.
+function extractDriveIds(driveUrl?: string | null): string[] {
+  if (!driveUrl) return []
+  const matches = driveUrl.match(/[-\w]{25,}/g) || []
+  return Array.from(new Set(matches))
+}
+
+// Galeria arrastável pra quando drive_url tem vários links de arquivo solto
+// (não uma pasta) — mesma UI de slide+bolinhas do CarouselPreview, mas sem
+// depender de listar uma pasta (não sabemos o mimetype de cada um, então
+// trata tudo como imagem, que é o caso real que motivou isso).
+function MultiFilePreview({ ids, fallbackUrl, ratio = '100%' }: { ids: string[]; fallbackUrl?: string | null; ratio?: string }) {
+  const [slide, setSlide] = useState(0)
+  const prev = () => setSlide(s => (s - 1 + ids.length) % ids.length)
+  const next = () => setSlide(s => (s + 1) % ids.length)
+  return (
+    <div style={{ position: 'relative', background: '#111', userSelect: 'none' }}>
+      <div style={{ position: 'relative', paddingTop: ratio, overflow: 'hidden' }}>
+        <img key={ids[slide]} src={`/api/drive-thumb?id=${ids[slide]}&sz=w800`} alt={`Slide ${slide + 1}`}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+      </div>
+      {ids.length > 1 && (
+        <>
+          <button onClick={prev} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>‹</button>
+          <button onClick={next} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>›</button>
+          <div style={{ position: 'absolute', bottom: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 5 }}>
+            {ids.map((_, i) => (
+              <div key={i} onClick={() => setSlide(i)} style={{ width: i === slide ? 16 : 6, height: 6, borderRadius: 3, background: i === slide ? '#fff' : 'rgba(255,255,255,0.45)', cursor: 'pointer', transition: 'width 0.2s, background 0.2s' }} />
+            ))}
+          </div>
+        </>
+      )}
+      {fallbackUrl && (
+        <a href={fallbackUrl.split(/\s+/)[0]} target="_blank" rel="noopener noreferrer"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 12, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
+          🔗 {slide + 1}/{ids.length} · Abrir no Drive
+        </a>
+      )}
+    </div>
+  )
+}
+
 type DriveFileInfo = { id: string; name: string; mimeType: string }
 function useFolderFiles(folderId: string) {
   const [files, setFiles] = useState<DriveFileInfo[]>([])
@@ -959,14 +1005,17 @@ export default function ApprovalPage({ token }: { token: string }) {
     const displayCopy = post.legenda || post.copy || ''
 
     const isCarrossel = post.post_type === 'carrossel' || post.post_type === 'carrossel_stories'
-    const driveId     = post.drive_url?.match(/[-\w]{25,}/)?.[0]
+    // Não confia só no post_type pra decidir o que mostrar — lê o que foi
+    // REALMENTE entregue. Se drive_url tem vários links de arquivo soltos
+    // (não uma pasta), mostra todos numa galeria, mesmo que o post esteja
+    // marcado como "Post" ou "Reels" — evita repetir o bug de um carrossel
+    // entregue como 4 links virar só 1 foto exibida.
+    const driveIds    = extractDriveIds(post.drive_url)
+    const driveId     = driveIds[0]
     const folderId    = post.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
     const isVideoPost = post.post_type === 'reels'
-    // Carrossel normalmente é entregue como PASTA (várias imagens, ver
-    // CarouselPreview abaixo) — mas se foi entregue como um único arquivo do
-    // Drive (drive_url, sem pasta), precisa cair no fallback de thumbnail
-    // único, senão o card não mostra NENHUM conteúdo pro cliente aprovar.
-    const thumbUrl    = driveId && !isVideoPost && !(isCarrossel && folderId) ? `/api/drive-thumb?id=${driveId}&sz=w800` : null
+    const isMultiFile = driveIds.length > 1 && !isVideoPost && !folderId
+    const thumbUrl    = driveId && !isVideoPost && !(isCarrossel && folderId) && !isMultiFile ? `/api/drive-thumb?id=${driveId}&sz=w800` : null
     const embedVideoId = driveId && isVideoPost ? driveId : null
 
     const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
@@ -1005,6 +1054,8 @@ export default function ApprovalPage({ token }: { token: string }) {
           <CarouselPreview folderId={folderId} folderUrl={post.drive_folder_url || ''} />
         ) : folderId ? (
           <FolderThumb folderId={folderId} />
+        ) : isMultiFile ? (
+          <MultiFilePreview ids={driveIds} fallbackUrl={post.drive_url} />
         ) : thumbUrl ? (
           <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>
             <img src={thumbUrl} alt={post.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 220 }}
@@ -1016,7 +1067,7 @@ export default function ApprovalPage({ token }: { token: string }) {
             deu certo (formato inesperado, thumbnail falhou, etc.), garante
             que o cliente sempre tem como abrir o conteúdo — sem isso, o card
             fica só com legenda e botão de aprovar, sem nada pra revisar. */}
-        {(post.drive_url || post.drive_folder_url) && !embedVideoId && !folderId && !thumbUrl && (
+        {(post.drive_url || post.drive_folder_url) && !embedVideoId && !folderId && !thumbUrl && !isMultiFile && (
           <div style={{ padding: '12px 18px 0' }}>
             <a href={post.drive_folder_url || post.drive_url || ''} target="_blank" rel="noopener noreferrer"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: cc, textDecoration: 'none' }}>
@@ -1702,11 +1753,15 @@ export default function ApprovalPage({ token }: { token: string }) {
         const isApproved      = !isLive && sheetPost.approval_status === 'aprovado'
         const isChanges       = !isLive && sheetPost.approval_status === 'não aprovado'
         const isLoading       = submitting === sheetPost.id
-        const driveId         = sheetPost.drive_url?.match(/[-\w]{25,}/)?.[0]
-        const sheetFolder     = sheetPost.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
-        const thumbUrl        = driveId ? `/api/drive-thumb?id=${driveId}&sz=w600` : null
         const isSheetReel     = sheetPost.post_type === 'reels'
         const isSheetCarrossel = sheetPost.post_type === 'carrossel' || sheetPost.post_type === 'carrossel_stories'
+        const sheetFolder     = sheetPost.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
+        // Mesma lógica adaptativa do card final: lê o que foi entregue de
+        // verdade em drive_url, não confia só no post_type.
+        const sheetDriveIds   = extractDriveIds(sheetPost.drive_url)
+        const driveId         = sheetDriveIds[0]
+        const sheetIsMultiFile = sheetDriveIds.length > 1 && !isSheetReel && !sheetFolder
+        const thumbUrl        = driveId && !sheetIsMultiFile ? `/api/drive-thumb?id=${driveId}&sz=w600` : null
         const closeSheet      = () => { setSheetPost(null); setSheetComment('') }
 
         return (
@@ -1742,12 +1797,23 @@ export default function ApprovalPage({ token }: { token: string }) {
                   <DriveVideo id={driveId} folderUrl={sheetPost.drive_folder_url || sheetPost.drive_url} />
                 ) : sheetFolder ? (
                   <FolderThumb folderId={sheetFolder} maxHeight={300} />
+                ) : sheetIsMultiFile ? (
+                  <MultiFilePreview ids={sheetDriveIds} fallbackUrl={sheetPost.drive_url} />
                 ) : thumbUrl ? (
                   <div style={{ background: '#f5f5f3', maxHeight: 300, overflow: 'hidden' }}>
                     <img src={thumbUrl} alt={sheetPost.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 300 }}
                       onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
                   </div>
                 ) : null}
+
+                {(sheetPost.drive_url || sheetPost.drive_folder_url) && !sheetFolder && !thumbUrl && !sheetIsMultiFile && !(isSheetReel && driveId) && (
+                  <div style={{ padding: '12px 20px 0' }}>
+                    <a href={sheetPost.drive_folder_url || sheetPost.drive_url || ''} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: cc, textDecoration: 'none' }}>
+                      🔗 Abrir no Drive
+                    </a>
+                  </div>
+                )}
 
                 <div style={{ padding: '16px 20px 20px' }}>
                   <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 14px', letterSpacing: '-0.02em', lineHeight: 1.2 }}>{sheetPost.title}</h3>
