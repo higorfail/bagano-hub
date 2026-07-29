@@ -776,14 +776,15 @@ export default function ApprovalPage({ token }: { token: string }) {
   // pedir pra aprovar/ajustar algo que já foi ao ar, então nem entram nessa
   // lista nem nas contagens de progresso.
   const reviewPosts = posts.filter(p => p.status !== 'agendado' && p.status !== 'publicado')
-  // Quem ainda precisa de uma decisão do cliente aparece primeiro na lista —
-  // já aprovados vão pro final, em vez de misturados na ordem de produção
-  // (post_number), pra não obrigar rolar por posts que já estão resolvidos
-  // pra achar os que faltam. Sort estável: dentro de cada grupo mantém a
-  // ordem original.
-  const reviewPostsOrdered = [...reviewPosts].sort((a, b) =>
-    (a.approval_status === 'aprovado' ? 1 : 0) - (b.approval_status === 'aprovado' ? 1 : 0)
-  )
+  // Ordem em 3 níveis, em vez de misturados na ordem de produção (post_number):
+  // 1) quem ainda precisa de uma decisão do cliente (pendente, ajuste, ou
+  //    ajuste já resolvido aguardando o cliente olhar de novo);
+  // 2) já aprovados que passaram por um ajuste (mostram a nota histórica
+  //    "✓ Ajuste aplicado" — ainda vale a pena revisar por cima);
+  // 3) aprovados sem nenhum histórico de ajuste, por último.
+  // Sort estável: dentro de cada grupo mantém a ordem original.
+  const reviewRank = (p: Post) => p.approval_status !== 'aprovado' ? 0 : p.approval_comment ? 1 : 2
+  const reviewPostsOrdered = [...reviewPosts].sort((a, b) => reviewRank(a) - reviewRank(b))
 
   // Stats
   const totalPosts    = reviewPosts.length
