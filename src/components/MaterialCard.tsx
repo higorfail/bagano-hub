@@ -249,7 +249,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
         title, type, clientId: fixedClientId || clientId || '', extraClient,
         description, referenceNotes, dueDate: dueDate || '', driveUrl: driveUrl || '', labels, assignedMembers,
       })
-      ensureWatching('materials', data.id, [currentMember?.id, ...assignedMembers])
+      await ensureWatching('materials', data.id, [currentMember?.id, ...assignedMembers])
       await logActivity({ tableName: 'materials', recordId: data.id, clientId: fixedClientId || clientId || null, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
       setActivityKey(k => k + 1)
       return data.id
@@ -711,10 +711,10 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
                 const sel = assignedMembers.includes(m.id)
                 return (
                   <button key={m.id}
-                    onClick={() => {
+                    onClick={async () => {
                       const next = sel ? assignedMembers.filter(x => x !== m.id) : [...assignedMembers, m.id]
                       setAssignedMembers(next)
-                      if (!sel && id) ensureWatching('materials', id, [m.id])
+                      if (!sel && id) await ensureWatching('materials', id, [m.id])
                       const logMsg = sel ? `${who} removeu ${m.name} de "${title}"` : `${who} adicionou ${m.name} a "${title}"`
                       persist({ assigned_members: next, assigned_to: next[0] || null }, logMsg, sel ? 'updated' : 'member_assigned')
                     }}

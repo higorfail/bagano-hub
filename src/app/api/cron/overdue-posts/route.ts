@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     // "Atrasado" agora vale pra qualquer coisa não publicada com data vencida,
     // não só Agendado — um post parado em Aprovado com data vencida também
     // conta (mesmo critério de isOverdue em src/lib/socialItems.ts).
-    supabase.from('schedules').select('id, title, client_id, scheduled_date, status')
+    supabase.from('schedules').select('id, title, client_id, scheduled_date, status, assigned_members')
       .in('status', ['aprovado', 'agendado'])
       .not('scheduled_date', 'is', null)
       .lte('scheduled_date', in2DaysISO),
@@ -71,7 +71,10 @@ export async function GET(req: NextRequest) {
   const reminders: Reminder[] = []
   for (const s of schedulesData || []) {
     const stage = stageFor(s.scheduled_date)
-    if (stage) reminders.push({ table: 'schedules', id: s.id, title: s.title, date: s.scheduled_date, stage, fallbackMembers: [], url: '/dashboard/social' })
+    // Fallback pros atribuídos do post — sem isso, um post sem NENHUM
+    // watcher registrado (comum antes da correção do RLS de card_watchers)
+    // não avisava ninguém, mesmo tendo responsável definido.
+    if (stage) reminders.push({ table: 'schedules', id: s.id, title: s.title, date: s.scheduled_date, stage, fallbackMembers: s.assigned_members?.length ? s.assigned_members : [], url: '/dashboard/social' })
   }
   for (const e of extrasData || []) {
     const stage = stageFor(e.due_date)

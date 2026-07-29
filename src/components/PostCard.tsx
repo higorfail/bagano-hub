@@ -346,7 +346,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (dbError(error, toast, 'criar post')) return undefined
     if (data) {
       setCurrentId(data.id)
-      ensureWatching('schedules', data.id, [currentMember?.id])
+      // Precisa terminar ANTES do logActivity — senão o push que ele dispara
+      // consulta card_watchers antes do watcher novo estar salvo (corrida real,
+      // já detectada em produção: atribuição não gerava notificação).
+      await ensureWatching('schedules', data.id, [currentMember?.id])
       await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${f.title.trim() || 'Sem título'}"` })
       setActivityKey(k => k + 1); flashSaved(); onSaved()
       return data.id
@@ -439,12 +442,15 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     persist(approvalPatch !== undefined ? { status: v, approval_status: approvalPatch } : { status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
   }
   function setField(field: keyof PostForm, v: any, logMsg?: string) { setForm(f => ({ ...f, [field]: v })); persist({ [field]: v }, logMsg) }
-  function toggleMember(id: string) {
+  async function toggleMember(id: string) {
     const adding = !assignedMembers.includes(id)
     const next = adding ? [...assignedMembers, id] : assignedMembers.filter(x => x !== id)
     setAssignedMembers(next)
     const memberName = members.find(m => m.id === id)?.name || ''
-    if (adding && currentId) ensureWatching('schedules', currentId, [id])
+    // Aguarda terminar de gravar o watcher ANTES do persist disparar o
+    // logActivity/push — senão o push consulta card_watchers cedo demais e a
+    // pessoa recém-atribuída não aparece na lista de quem avisar ainda.
+    if (adding && currentId) await ensureWatching('schedules', currentId, [id])
     const logMsg = adding
       ? `${who} adicionou ${memberName} ao post "${formRef.current.title || 'sem título'}"`
       : `${who} removeu ${memberName} do post "${formRef.current.title || 'sem título'}"`

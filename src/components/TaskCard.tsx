@@ -171,7 +171,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
     const { data } = await supabase.from('personal_tasks').insert(payload).select().single()
     if (data) {
       setId(data.id)
-      ensureWatching('personal_tasks', data.id, [currentMember?.id, assignedTo])
+      await ensureWatching('personal_tasks', data.id, [currentMember?.id, assignedTo])
       await logActivity({ tableName: 'personal_tasks', recordId: data.id, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title.trim() || 'Sem título'}"` })
       setActivityKey(k => k + 1)
       return data.id
@@ -209,11 +209,17 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
     const name = v ? (clients.find(c => c.id === v)?.name || '') : 'sem cliente'
     persist({ client_id: v || null }, `${who} definiu o cliente: ${name}`)
   }
-  function changeAssignedTo(v: string) {
+  async function changeAssignedTo(v: string) {
     setAssignedTo(v)
     const name = members.find((m: any) => m.id === v)?.name || 'alguém'
+    // ensureId() (não `id` direto) cobre também o caso de atribuir na
+    // primeira interação de uma tarefa ainda não salva — `id` ainda seria
+    // null nesse instante. Registra o novo responsável como observador ANTES
+    // do persist disparar o push — essa era a delegação ("Delegadas por
+    // você") que podia sair sem avisar ninguém.
+    const tid = await ensureId()
+    if (tid) await ensureWatching('personal_tasks', tid, [v])
     persist({ assigned_to: v }, `${who} atribuiu essa tarefa pra ${name}`, 'member_assigned')
-    if (id) ensureWatching('personal_tasks', id, [v])
   }
   function changePriority(v: string) {
     setPriority(v)

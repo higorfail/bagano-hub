@@ -283,7 +283,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
         dueDate: dueDate || '', dueTime: dueTime || '', driveUrl: driveUrl || '', labels,
         assignedMembers,
       })
-      ensureWatching('extras', data.id, [currentMember?.id, ...assignedMembers])
+      await ensureWatching('extras', data.id, [currentMember?.id, ...assignedMembers])
       await logActivity({ tableName: 'extras', recordId: data.id, clientId: fixedClientId || clientId || null, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
       setActivityKey(k => k + 1)
       return data.id
@@ -786,10 +786,10 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
               {orderedMembers.map(m => {
                 const sel = assignedMembers.includes(m.id)
                 return (
-                  <button key={m.id} onClick={() => {
+                  <button key={m.id} onClick={async () => {
                     const next = sel ? assignedMembers.filter(x => x !== m.id) : [...assignedMembers, m.id]
                     setAssignedMembers(next)
-                    if (!sel && id) ensureWatching('extras', id, [m.id])
+                    if (!sel && id) await ensureWatching('extras', id, [m.id])
                     const logMsg = sel ? `${who} removeu ${m.name} de "${title}"` : `${who} adicionou ${m.name} a "${title}"`
                     persist({ assigned_members: next, assigned_member_id: next[0] || null }, logMsg, sel ? 'updated' : 'member_assigned')
                   }}
