@@ -407,8 +407,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     setForm(f => ({ ...f, post_type: v })); persist({ post_type: v }, `${who} definiu o tipo: ${label}`)
   }
   function changeStatus(v: string) {
-    const old = STATUS_LABEL[formRef.current.status] || formRef.current.status
-    const wasAjuste = formRef.current.status === 'ajuste'
+    const prevStatus = formRef.current.status
+    const old = STATUS_LABEL[prevStatus] || prevStatus
+    const wasAjuste = prevStatus === 'ajuste'
+    const wasApprovedType = ['aprovado', 'agendado', 'publicado'].includes(prevStatus)
     const movingToApproved = ['aprovado', 'agendado', 'publicado'].includes(v)
     // O Hub é a fonte da verdade pro que o cliente vê na página pública: sempre
     // que o status interno entra numa etapa "aprovada" (aprovado/agendado/
@@ -418,12 +420,18 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     // null) → marcado como aprovado direto pelo time sem esperar o cliente
     // clicar, ficava com approval_status preso em null: o Hub mostrava
     // "Aprovado" mas a página pública continuava em "Pendente" (caso real:
-    // Fiorellato). Fora do ajuste, sair de "Ajuste solicitado" por qualquer
-    // caminho que NÃO seja aprovado ainda limpa o alerta vermelho (mantém
-    // approval_comment pro "✓ Ajuste aplicado").
+    // Fiorellato). O caminho inverso também precisa sincronizar: se alguém
+    // desfaz um "Aprovado" voltando pra um status não-aprovado (reabriu pra
+    // mais uma olhada), o approval_status volta pra null também — senão fica
+    // "aprovado" só que ainda pendente pro Hub, uma combinação contraditória
+    // que também já aconteceu de verdade (Fiorellato #5: Franz aprovou e
+    // desfez 6 segundos depois, approval_status ficou preso em 'aprovado').
+    // Fora disso, sair de "Ajuste solicitado" por qualquer caminho que NÃO
+    // seja aprovado ainda limpa o alerta vermelho (mantém approval_comment
+    // pro "✓ Ajuste aplicado").
     let approvalPatch: string | null | undefined
     if (movingToApproved && approvalStatus !== 'aprovado') approvalPatch = 'aprovado'
-    else if (wasAjuste && v !== 'ajuste') approvalPatch = null
+    else if (!movingToApproved && (wasAjuste || wasApprovedType) && v !== 'ajuste') approvalPatch = null
     else approvalPatch = undefined
 
     setForm(f => ({ ...f, status: v }))
