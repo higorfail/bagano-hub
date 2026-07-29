@@ -714,7 +714,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
                     onClick={async () => {
                       const next = sel ? assignedMembers.filter(x => x !== m.id) : [...assignedMembers, m.id]
                       setAssignedMembers(next)
-                      if (!sel && id) await ensureWatching('materials', id, [m.id])
+                      if (!sel) { const mid = await ensureId(); if (mid) await ensureWatching('materials', mid, [m.id]) }
                       const logMsg = sel ? `${who} removeu ${m.name} de "${title}"` : `${who} adicionou ${m.name} a "${title}"`
                       persist({ assigned_members: next, assigned_to: next[0] || null }, logMsg, sel ? 'updated' : 'member_assigned')
                     }}

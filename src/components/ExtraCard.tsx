@@ -789,7 +789,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
                   <button key={m.id} onClick={async () => {
                     const next = sel ? assignedMembers.filter(x => x !== m.id) : [...assignedMembers, m.id]
                     setAssignedMembers(next)
-                    if (!sel && id) await ensureWatching('extras', id, [m.id])
+                    if (!sel) { const eid = await ensureId(); if (eid) await ensureWatching('extras', eid, [m.id]) }
                     const logMsg = sel ? `${who} removeu ${m.name} de "${title}"` : `${who} adicionou ${m.name} a "${title}"`
                     persist({ assigned_members: next, assigned_member_id: next[0] || null }, logMsg, sel ? 'updated' : 'member_assigned')
                   }}

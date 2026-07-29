@@ -465,7 +465,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     // Aguarda terminar de gravar o watcher ANTES do persist disparar o
     // logActivity/push — senão o push consulta card_watchers cedo demais e a
     // pessoa recém-atribuída não aparece na lista de quem avisar ainda.
-    if (adding && currentId) await ensureWatching('schedules', currentId, [id])
+    // ensurePostId() (não `currentId` direto) cobre também o caso de atribuir
+    // alguém na primeiríssima interação de um post ainda não salvo.
+    if (adding) { const pid = await ensurePostId(); if (pid) await ensureWatching('schedules', pid, [id]) }
     const logMsg = adding
       ? `${who} adicionou ${memberName} ao post "${formRef.current.title || 'sem título'}"`
       : `${who} removeu ${memberName} do post "${formRef.current.title || 'sem título'}"`
