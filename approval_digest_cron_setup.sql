@@ -28,21 +28,24 @@ select cron.unschedule('approval-digest') where exists (
   select 1 from cron.job where jobname = 'approval-digest'
 );
 
--- 3) Agenda a chamada a cada 5 minutos.
+-- 3) Agenda a chamada a cada 5 minutos. Usa http_get (não http_post) porque
+--    a rota só implementa GET (igual as outras 2 rotas de cron, que seguem
+--    a convenção do Cron nativo do Vercel) — com POST, toda chamada batia
+--    405 Method Not Allowed e o job "tinha sucesso" (só rodou o SQL certo)
+--    sem nunca de fato processar a fila.
 select cron.schedule(
   'approval-digest',
   '*/5 * * * *',
   $$
-  select net.http_post(
+  select net.http_get(
     url := 'https://bagano-hub.vercel.app/api/cron/approval-digest',
     headers := jsonb_build_object(
-      'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || (
         select decrypted_secret from vault.decrypted_secrets
         where name = 'cron_secret_bagano'
       )
     ),
-    body := '{}'::jsonb
+    timeout_milliseconds := 5000
   );
   $$
 );
