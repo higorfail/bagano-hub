@@ -9,6 +9,22 @@ export function pushSupported() {
   return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
+// No iPhone/iPad, o Safari só expõe PushManager quando o site foi "instalado"
+// (Adicionar à Tela de Início) e está rodando nesse modo standalone — numa
+// aba comum do Safari, pushSupported() acima já dá false, sem nenhum aviso
+// pro usuário sobre o motivo. Isso é presumivelmente a causa mais comum de
+// "notificação não funciona" pro time, já que quase ninguém instala um site
+// na tela de início por conta própria sem ser instruído.
+export function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+}
+
+export function isStandalonePWA(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true
+}
+
 export function pushPermission(): NotificationPermission | 'unsupported' {
   if (!pushSupported()) return 'unsupported'
   return Notification.permission

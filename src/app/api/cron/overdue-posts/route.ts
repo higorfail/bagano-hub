@@ -23,7 +23,7 @@ function addDaysISO(iso: string, days: number) {
 }
 
 type Stage = 'overdue' | 'dueday' | '2d'
-type Reminder = { table: 'schedules' | 'extras'; id: string; title: string; date: string; stage: Stage; fallbackMembers: string[] }
+type Reminder = { table: 'schedules' | 'extras' | 'materials'; id: string; title: string; date: string; stage: Stage; fallbackMembers: string[]; url: string }
 
 // Roda de hora em hora (ver vercel.json) e avisa quem acompanha um post/extra
 // em 3 momentos: 2 dias antes da data marcada, no próprio dia, e quando já
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   const todayISO = todayBrasiliaISO()
   const in2DaysISO = addDaysISO(todayISO, 2)
 
-  const [{ data: schedulesData }, { data: extrasData }] = await Promise.all([
+  const [{ data: schedulesData }, { data: extrasData }, { data: materialsData }] = await Promise.all([
     // "Atrasado" agora vale pra qualquer coisa não publicada com data vencida,
     // não só Agendado — um post parado em Aprovado com data vencida também
     // conta (mesmo critério de isOverdue em src/lib/socialItems.ts).
@@ -52,6 +52,11 @@ export async function GET(req: NextRequest) {
       .lte('scheduled_date', in2DaysISO),
     supabase.from('extras').select('id, title, client_id, due_date, status, assigned_members, assigned_member_id')
       .neq('status', 'done')
+      .not('due_date', 'is', null)
+      .lte('due_date', in2DaysISO),
+    supabase.from('materials').select('id, title, client_id, due_date, status, assigned_members, assigned_to')
+      .neq('status', 'finalizado')
+      .is('archived_at', null)
       .not('due_date', 'is', null)
       .lte('due_date', in2DaysISO),
   ])
@@ -66,13 +71,22 @@ export async function GET(req: NextRequest) {
   const reminders: Reminder[] = []
   for (const s of schedulesData || []) {
     const stage = stageFor(s.scheduled_date)
-    if (stage) reminders.push({ table: 'schedules', id: s.id, title: s.title, date: s.scheduled_date, stage, fallbackMembers: [] })
+    if (stage) reminders.push({ table: 'schedules', id: s.id, title: s.title, date: s.scheduled_date, stage, fallbackMembers: [], url: '/dashboard/social' })
   }
   for (const e of extrasData || []) {
     const stage = stageFor(e.due_date)
     if (stage) reminders.push({
       table: 'extras', id: e.id, title: e.title, date: e.due_date, stage,
       fallbackMembers: e.assigned_members?.length ? e.assigned_members : e.assigned_member_id ? [e.assigned_member_id] : [],
+      url: '/dashboard/social',
+    })
+  }
+  for (const m of materialsData || []) {
+    const stage = stageFor(m.due_date)
+    if (stage) reminders.push({
+      table: 'materials', id: m.id, title: m.title, date: m.due_date, stage,
+      fallbackMembers: m.assigned_members?.length ? m.assigned_members : m.assigned_to ? [m.assigned_to] : [],
+      url: `/dashboard/materiais?post=${m.id}`,
     })
   }
   if (reminders.length === 0) return NextResponse.json({ sent: 0, reminders: 0 })
@@ -110,7 +124,7 @@ export async function GET(req: NextRequest) {
 
     const daysLate = Math.max(1, Math.round((Date.now() - new Date(item.date + 'T00:00:00').getTime()) / 86400000))
     const { title, body } = MESSAGES[item.stage](item.title, daysLate)
-    const payload = JSON.stringify({ title, body, url: '/dashboard/social' })
+    const payload = JSON.stringify({ title, body, url: item.url })
 
     let anySent = false
     await Promise.all(subs.map(async sub => {

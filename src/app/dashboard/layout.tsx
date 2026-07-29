@@ -11,7 +11,7 @@ import CommandPalette from '@/components/CommandPalette'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider, useToast } from '@/lib/ToastContext'
 import LogoIcon from '@/components/logos/LogoIcon'
-import { pushSupported, isSubscribedToPush, subscribeToPush } from '@/lib/push'
+import { pushSupported, isSubscribedToPush, subscribeToPush, isIOS, isStandalonePWA } from '@/lib/push'
 import { todayBrasiliaISO, addDaysISO } from '@/lib/timezone'
 import { BellRing } from 'lucide-react'
 
@@ -88,8 +88,13 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   // Push notification (PWA) — verifica se já está inscrito assim que sabe quem é o usuário
   const [pushState, setPushState] = useState<'unsupported' | 'off' | 'on' | 'busy'>('off')
+  const [needsIOSInstall, setNeedsIOSInstall] = useState(false)
   useEffect(() => {
-    if (!pushSupported()) { setPushState('unsupported'); return }
+    if (!pushSupported()) {
+      setPushState('unsupported')
+      setNeedsIOSInstall(isIOS() && !isStandalonePWA())
+      return
+    }
     isSubscribedToPush().then(sub => setPushState(sub ? 'on' : 'off'))
   }, [])
   // Banner de ativação — some do sino discretinho de antes: agora aparece
@@ -813,6 +818,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 </div>
 
                 {/* Ativar push notification */}
+                {needsIOSInstall && (
+                  <div className="px-4 py-2.5 text-xs border-b border-[var(--color-border)] flex-shrink-0" style={{ color: 'var(--color-accent)' }}>
+                    <p className="font-medium flex items-center gap-2 mb-1"><BellRing size={14} /> Pra notificações no iPhone:</p>
+                    <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed">
+                      1. Toque em Compartilhar (⬆️) → "Adicionar à Tela de Início"<br />
+                      2. Abra o Hub por esse ícone (não pelo Safari)<br />
+                      3. Volte aqui e ative as notificações
+                    </p>
+                  </div>
+                )}
                 {pushState === 'off' && (
                   <button onClick={enablePush}
                     className="flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b border-[var(--color-border)] flex-shrink-0 transition-colors hover:bg-[var(--color-bg-subtle)] text-left w-full"
@@ -925,7 +940,18 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </div>{/* flex items-center gap-1 */}
         </div>
 
-        {pushState === 'off' && !pushBannerDismissed && (
+        {needsIOSInstall && !pushBannerDismissed && (
+          <div className="flex items-center gap-3 px-4 md:px-6 py-2.5 border-b border-[var(--color-border)]" style={{ background: 'var(--color-accent-bg)' }}>
+            <BellRing size={15} className="flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
+            <p className="text-xs font-medium flex-1 min-w-0" style={{ color: 'var(--color-accent)' }}>
+              Pra receber notificações no iPhone: toque em Compartilhar → "Adicionar à Tela de Início", e abra o Hub por esse ícone (não pelo Safari).
+            </p>
+            <button onClick={dismissPushBanner} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white flex-shrink-0" style={{ background: 'var(--color-accent)' }}>
+              Entendi
+            </button>
+          </div>
+        )}
+        {!needsIOSInstall && pushState === 'off' && !pushBannerDismissed && (
           <div className="flex items-center gap-3 px-4 md:px-6 py-2.5 border-b border-[var(--color-border)]" style={{ background: 'var(--color-accent-bg)' }}>
             <BellRing size={15} className="flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
             <p className="text-xs font-medium flex-1 min-w-0" style={{ color: 'var(--color-accent)' }}>
