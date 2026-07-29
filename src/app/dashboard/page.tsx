@@ -14,6 +14,7 @@ import { Card, SectionCard } from '@/components/ui/Card'
 import IconBadge, { type BadgeTone } from '@/components/ui/IconBadge'
 import DonutChart from '@/components/ui/DonutChart'
 import LineChart from '@/components/ui/LineChart'
+import { brasiliaISOFromDate } from '@/lib/timezone'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
 const CFG = {
@@ -52,7 +53,6 @@ const TONE_FG: Record<BadgeTone, string> = {
 
 const MONTHS    = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const DAYS      = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
-const WEEKDAY_SHORT = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB']
 
 type Client   = { id: string; name: string; color_hex: string; logo_url?: string | null }
 type Schedule = {
@@ -179,9 +179,7 @@ export default function DashboardPage() {
   // Visão geral do mês — mês e período selecionáveis (escopo do widget)
   const [ovMonth,     setOvMonth]     = useState(new Date().getMonth() + 1)
   const [ovYear,      setOvYear]      = useState(new Date().getFullYear())
-  const [ovSchedules, setOvSchedules] = useState<{ status: string; approval_status: string }[]>([])
-  const [ovPeriod,    setOvPeriod]    = useState(7)
-  const [evoRows,     setEvoRows]     = useState<{ created_at: string | null }[]>([])
+  const [ovSchedules, setOvSchedules] = useState<{ status: string; approval_status: string; client_id: string; created_at?: string | null }[]>([])
 
   const now      = new Date()
   const month    = now.getMonth() + 1
@@ -258,19 +256,16 @@ export default function DashboardPage() {
       })
   }, [currentMember?.id])
 
-  // Donut do "Visão geral" — busca o mês escolhido (só quando difere do mês atual; o atual reusa `schedules`)
+  // Donut + evolução do "Visão geral" — busca o mês escolhido (só quando difere
+  // do mês atual; o atual reusa `schedules`). client_id entra pra poder excluir
+  // posts de clientes arquivados/inativos; created_at pra alimentar a linha de
+  // evolução (que agora reflete o MESMO mês selecionado aqui, não um período
+  // solto e desconectado do resto do card).
   useEffect(() => {
     if (ovMonth === month && ovYear === year) return
-    supabase.from(CFG.t.schedules).select('status, approval_status').eq('month', ovMonth).eq('year', ovYear)
+    supabase.from(CFG.t.schedules).select('status, approval_status, client_id, created_at').eq('month', ovMonth).eq('year', ovYear)
       .then(({ data }) => setOvSchedules((data as any) || []))
   }, [ovMonth, ovYear])
-
-  // Linha de evolução — posts criados nos últimos N dias (independente do mês)
-  useEffect(() => {
-    const since = new Date(Date.now() - ovPeriod * 86400000).toISOString()
-    supabase.from(CFG.t.schedules).select('created_at').gte('created_at', since)
-      .then(({ data }) => setEvoRows((data as any) || []))
-  }, [ovPeriod])
 
   // ── Computed ─────────────────────────────────────────────────────────────
   const clientMap = useMemo(() => {
@@ -371,15 +366,24 @@ export default function DashboardPage() {
     captacaoAlerts.postsAcabando.length > 0 && { n: captacaoAlerts.postsAcabando.length, label: 'com poucos posts', sub: 'Menos de 3 em produção', icon: Zap, tone: 'amber' as BadgeTone, href: '/dashboard/cronograma', cta: 'Ver cronograma' },
   ].filter(Boolean) as Alert[]
 
-  // ── Visão geral do mês (mês + período selecionáveis) ──────────────────────
+  // ── Visão geral do mês ──────────────────────────────────────────────────
   const isCurrentOv = ovMonth === month && ovYear === year
-  const donutSource = isCurrentOv ? schedules : ovSchedules
+  // Só clientes ativos — um post de cliente arquivado não deve inflar o total
+  // do mês nem aparecer no gráfico, mesmo que a linha em `schedules` continue
+  // existindo.
+  const activeClientIds = new Set(clients.map(c => c.id))
+  const donutSource = (isCurrentOv ? schedules : ovSchedules).filter(s => activeClientIds.has(s.client_id))
   const ovTotal     = donutSource.length
   // "Precisam ajuste" é transversal (approval_status), mostrado como alerta à parte
   const ovNotOk     = donutSource.filter(s => s.approval_status === CFG.A.naoAprovado && ![CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)).length
 
-  // Rosca = distribuição por status (exclusivos → soma sempre = total)
+  // Rosca = distribuição por status (exclusivos → soma sempre = total).
+  // IMPORTANTE: essa lista precisa cobrir TODOS os status possíveis de um post
+  // (ver STATUSES em PostCard.tsx) — um status esquecido aqui fica invisível
+  // no gráfico mas continua contando no total, e as fatias nunca somam 100%.
   const STATUS_SLICES: { key: string; label: string; tone: BadgeTone }[] = [
+    { key: 'estrategia',                 label: 'Estratégia',      tone: 'neutral' },
+    { key: 'aguardando_aprovacao_crono', label: 'Ag. crono',       tone: 'purple'  },
     { key: CFG.S.captacao,            label: 'Captação',        tone: 'blue'    },
     { key: CFG.S.producao,            label: 'Em produção',     tone: 'amber'   },
     { key: CFG.S.revisaoInterna,      label: 'Revisão interna', tone: 'orange'  },
@@ -397,14 +401,19 @@ export default function DashboardPage() {
     return { y: d.getFullYear(), m: d.getMonth() + 1, label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}` }
   })
 
+  // Evolução de posts CRIADOS ao longo do mesmo mês selecionado acima (antes
+  // era "últimos N dias" fixo, sem nenhuma relação com o mês escolhido — por
+  // isso trocar de mês não mudava a curva, e junho/julho pareciam idênticos).
+  // Usa o dia em horário de Brasília (não UTC) pra não jogar posts criados à
+  // noite pro dia seguinte.
   const evolution = (() => {
     const out: { label: string; value: number }[] = []
-    for (let i = ovPeriod - 1; i >= 0; i--) {
-      const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      const count = evoRows.filter(r => (r.created_at || '').slice(0, 10) === key).length
-      const label = ovPeriod <= 7 ? (i === 0 ? 'HOJE' : WEEKDAY_SHORT[d.getDay()]) : `${d.getDate()}/${d.getMonth() + 1}`
-      out.push({ label, value: count })
+    const daysInMonth = new Date(ovYear, ovMonth, 0).getDate()
+    const lastDay = isCurrentOv ? now.getDate() : daysInMonth
+    for (let day = 1; day <= lastDay; day++) {
+      const key = `${ovYear}-${String(ovMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      const count = donutSource.filter(s => s.created_at && brasiliaISOFromDate(new Date(s.created_at)) === key).length
+      out.push({ label: String(day), value: count })
     }
     return out
   })()
@@ -843,18 +852,6 @@ export default function DashboardPage() {
                 </select>
                 <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
               </div>
-              <div className="relative">
-                <select
-                  value={ovPeriod}
-                  onChange={e => setOvPeriod(Number(e.target.value))}
-                  className="appearance-none cursor-pointer text-xs font-medium text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg pl-3 pr-7 py-1.5 bg-[var(--color-bg-card)] outline-none hover:border-[var(--color-border-hover)] transition-colors"
-                >
-                  <option value={7}>7 dias</option>
-                  <option value={14}>14 dias</option>
-                  <option value={30}>30 dias</option>
-                </select>
-                <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
-              </div>
             </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -887,7 +884,7 @@ export default function DashboardPage() {
             {/* Evolução */}
             <div>
               <p className="text-sm font-semibold text-[var(--color-text-primary)]">Evolução de posts</p>
-              <p className="text-xs text-[var(--color-text-muted)] mb-4">Criados nos últimos {ovPeriod} dias</p>
+              <p className="text-xs text-[var(--color-text-muted)] mb-4">Criados em {MONTHS[ovMonth - 1]}</p>
               <LineChart data={evolution} />
             </div>
           </div>
