@@ -134,6 +134,8 @@ export async function GET(req: NextRequest) {
       } catch (err: any) {
         if (err?.statusCode === 404 || err?.statusCode === 410) {
           await supabase.from('push_subscriptions').delete().eq('id', sub.id)
+        } else {
+          console.error('cron/overdue-posts: falha ao enviar push', { statusCode: err?.statusCode, body: err?.body, endpoint: sub.endpoint })
         }
       }
     }))

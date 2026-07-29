@@ -57,13 +57,18 @@ export async function subscribeToPush(memberId: string): Promise<{ ok: boolean; 
     const registration = await navigator.serviceWorker.register('/sw.js')
     await navigator.serviceWorker.ready
 
+    // Se já existe uma inscrição no navegador, ela pode ter sido criada com
+    // uma chave VAPID antiga (se as chaves foram regeradas em algum momento
+    // desde então) — getSubscription() sempre reaproveitava a mesma, então
+    // clicar "Ativar" de novo nunca corrigia isso: o envio falhava (chave
+    // não bate) pra sempre, silenciosamente, mesmo a pessoa "reativando".
+    // Desinscrever e criar uma nova garante que sempre usa a chave atual.
     let subscription = await registration.pushManager.getSubscription()
-    if (!subscription) {
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      })
-    }
+    if (subscription) await subscription.unsubscribe()
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidKey),
+    })
 
     const json = subscription.toJSON()
     const supabase = createClient()

@@ -59,6 +59,12 @@ export async function POST(req: NextRequest) {
     } catch (err: any) {
       if (err?.statusCode === 404 || err?.statusCode === 410) {
         await supabase.from('push_subscriptions').delete().eq('id', sub.id)
+      } else {
+        // Qualquer outro erro (VAPID errado, payload malformado, 401/403 etc.)
+        // ficava completamente silencioso — nem no log do servidor aparecia.
+        // Isso tornava impossível saber POR QUE um push não chegava (relatado
+        // várias vezes: "não funciona no Chrome" sem nenhum erro visível).
+        console.error('push/notify: falha ao enviar', { statusCode: err?.statusCode, body: err?.body, endpoint: sub.endpoint })
       }
     }
   }))
