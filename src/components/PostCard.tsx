@@ -621,10 +621,22 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   async function moveToMonth() {
     const pid = await ensurePostId(); if (!pid) return
     if (moveMonth === month && moveYear === year) { setMoveOpen(false); return }
-    const { error } = await supabase.from('schedules').update({ month: moveMonth, year: moveYear }).eq('id', pid)
+    // Se o post já tinha uma data marcada e ela não bate com o mês de destino,
+    // limpa a data em vez de deixar "Julho" com scheduled_date em Agosto — isso
+    // já causou cronograma inteiro entregue pro cliente com posts sumidos do
+    // calendário do mês certo (a data ficava presa no mês antigo/errado).
+    const sd = form.scheduled_date
+    const sdOutOfRange = !!sd && (() => {
+      const d = new Date(sd + 'T12:00:00')
+      return d.getMonth() + 1 !== moveMonth || d.getFullYear() !== moveYear
+    })()
+    const patch: Record<string, any> = { month: moveMonth, year: moveYear, ...(sdOutOfRange ? { scheduled_date: null } : {}) }
+    const { error } = await supabase.from('schedules').update(patch).eq('id', pid)
     if (dbError(error, toast, 'mover')) return
-    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `Movido para ${MESES[moveMonth - 1]} ${moveYear}` })
-    toast('Post movido de mês'); onSaved(); onClose()
+    if (sdOutOfRange) setForm(f => ({ ...f, scheduled_date: '' }))
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `Movido para ${MESES[moveMonth - 1]} ${moveYear}${sdOutOfRange ? ' (data removida — não batia com o novo mês)' : ''}` })
+    toast(sdOutOfRange ? 'Post movido — a data marcada foi removida (não batia com o novo mês)' : 'Post movido de mês')
+    onSaved(); onClose()
   }
 
   const typeObj   = POST_TYPES.find(t => t.value === form.post_type) || POST_TYPES[0]

@@ -46,6 +46,10 @@ type Props = {
   post: MiniPost
   clientColor?: string
   campaignName?: string | null
+  /** Mês/ano do cronograma sendo exibido — usado só pra avisar se a data
+   * marcada do post caiu fora dele (ex: post de julho com data em agosto). */
+  tabMonth?: number
+  tabYear?: number
   selected?: boolean
   members?: { id: string; name: string; color?: string }[]
   onClick: () => void
@@ -60,7 +64,11 @@ type Props = {
   onDrop?: () => void
 }
 
-export default function PostMiniCard({ post, clientColor, campaignName, selected, members, onClick, onDuplicate, onSendToCriacao, draggable, dragging, dragOver, onDragStart, onDragEnd, onDragOver, onDrop }: Props) {
+export default function PostMiniCard({ post, clientColor, campaignName, tabMonth, tabYear, selected, members, onClick, onDuplicate, onSendToCriacao, draggable, dragging, dragOver, onDragStart, onDragEnd, onDragOver, onDrop }: Props) {
+  const dateOutOfMonth = !!(post.scheduled_date && tabMonth && tabYear && (() => {
+    const d = new Date(post.scheduled_date + 'T12:00:00')
+    return d.getMonth() + 1 !== tabMonth || d.getFullYear() !== tabYear
+  })())
   const assignedData = (post.assigned_members || []).map(id => members?.find(m => m.id === id)).filter(Boolean) as { id: string; name: string; color?: string }[]
   const type   = TYPE[post.post_type] || { label: post.post_type || '—', color: 'var(--color-border)' }
   const status = STATUS[post.status]  || { label: post.status, color: '#6b7280' }
@@ -208,9 +216,11 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         {/* Footer — indicadores */}
         <div className="flex items-center justify-between pt-2.5 border-t border-[var(--color-border)] gap-2 mt-auto">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] flex-shrink-0">
+            <span className="flex items-center gap-1 text-xs flex-shrink-0" style={dateOutOfMonth ? { color: 'var(--ds-error-text)', fontWeight: 600 } : { color: 'var(--color-text-muted)' }}
+              title={dateOutOfMonth ? 'A data marcada não bate com o mês deste cronograma' : undefined}>
               <Calendar size={11} />
               {post.scheduled_date ? new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : 'Sem data'}
+              {dateOutOfMonth && ' ⚠️'}
             </span>
             {refs > 0 && (
               <span className="flex items-center gap-0.5 text-xs text-[var(--color-text-muted)] flex-shrink-0" title={`${refs} referência(s)`}>
