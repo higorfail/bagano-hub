@@ -408,19 +408,27 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   }
   function changeStatus(v: string) {
     const old = STATUS_LABEL[formRef.current.status] || formRef.current.status
-    // Sair de "Ajuste solicitado" por QUALQUER caminho limpa o alerta vermelho,
-    // mas mantém approval_comment — o card mostra "✓ Ajuste aplicado" em vez do
-    // pedido original, sem perder o histórico do que foi pedido. Se o destino já
-    // é um status "aprovado" (aprovado/agendado/publicado) — ex: o time resolveu
-    // um ajuste tão simples que já marcou como pronto sem reenviar pro cliente —
-    // o approval_status vira 'aprovado' também, senão o post some das duas
-    // contagens do cabeçalho do cliente (nem aparece em "aprovados" nem em
-    // "não aprovados", já que nenhum dos dois filtros bate com null).
-    const clearRejection = formRef.current.status === 'ajuste' && v !== 'ajuste'
-    const newApprovalStatus = clearRejection ? (['aprovado', 'agendado', 'publicado'].includes(v) ? 'aprovado' : null) : undefined
+    const wasAjuste = formRef.current.status === 'ajuste'
+    const movingToApproved = ['aprovado', 'agendado', 'publicado'].includes(v)
+    // O Hub é a fonte da verdade pro que o cliente vê na página pública: sempre
+    // que o status interno entra numa etapa "aprovada" (aprovado/agendado/
+    // publicado) — não importa de onde veio, não só de "ajuste" — o
+    // approval_status sincroniza junto. Sem isso, um post que passou por
+    // ajuste → reenviado pro cliente (aguardando_aprovacao, approval_status
+    // null) → marcado como aprovado direto pelo time sem esperar o cliente
+    // clicar, ficava com approval_status preso em null: o Hub mostrava
+    // "Aprovado" mas a página pública continuava em "Pendente" (caso real:
+    // Fiorellato). Fora do ajuste, sair de "Ajuste solicitado" por qualquer
+    // caminho que NÃO seja aprovado ainda limpa o alerta vermelho (mantém
+    // approval_comment pro "✓ Ajuste aplicado").
+    let approvalPatch: string | null | undefined
+    if (movingToApproved && approvalStatus !== 'aprovado') approvalPatch = 'aprovado'
+    else if (wasAjuste && v !== 'ajuste') approvalPatch = null
+    else approvalPatch = undefined
+
     setForm(f => ({ ...f, status: v }))
-    if (clearRejection) setApprovalStatus(newApprovalStatus || '')
-    persist(clearRejection ? { status: v, approval_status: newApprovalStatus } : { status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
+    if (approvalPatch !== undefined) setApprovalStatus(approvalPatch || '')
+    persist(approvalPatch !== undefined ? { status: v, approval_status: approvalPatch } : { status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
   }
   function setField(field: keyof PostForm, v: any, logMsg?: string) { setForm(f => ({ ...f, [field]: v })); persist({ [field]: v }, logMsg) }
   function toggleMember(id: string) {
@@ -661,8 +669,12 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const [fy, fm, fd] = form.scheduled_date.split('-').map(Number)
     const schedMidnight = new Date(fy, fm - 1, fd)
     const diff = Math.round((schedMidnight.getTime() - todayMidnight.getTime()) / 86400000)
-    const color = diff < 0 ? '#EF4444' : diff <= 2 ? '#F59E0B' : 'var(--color-text-secondary)'
-    const suffix = diff < 0 ? ' · atrasado' : diff === 0 ? ' · hoje' : diff === 1 ? ' · amanhã' : ''
+    // Já publicado nunca é "atrasado" — mesmo critério usado em isOverdue()
+    // (src/lib/socialItems.ts) e no cron de lembrete. Sem isso, um post
+    // publicado com data antiga continuava com o selo vermelho pra sempre.
+    const isPublished = form.status === 'publicado'
+    const color = isPublished ? 'var(--color-text-secondary)' : diff < 0 ? '#EF4444' : diff <= 2 ? '#F59E0B' : 'var(--color-text-secondary)'
+    const suffix = isPublished ? '' : diff < 0 ? ' · atrasado' : diff === 0 ? ' · hoje' : diff === 1 ? ' · amanhã' : ''
     return { text: new Date(form.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) + suffix, color }
   })()
 

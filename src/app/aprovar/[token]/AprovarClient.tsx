@@ -705,6 +705,14 @@ export default function ApprovalPage({ token }: { token: string }) {
               <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{extra.client_approval_comment}"</p>
             </div>
           )}
+          {/* Histórico: já foi aprovado, mas passou por um ajuste antes — nota
+              discreta (não é mais um alerta) só pra manter o contexto visível. */}
+          {isApproved && extra.client_approval_comment && (
+            <div style={{ background: '#f5f5f3', border: '1px solid #e5e5e0', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
+              <p style={{ fontSize: 10, color: '#8a8a85', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>✓ Ajuste aplicado</p>
+              <p style={{ fontSize: 13, color: '#6b6b66', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{extra.client_approval_comment}"</p>
+            </div>
+          )}
 
           {isCommenting && (
             <div style={{ marginBottom: 14 }}>
@@ -768,6 +776,14 @@ export default function ApprovalPage({ token }: { token: string }) {
   // pedir pra aprovar/ajustar algo que já foi ao ar, então nem entram nessa
   // lista nem nas contagens de progresso.
   const reviewPosts = posts.filter(p => p.status !== 'agendado' && p.status !== 'publicado')
+  // Quem ainda precisa de uma decisão do cliente aparece primeiro na lista —
+  // já aprovados vão pro final, em vez de misturados na ordem de produção
+  // (post_number), pra não obrigar rolar por posts que já estão resolvidos
+  // pra achar os que faltam. Sort estável: dentro de cada grupo mantém a
+  // ordem original.
+  const reviewPostsOrdered = [...reviewPosts].sort((a, b) =>
+    (a.approval_status === 'aprovado' ? 1 : 0) - (b.approval_status === 'aprovado' ? 1 : 0)
+  )
 
   // Stats
   const totalPosts    = reviewPosts.length
@@ -1097,6 +1113,14 @@ export default function ApprovalPage({ token }: { token: string }) {
             <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
               <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isChanges ? 'Sua solicitação' : 'Você pediu — já ajustado, dá uma olhada'}</p>
               <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{post.approval_comment}"</p>
+            </div>
+          )}
+          {/* Histórico: já foi aprovado, mas passou por um ajuste antes — nota
+              discreta (não é mais um alerta) só pra manter o contexto visível. */}
+          {isApproved && post.approval_comment && (
+            <div style={{ background: '#f5f5f3', border: '1px solid #e5e5e0', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
+              <p style={{ fontSize: 10, color: '#8a8a85', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>✓ Ajuste aplicado</p>
+              <p style={{ fontSize: 13, color: '#6b6b66', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{post.approval_comment}"</p>
             </div>
           )}
 
@@ -1573,7 +1597,7 @@ export default function ApprovalPage({ token }: { token: string }) {
 
               {/* Post cards */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {reviewPosts.map((post, idx) => renderFinalCard(post, idx))}
+                {reviewPostsOrdered.map((post, idx) => renderFinalCard(post, idx))}
               </div>
 
               {/* Extras pendentes de aprovação */}
@@ -1833,6 +1857,13 @@ export default function ApprovalPage({ token }: { token: string }) {
                     <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
                       <p style={{ fontSize: 10, color: '#92400e', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isChanges ? 'Sua solicitação anterior' : 'Você pediu — já ajustado, dá uma olhada'}</p>
                       <p style={{ fontSize: 13, color: '#78350f', margin: 0, fontStyle: 'italic' }}>"{sheetPost.approval_comment}"</p>
+                    </div>
+                  )}
+                  {/* Histórico: já foi aprovado, mas passou por um ajuste antes */}
+                  {isApproved && sheetPost.approval_comment && (
+                    <div style={{ background: '#f5f5f3', border: '1px solid #e5e5e0', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
+                      <p style={{ fontSize: 10, color: '#8a8a85', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>✓ Ajuste aplicado</p>
+                      <p style={{ fontSize: 13, color: '#6b6b66', margin: 0, fontStyle: 'italic' }}>"{sheetPost.approval_comment}"</p>
                     </div>
                   )}
 
