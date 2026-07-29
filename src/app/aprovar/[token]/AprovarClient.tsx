@@ -411,9 +411,17 @@ export default function ApprovalPage({ token }: { token: string }) {
   }))
 
   // ── Actions ────────────────────────────────────────────────────────────────
+  // CRÍTICO: nenhuma dessas ações pode seguir em frente (otimista + log de
+  // atividade) se o UPDATE no banco falhar — já aconteceu de o cliente ver
+  // "Aprovado" na tela dele, e até o log registrar "Cliente aprovou o post",
+  // enquanto o post continuava esquecido em "Aguardando aprovação" pro time
+  // internamente, porque o `.update()` nunca teve `error` checado. Cada ação
+  // agora confere `error` e mostra um aviso claro pro cliente tentar de novo
+  // em vez de fingir sucesso.
   async function approve(postId: string) {
     setSubmitting(postId)
-    await supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null, status: 'aprovado' }).eq('id', postId)
+    const { error } = await supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null, status: 'aprovado' }).eq('id', postId)
+    if (error) { showToast('Não deu pra aprovar agora — tenta de novo em instantes.', false); setSubmitting(null); return }
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p))
     await ensureWatchingFromAssigned('schedules', postId)
     await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post` })
@@ -426,7 +434,8 @@ export default function ApprovalPage({ token }: { token: string }) {
   async function requestChanges(postId: string, comment: string) {
     const c = comment.trim(); if (!c) return
     setSubmitting(postId)
-    await supabase.from('schedules').update({ approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' }).eq('id', postId)
+    const { error } = await supabase.from('schedules').update({ approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' }).eq('id', postId)
+    if (error) { showToast('Não deu pra enviar o ajuste — tenta de novo em instantes.', false); setSubmitting(null); return }
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' } : p))
     await ensureWatchingFromAssigned('schedules', postId)
     await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente solicitou ajuste: "${c}"` })
@@ -439,7 +448,8 @@ export default function ApprovalPage({ token }: { token: string }) {
 
   async function undo(postId: string) {
     setSubmitting(postId)
-    await supabase.from('schedules').update({ approval_status: null, approval_comment: null, status: 'aguardando_aprovacao' }).eq('id', postId)
+    const { error } = await supabase.from('schedules').update({ approval_status: null, approval_comment: null, status: 'aguardando_aprovacao' }).eq('id', postId)
+    if (error) { showToast('Não deu pra desfazer agora — tenta de novo em instantes.', false); setSubmitting(null); return }
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: undefined, approval_comment: undefined, status: 'aguardando_aprovacao' } : p))
     setSubmitting(null)
   }
@@ -448,22 +458,26 @@ export default function ApprovalPage({ token }: { token: string }) {
     const pending = posts.filter(p => p.approval_status !== 'aprovado' && p.approval_status !== 'não aprovado')
     if (!pending.length) return
     setApprovingAll(true)
+    const results = await Promise.all(
+      pending.map(p => supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null, status: 'aprovado' }).eq('id', p.id))
+    )
+    const okIds = new Set(pending.filter((_, i) => !results[i].error).map(p => p.id))
+    const failedCount = pending.length - okIds.size
     await Promise.all([
-      ...pending.map(p => supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null, status: 'aprovado' }).eq('id', p.id)),
-      ...pending.map(p => ensureWatchingFromAssigned('schedules', p.id)),
-      ...pending.map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post` })),
+      ...pending.filter(p => okIds.has(p.id)).map(p => ensureWatchingFromAssigned('schedules', p.id)),
+      ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post` })),
     ])
-    setPosts(prev => prev.map(p =>
-      pending.find(pp => pp.id === p.id) ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p
-    ))
-    showToast(`${pending.length} posts aprovados! 🎉`)
+    setPosts(prev => prev.map(p => okIds.has(p.id) ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p))
+    if (failedCount > 0) showToast(`${okIds.size} aprovados, ${failedCount} falharam — tenta de novo neles.`, false)
+    else showToast(`${okIds.size} posts aprovados! 🎉`)
     setApprovingAll(false)
   }
 
   // ── Cronograma approval actions ────────────────────────────────────────────
   async function approveCrono(postId: string) {
     setSubmitting(postId)
-    await supabase.from('schedules').update({ status: 'producao', approval_status: 'aprovado', approval_comment: null }).eq('id', postId)
+    const { error } = await supabase.from('schedules').update({ status: 'producao', approval_status: 'aprovado', approval_comment: null }).eq('id', postId)
+    if (error) { showToast('Não deu pra aprovar agora — tenta de novo em instantes.', false); setSubmitting(null); return }
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'producao', approval_status: 'aprovado' } : p))
     await ensureWatchingFromAssigned('schedules', postId)
     await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post' })
@@ -474,7 +488,8 @@ export default function ApprovalPage({ token }: { token: string }) {
   async function rejectCrono(postId: string, comment: string) {
     const c = comment.trim(); if (!c) return
     setSubmitting(postId)
-    await supabase.from('schedules').update({ status: 'estrategia', approval_status: 'não aprovado', approval_comment: c }).eq('id', postId)
+    const { error } = await supabase.from('schedules').update({ status: 'estrategia', approval_status: 'não aprovado', approval_comment: c }).eq('id', postId)
+    if (error) { showToast('Não deu pra enviar o ajuste — tenta de novo em instantes.', false); setSubmitting(null); return }
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'estrategia', approval_status: 'não aprovado', approval_comment: c } : p))
     await ensureWatchingFromAssigned('schedules', postId)
     await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste na estratégia: "${c}"` })
@@ -488,19 +503,25 @@ export default function ApprovalPage({ token }: { token: string }) {
     const pending = posts.filter(p => p.status === 'aguardando_aprovacao_crono')
     if (!pending.length) return
     setApprovingAll(true)
+    const results = await Promise.all(
+      pending.map(p => supabase.from('schedules').update({ status: 'producao', approval_status: 'aprovado', approval_comment: null }).eq('id', p.id))
+    )
+    const okIds = new Set(pending.filter((_, i) => !results[i].error).map(p => p.id))
+    const failedCount = pending.length - okIds.size
     await Promise.all([
-      ...pending.map(p => supabase.from('schedules').update({ status: 'producao', approval_status: 'aprovado', approval_comment: null }).eq('id', p.id)),
-      ...pending.map(p => ensureWatchingFromAssigned('schedules', p.id)),
-      ...pending.map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post' })),
+      ...pending.filter(p => okIds.has(p.id)).map(p => ensureWatchingFromAssigned('schedules', p.id)),
+      ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post' })),
     ])
-    setPosts(prev => prev.map(p => pending.find(pp => pp.id === p.id) ? { ...p, status: 'producao', approval_status: 'aprovado' } : p))
-    showToast(`${pending.length} posts aprovados! 🎉`)
+    setPosts(prev => prev.map(p => okIds.has(p.id) ? { ...p, status: 'producao', approval_status: 'aprovado' } : p))
+    if (failedCount > 0) showToast(`${okIds.size} aprovados, ${failedCount} falharam — tenta de novo neles.`, false)
+    else showToast(`${okIds.size} posts aprovados! 🎉`)
     setApprovingAll(false)
   }
 
   async function approveExtra(extraId: string) {
     setExtraSubmitting(extraId)
-    await supabase.from('extras').update({ client_approval_status: 'aprovado', client_approval_comment: null }).eq('id', extraId)
+    const { error } = await supabase.from('extras').update({ client_approval_status: 'aprovado', client_approval_comment: null }).eq('id', extraId)
+    if (error) { showToast('Não deu pra aprovar agora — tenta de novo em instantes.', false); setExtraSubmitting(null); return }
     setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aprovado', client_approval_comment: null } : e))
     await ensureWatchingFromAssigned('extras', extraId)
     await logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou o extra' })
@@ -510,7 +531,8 @@ export default function ApprovalPage({ token }: { token: string }) {
 
   async function undoExtra(extraId: string) {
     setExtraSubmitting(extraId)
-    await supabase.from('extras').update({ client_approval_status: 'aguardando', client_approval_comment: null }).eq('id', extraId)
+    const { error } = await supabase.from('extras').update({ client_approval_status: 'aguardando', client_approval_comment: null }).eq('id', extraId)
+    if (error) { showToast('Não deu pra desfazer agora — tenta de novo em instantes.', false); setExtraSubmitting(null); return }
     setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aguardando', client_approval_comment: null } : e))
     setExtraSubmitting(null)
   }
@@ -518,7 +540,8 @@ export default function ApprovalPage({ token }: { token: string }) {
   async function rejectExtra(extraId: string, comment: string) {
     const c = comment.trim(); if (!c) return
     setExtraSubmitting(extraId)
-    await supabase.from('extras').update({ client_approval_status: 'recusado', client_approval_comment: c }).eq('id', extraId)
+    const { error } = await supabase.from('extras').update({ client_approval_status: 'recusado', client_approval_comment: c }).eq('id', extraId)
+    if (error) { showToast('Não deu pra enviar o ajuste — tenta de novo em instantes.', false); setExtraSubmitting(null); return }
     setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'recusado', client_approval_comment: c } : e))
     await ensureWatchingFromAssigned('extras', extraId)
     await logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste: "${c}"` })
