@@ -962,7 +962,11 @@ export default function ApprovalPage({ token }: { token: string }) {
     const driveId     = post.drive_url?.match(/[-\w]{25,}/)?.[0]
     const folderId    = post.drive_folder_url?.match(/\/folders\/([-\w]{25,})/)?.[1]
     const isVideoPost = post.post_type === 'reels'
-    const thumbUrl    = driveId && !isVideoPost && !isCarrossel ? `/api/drive-thumb?id=${driveId}&sz=w800` : null
+    // Carrossel normalmente é entregue como PASTA (várias imagens, ver
+    // CarouselPreview abaixo) — mas se foi entregue como um único arquivo do
+    // Drive (drive_url, sem pasta), precisa cair no fallback de thumbnail
+    // único, senão o card não mostra NENHUM conteúdo pro cliente aprovar.
+    const thumbUrl    = driveId && !isVideoPost && !(isCarrossel && folderId) ? `/api/drive-thumb?id=${driveId}&sz=w800` : null
     const embedVideoId = driveId && isVideoPost ? driveId : null
 
     const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : '#ebebeb'
@@ -1007,6 +1011,19 @@ export default function ApprovalPage({ token }: { token: string }) {
               onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
           </div>
         ) : null}
+
+        {/* Fallback: se há link do Drive mas nenhuma pré-visualização acima
+            deu certo (formato inesperado, thumbnail falhou, etc.), garante
+            que o cliente sempre tem como abrir o conteúdo — sem isso, o card
+            fica só com legenda e botão de aprovar, sem nada pra revisar. */}
+        {(post.drive_url || post.drive_folder_url) && !embedVideoId && !folderId && !thumbUrl && (
+          <div style={{ padding: '12px 18px 0' }}>
+            <a href={post.drive_folder_url || post.drive_url || ''} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: cc, textDecoration: 'none' }}>
+              🔗 Abrir no Drive
+            </a>
+          </div>
+        )}
 
         {/* Content */}
         <div style={{ padding: '16px 18px' }}>
