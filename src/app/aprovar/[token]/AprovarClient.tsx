@@ -259,6 +259,39 @@ export default function ApprovalPage({ token }: { token: string }) {
   const [sheetPost,    setSheetPost]    = useState<Post | null>(null)
   const [sheetComment, setSheetComment] = useState('')
 
+  // Tab Calendário — navegável (não travado no mês do cronograma). Um post
+  // criado dentro do cronograma de julho pode ter data marcada em agosto (ex:
+  // sobrou pro mês seguinte); sem navegação, esse post nunca aparecia em
+  // lugar nenhum pro cliente. `null` = ainda não inicializado.
+  const [calMonth, setCalMonth] = useState<number | null>(null)
+  const [calYear,  setCalYear]  = useState<number | null>(null)
+
+  // Escolhe o mês inicial do calendário: o do cronograma, a não ser que ele
+  // não tenha nenhum post com data marcada e algum mês seguinte tenha — nesse
+  // caso já abre direto no mês certo, em vez de mostrar uma grade vazia.
+  useEffect(() => {
+    if (!tokenData || calMonth !== null) return
+    const baseMonth = tokenData.month || new Date().getMonth() + 1
+    const baseYear  = tokenData.year  || new Date().getFullYear()
+    const baseKey = `${baseYear}-${baseMonth}`
+    const hasBase = posts.some(p => p.scheduled_date && `${p.scheduled_date.slice(0, 4)}-${Number(p.scheduled_date.slice(5, 7))}` === baseKey)
+    if (hasBase || posts.length === 0) { setCalMonth(baseMonth); setCalYear(baseYear); return }
+    const datedPosts = posts.filter(p => p.scheduled_date).map(p => p.scheduled_date as string).sort()
+    const next = datedPosts.find(d => d >= `${baseYear}-${String(baseMonth).padStart(2, '0')}-01`)
+    if (next) { setCalMonth(Number(next.slice(5, 7))); setCalYear(Number(next.slice(0, 4))) }
+    else { setCalMonth(baseMonth); setCalYear(baseYear) }
+  }, [tokenData, posts, calMonth])
+
+  function shiftCalMonth(delta: number) {
+    setCalMonth(m => {
+      if (m === null) return m
+      let nm = m + delta, ny = calYear || new Date().getFullYear()
+      if (nm > 12) { nm = 1; ny += 1 } else if (nm < 1) { nm = 12; ny -= 1 }
+      setCalYear(ny)
+      return nm
+    })
+  }
+
   useEffect(() => {
     if (!client || !tokenData) return
     const label = tokenData.type === 'cronograma' ? 'Aprovação do Cronograma' : tokenData.type === 'geral' ? 'Central de Aprovação' : 'Aprovação Final'
@@ -1475,9 +1508,9 @@ export default function ApprovalPage({ token }: { token: string }) {
       {/* ── CALENDÁRIO TAB ────────────────────────────────────────────── */}
       {tab === 'calendario' && (() => {
         const DAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-        const calYear  = tokenData?.year  || new Date().getFullYear()
-        const calMonth = tokenData?.month || new Date().getMonth() + 1
-        const mm = String(calMonth).padStart(2, '0')
+        const calYearFinal  = calYear  ?? (tokenData?.year  || new Date().getFullYear())
+        const calMonthFinal = calMonth ?? (tokenData?.month || new Date().getMonth() + 1)
+        const mm = String(calMonthFinal).padStart(2, '0')
 
         const postsByDate: Record<string, Post[]> = {}
         posts.forEach(p => {
@@ -1488,26 +1521,33 @@ export default function ApprovalPage({ token }: { token: string }) {
         })
         const postsWithoutDate = posts.filter(p => !p.scheduled_date)
 
-        const firstDay    = new Date(calYear, calMonth - 1, 1).getDay()
-        const daysInMonth = new Date(calYear, calMonth, 0).getDate()
+        const firstDay    = new Date(calYearFinal, calMonthFinal - 1, 1).getDay()
+        const daysInMonth = new Date(calYearFinal, calMonthFinal, 0).getDate()
         const cells: (number | null)[] = [
           ...Array(firstDay).fill(null),
           ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
         ]
 
         const today = new Date()
+        const postsThisMonth = posts.filter(p => p.scheduled_date && Number(p.scheduled_date.slice(0, 4)) === calYearFinal && Number(p.scheduled_date.slice(5, 7)) === calMonthFinal)
 
         return (
           <div style={{ maxWidth: 600, margin: '0 auto', padding: '20px 16px' }}>
 
-            {/* Month header */}
-            <div style={{ textAlign: 'center', marginBottom: 14 }}>
-              <p style={{ fontSize: 18, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em' }}>
-                {MONTHS[calMonth - 1]} {calYear}
-              </p>
-              <p style={{ fontSize: 12, color: '#9ca3af', margin: '3px 0 0' }}>
-                {posts.filter(p => p.scheduled_date).length} posts agendados no mês
-              </p>
+            {/* Month header — navegável, não travado no mês do cronograma */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 14 }}>
+              <button onClick={() => shiftCalMonth(-1)} aria-label="Mês anterior"
+                style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid #ebebeb', background: '#fff', color: '#6b7280', fontSize: 14, cursor: 'pointer', flexShrink: 0 }}>‹</button>
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: 18, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em' }}>
+                  {MONTHS[calMonthFinal - 1]} {calYearFinal}
+                </p>
+                <p style={{ fontSize: 12, color: '#9ca3af', margin: '3px 0 0' }}>
+                  {postsThisMonth.length} post{postsThisMonth.length !== 1 ? 's' : ''} agendado{postsThisMonth.length !== 1 ? 's' : ''} no mês
+                </p>
+              </div>
+              <button onClick={() => shiftCalMonth(1)} aria-label="Próximo mês"
+                style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid #ebebeb', background: '#fff', color: '#6b7280', fontSize: 14, cursor: 'pointer', flexShrink: 0 }}>›</button>
             </div>
 
             {/* Legend */}
@@ -1535,10 +1575,10 @@ export default function ApprovalPage({ token }: { token: string }) {
                   if (!day) return (
                     <div key={i} style={{ minHeight: 64, borderRight: i % 7 !== 6 ? '1px solid #f5f5f5' : 'none', borderBottom: '1px solid #f5f5f5', background: '#fafaf8' }} />
                   )
-                  const dateStr  = `${calYear}-${mm}-${String(day).padStart(2, '0')}`
+                  const dateStr  = `${calYearFinal}-${mm}-${String(day).padStart(2, '0')}`
                   const dayPosts = postsByDate[dateStr] || []
                   const hasPosts = dayPosts.length > 0
-                  const isToday  = today.getFullYear() === calYear && today.getMonth() + 1 === calMonth && today.getDate() === day
+                  const isToday  = today.getFullYear() === calYearFinal && today.getMonth() + 1 === calMonthFinal && today.getDate() === day
 
                   return (
                     <div key={i} style={{ minHeight: 64, padding: '5px 4px', borderRight: i % 7 !== 6 ? '1px solid #f0f0f0' : 'none', borderBottom: '1px solid #f0f0f0', background: hasPosts ? '#fefefe' : '#fff' }}>
