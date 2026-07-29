@@ -11,6 +11,7 @@ import { dbError } from '@/lib/dbError'
 import { Check, Copy, Search, X, Zap, ClipboardCheck, Link2, Sparkles, ClipboardList } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
+import { ensureWatching } from '@/lib/watch'
 import ModalPortal from '@/components/ModalPortal'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -411,11 +412,22 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     const { data: existing } = await supabase.from('cronograma_status').select('id')
       .eq('client_id', clientId).eq('month', month).eq('year', year).maybeSingle()
     setCronoStatus(payload)
-    const { error } = existing
-      ? await supabase.from('cronograma_status').update(payload).eq('client_id', clientId).eq('month', month).eq('year', year)
-      : await supabase.from('cronograma_status').insert({ client_id: clientId, month, year, ...payload })
+    const { data: saved, error } = existing
+      ? await supabase.from('cronograma_status').update(payload).eq('client_id', clientId).eq('month', month).eq('year', year).select('id').maybeSingle()
+      : await supabase.from('cronograma_status').insert({ client_id: clientId, month, year, ...payload }).select('id').maybeSingle()
     setTogglingStatus(false)
     if (error) { toast(`Erro ao finalizar: ${error.message}`); return }
+    // Todo o time do cliente precisa saber que a pauta do mês fechou — não só
+    // quem por acaso observa esse registro (ninguém observaria um
+    // cronograma_status até agora, já que ele nunca teve card_watchers antes).
+    const statusId = existing?.id || saved?.id
+    if (statusId) {
+      const { data: team } = await supabase.from('client_team').select('member_id').eq('client_id', clientId)
+      if (team?.length) {
+        await ensureWatching('cronograma_status', statusId, team.map((t: any) => t.member_id))
+        await logActivity({ tableName: 'cronograma_status', recordId: statusId, clientId, action: 'finalized', actorName: currentMember?.name, actorId: currentMember?.id, description: `📅 ${by || 'Alguém'} finalizou o cronograma de ${CRONO_MONTHS[month - 1]}` })
+      }
+    }
     await openApprovalModal('cronograma')
   }
 

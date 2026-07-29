@@ -17,6 +17,8 @@ const URL_BY_TABLE: Record<string, (recordId: string, clientId?: string | null) 
   schedules: (id, clientId) => `/dashboard/cronograma?post=${id}${clientId ? `&client=${clientId}` : ''}`,
   materials: id => `/dashboard/materiais?post=${id}`,
   extras:    id => `/dashboard/extras?post=${id}`,
+  cronograma_status: (id, clientId) => `/dashboard/cronograma${clientId ? `?client=${clientId}` : ''}`,
+  personal_tasks: id => `/dashboard/tarefas?task=${id}`,
 }
 
 // Dispara push pros watchers de um card (schedules/materials/extras), sempre que

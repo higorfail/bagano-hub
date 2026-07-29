@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { logActivity } from '@/lib/activity'
 import { ensureWatchingFromAssigned } from '@/lib/watch'
 import { extractDriveIds } from '@/lib/driveLinks'
+import { queueApprovalDigest } from '@/lib/approvalDigest'
 import { CheckCircle, MessageSquare, RotateCcw, AlertTriangle } from 'lucide-react'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
 
@@ -460,7 +461,8 @@ export default function ApprovalPage({ token }: { token: string }) {
     if (error) { showToast('Não deu pra aprovar agora — tenta de novo em instantes.', false); setSubmitting(null); return }
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p))
     await ensureWatchingFromAssigned('schedules', postId)
-    await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post` })
+    await queueApprovalDigest(tokenData?.client_id, 'approved')
+    await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post`, skipPush: true })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setSheetPost(null); setSheetComment('')
     showToast('Post aprovado! ✓')
@@ -474,7 +476,8 @@ export default function ApprovalPage({ token }: { token: string }) {
     if (error) { showToast('Não deu pra enviar o ajuste — tenta de novo em instantes.', false); setSubmitting(null); return }
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' } : p))
     await ensureWatchingFromAssigned('schedules', postId)
-    await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente solicitou ajuste: "${c}"` })
+    await queueApprovalDigest(tokenData?.client_id, 'rejected')
+    await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente solicitou ajuste: "${c}"`, skipPush: true })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setComments(cc => { const n = { ...cc }; delete n[postId]; return n })
     setSheetPost(null); setSheetComment('')
@@ -501,8 +504,9 @@ export default function ApprovalPage({ token }: { token: string }) {
     const failedCount = pending.length - okIds.size
     await Promise.all([
       ...pending.filter(p => okIds.has(p.id)).map(p => ensureWatchingFromAssigned('schedules', p.id)),
-      ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post` })),
+      ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post`, skipPush: true })),
     ])
+    await queueApprovalDigest(tokenData?.client_id, 'approved', okIds.size)
     setPosts(prev => prev.map(p => okIds.has(p.id) ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p))
     if (failedCount > 0) showToast(`${okIds.size} aprovados, ${failedCount} falharam — tenta de novo neles.`, false)
     else showToast(`${okIds.size} posts aprovados! 🎉`)
@@ -516,7 +520,8 @@ export default function ApprovalPage({ token }: { token: string }) {
     if (error) { showToast('Não deu pra aprovar agora — tenta de novo em instantes.', false); setSubmitting(null); return }
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'producao', approval_status: 'aprovado' } : p))
     await ensureWatchingFromAssigned('schedules', postId)
-    await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post' })
+    await queueApprovalDigest(tokenData?.client_id, 'approved')
+    await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post', skipPush: true })
     showToast('Post aprovado! ✓')
     setSubmitting(null)
   }
@@ -528,7 +533,8 @@ export default function ApprovalPage({ token }: { token: string }) {
     if (error) { showToast('Não deu pra enviar o ajuste — tenta de novo em instantes.', false); setSubmitting(null); return }
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'estrategia', approval_status: 'não aprovado', approval_comment: c } : p))
     await ensureWatchingFromAssigned('schedules', postId)
-    await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste na estratégia: "${c}"` })
+    await queueApprovalDigest(tokenData?.client_id, 'rejected')
+    await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste na estratégia: "${c}"`, skipPush: true })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setComments(cc => { const n = { ...cc }; delete n[postId]; return n })
     showToast('Solicitação enviada!', false)
@@ -546,8 +552,9 @@ export default function ApprovalPage({ token }: { token: string }) {
     const failedCount = pending.length - okIds.size
     await Promise.all([
       ...pending.filter(p => okIds.has(p.id)).map(p => ensureWatchingFromAssigned('schedules', p.id)),
-      ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post' })),
+      ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post', skipPush: true })),
     ])
+    await queueApprovalDigest(tokenData?.client_id, 'approved', okIds.size)
     setPosts(prev => prev.map(p => okIds.has(p.id) ? { ...p, status: 'producao', approval_status: 'aprovado' } : p))
     if (failedCount > 0) showToast(`${okIds.size} aprovados, ${failedCount} falharam — tenta de novo neles.`, false)
     else showToast(`${okIds.size} posts aprovados! 🎉`)
@@ -560,7 +567,8 @@ export default function ApprovalPage({ token }: { token: string }) {
     if (error) { showToast('Não deu pra aprovar agora — tenta de novo em instantes.', false); setExtraSubmitting(null); return }
     setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aprovado', client_approval_comment: null } : e))
     await ensureWatchingFromAssigned('extras', extraId)
-    await logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou o extra' })
+    await queueApprovalDigest(tokenData?.client_id, 'approved')
+    await logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou o extra', skipPush: true })
     showToast('Extra aprovado! ✓')
     setExtraSubmitting(null)
   }
@@ -580,7 +588,8 @@ export default function ApprovalPage({ token }: { token: string }) {
     if (error) { showToast('Não deu pra enviar o ajuste — tenta de novo em instantes.', false); setExtraSubmitting(null); return }
     setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'recusado', client_approval_comment: c } : e))
     await ensureWatchingFromAssigned('extras', extraId)
-    await logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste: "${c}"` })
+    await queueApprovalDigest(tokenData?.client_id, 'rejected')
+    await logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste: "${c}"`, skipPush: true })
     setExtraCommenting(s => { const n = new Set(s); n.delete(extraId); return n })
     setExtraComments(cc => { const n = { ...cc }; delete n[extraId]; return n })
     showToast('Pedido de ajuste enviado!', false)

@@ -409,7 +409,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const label = POST_TYPES.find(t => t.value === v)?.label || v
     setForm(f => ({ ...f, post_type: v })); persist({ post_type: v }, `${who} definiu o tipo: ${label}`)
   }
-  function changeStatus(v: string) {
+  async function changeStatus(v: string) {
     const prevStatus = formRef.current.status
     const old = STATUS_LABEL[prevStatus] || prevStatus
     const wasAjuste = prevStatus === 'ajuste'
@@ -436,6 +436,21 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (movingToApproved && approvalStatus !== 'aprovado') approvalPatch = 'aprovado'
     else if (!movingToApproved && (wasAjuste || wasApprovedType) && v !== 'ajuste') approvalPatch = null
     else approvalPatch = undefined
+
+    // Notificação por PAPEL no cliente, não por quem já observa o card —
+    // Social Media precisa saber assim que dá pra agendar/publicar, e a
+    // estrategista precisa saber quando chega a vez dela revisar. Funciona
+    // mesmo que essa pessoa nunca tenha aberto esse post antes, desde que
+    // esteja cadastrada em client_team com a função certa. Roda ANTES do
+    // persist, senão o push chega antes desses observadores existirem.
+    if ((v === 'aprovado' && prevStatus !== 'aprovado') || (v === 'revisao_interna' && prevStatus !== 'revisao_interna')) {
+      const funcao = v === 'aprovado' ? 'social' : 'estrategia'
+      const pid = await ensurePostId()
+      if (pid) {
+        const { data: roleMembers } = await supabase.from('client_team').select('member_id').eq('client_id', clientId).eq('funcao', funcao)
+        if (roleMembers?.length) await ensureWatching('schedules', pid, roleMembers.map((r: any) => r.member_id))
+      }
+    }
 
     setForm(f => ({ ...f, status: v }))
     if (approvalPatch !== undefined) setApprovalStatus(approvalPatch || '')
@@ -1185,12 +1200,17 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               value={form.drive_folder_url || form.drive_url}
               isVideo={form.post_type === 'reels'}
               onCommit={v => {
+                // Mensagem distinta pra "acabou de entregar" — igual já existia em
+                // Extras/Materiais — em vez de um genérico "editou o link do Drive"
+                // pra todo mundo (criação, atualização e remoção misturados).
+                const hadValue = !!(form.drive_folder_url || form.drive_url)
+                const logMsg = !v ? `${who} removeu a entrega do conteúdo` : hadValue ? `${who} atualizou a entrega do conteúdo` : `🎬 ${who} entregou o conteúdo de "${form.title || 'sem título'}"`
                 if (/\/folders\//.test(v)) {
                   setForm(f => ({ ...f, drive_folder_url: v, drive_url: '' }))
-                  persist({ drive_folder_url: v || null, drive_url: null }, `${who} editou o link do Drive`)
+                  persist({ drive_folder_url: v || null, drive_url: null }, logMsg)
                 } else {
                   setForm(f => ({ ...f, drive_url: v, drive_folder_url: '' }))
-                  persist({ drive_url: v || null, drive_folder_url: null }, `${who} editou o link do Drive`)
+                  persist({ drive_url: v || null, drive_folder_url: null }, logMsg)
                 }
               }}
             />

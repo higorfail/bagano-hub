@@ -23,7 +23,7 @@ function addDaysISO(iso: string, days: number) {
 }
 
 type Stage = 'overdue' | 'dueday' | '2d'
-type Reminder = { table: 'schedules' | 'extras' | 'materials'; id: string; title: string; date: string; stage: Stage; fallbackMembers: string[]; url: string }
+type Reminder = { table: 'schedules' | 'extras' | 'materials'; id: string; title: string; date: string; stage: Stage; fallbackMembers: string[]; url: string; clientId: string | null }
 
 // Roda de hora em hora (ver vercel.json) e avisa quem acompanha um post/extra
 // em 3 momentos: 2 dias antes da data marcada, no próprio dia, e quando já
@@ -74,14 +74,14 @@ export async function GET(req: NextRequest) {
     // Fallback pros atribuídos do post — sem isso, um post sem NENHUM
     // watcher registrado (comum antes da correção do RLS de card_watchers)
     // não avisava ninguém, mesmo tendo responsável definido.
-    if (stage) reminders.push({ table: 'schedules', id: s.id, title: s.title, date: s.scheduled_date, stage, fallbackMembers: s.assigned_members?.length ? s.assigned_members : [], url: '/dashboard/social' })
+    if (stage) reminders.push({ table: 'schedules', id: s.id, title: s.title, date: s.scheduled_date, stage, fallbackMembers: s.assigned_members?.length ? s.assigned_members : [], url: '/dashboard/social', clientId: s.client_id })
   }
   for (const e of extrasData || []) {
     const stage = stageFor(e.due_date)
     if (stage) reminders.push({
       table: 'extras', id: e.id, title: e.title, date: e.due_date, stage,
       fallbackMembers: e.assigned_members?.length ? e.assigned_members : e.assigned_member_id ? [e.assigned_member_id] : [],
-      url: '/dashboard/social',
+      url: '/dashboard/social', clientId: e.client_id,
     })
   }
   for (const m of materialsData || []) {
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
     if (stage) reminders.push({
       table: 'materials', id: m.id, title: m.title, date: m.due_date, stage,
       fallbackMembers: m.assigned_members?.length ? m.assigned_members : m.assigned_to ? [m.assigned_to] : [],
-      url: `/dashboard/materiais?post=${m.id}`,
+      url: `/dashboard/materiais?post=${m.id}`, clientId: m.client_id,
     })
   }
   if (reminders.length === 0) return NextResponse.json({ sent: 0, reminders: 0 })
@@ -119,6 +119,14 @@ export async function GET(req: NextRequest) {
       .select('member_id').eq('table_name', item.table).eq('record_id', item.id)
     let memberIds = [...new Set((watchers || []).map(w => w.member_id))].filter(Boolean) as string[]
     if (memberIds.length === 0) memberIds = item.fallbackMembers
+    // Última instância: se não tem NINGUÉM (nem watcher, nem responsável
+    // atribuído), cai pra estrategista do cliente — sem isso, um prazo vencido
+    // sem responsável nenhum passava batido pra todo mundo, sempre.
+    if (memberIds.length === 0 && item.clientId) {
+      const { data: strategists } = await supabase.from('client_team')
+        .select('member_id').eq('client_id', item.clientId).eq('funcao', 'estrategia')
+      memberIds = (strategists || []).map(s => s.member_id)
+    }
     if (memberIds.length === 0) continue
 
     const { data: subs } = await supabase.from('push_subscriptions')

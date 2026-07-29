@@ -11,6 +11,10 @@ export async function logActivity(params: {
   oldValue?: string | null
   newValue?: string | null
   description: string
+  // Aprovação/rejeição do cliente usa um resumo em lote em vez de um push por
+  // post (ver queueApprovalDigest) — continua indo pro activity_log/sino
+  // normalmente, só não dispara o push individual duplicado.
+  skipPush?: boolean
 }) {
   try {
     const supabase = createClient()
@@ -28,6 +32,7 @@ export async function logActivity(params: {
   } catch {
     // never block the UI for logging
   }
+  if (params.skipPush) return
   // Dispara push pros watchers do card, sem bloquear a UI se falhar/demorar
   fetch('/api/push/notify', {
     method: 'POST',

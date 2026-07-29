@@ -878,7 +878,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
               onCommit={async v => {
                 const hadValue = !!driveUrl
                 setDriveUrl(v)
-                const logMsg = !v ? `${who} removeu a entrega do conteúdo` : hadValue ? `${who} atualizou a entrega do conteúdo` : `${who} marcou o conteúdo como entregue`
+                const logMsg = !v ? `${who} removeu a entrega do conteúdo` : hadValue ? `${who} atualizou a entrega do conteúdo` : `🎬 ${who} entregou o conteúdo de "${title || 'sem título'}"`
                 persist({ drive_url: v || null }, logMsg)
               }}
             />
