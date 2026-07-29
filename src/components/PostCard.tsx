@@ -408,13 +408,19 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   }
   function changeStatus(v: string) {
     const old = STATUS_LABEL[formRef.current.status] || formRef.current.status
-    // Sair de "Ajuste solicitado" por QUALQUER caminho limpa o approval_status (o alerta
-    // vermelho some) mas mantém approval_comment — o card mostra "✓ Ajuste aplicado" em
-    // vez do pedido original, sem perder o histórico do que foi pedido.
+    // Sair de "Ajuste solicitado" por QUALQUER caminho limpa o alerta vermelho,
+    // mas mantém approval_comment — o card mostra "✓ Ajuste aplicado" em vez do
+    // pedido original, sem perder o histórico do que foi pedido. Se o destino já
+    // é um status "aprovado" (aprovado/agendado/publicado) — ex: o time resolveu
+    // um ajuste tão simples que já marcou como pronto sem reenviar pro cliente —
+    // o approval_status vira 'aprovado' também, senão o post some das duas
+    // contagens do cabeçalho do cliente (nem aparece em "aprovados" nem em
+    // "não aprovados", já que nenhum dos dois filtros bate com null).
     const clearRejection = formRef.current.status === 'ajuste' && v !== 'ajuste'
+    const newApprovalStatus = clearRejection ? (['aprovado', 'agendado', 'publicado'].includes(v) ? 'aprovado' : null) : undefined
     setForm(f => ({ ...f, status: v }))
-    if (clearRejection) setApprovalStatus('')
-    persist(clearRejection ? { status: v, approval_status: null } : { status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
+    if (clearRejection) setApprovalStatus(newApprovalStatus || '')
+    persist(clearRejection ? { status: v, approval_status: newApprovalStatus } : { status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
   }
   function setField(field: keyof PostForm, v: any, logMsg?: string) { setForm(f => ({ ...f, [field]: v })); persist({ [field]: v }, logMsg) }
   function toggleMember(id: string) {
