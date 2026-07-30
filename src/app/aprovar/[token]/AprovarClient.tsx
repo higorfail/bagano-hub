@@ -111,7 +111,7 @@ function CarouselPreview({ folderId, folderUrl, ratio = '100%' }: { folderId: st
   const current = items[slide]
 
   return (
-    <div style={{ position: 'relative', background: '#111', userSelect: 'none' }}>
+    <div style={{ position: 'relative', background: '#1c1a18', userSelect: 'none' }}>
       <div style={{ position: 'relative', paddingTop: ratio, overflow: 'hidden' }}>
         {current.isVideo ? (
           <CarouselVideoSlide key={current.id} id={current.id}
@@ -153,7 +153,7 @@ function MultiFilePreview({ ids, fallbackUrl, ratio = '100%' }: { ids: string[];
   const prev = () => setSlide(s => (s - 1 + ids.length) % ids.length)
   const next = () => setSlide(s => (s + 1) % ids.length)
   return (
-    <div style={{ position: 'relative', background: '#111', userSelect: 'none' }}>
+    <div style={{ position: 'relative', background: '#1c1a18', userSelect: 'none' }}>
       <div style={{ position: 'relative', paddingTop: ratio, overflow: 'hidden' }}>
         <img key={ids[slide]} src={`/api/drive-thumb?id=${ids[slide]}&sz=w800`} alt={`Slide ${slide + 1}`}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
@@ -212,7 +212,7 @@ function FolderThumb({ folderId, maxHeight = 220 }: { folderId: string; maxHeigh
 
 function ReelFolderPreview({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
   const { files, ready } = useFolderFiles(folderId)
-  if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111' }}>{SPINNER}</div>
+  if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1c1a18' }}>{SPINNER}</div>
   const videos = files.filter(f => f.mimeType.startsWith('video/'))
   const video  = videos[0]
   // Mostra só o vídeo — a capa da pasta não entra aqui pra não sobrepor o player.
@@ -228,11 +228,11 @@ function ReelFolderPreview({ folderId, folderUrl }: { folderId: string; folderUr
 
 function SheetReelFolderVideo({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
   const { files, ready } = useFolderFiles(folderId)
-  if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111' }}>{SPINNER}</div>
+  if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1c1a18' }}>{SPINNER}</div>
   const video = files.find(f => f.mimeType.startsWith('video/'))
   if (!video) return (
     <a href={folderUrl} target="_blank" rel="noopener noreferrer"
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '18px 0', background: '#111', fontSize: 14, fontWeight: 600, color: '#fff', textDecoration: 'none' }}>
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '18px 0', background: '#1c1a18', fontSize: 14, fontWeight: 600, color: '#fff', textDecoration: 'none' }}>
       🎬 Assistir reel no Drive
     </a>
   )
@@ -561,11 +561,15 @@ export default function ApprovalPage({ token }: { token: string }) {
     setApprovingAll(false)
   }
 
+  // status (Kanban interno) e client_approval_status agora andam sempre
+  // juntos — igual o Cronograma já fazia. Sem isso, o card ficava "aprovado"
+  // pro cliente mas continuava parado na coluna "Em aprovação" do Kanban,
+  // e ninguém do time percebia que já podia arquivar/publicar.
   async function approveExtra(extraId: string) {
     setExtraSubmitting(extraId)
-    const { error } = await supabase.from('extras').update({ client_approval_status: 'aprovado', client_approval_comment: null }).eq('id', extraId)
+    const { error } = await supabase.from('extras').update({ client_approval_status: 'aprovado', client_approval_comment: null, status: 'done', completed_at: new Date().toISOString() }).eq('id', extraId)
     if (error) { showToast('Não deu pra aprovar agora — tenta de novo em instantes.', false); setExtraSubmitting(null); return }
-    setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aprovado', client_approval_comment: null } : e))
+    setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aprovado', client_approval_comment: null, status: 'done' } : e))
     await ensureWatchingFromAssigned('extras', extraId)
     await queueApprovalDigest(tokenData?.client_id, 'approved')
     await logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou o extra', skipPush: true })
@@ -575,18 +579,18 @@ export default function ApprovalPage({ token }: { token: string }) {
 
   async function undoExtra(extraId: string) {
     setExtraSubmitting(extraId)
-    const { error } = await supabase.from('extras').update({ client_approval_status: 'aguardando', client_approval_comment: null }).eq('id', extraId)
+    const { error } = await supabase.from('extras').update({ client_approval_status: 'aguardando', client_approval_comment: null, status: 'aguardando_aprovacao', completed_at: null }).eq('id', extraId)
     if (error) { showToast('Não deu pra desfazer agora — tenta de novo em instantes.', false); setExtraSubmitting(null); return }
-    setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aguardando', client_approval_comment: null } : e))
+    setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aguardando', client_approval_comment: null, status: 'aguardando_aprovacao' } : e))
     setExtraSubmitting(null)
   }
 
   async function rejectExtra(extraId: string, comment: string) {
     const c = comment.trim(); if (!c) return
     setExtraSubmitting(extraId)
-    const { error } = await supabase.from('extras').update({ client_approval_status: 'recusado', client_approval_comment: c }).eq('id', extraId)
+    const { error } = await supabase.from('extras').update({ client_approval_status: 'recusado', client_approval_comment: c, status: 'backlog' }).eq('id', extraId)
     if (error) { showToast('Não deu pra enviar o ajuste — tenta de novo em instantes.', false); setExtraSubmitting(null); return }
-    setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'recusado', client_approval_comment: c } : e))
+    setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'recusado', client_approval_comment: c, status: 'backlog' } : e))
     await ensureWatchingFromAssigned('extras', extraId)
     await queueApprovalDigest(tokenData?.client_id, 'rejected')
     await logActivity({ tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste: "${c}"`, skipPush: true })
@@ -646,7 +650,7 @@ export default function ApprovalPage({ token }: { token: string }) {
         ) : embedVideoId ? (
           <DriveVideo id={embedVideoId} folderUrl={extra.drive_url} />
         ) : thumbUrl ? (
-          <div style={{ background: '#111', lineHeight: 0, position: 'relative', paddingTop: '125%', overflow: 'hidden' }}>
+          <div style={{ background: '#1c1a18', lineHeight: 0, position: 'relative', paddingTop: '125%', overflow: 'hidden' }}>
             <img src={thumbUrl} alt={extra.title}
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
               onError={e => { const wrap = (e.target as HTMLImageElement).parentElement; if (wrap) wrap.style.display = 'none' }} />

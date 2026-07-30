@@ -315,7 +315,23 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     setStatus(v)
     originalStatusRef.current = v
     const completedPatch = v === 'done' ? { completed_at: new Date().toISOString() } : { completed_at: null }
-    persist({ status: v, ...completedPatch }, `${who} moveu de "${old}" para "${STATUS_LABEL[v]}"`, 'status_changed')
+
+    // Igual ao Cronograma: o status interno é a fonte da verdade pro que o
+    // cliente vê, sem precisar de um botão manual separado pra "enviar".
+    // Mover pra "Em aprovação" manda pro cliente sozinho; marcar
+    // "Finalizado" já conta como aprovado (ex: cliente aprovou por fora, no
+    // WhatsApp); voltar pra "A fazer" limpa a aprovação — é o mesmo lugar
+    // onde o card cai quando o cliente pede ajuste (ver rejectExtra).
+    let approvalPatch: string | null | undefined
+    if (v === 'aguardando_aprovacao') approvalPatch = clientApprovalStatus === 'aguardando' ? undefined : 'aguardando'
+    else if (v === 'done') approvalPatch = clientApprovalStatus === 'aprovado' ? undefined : 'aprovado'
+    else if (v === 'backlog') approvalPatch = clientApprovalStatus ? null : undefined
+
+    if (approvalPatch !== undefined) setClientApprovalStatus(approvalPatch || '')
+    persist(
+      { status: v, ...completedPatch, ...(approvalPatch !== undefined ? { client_approval_status: approvalPatch } : {}) },
+      `${who} moveu de "${old}" para "${STATUS_LABEL[v]}"`, 'status_changed',
+    )
   }
   function changeType(v: ExtraType) {
     const oldLabel = TYPE_OPTIONS.find(t => t.value === type)?.label || type
@@ -852,7 +868,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
                 {clientApprovalStatus === 'aprovado' ? (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado pelo cliente</span>
                 ) : clientApprovalStatus === 'recusado' ? (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>Ajuste</span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>⚠ Ajuste pedido</span>
                 ) : clientApprovalStatus === 'aguardando' && clientApprovalComment ? (
                   <span title={clientApprovalComment} className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>🟡 Ajustado</span>
                 ) : clientApprovalStatus === 'aguardando' ? (
@@ -866,29 +882,16 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
                   🔴 {clientApprovalComment}
                 </p>
               )}
-              {(!clientApprovalStatus || clientApprovalStatus === 'recusado') && id && (
+              {/* Primeiro envio agora é automático (mover o status pra "Em
+                  aprovação" já manda pro cliente — ver changeStatus). Só
+                  sobra um botão manual: depois que o cliente pede ajuste,
+                  confirmar que já foi corrigido e mandar de volta. */}
+              {clientApprovalStatus === 'recusado' && id && (
                 <button
-                  onClick={() => {
-                    setClientApprovalStatus('aguardando')
-                    persist({ client_approval_status: 'aguardando' },
-                      clientApprovalStatus === 'recusado'
-                        ? `${who} marcou o ajuste como feito e reenviou pra aprovação do cliente`
-                        : `${who} enviou pra aprovação do cliente`,
-                      'status_changed')
-                  }}
+                  onClick={() => changeStatus('aguardando_aprovacao')}
                   className="text-xs font-semibold px-3.5 py-2 rounded-xl text-white transition-opacity hover:opacity-90"
-                  style={{ background: clientApprovalStatus === 'recusado' ? '#ef4444' : '#ec4899' }}>
-                  {clientApprovalStatus === 'recusado' ? '✏ Ajuste feito — Reenviar pra aprovação' : '📤 Enviar pra aprovação do cliente'}
-                </button>
-              )}
-              {clientApprovalStatus === 'aguardando' && (
-                <button
-                  onClick={() => {
-                    setClientApprovalStatus('')
-                    persist({ client_approval_status: null }, `${who} retirou da aprovação do cliente`, 'status_changed')
-                  }}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
-                  Retirar da aprovação
+                  style={{ background: '#ef4444' }}>
+                  ✏ Ajuste feito — Reenviar pra aprovação
                 </button>
               )}
             </div>

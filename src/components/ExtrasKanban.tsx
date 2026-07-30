@@ -25,6 +25,8 @@ interface Extra {
   assigned_member_id?: string | null
   assigned_members?: string[] | null
   labels?: { text: string; color: string }[] | null
+  client_approval_status?: string | null
+  client_approval_comment?: string | null
   created_at: string
   completed_at?: string | null
   archived_at?: string | null
@@ -203,14 +205,27 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
     const prevStatus = dragged.status
     const completedPatch = colKey === 'done' && prevStatus !== 'done' ? { completed_at: new Date().toISOString() } : (colKey !== 'done' ? { completed_at: null } : {})
 
+    // Mesma sincronização do ExtraCard (changeStatus) — arrastar o card no
+    // Kanban é OUTRO jeito de mudar o status, além do seletor dentro do
+    // card, e sem isso não herdava a regra: mover pra "Em aprovação" manda
+    // pro cliente sozinho, "Finalizado" já conta como aprovado, "A fazer"
+    // limpa a aprovação.
+    let approvalPatch: string | null | undefined
+    if (prevStatus !== colKey) {
+      if (colKey === 'aguardando_aprovacao') approvalPatch = dragged.client_approval_status === 'aguardando' ? undefined : 'aguardando'
+      else if (colKey === 'done') approvalPatch = dragged.client_approval_status === 'aprovado' ? undefined : 'aprovado'
+      else if (colKey === 'backlog') approvalPatch = dragged.client_approval_status ? null : undefined
+    }
+    const approvalPatchObj = approvalPatch !== undefined ? { client_approval_status: approvalPatch } : {}
+
     setExtras(es => {
       const others = es.filter(e => e.status !== colKey && e.id !== draggedId)
-      const updated = nextOrder.map((e, i) => ({ ...e, status: colKey, position: i, ...(e.id === draggedId ? completedPatch : {}) }))
+      const updated = nextOrder.map((e, i) => ({ ...e, status: colKey, position: i, ...(e.id === draggedId ? { ...completedPatch, ...approvalPatchObj } : {}) }))
       return [...others, ...updated]
     })
 
     const results = await Promise.all(
-      nextOrder.map((e, i) => supabase.from('extras').update({ position: i, status: colKey, ...(e.id === draggedId ? completedPatch : {}) }).eq('id', e.id))
+      nextOrder.map((e, i) => supabase.from('extras').update({ position: i, status: colKey, ...(e.id === draggedId ? { ...completedPatch, ...approvalPatchObj } : {}) }).eq('id', e.id))
     )
     if (results.some(r => r.error)) setExtras(prev)
   }

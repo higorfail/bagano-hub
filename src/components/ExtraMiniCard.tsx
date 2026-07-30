@@ -68,15 +68,24 @@ export default function ExtraMiniCard({
       .catch(() => {})
   }, [extra.drive_url])
 
+  // Card "voltou pra A fazer" porque o cliente pediu ajuste — precisa saltar
+  // aos olhos no meio dos outros cards da coluna, não só um selinho pequeno
+  // no rodapé (fácil de não notar entre vários cards).
+  const isAjuste = extra.client_approval_status === 'recusado'
+
   return (
     <div
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className="group bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl flex cursor-grab active:cursor-grabbing shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 relative overflow-hidden"
+      className="group border rounded-xl flex cursor-grab active:cursor-grabbing shadow-card hover:shadow-pop hover:-translate-y-0.5 transition-all duration-150 relative overflow-hidden"
       style={{
-        borderLeft: `3px solid ${priorityColor}`,
+        borderLeft: `3px solid ${isAjuste ? '#ef4444' : priorityColor}`,
+        borderTopColor: isAjuste ? '#f59e0b66' : 'var(--color-border)',
+        borderRightColor: isAjuste ? '#f59e0b66' : 'var(--color-border)',
+        borderBottomColor: isAjuste ? '#f59e0b66' : 'var(--color-border)',
+        background: isAjuste ? '#f59e0b14' : 'var(--color-bg-card)',
         opacity: dragging ? 0.4 : 1,
         height: 140,
       }}
@@ -174,8 +183,8 @@ export default function ExtraMiniCard({
           ) : extra.client_approval_status === 'aguardando' ? (
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: '#ec489922', color: '#ec4899' }}>Com cliente</span>
           ) : null}
-          {extra.client_approval_status === 'recusado' && (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>Ajuste</span>
+          {isAjuste && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>⚠ Ajuste pedido</span>
           )}
           {assignedData.length > 0 && (
             <span className="flex -space-x-1.5 ml-auto">
