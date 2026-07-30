@@ -205,6 +205,7 @@ export default function CriacaoPage() {
 
   const clientMap  = Object.fromEntries((clients || []).map(c => [c.id, c]))
   const memberMap  = Object.fromEntries((members || []).map(m => [m.id, m]))
+  const todayStr   = todayBrasiliaISO()
 
   function cronoKey(clientId: string, month: number, year: number) {
     return `${clientId}-${month}-${year}`
@@ -462,6 +463,14 @@ export default function CriacaoPage() {
 
           const totalForClient = clientGroups.reduce((s, g) => s + g.posts.length, 0)
 
+          // Quantos itens desse cliente já passaram da data e ainda não saíram
+          // da produção — sem isso, um cliente atrasado só se percebia abrindo
+          // e conferindo post por post.
+          const overdueCount =
+            clientGroups.reduce((s, g) => s + g.posts.filter(p => p.scheduled_date && p.scheduled_date < todayStr).length, 0) +
+            clientExtras.filter(e => e.due_date && e.due_date < todayStr).length +
+            clientMaterials.filter(m => m.due_date && m.due_date < todayStr).length
+
           const isCollapsed = collapsedClients.has(clientId)
 
           return (
@@ -511,6 +520,12 @@ export default function CriacaoPage() {
                     </div>
                   )
                 })()}
+
+                {overdueCount > 0 && (
+                  <span className="flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+                    ⚠ {overdueCount} atrasado{overdueCount !== 1 ? 's' : ''}
+                  </span>
+                )}
 
                 <ChevronDown
                   size={15}
