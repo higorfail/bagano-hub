@@ -446,6 +446,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     await ensureWatchingFromMentions('extras', eid, body, members)
     await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action: 'commented', actorName: authorName, description: `${authorName} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
+    await autoAttachLinks(body)
   }
 
   async function saveEditComment(cid: string) {
@@ -493,6 +494,15 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     if (fetched && data) {
       await supabase.from('extra_attachments').update({ title: fetched }).eq('id', data.id)
       setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
+    }
+  }
+  // Link colado sem querer dentro de briefing/copy/legenda/referências ou de
+  // um comentário passa despercebido lá dentro do texto — leva pros Anexos
+  // automaticamente (sem tirar do texto original).
+  async function autoAttachLinks(text: string) {
+    const urls = text.match(/https?:\/\/\S+/g) || []
+    for (const url of urls) {
+      if (!attachments.some(a => a.url === url)) await addAttachmentUrl(url)
     }
   }
   // Trello-style: colar uma imagem ou link solto no card já anexa, sem precisar
@@ -878,7 +888,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
               label="Briefing" hint="· instruções pro time (o que fazer)"
               placeholder="O que precisa ser feito, direção criativa, referências de estilo…"
               value={briefing} minH={70}
-              onCommit={v => { const hadId = !!id; setBriefing(v); persist({ briefing: v }, hadId ? `${who} editou o briefing` : undefined) }}
+              onCommit={v => { const hadId = !!id; setBriefing(v); persist({ briefing: v }, hadId ? `${who} editou o briefing` : undefined); autoAttachLinks(v) }}
             />
             <EditableField
               label="Copy" hint="· conceito / roteiro"
@@ -892,13 +902,14 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
                   const summary = await generateAiSummary(v, title)
                   if (summary != null) await supabase.from('extras').update({ ai_summary: summary }).eq('id', eid)
                 }
+                await autoAttachLinks(v)
               }}
             />
             <EditableField
               label="Legenda" hint="· o texto que vai no Instagram"
               placeholder="A legenda final, com hashtags e CTA…"
               value={legenda} minH={70}
-              onCommit={v => { const hadId = !!id; setLegenda(v); persist({ legenda: v }, hadId ? `${who} editou a legenda` : undefined) }}
+              onCommit={v => { const hadId = !!id; setLegenda(v); persist({ legenda: v }, hadId ? `${who} editou a legenda` : undefined); autoAttachLinks(v) }}
               labelExtra={(briefing?.trim() || copy?.trim()) ? (
                 <button onClick={suggestLegenda} disabled={generatingLegenda}
                   className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
@@ -948,7 +959,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
               <EditableField
                 label="" placeholder="Cole links de referência, observações…"
                 value={referenceNotes} minH={40}
-                onCommit={v => { const hadId = !!id; setReferenceNotes(v); persist({ reference_notes: v }, hadId ? `${who} editou as referências` : undefined) }}
+                onCommit={v => { const hadId = !!id; setReferenceNotes(v); persist({ reference_notes: v }, hadId ? `${who} editou as referências` : undefined); autoAttachLinks(v) }}
               />
             </div>
 

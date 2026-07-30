@@ -382,6 +382,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
     await ensureWatchingFromMentions('materials', mid, commentBody, members)
     await logActivity({ tableName: 'materials', recordId: mid, action: 'commented', actorName: author, description: `${author} comentou: "${commentBody.slice(0, 80)}${commentBody.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
+    await autoAttachLinks(commentBody)
   }
 
   async function saveEditComment(cid: string) {
@@ -428,6 +429,15 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
     if (fetched && data) {
       await supabase.from('material_attachments').update({ title: fetched }).eq('id', data.id)
       setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
+    }
+  }
+  // Link colado sem querer dentro do briefing/referências ou de um
+  // comentário passa despercebido lá dentro do texto — leva pros Anexos
+  // automaticamente (sem tirar do texto original).
+  async function autoAttachLinks(text: string) {
+    const urls = text.match(/https?:\/\/\S+/g) || []
+    for (const url of urls) {
+      if (!attachments.some(a => a.url === url)) await addAttachmentUrl(url)
     }
   }
   async function removeAttachment(aid: string) {
@@ -766,6 +776,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
                   const summary = await generateAiSummary(v, title)
                   if (summary != null) await supabase.from('materials').update({ ai_summary: summary }).eq('id', mid)
                 }
+                await autoAttachLinks(v)
               }}
             />
 
@@ -819,7 +830,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
               <EditableField
                 label="" placeholder="Cole links de referência, observações…"
                 value={referenceNotes} minH={40}
-                onCommit={v => { const hadId = !!id; setReferenceNotes(v); persist({ reference_notes: v }, hadId ? `${who} editou as referências` : undefined) }}
+                onCommit={v => { const hadId = !!id; setReferenceNotes(v); persist({ reference_notes: v }, hadId ? `${who} editou as referências` : undefined); autoAttachLinks(v) }}
               />
             </div>
 

@@ -379,6 +379,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const who = currentMember?.name || 'Alguém'
   const FIELD_LABEL: Record<TextField, string> = { title: 'o título', briefing: 'o briefing', copy: 'a copy', legenda: 'a legenda', reference_notes: 'as referências', drive_url: 'o link do Drive', drive_folder_url: 'a pasta do carrossel' }
 
+  const AUTO_ATTACH_FIELDS: TextField[] = ['briefing', 'copy', 'legenda', 'reference_notes']
   async function commitText(field: TextField) {
     setEditingField(null)
     const v = formRef.current[field]
@@ -388,6 +389,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       const summary = await generateAiSummary(v, formRef.current.title)
       if (summary != null) await supabase.from('schedules').update({ ai_summary: summary }).eq('id', pid)
     }
+    if (pid && AUTO_ATTACH_FIELDS.includes(field)) await autoAttachLinks(v)
   }
   async function suggestLegenda() {
     setGeneratingLegenda(true)
@@ -505,6 +507,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     await ensureWatchingFromMentions('schedules', pid, body, members)
     await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'commented', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
+    await autoAttachLinks(body)
   }
 
   function insertMention(member: { name: string }) {
@@ -604,6 +607,16 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
     }
   }
+  // Link colado sem querer dentro de briefing/copy/legenda/referências ou de
+  // um comentário passa despercebido lá dentro do texto — leva pros Anexos
+  // automaticamente (sem tirar do texto original, que pode ter sido escrito
+  // de propósito ao redor do link).
+  async function autoAttachLinks(text: string) {
+    const urls = text.match(/https?:\/\/\S+/g) || []
+    for (const url of urls) {
+      if (!attachments.some(a => a.url === url)) await addAttachmentUrl(url)
+    }
+  }
   async function removeAttachment(aid: string) {
     const att = attachments.find(a => a.id === aid)
     await supabase.from('schedule_attachments').delete().eq('id', aid)
@@ -647,11 +660,19 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const { data, error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year, post_number: (count || 0) + 1,
       title: (f.title || 'Post') + ' (cópia)', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
-      post_type: f.post_type, status: 'estrategia', scheduled_date: null, drive_url: f.drive_url, drive_folder_url: f.drive_folder_url || null,
+      post_type: f.post_type, status: f.status, scheduled_date: f.scheduled_date || null, scheduled_time: f.scheduled_time || null,
+      drive_url: f.drive_url, drive_folder_url: f.drive_folder_url || null,
       reference_notes: f.reference_notes, funil: f.funil, campaign_type: f.campaign_type || null, labels,
+      assigned_members: assignedMembers,
     }).select().single()
     if (dbError(error, toast, 'duplicar')) return
-    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} duplicou de "${f.title}"` })
+    if (data) {
+      // Duplicar sem levar os responsáveis fazia a cópia ficar sem ninguém
+      // atribuído nem notificado — a pessoa que já trabalhava nisso não ficava
+      // sabendo que existia uma cópia dela também.
+      await ensureWatching('schedules', data.id, assignedMembers.length ? assignedMembers : [currentMember?.id])
+      await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} duplicou de "${f.title}"` })
+    }
     toast('Post duplicado!'); onSaved(); onClose()
   }
 
