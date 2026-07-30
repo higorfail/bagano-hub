@@ -177,6 +177,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
         setDescription(data.description || '')
         setReferenceNotes(data.reference_notes || '')
         setDueDate(data.due_date || '')
+        setDueTime(data.due_time || '')
         setDriveUrl(data.drive_url || '')
         setCreatedAt(data.created_at || null)
         setLabels(Array.isArray(data.labels) ? data.labels : [])
@@ -189,7 +190,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
         snapshotRef.current = JSON.stringify({
           title: data.title || '', type: data.type || 'Arte avulsa', clientId: data.client_id || '',
           extraClient: data.extra_client || '', description: data.description || '',
-          dueDate: data.due_date || '', driveUrl: data.drive_url || '',
+          dueDate: data.due_date || '', dueTime: data.due_time || '', driveUrl: data.drive_url || '',
           labels: Array.isArray(data.labels) ? data.labels : [], assignedMembers: am,
         })
       }
@@ -235,6 +236,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
       description,
       reference_notes: referenceNotes,
       due_date: dueDate || null,
+      due_time: dueTime || null,
       assigned_members: assignedMembers,
       assigned_to: assignedMembers[0] || null,
       labels,
@@ -301,6 +303,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
       description,
       reference_notes: referenceNotes,
       due_date: dueDate || null,
+      due_time: dueTime || null,
       assigned_members: assignedMembers,
       assigned_to: assignedMembers[0] || null,
       labels,
@@ -1180,9 +1183,16 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <button onClick={() => setShowDatePicker(false)} className="w-full py-2 text-sm font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Confirmar</button>
+                  <button onClick={() => {
+                    // O botão só fechava o popup — quem digitasse a data/hora
+                    // manualmente (em vez de clicar num dia do calendário)
+                    // achava que tinha salvo e nada ia pro banco.
+                    const label = dueDate ? new Date(dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : null
+                    persist({ due_date: dueDate || null, due_time: dueTime || null }, label ? `${who} definiu o prazo para ${label}${dueTime ? ' às ' + dueTime : ''}` : `${who} atualizou o prazo`)
+                    setShowDatePicker(false)
+                  }} className="w-full py-2 text-sm font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Confirmar</button>
                   {dueDate && (
-                    <button onClick={() => { setDueDate(''); setDueTime(''); setShowDatePicker(false); persist({ due_date: null }, `${who} removeu o prazo`) }} className="w-full py-2 text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">Remover data</button>
+                    <button onClick={() => { setDueDate(''); setDueTime(''); setShowDatePicker(false); persist({ due_date: null, due_time: null }, `${who} removeu o prazo`) }} className="w-full py-2 text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">Remover data</button>
                   )}
                 </div>
               </div>

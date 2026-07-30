@@ -55,10 +55,10 @@ const DIAS  = ['dom','seg','ter','qua','qui','sex','sáb']
 
 type PostForm = {
   title: string; briefing: string; copy: string; legenda: string
-  post_type: string; scheduled_date: string; status: string; drive_url: string; drive_folder_url: string
+  post_type: string; scheduled_date: string; scheduled_time: string; status: string; drive_url: string; drive_folder_url: string
   reference_notes: string; funil: string; campaign_type: string
 }
-const EMPTY: PostForm = { title:'', briefing:'', copy:'', legenda:'', post_type:'carrossel', scheduled_date:'', status:'estrategia', drive_url:'', drive_folder_url:'', reference_notes:'', funil:'', campaign_type:'' }
+const EMPTY: PostForm = { title:'', briefing:'', copy:'', legenda:'', post_type:'carrossel', scheduled_date:'', scheduled_time:'', status:'estrategia', drive_url:'', drive_folder_url:'', reference_notes:'', funil:'', campaign_type:'' }
 
 type Props = {
   postId?: string
@@ -282,7 +282,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       if (data) {
         setForm({
           title: data.title || '', briefing: data.briefing || '', copy: data.copy || '', legenda: data.legenda || '',
-          post_type: data.post_type || 'carrossel', scheduled_date: data.scheduled_date || '', status: data.status || 'producao',
+          post_type: data.post_type || 'carrossel', scheduled_date: data.scheduled_date || '', scheduled_time: data.scheduled_time || '', status: data.status || 'producao',
           drive_url: data.drive_url || '', drive_folder_url: data.drive_folder_url || '', reference_notes: data.reference_notes || '',
           funil: data.funil || '', campaign_type: data.campaign_type || '',
         })
@@ -339,7 +339,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const { data, error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year, post_number: postNumber,
       title: f.title.trim() || 'Sem título', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
-      post_type: f.post_type, status: f.status, scheduled_date: f.scheduled_date || null,
+      post_type: f.post_type, status: f.status, scheduled_date: f.scheduled_date || null, scheduled_time: f.scheduled_time || null,
       drive_url: f.drive_url, drive_folder_url: f.drive_folder_url || null, reference_notes: f.reference_notes, funil: f.funil,
       campaign_type: f.campaign_type || null, labels,
     }).select().single()
@@ -363,6 +363,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (!pid) return undefined
     const dbPatch: Record<string, any> = { ...patch }
     if ('scheduled_date' in dbPatch) dbPatch.scheduled_date = dbPatch.scheduled_date || null
+    if ('scheduled_time' in dbPatch) dbPatch.scheduled_time = dbPatch.scheduled_time || null
     if ('campaign_type' in dbPatch) dbPatch.campaign_type = dbPatch.campaign_type || null
     const { error } = await supabase.from('schedules').update(dbPatch).eq('id', pid)
     if (dbError(error, toast, 'salvar')) return undefined
@@ -706,7 +707,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const isPublished = form.status === 'publicado'
     const color = isPublished ? 'var(--color-text-secondary)' : diff < 0 ? '#EF4444' : diff <= 2 ? '#F59E0B' : 'var(--color-text-secondary)'
     const suffix = isPublished ? '' : diff < 0 ? ' · atrasado' : diff === 0 ? ' · hoje' : diff === 1 ? ' · amanhã' : ''
-    return { text: new Date(form.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) + suffix, color }
+    const timeText = form.scheduled_time ? ` · ${form.scheduled_time.slice(0, 5)}` : ''
+    return { text: new Date(form.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) + timeText + suffix, color }
   })()
 
   if (loading) return (
@@ -959,8 +961,18 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                           style={isSel ? { background: clientColor || 'var(--color-brand)' } : {}}>{d}</button>
                       })}
                     </div>
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <span className="text-[10px] font-bold uppercase text-[var(--color-text-muted)] flex-shrink-0">Hora</span>
+                      <input type="time" value={form.scheduled_time}
+                        onChange={e => {
+                          const v = e.target.value
+                          setForm(f => ({ ...f, scheduled_time: v }))
+                          persist({ scheduled_time: v }, v ? `${who} definiu o horário para ${v}` : `${who} removeu o horário`)
+                        }}
+                        className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-xs border border-[var(--color-border)] bg-transparent text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-hover)]" />
+                    </div>
                     {form.scheduled_date && (
-                      <button onClick={() => { setForm(f=>({...f,scheduled_date:''})); persist({ scheduled_date: '' }, `${who} removeu a data`); setShowCal(false) }} className="w-full py-1.5 text-xs text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">
+                      <button onClick={() => { setForm(f=>({...f,scheduled_date:'',scheduled_time:''})); persist({ scheduled_date: '', scheduled_time: '' }, `${who} removeu a data`); setShowCal(false) }} className="w-full py-1.5 text-xs text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">
                         Remover data
                       </button>
                     )}

@@ -1266,8 +1266,15 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <button onClick={() => setShowDatePicker(false)} className="w-full py-2 text-sm font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Confirmar</button>
-                {dueDate && <button onClick={() => { setDueDate(''); setDueTime(''); setShowDatePicker(false); persist({ due_date: null }, `${who} removeu o prazo`) }} className="w-full py-2 text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">Remover data</button>}
+                <button onClick={() => {
+                  // O botão só fechava o popup — quem digitasse a data/hora
+                  // manualmente (em vez de clicar num dia do calendário)
+                  // achava que tinha salvo e nada ia pro banco.
+                  const label = dueDate ? new Date(dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : null
+                  persist({ due_date: dueDate || null, due_time: dueTime || null }, label ? `${who} definiu o prazo para ${label}${dueTime ? ' às ' + dueTime : ''}` : `${who} atualizou o prazo`)
+                  setShowDatePicker(false)
+                }} className="w-full py-2 text-sm font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg">Confirmar</button>
+                {dueDate && <button onClick={() => { setDueDate(''); setDueTime(''); setShowDatePicker(false); persist({ due_date: null, due_time: null }, `${who} removeu o prazo`) }} className="w-full py-2 text-sm font-medium border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-lg">Remover data</button>}
               </div>
             </div>
           </div>
