@@ -145,6 +145,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [cardDragOver, setCardDragOver] = useState(false)
   const [uploads,      setUploads]      = useState<any[]>([])
   const [attachments,  setAttachments]  = useState<any[]>([])
+  const [attachmentsLoaded, setAttachmentsLoaded] = useState(false)
+  const backfilledRef = useRef(false)
   const [showAttachInput, setShowAttachInput] = useState(false)
   const [newAttachUrl,    setNewAttachUrl]    = useState('')
   const [newAttachTitle,  setNewAttachTitle]  = useState('')
@@ -308,8 +310,20 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     supabase.from('schedule_uploads').select('*').eq('schedule_id', currentId).order('created_at', { ascending: true })
       .then(({ data }) => { if (data) setUploads(data) })
     supabase.from('schedule_attachments').select('*').eq('schedule_id', currentId).order('created_at', { ascending: true })
-      .then(({ data }) => { if (data) setAttachments(data) })
+      .then(({ data }) => { if (data) { setAttachments(data); setAttachmentsLoaded(true) } })
   }, [currentId])
+
+  // Links que já estavam escritos nos campos/comentários ANTES de o anexo
+  // automático existir nunca foram anexados — o auto-anexo só dispara quando
+  // o campo é editado. Varre uma vez, ao abrir o card, e anexa o que falta,
+  // pra valer a regra "todo link do card aparece nos anexos".
+  useEffect(() => {
+    if (!currentId || !attachmentsLoaded || backfilledRef.current) return
+    backfilledRef.current = true
+    const f = formRef.current
+    const texts = [f.briefing, f.copy, f.legenda, f.reference_notes, ...comments.map(c => c.body)]
+    autoAttachLinks(texts.join('\n'))
+  }, [currentId, attachmentsLoaded, comments.length])
 
   useEffect(() => {
     if (!currentId) { setActivities([]); return }
@@ -1195,6 +1209,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 links={attachments}
                 onRemoveUpload={u => removeUpload(u.id, u.file_url)}
                 onRemoveLink={l => removeAttachment(l.id)}
+                onTitleResolved={async (aid, title) => {
+                  await supabase.from('schedule_attachments').update({ title }).eq('id', aid)
+                  setAttachments(a => a.map(x => x.id === aid ? { ...x, title } : x))
+                }}
               />
 
               <div className="flex gap-2">

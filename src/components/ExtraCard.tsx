@@ -154,6 +154,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   const [editCommentText,  setEditCommentText]  = useState('')
   const mentions = useMentions(newComment, setNewComment, members)
   const [attachments,    setAttachments]    = useState<any[]>([])
+  const [attachmentsLoaded, setAttachmentsLoaded] = useState(false)
+  const backfilledRef = useRef(false)
   const [uploads,        setUploads]        = useState<any[]>([])
   const [uploading,      setUploading]      = useState(false)
   const [cardDragOver,   setCardDragOver]   = useState(false)
@@ -187,12 +189,22 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     setComments(cms || [])
     setAttachments(atts || [])
     setUploads(ups || [])
+    setAttachmentsLoaded(true)
   }, [])
 
   useEffect(() => {
     supabase.from('labels').select('*').order('created_at', { ascending: true })
       .then(({ data }) => { if (data) setGlobalLabels(data) })
   }, [])
+
+  // Links já escritos nos campos/comentários ANTES do anexo automático existir
+  // nunca foram anexados (o auto-anexo só dispara ao editar o campo). Varre
+  // uma vez, ao abrir, pra valer a regra "todo link do card está nos anexos".
+  useEffect(() => {
+    if (!id || !attachmentsLoaded || backfilledRef.current) return
+    backfilledRef.current = true
+    autoAttachLinks([briefing, copy, legenda, referenceNotes, ...comments.map((c: any) => c.body)].join('\n'))
+  }, [id, attachmentsLoaded, comments.length])
 
   useEffect(() => {
     const cid = fixedClientId || clientId
@@ -989,6 +1001,10 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
                 links={attachments}
                 onRemoveUpload={u => removeUpload(u.id, u.file_url)}
                 onRemoveLink={l => removeAttachment(l.id)}
+                onTitleResolved={async (aid, title) => {
+                  await supabase.from('extra_attachments').update({ title }).eq('id', aid)
+                  setAttachments(a => a.map(x => x.id === aid ? { ...x, title } : x))
+                }}
               />
 
               {/* Botões de ação */}

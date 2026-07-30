@@ -5,9 +5,10 @@
 // demais tipos) + nome curto embaixo, em vez da lista antiga (ícone genérico
 // + nome da URL inteira numa linha).
 
-import { useId } from 'react'
+import { useId, useState, useEffect } from 'react'
 import { File, FileText, Trash2 } from 'lucide-react'
 import { hostOf, formatBytes } from '@/lib/url'
+import { fetchLinkTitle } from '@/lib/linkTitle'
 
 export type UploadItem = { id: string; filename: string; file_url: string; file_size?: number | null; mime_type?: string | null }
 export type LinkItem = { id: string; url: string; title?: string | null }
@@ -60,12 +61,40 @@ function DriveIcon() {
 
 function isDriveHost(host: string) { return host === 'drive.google.com' || host === 'docs.google.com' }
 
-// Drive quase nunca devolve um <title> usável pro fetchLinkTitle (arquivo sem
-// compartilhamento público cai numa tela de login, cujo título não diz nada) —
-// melhor um rótulo genérico mas certo ("Pasta do Drive"/"Arquivo do Drive")
-// do que a URL truncada.
+// Um título salvo que na verdade é a própria URL não serve de nome — anexos
+// antigos foram gravados assim, e o código só buscava o nome real no instante
+// em que o link era anexado (nunca depois), então continuavam mostrando a URL
+// crua pra sempre.
+function isUsableTitle(title?: string | null) {
+  const t = (title || '').trim()
+  return !!t && !/^(https?:|file:|www\.)/i.test(t)
+}
+
+// Quando não dá pra descobrir o nome real, um rótulo curto e correto é melhor
+// que a URL truncada. Instagram e Drive nunca entregam o título de verdade pra
+// um servidor: o Drive cai numa tela de login quando o arquivo não é público,
+// e o Instagram devolve só "Instagram" pra qualquer post (bloqueia leitura sem
+// autenticação).
 function fallbackLabel(url: string, host: string) {
-  if (isDriveHost(host)) return /\/folders\//.test(url) ? 'Pasta do Drive' : 'Arquivo do Drive'
+  if (isDriveHost(host)) {
+    if (/\/folders\//.test(url)) return 'Pasta do Drive'
+    if (/\/spreadsheets\//.test(url)) return 'Planilha do Drive'
+    if (/\/document\//.test(url)) return 'Documento do Drive'
+    if (/\/presentation\//.test(url)) return 'Apresentação do Drive'
+    return 'Arquivo do Drive'
+  }
+  if (host === 'instagram.com') {
+    if (/\/reel/.test(url)) return 'Reel do Instagram'
+    if (/\/stories\//.test(url)) return 'Story do Instagram'
+    return 'Post do Instagram'
+  }
+  if (host === 'youtube.com' || host === 'youtu.be') return 'Vídeo do YouTube'
+  if (url.startsWith('file:')) {
+    // Caminho de arquivo local colado sem querer (C:\Users\...\algo.pdf) —
+    // não abre pra mais ninguém, mas ao menos mostra o nome do arquivo.
+    const name = decodeURIComponent(url.split(/[/\\]/).pop() || '')
+    return name || 'Arquivo local'
+  }
   return hostOf(url)
 }
 
@@ -103,9 +132,27 @@ function UploadTile({ item, onRemove }: { item: UploadItem; onRemove: () => void
   )
 }
 
-function LinkTile({ item, onRemove }: { item: LinkItem; onRemove: () => void }) {
+function LinkTile({ item, onRemove, onTitleResolved }: { item: LinkItem; onRemove: () => void; onTitleResolved?: (id: string, title: string) => void }) {
   const host = hostOf(item.url)
-  const label = item.title?.trim() || fallbackLabel(item.url, host)
+  const [fetched, setFetched] = useState<string | null>(null)
+
+  // Anexo sem nome usável (nunca teve, ou tem a URL gravada como título) —
+  // busca o nome real agora, ao exibir, e devolve pro card salvar. Antes isso
+  // só era tentado no instante em que o link era anexado: se falhasse ali, ou
+  // se o anexo fosse de antes dessa busca existir, ficava mostrando a URL crua
+  // pra sempre.
+  useEffect(() => {
+    if (isUsableTitle(item.title) || !/^https?:/i.test(item.url)) return
+    let alive = true
+    fetchLinkTitle(item.url).then(t => {
+      if (!alive || !t || !isUsableTitle(t)) return
+      setFetched(t)
+      onTitleResolved?.(item.id, t)
+    })
+    return () => { alive = false }
+  }, [item.id, item.url, item.title])
+
+  const label = isUsableTitle(item.title) ? item.title!.trim() : (fetched || fallbackLabel(item.url, host))
   return (
     <div className="group flex flex-col items-center gap-1" style={{ width: TILE + 16 }}>
       <a href={item.url} target="_blank" rel="noopener noreferrer"
@@ -114,22 +161,23 @@ function LinkTile({ item, onRemove }: { item: LinkItem; onRemove: () => void }) 
         {isDriveHost(host) ? <DriveIcon /> : <img src={`https://www.google.com/s2/favicons?domain=${host}&sz=64`} alt="" className="w-7 h-7" />}
         <DeleteCorner onRemove={onRemove} />
       </a>
-      <span title={item.url} className="text-[10px] text-[var(--color-text-muted)] text-center truncate w-full leading-tight">{label}</span>
+      <span title={label} className="text-[10px] text-[var(--color-text-muted)] text-center truncate w-full leading-tight">{label}</span>
     </div>
   )
 }
 
-export default function AttachmentsGrid({ uploads, links, onRemoveUpload, onRemoveLink }: {
+export default function AttachmentsGrid({ uploads, links, onRemoveUpload, onRemoveLink, onTitleResolved }: {
   uploads: UploadItem[]
   links: LinkItem[]
   onRemoveUpload: (item: UploadItem) => void
   onRemoveLink: (item: LinkItem) => void
+  onTitleResolved?: (id: string, title: string) => void
 }) {
   if (uploads.length === 0 && links.length === 0) return null
   return (
     <div className="flex flex-wrap gap-3 mb-3">
       {uploads.map(u => <UploadTile key={u.id} item={u} onRemove={() => onRemoveUpload(u)} />)}
-      {links.map(l => <LinkTile key={l.id} item={l} onRemove={() => onRemoveLink(l)} />)}
+      {links.map(l => <LinkTile key={l.id} item={l} onRemove={() => onRemoveLink(l)} onTitleResolved={onTitleResolved} />)}
     </div>
   )
 }

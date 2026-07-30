@@ -127,6 +127,8 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
   const [editCommentText,  setEditCommentText]  = useState('')
   const mentions = useMentions(newComment, setNewComment, members)
   const [attachments, setAttachments] = useState<any[]>([])
+  const [attachmentsLoaded, setAttachmentsLoaded] = useState(false)
+  const backfilledRef = useRef(false)
   const [uploads,     setUploads]     = useState<any[]>([])
   const [newAttachUrl,   setNewAttachUrl]   = useState('')
   const [newAttachTitle, setNewAttachTitle] = useState('')
@@ -160,8 +162,18 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
     setAttachments(atts || [])
     setChecklist(chk || [])
     setUploads(ups || [])
+    setAttachmentsLoaded(true)
   }, [])
 
+
+  // Links já escritos nos campos/comentários ANTES do anexo automático existir
+  // nunca foram anexados (o auto-anexo só dispara ao editar o campo). Varre
+  // uma vez, ao abrir, pra valer a regra "todo link do card está nos anexos".
+  useEffect(() => {
+    if (!id || !attachmentsLoaded || backfilledRef.current) return
+    backfilledRef.current = true
+    autoAttachLinks([description, referenceNotes, ...comments.map((c: any) => c.body)].join('\n'))
+  }, [id, attachmentsLoaded, comments.length])
 
   useEffect(() => {
     if (!materialId) return
@@ -849,6 +861,10 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
                 links={attachments}
                 onRemoveUpload={u => removeUpload(u.id, u.file_url)}
                 onRemoveLink={l => removeAttachment(l.id)}
+                onTitleResolved={async (aid, title) => {
+                  await supabase.from('material_attachments').update({ title }).eq('id', aid)
+                  setAttachments(a => a.map(x => x.id === aid ? { ...x, title } : x))
+                }}
               />
 
               {/* Botões de ação */}
