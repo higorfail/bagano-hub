@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase'
 import PostCard from '@/components/PostCard'
 import PostMiniCard, { MiniPost } from '@/components/PostMiniCard'
 import { useToast } from '@/lib/ToastContext'
+import { copyTextAsync } from '@/lib/clipboard'
 import { dbError } from '@/lib/dbError'
 import { Check, Copy, Search, X, Zap, ClipboardCheck, Link2, Sparkles, ClipboardList } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
@@ -246,13 +247,16 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [copied, setCopied] = useState(false)
   const [copiedLinkType, setCopiedLinkType] = useState<'cronograma' | 'final' | null>(null)
   async function copyTypeApprovalLink(type: 'cronograma' | 'final') {
-    const { data: existing } = await supabase.from('approval_tokens').select('token')
-      .eq('client_id', clientId).eq('month', month).eq('year', year).eq('type', type).maybeSingle()
-    const token = existing?.token || (
-      await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type }).select('token').single()
-    ).data?.token
-    if (!token) { toast('Erro ao gerar link'); return }
-    navigator.clipboard.writeText(`${window.location.origin}/aprovar/${token}`)
+    const ok = await copyTextAsync(async () => {
+      const { data: existing } = await supabase.from('approval_tokens').select('token')
+        .eq('client_id', clientId).eq('month', month).eq('year', year).eq('type', type).maybeSingle()
+      const token = existing?.token || (
+        await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type }).select('token').single()
+      ).data?.token
+      if (!token) throw new Error('sem token')
+      return `${window.location.origin}/aprovar/${token}`
+    })
+    if (!ok) { toast('Erro ao gerar link'); return }
     setCopiedLinkType(type)
     toast(`Link de ${type === 'cronograma' ? 'aprovação do crono' : 'aprovação final'} copiado!`)
     setTimeout(() => setCopiedLinkType(null), 2000)

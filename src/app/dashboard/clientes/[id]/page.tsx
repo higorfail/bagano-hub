@@ -11,6 +11,7 @@ import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import { getOrCreateGeneralApprovalToken } from '@/lib/approvalLinks'
+import { copyTextAsync } from '@/lib/clipboard'
 import CampaignsTab from '@/components/CampaignsTab'
 import CronogramaTab, { CRONO_MONTHS } from '@/components/CronogramaTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
@@ -288,10 +289,12 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             {/* Ações — texto some no mobile, vira só ícone/menu compacto */}
             <div className="hidden md:flex items-center gap-2 flex-shrink-0">
               <button onClick={async () => {
-                const generalToken = await getOrCreateGeneralApprovalToken(client.id)
-                if (!generalToken) { toast('Erro ao gerar link'); return }
-                navigator.clipboard.writeText(`${window.location.origin}/aprovar/${generalToken}`)
-                toast('Link da Central de aprovação copiado!')
+                const ok = await copyTextAsync(async () => {
+                  const generalToken = await getOrCreateGeneralApprovalToken(client.id)
+                  if (!generalToken) throw new Error('sem token')
+                  return `${window.location.origin}/aprovar/${generalToken}`
+                })
+                toast(ok ? 'Link da Central de aprovação copiado!' : 'Erro ao gerar link')
               }} className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]" title="Mostra tudo que está pendente de aprovação (crono + final + extras) numa página só">🔗 Central de aprovação</button>
               {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Instagram</a>}
               {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Manual</a>}
@@ -304,10 +307,12 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           {/* Ações — linha compacta com scroll horizontal no mobile */}
           <div className="flex md:hidden items-center gap-1.5 mt-2.5 overflow-x-auto -mx-3 px-3">
             <button onClick={async () => {
-              const generalToken = await getOrCreateGeneralApprovalToken(client.id)
-              if (!generalToken) { toast('Erro ao gerar link'); return }
-              navigator.clipboard.writeText(`${window.location.origin}/aprovar/${generalToken}`)
-              toast('Link da Central de aprovação copiado!')
+              const ok = await copyTextAsync(async () => {
+                const generalToken = await getOrCreateGeneralApprovalToken(client.id)
+                if (!generalToken) throw new Error('sem token')
+                return `${window.location.origin}/aprovar/${generalToken}`
+              })
+              toast(ok ? 'Link da Central de aprovação copiado!' : 'Erro ao gerar link')
             }} className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">🔗 Central</button>
             {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">Instagram</a>}
             {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">Manual</a>}

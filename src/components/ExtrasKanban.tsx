@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { Plus, Link2, Check, Camera, Images, Video, Image as ImageIcon, Archive, ArchiveRestore } from 'lucide-react'
 import ExtraCard from './ExtraCard'
 import ExtraMiniCard from './ExtraMiniCard'
+import { copyTextAsync } from '@/lib/clipboard'
 
 type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post'
 type ExtraStatus   = 'backlog' | 'aguardando_aprovacao' | 'done'
@@ -122,16 +123,19 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
 
   async function copyExtrasApprovalLink() {
     if (!clientId) return
-    const now = new Date()
-    const month = now.getMonth() + 1
-    const year = now.getFullYear()
-    const { data: existing } = await supabase.from('approval_tokens').select('token')
-      .eq('client_id', clientId).eq('month', month).eq('year', year).eq('type', 'extras').maybeSingle()
-    const token = existing?.token || (
-      await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type: 'extras' }).select('token').single()
-    ).data?.token
-    if (!token) return
-    navigator.clipboard.writeText(`${window.location.origin}/aprovar/${token}`)
+    const ok = await copyTextAsync(async () => {
+      const now = new Date()
+      const month = now.getMonth() + 1
+      const year = now.getFullYear()
+      const { data: existing } = await supabase.from('approval_tokens').select('token')
+        .eq('client_id', clientId).eq('month', month).eq('year', year).eq('type', 'extras').maybeSingle()
+      const token = existing?.token || (
+        await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type: 'extras' }).select('token').single()
+      ).data?.token
+      if (!token) throw new Error('sem token')
+      return `${window.location.origin}/aprovar/${token}`
+    })
+    if (!ok) return
     setCopiedLink(true)
     setTimeout(() => setCopiedLink(false), 2000)
   }

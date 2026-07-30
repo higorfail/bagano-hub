@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
+import { copyTextAsync } from '@/lib/clipboard'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { autoGrow } from '@/lib/autoGrow'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
@@ -344,16 +345,19 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   async function copyExtrasApprovalLink() {
     const cid = fixedClientId || clientId
     if (!cid) return
-    const now = new Date()
-    const month = now.getMonth() + 1
-    const year = now.getFullYear()
-    const { data: existing } = await supabase.from('approval_tokens').select('token')
-      .eq('client_id', cid).eq('month', month).eq('year', year).eq('type', 'extras').maybeSingle()
-    const token = existing?.token || (
-      await supabase.from('approval_tokens').insert({ client_id: cid, month, year, type: 'extras' }).select('token').single()
-    ).data?.token
-    if (!token) return
-    navigator.clipboard.writeText(`${window.location.origin}/aprovar/${token}`)
+    const ok = await copyTextAsync(async () => {
+      const now = new Date()
+      const month = now.getMonth() + 1
+      const year = now.getFullYear()
+      const { data: existing } = await supabase.from('approval_tokens').select('token')
+        .eq('client_id', cid).eq('month', month).eq('year', year).eq('type', 'extras').maybeSingle()
+      const token = existing?.token || (
+        await supabase.from('approval_tokens').insert({ client_id: cid, month, year, type: 'extras' }).select('token').single()
+      ).data?.token
+      if (!token) throw new Error('sem token')
+      return `${window.location.origin}/aprovar/${token}`
+    })
+    if (!ok) return
     setApprovalLinkCopied(true)
     setTimeout(() => setApprovalLinkCopied(false), 2000)
   }
