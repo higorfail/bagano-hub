@@ -705,8 +705,10 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!currentMember || loading) return
     if (needsYou.length === 0) { setDigestText(''); return }
-    const itemsKey = needsYou.slice(0, 20).map(i => i.id).join(',')
-    const cacheKey = `bagano_digest_v1_${currentMember.id}_${todayStr}`
+    // A chave inclui a campanha: o nome dela chega depois (busca separada), e
+    // sem isso o resumo gerado antes ficava cacheado sem citá-la o dia todo.
+    const itemsKey = needsYou.slice(0, 20).map(i => `${i.id}:${i.campaignType || ''}`).join(',') + `|${Object.keys(campaignNameMap).length}`
+    const cacheKey = `bagano_digest_v2_${currentMember.id}_${todayStr}`
     try {
       const cached = localStorage.getItem(cacheKey)
       if (cached) {
@@ -719,8 +721,11 @@ export default function DashboardPage() {
       ajuste: i.ajuste, overdue: !!i.dueDate && i.dueDate < todayStr, dueDate: i.dueDate,
       // A etiqueta é o que diz o que falta fazer no card ("CRIAR LEGENDA",
       // "Criar o design") — sem ela o resumo só sabia contar, não dizia o
-      // trabalho de verdade.
+      // trabalho de verdade. A campanha entra pelo mesmo motivo: saber que um
+      // post é de Dia dos Pais muda a leitura da urgência, e a frase carrega
+      // isso melhor do que um selo espremido na linha.
       postType: i.postType, labels: (i.labels || []).map(l => l.text),
+      campaign: i.campaignType ? (campaignNameMap[`${i.clientId}:${i.campaignType}`] || null) : null,
     }))
     fetch('/api/ai-daily-digest', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -734,7 +739,7 @@ export default function DashboardPage() {
         }
       })
       .catch(() => {})
-  }, [currentMember?.id, loading, todayStr, needsYou.length])
+  }, [currentMember?.id, loading, todayStr, needsYou.length, campaignNameMap])
 
   // "Parado há X dias" — busca updated_at à parte, isolado com try/catch: se a
   // coluna ainda não existir (migração não rodada), falha em silêncio e o
