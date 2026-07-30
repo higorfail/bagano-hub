@@ -167,10 +167,10 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     return (
       <button key={key || it.id} onClick={() => router.push(it.href)}
         className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
-        style={{ background: it.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
-        {/* Sem avatar não sobra espaço reservado — nas linhas de dentro de um
-            grupo o texto começa na margem, sem o buraco que a versão antiga
-            deixava no lugar do avatar. */}
+        style={{ background: it.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-card)' }}>
+        {/* Sem avatar não sobra espaço reservado — dentro do bloco do cliente
+            o avatar já aparece no topo, e o texto começa na margem, sem o
+            buraco que a versão antiga deixava no lugar dele. */}
         {showAvatar && <ClientAvatar client={client} />}
         <div className="flex-1 min-w-0">
           <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
@@ -198,74 +198,102 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     )
   }
 
-  // Agrupa por cliente+tipo (+ ajuste separado de pendência normal) — várias
-  // pendências iguais do mesmo cliente (6 reels do mesmo crono, por ex.)
-  // viravam 6 linhas idênticas; agora uma linha só, expansível. Ajuste
-  // agrupa também (3 ajustes do mesmo cliente = 1 linha vermelha), só que
-  // nunca fica escondido: continua sempre no topo, com a cor de urgência.
-  const groupMap = new Map<string, ParaVoceRowItem[]>()
+  // Cliente vira um bloco só (avatar/nome aparecem uma vez, no topo dele) e,
+  // dentro, os itens agrupados por tipo — antes o mesmo cliente se repetia em
+  // toda linha. O bloco tem fundo próprio e as linhas ficam claras por cima,
+  // pra ler como um grupo coeso em vez de um cabeçalho solto sobre linhas.
+  const byClient = new Map<string, ParaVoceRowItem[]>()
   for (const it of items) {
-    const key = `${it.clientId}:${it.kind}:${it.postType || ''}:${it.ajuste ? 1 : 0}`
-    if (!groupMap.has(key)) groupMap.set(key, [])
-    groupMap.get(key)!.push(it)
+    if (!byClient.has(it.clientId)) byClient.set(it.clientId, [])
+    byClient.get(it.clientId)!.push(it)
   }
-  const groups = [...groupMap.entries()].map(([key, its]) => ({ key, its }))
+  const clientBlocks = [...byClient.entries()].map(([clientId, its]) => ({ clientId, its }))
+  const totalItems = items.length
+  const shownItems = clientBlocks.slice(0, cap).reduce((s, c) => s + c.its.length, 0)
+
+  function labelChips(its: ParaVoceRowItem[]) {
+    // Quantos do grupo pedem cada coisa (3 pra criar legenda, 2 pro design…)
+    // — resumido na linha pra não ter que abrir card por card pra saber.
+    const counts = new Map<string, { color: string; n: number }>()
+    its.forEach(i => i.labels?.forEach(l => {
+      const cur = counts.get(l.text)
+      counts.set(l.text, { color: l.color, n: (cur?.n || 0) + 1 })
+    }))
+    return [...counts.entries()].slice(0, 2).map(([text, { color, n }]) => (
+      <span key={text} className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: color }}>
+        {n === its.length ? text : `${n} ${text}`}
+      </span>
+    ))
+  }
 
   return (
     <div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5 px-0.5">{label}</p>
-      <div className="flex flex-col gap-1">
-        {groups.slice(0, cap).map(({ key, its }) => {
-          if (its.length === 1) return renderRow(its[0])
-          const first = its[0]
-          const isOpen = expanded.has(key)
-          const typeMeta = first.postType ? TYPE_META[first.postType] : null
-          const [sing, plur] = typeMeta ? [typeMeta.label, typeMeta.plural] : KIND_LABEL[first.kind] || [first.kind, first.kind + 's']
-          const overdueCount = its.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
-          const client = clientMap[first.clientId]
-          // Quantos do grupo pedem cada coisa (3 pra criar legenda, 2 pro
-          // design…) — resumido no cabeçalho pra não ter que abrir e conferir
-          // card por card o que falta.
-          const labelCounts = new Map<string, { color: string; n: number }>()
-          its.forEach(i => i.labels?.forEach(l => {
-            const cur = labelCounts.get(l.text)
-            labelCounts.set(l.text, { color: l.color, n: (cur?.n || 0) + 1 })
-          }))
+      <div className="flex flex-col gap-2">
+        {clientBlocks.slice(0, cap).map(({ clientId, its }) => {
+          const client = clientMap[clientId]
+          const blockOverdue = its.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
+
+          const subMap = new Map<string, ParaVoceRowItem[]>()
+          for (const it of its) {
+            const k = `${it.kind}:${it.postType || ''}:${it.ajuste ? 1 : 0}`
+            if (!subMap.has(k)) subMap.set(k, [])
+            subMap.get(k)!.push(it)
+          }
+          const subGroups = [...subMap.entries()].map(([k, subIts]) => ({ key: `${clientId}:${k}`, its: subIts }))
+
           return (
-            <div key={key}>
-              <button onClick={() => toggle(key)}
-                className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
-                style={{ background: first.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
+            <div key={clientId} className="rounded-2xl p-2" style={{ background: muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
+              <div className="flex items-center gap-2 px-1.5 pt-0.5 pb-2">
                 <ClientAvatar client={client} />
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
-                    {emojiFor(first)} {its.length} {pl(its.length, sing, plur)} {first.ajuste ? 'pedidos pelo cliente' : 'pendentes'}
-                  </p>
-                  <p className="text-[11px] text-[var(--color-text-muted)] truncate">{client?.name || 'Sem cliente'}</p>
-                </div>
-                {[...labelCounts.entries()].slice(0, 2).map(([text, { color, n }]) => (
-                  <span key={text} className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: color }}>
-                    {n === its.length ? text : `${n} ${text}`}
-                  </span>
-                ))}
-                {overdueCount > 0 && (
+                <span className="text-xs font-bold text-[var(--color-text-primary)] truncate flex-1 min-w-0">{client?.name || 'Sem cliente'}</span>
+                {blockOverdue > 0 && (
                   <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
-                    {overdueCount} atrasado{overdueCount !== 1 ? 's' : ''}
+                    {blockOverdue} atrasado{blockOverdue !== 1 ? 's' : ''}
                   </span>
                 )}
-                <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
-              </button>
-              {isOpen && (
-                <div className="flex flex-col gap-1 mt-1 pl-3">
-                  {its.map(it => renderRow(it, `${key}-${it.id}`, false))}
-                </div>
-              )}
+              </div>
+              <div className="flex flex-col gap-1">
+                {subGroups.map(({ key, its: subIts }) => {
+                  if (subIts.length === 1) return renderRow(subIts[0], key, false)
+                  const first = subIts[0]
+                  const isOpen = expanded.has(key)
+                  const typeMeta = first.postType ? TYPE_META[first.postType] : null
+                  const [sing, plur] = typeMeta ? [typeMeta.label, typeMeta.plural] : KIND_LABEL[first.kind] || [first.kind, first.kind + 's']
+                  const subOverdue = subIts.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
+                  return (
+                    <div key={key}>
+                      <button onClick={() => toggle(key)}
+                        className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
+                        style={{ background: first.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-card)' }}>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+                            {emojiFor(first)} {subIts.length} {pl(subIts.length, sing, plur)} {first.ajuste ? 'pedidos pelo cliente' : 'pendentes'}
+                          </p>
+                        </div>
+                        {labelChips(subIts)}
+                        {subOverdue > 0 && (
+                          <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
+                            {subOverdue} atrasado{subOverdue !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
+                      </button>
+                      {isOpen && (
+                        <div className="flex flex-col gap-1 mt-1 pl-3">
+                          {subIts.map(it => renderRow(it, `${key}-${it.id}`, false))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )
         })}
-        {groups.length > cap && (
+        {totalItems > shownItems && (
           <p className="text-[11px] text-[var(--color-text-faint)] px-0.5">
-            + {groups.slice(cap).reduce((s, g) => s + g.its.length, 0)} {groups.slice(cap).reduce((s, g) => s + g.its.length, 0) === 1 ? 'item' : 'itens'}
+            + {totalItems - shownItems} {totalItems - shownItems === 1 ? 'item' : 'itens'}
           </p>
         )}
       </div>
