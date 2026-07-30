@@ -94,43 +94,84 @@ function pl(n: number, s: string, p: string) { return n === 1 ? s : p }
 const KIND_ICON: Record<string, string> = { post: '🎬', extra: '📎', material: '📦' }
 const KIND_CHIP_BG: Record<string, string> = { post: 'var(--ds-purple-bg)', extra: 'var(--ds-info-bg)', material: 'var(--color-bg-subtle)' }
 const KIND_LABEL: Record<string, [string, string]> = { post: ['post', 'posts'], extra: ['extra', 'extras'], material: ['material', 'materiais'] }
+// Tipo de conteúdo de verdade (Reel/Carrossel/Story…), não um ícone genérico
+// de "post" — mesmo mapa usado no Cronograma/Aprovações, pra bater visualmente.
+const TYPE_META: Record<string, { emoji: string; label: string; plural: string }> = {
+  carrossel:         { emoji: '🎠', label: 'Carrossel',          plural: 'carrosséis' },
+  reels:             { emoji: '🎬', label: 'Reels',              plural: 'reels' },
+  post:              { emoji: '🖼️', label: 'Post',               plural: 'posts' },
+  story:             { emoji: '📸', label: 'Story',              plural: 'stories' },
+  carrossel_stories: { emoji: '🎞️', label: 'Carrossel/Stories',  plural: 'carrossel/stories' },
+}
 
-type ParaVoceRowItem = { id: string; kind: string; title: string; clientId: string; dueDate: string | null; ajuste: boolean; href: string }
+function dueCountdown(dueDate: string | null, todayStr: string): string | null {
+  if (!dueDate) return null
+  const d1 = new Date(todayStr + 'T12:00:00')
+  const d2 = new Date(dueDate + 'T12:00:00')
+  const diff = Math.round((d2.getTime() - d1.getTime()) / 86400000)
+  if (diff < 0) return null // já tem o selo "atrasado" separado, não repete aqui
+  if (diff === 0) return 'vence hoje'
+  if (diff === 1) return 'vence amanhã'
+  return `vence em ${diff}d`
+}
 
-function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap }: {
+type ParaVoceRowItem = {
+  id: string; kind: string; title: string; clientId: string; dueDate: string | null
+  ajuste: boolean; href: string; postType?: string | null; campaignType?: string | null
+}
+
+function ClientAvatar({ client }: { client?: { name: string; color_hex?: string; logo_url?: string | null } }) {
+  return (
+    <span className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
+      style={{ background: client?.color_hex || '#6b7280' }}>
+      {client?.logo_url ? <img src={client.logo_url} alt="" className="w-full h-full object-cover" /> : getInitials(client?.name || '?')}
+    </span>
+  )
+}
+
+function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap, campaignNameMap }: {
   label: string
   items: ParaVoceRowItem[]
-  clientMap: Record<string, { name: string }>
+  clientMap: Record<string, { name: string; color_hex?: string; logo_url?: string | null }>
   router: ReturnType<typeof useRouter>
   todayStr: string
   muted?: boolean
   cap?: number
   agingMap?: Record<string, string>
+  campaignNameMap?: Record<string, string>
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   function toggle(key: string) {
     setExpanded(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
   }
 
+  function emojiFor(it: ParaVoceRowItem) {
+    if (it.ajuste) return '⚠️'
+    if (it.postType && TYPE_META[it.postType]) return TYPE_META[it.postType].emoji
+    return KIND_ICON[it.kind] || '•'
+  }
+
   function renderRow(it: ParaVoceRowItem, key?: string) {
     const overdue = !!it.dueDate && it.dueDate < todayStr && !it.ajuste
-    const isToday = it.dueDate === todayStr
     const updatedAt = agingMap?.[it.id]
     const ageDays = updatedAt ? Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000) : null
     const ageThreshold = muted ? 1 : 3
     const showAge = !overdue && ageDays !== null && ageDays >= ageThreshold
-    const dueLabel = it.dueDate ? (isToday ? 'hoje' : new Date(it.dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })) : null
+    const countdown = dueCountdown(it.dueDate, todayStr)
+    const campaignName = it.campaignType ? campaignNameMap?.[`${it.clientId}:${it.campaignType}`] : null
+    const client = clientMap[it.clientId]
     return (
       <button key={key || it.id} onClick={() => router.push(it.href)}
         className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
         style={{ background: it.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
-        <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
-          style={{ background: it.ajuste ? 'var(--ds-error-accent)' : KIND_CHIP_BG[it.kind] || 'var(--color-bg-subtle)' }}>
-          {it.ajuste ? '⚠️' : KIND_ICON[it.kind] || '•'}
-        </span>
+        <ClientAvatar client={client} />
         <div className="flex-1 min-w-0">
-          <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>{it.title || 'Sem título'}</p>
-          <p className="text-[11px] text-[var(--color-text-muted)] truncate">{clientMap[it.clientId]?.name || 'Sem cliente'}{dueLabel ? ` · ${dueLabel}` : ''}</p>
+          <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+            {emojiFor(it)} {it.title || 'Sem título'}
+          </p>
+          <p className="text-[11px] text-[var(--color-text-muted)] truncate">
+            {client?.name || 'Sem cliente'}{countdown ? ` · ${countdown}` : ''}{campaignName ? ` · 📣 ${campaignName}` : ''}
+          </p>
         </div>
         {overdue && (
           <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
@@ -151,7 +192,7 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
   // nunca fica escondido: continua sempre no topo, com a cor de urgência.
   const groupMap = new Map<string, ParaVoceRowItem[]>()
   for (const it of items) {
-    const key = `${it.clientId}:${it.kind}:${it.ajuste ? 1 : 0}`
+    const key = `${it.clientId}:${it.kind}:${it.postType || ''}:${it.ajuste ? 1 : 0}`
     if (!groupMap.has(key)) groupMap.set(key, [])
     groupMap.get(key)!.push(it)
   }
@@ -165,22 +206,21 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
           if (its.length === 1) return renderRow(its[0])
           const first = its[0]
           const isOpen = expanded.has(key)
-          const [sing, plur] = KIND_LABEL[first.kind] || [first.kind, first.kind + 's']
+          const typeMeta = first.postType ? TYPE_META[first.postType] : null
+          const [sing, plur] = typeMeta ? [typeMeta.label, typeMeta.plural] : KIND_LABEL[first.kind] || [first.kind, first.kind + 's']
           const overdueCount = its.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
+          const client = clientMap[first.clientId]
           return (
             <div key={key}>
               <button onClick={() => toggle(key)}
                 className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
                 style={{ background: first.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
-                <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
-                  style={{ background: first.ajuste ? 'var(--ds-error-accent)' : KIND_CHIP_BG[first.kind] || 'var(--color-bg-subtle)' }}>
-                  {first.ajuste ? '⚠️' : KIND_ICON[first.kind] || '•'}
-                </span>
+                <ClientAvatar client={client} />
                 <div className="flex-1 min-w-0">
                   <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
-                    {its.length} {pl(its.length, sing, plur)} {first.ajuste ? 'pedidos pelo cliente' : 'pendentes'}
+                    {emojiFor(first)} {its.length} {pl(its.length, sing, plur)} {first.ajuste ? 'pedidos pelo cliente' : 'pendentes'}
                   </p>
-                  <p className="text-[11px] text-[var(--color-text-muted)] truncate">{clientMap[first.clientId]?.name || 'Sem cliente'}</p>
+                  <p className="text-[11px] text-[var(--color-text-muted)] truncate">{client?.name || 'Sem cliente'}</p>
                 </div>
                 {overdueCount > 0 && (
                   <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
@@ -233,6 +273,7 @@ export default function DashboardPage() {
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
   const [digestText,   setDigestText]   = useState('')
   const [agingMap,     setAgingMap]     = useState<Record<string, string>>({})
+  const [campaignNameMap, setCampaignNameMap] = useState<Record<string, string>>({})
   const [loading,      setLoading]      = useState(true)
   const [loadError,    setLoadError]    = useState(false)
 
@@ -258,7 +299,7 @@ export default function DashboardPage() {
             .eq('status', 'active')
             .order('name'),
           supabase.from(CFG.t.schedules)
-            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members')
+            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type')
             .eq('month', month)
             .eq('year', year),
           supabase.from(CFG.t.specialDates)
@@ -293,7 +334,7 @@ export default function DashboardPage() {
     if (!currentMember?.id) return
     supabase
       .from('extras')
-      .select('id, title, type, status, priority, client_id, due_date, client_approval_status')
+      .select('id, title, type, status, priority, client_id, due_date, client_approval_status, campaign_type')
       .neq('status', 'done')
       .contains('assigned_members', [currentMember.id])
       .order('due_date', { ascending: true, nullsFirst: false })
@@ -504,6 +545,7 @@ export default function DashboardPage() {
   type ParaVoceItem = {
     id: string; kind: 'post' | 'extra' | 'material'; title: string
     clientId: string; dueDate: string | null; ajuste: boolean; waitingClient: boolean; href: string
+    postType?: string | null; campaignType?: string | null
   }
   const paraVoceItems: ParaVoceItem[] = [
     ...directAssigned.map((s): ParaVoceItem => ({
@@ -511,12 +553,14 @@ export default function DashboardPage() {
       dueDate: s.scheduled_date, ajuste: s.status === CFG.S.ajuste,
       waitingClient: s.status === CFG.S.aguardandoAprovacao,
       href: `/dashboard/clientes/${s.client_id}?tab=cronograma`,
+      postType: s.post_type, campaignType: (s as any).campaign_type || null,
     })),
     ...myExtras.map((e): ParaVoceItem => ({
       id: `extra-${e.id}`, kind: 'extra', title: e.title, clientId: e.client_id,
       dueDate: e.due_date, ajuste: e.client_approval_status === 'recusado',
       waitingClient: e.client_approval_status === 'aguardando',
       href: e.client_id ? `/dashboard/clientes/${e.client_id}?tab=extras` : '/dashboard/kanban',
+      postType: e.type, campaignType: e.campaign_type || null,
     })),
     ...myMaterials.map((m): ParaVoceItem => ({
       id: `material-${m.id}`, kind: 'material', title: m.title, clientId: m.client_id,
@@ -624,6 +668,23 @@ export default function DashboardPage() {
     fetchAging('materials', materialIds, 'material')
   }, [loading, directAssigned.length, myExtras.length, myMaterials.length])
 
+  // Nome de exibição da campanha (ex: "Dia dos Pais") pro selo em cada item —
+  // campaign_type guarda só o slug ("pais"), o nome de verdade (que pode ser
+  // customizado por cliente) mora na tabela campaigns.
+  useEffect(() => {
+    if (loading || paraVoceItems.length === 0) return
+    const withCampaign = paraVoceItems.filter(i => i.campaignType)
+    if (withCampaign.length === 0) return
+    const clientIds = [...new Set(withCampaign.map(i => i.clientId))]
+    supabase.from('campaigns').select('client_id, type, name').in('client_id', clientIds)
+      .then(({ data, error }) => {
+        if (error || !data) return
+        const next: Record<string, string> = {}
+        data.forEach((c: any) => { next[`${c.client_id}:${c.type}`] = c.name })
+        setCampaignNameMap(next)
+      })
+  }, [loading, paraVoceItems.length])
+
   if (loading) return (
     <div className="flex items-center justify-center h-full">
       <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[var(--color-accent)] rounded-full animate-spin" />
@@ -712,10 +773,10 @@ export default function DashboardPage() {
                 )}
 
                 {needsYouAjusteItems.length > 0 && (
-                  <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} />
+                  <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} />
                 )}
                 {needsYouRest.length > 0 && (
-                  <ParaVoceGroup label="Pendências" items={needsYouRest} clientMap={clientMap} router={router} todayStr={todayStr} cap={5} agingMap={agingMap} />
+                  <ParaVoceGroup label="Pendências" items={needsYouRest} clientMap={clientMap} router={router} todayStr={todayStr} cap={5} agingMap={agingMap} campaignNameMap={campaignNameMap} />
                 )}
                 {waitingOnClient.length > 0 && (
                   <ParaVoceSummaryRow icon="⏳" label={`${waitingOnClient.length} ${pl(waitingOnClient.length, 'item esperando', 'itens esperando')} o cliente`} onClick={() => router.push(waitingOnClientHref())} muted />
