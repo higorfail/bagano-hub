@@ -1762,14 +1762,18 @@ export default function ApprovalPage({ token }: { token: string }) {
             {/* Calendar grid */}
             <div style={{ background: '#fff', borderRadius: 20, border: '1px solid #ebebeb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: 20 }}>
               {/* Day headers */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #f0f0f0', background: '#fafaf8' }}>
+              {/* minmax(0, 1fr) e não 1fr: com 1fr a coluna nunca encolhe
+                  abaixo do conteúdo, e o título do post (nowrap) empurrava a
+                  grade pra além da largura da tela — as últimas colunas
+                  ficavam cortadas, sobretudo no celular. */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', borderBottom: '1px solid #f0f0f0', background: '#fafaf8' }}>
                 {DAYS_SHORT.map(d => (
                   <div key={d} style={{ textAlign: 'center', padding: '8px 0', fontSize: 10, fontWeight: 800, color: '#b0b0b0', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{d}</div>
                 ))}
               </div>
 
               {/* Day cells */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                 {cells.map((day, i) => {
                   if (!day) return (
                     <div key={i} style={{ minHeight: 64, borderRight: i % 7 !== 6 ? '1px solid #f5f5f5' : 'none', borderBottom: '1px solid #f5f5f5', background: '#fafaf8' }} />
@@ -1780,7 +1784,7 @@ export default function ApprovalPage({ token }: { token: string }) {
                   const isToday  = today.getFullYear() === calYearFinal && today.getMonth() + 1 === calMonthFinal && today.getDate() === day
 
                   return (
-                    <div key={i} style={{ minHeight: 64, padding: '5px 4px', borderRight: i % 7 !== 6 ? '1px solid #f0f0f0' : 'none', borderBottom: '1px solid #f0f0f0', background: hasPosts ? '#fefefe' : '#fff' }}>
+                    <div key={i} style={{ minWidth: 0, minHeight: 64, padding: '5px 4px', borderRight: i % 7 !== 6 ? '1px solid #f0f0f0' : 'none', borderBottom: '1px solid #f0f0f0', background: hasPosts ? '#fefefe' : '#fff' }}>
                       <div style={{ fontSize: 11, fontWeight: isToday ? 800 : hasPosts ? 600 : 400, color: isToday ? '#fff' : hasPosts ? '#374151' : '#c4c4c0', width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isToday ? cc : 'transparent', marginBottom: 3 }}>
                         {day}
                       </div>
@@ -1792,10 +1796,13 @@ export default function ApprovalPage({ token }: { token: string }) {
                         return (
                           <button key={p.id}
                             onClick={() => { setSheetPost(p); setSheetComment(p.approval_comment || '') }}
-                            style={{ display: 'block', width: '100%', marginBottom: 2, background: isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#f3f4f6', border: `1px solid ${isApproved ? '#86efac' : isChanges ? '#fde68a' : '#e5e7eb'}`, borderRadius: 4, padding: '2px 4px', cursor: 'pointer', textAlign: 'left' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            style={{ display: 'block', width: '100%', minWidth: 0, marginBottom: 2, background: isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#f3f4f6', border: `1px solid ${isApproved ? '#86efac' : isChanges ? '#fde68a' : '#e5e7eb'}`, borderRadius: 4, padding: '2px 4px', cursor: 'pointer', textAlign: 'left' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0 }}>
                               <div style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
-                              <span style={{ fontSize: 9, fontWeight: 600, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4, maxWidth: '100%' }}>
+                              {/* minWidth:0 aqui também: sem isso o texto com
+                                  nowrap define a largura mínima do flex item e
+                                  o "…" nunca entra em ação. */}
+                              <span style={{ fontSize: 9, fontWeight: 600, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4, minWidth: 0, flex: 1 }}>
                                 {TYPE_EMOJIS[p.post_type]} {p.title}
                               </span>
                             </div>
