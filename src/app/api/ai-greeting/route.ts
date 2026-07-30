@@ -123,10 +123,17 @@ Escreva a frase (só ela, sem a saudação, máximo 75 caracteres):`
     let greeting: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
     // O modelo às vezes devolve a saudação junto mesmo sendo instruído a não
     // fazer isso — corta pra não sair "Bom dia, Higor. Bom dia, Higor. ...".
+    // O \b no fim do nome é essencial: a equipe tem "Gabi" e "Gabis", e sem
+    // ele remover "Gabi" de uma frase que começa com "Gabis," deixaria um "s,"
+    // solto no meio da saudação.
+    const nameRe = memberName
+      ? new RegExp(`^${memberName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b[,!.]?\\s*`, 'i')
+      : null
     greeting = greeting
       .replace(/^["'`]|["'`]$/g, '')
       .replace(/^(bom dia|boa tarde|boa noite)[,!.]?\s*/i, '')
-      .replace(new RegExp(`^${(memberName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[,!.]?\\s*`, 'i'), '')
+    if (nameRe) greeting = greeting.replace(nameRe, '')
+    greeting = greeting
       .replace(/\n+/g, ' ')
       .trim()
     // Estourou o limite: melhor não mostrar do que cortar no meio da piada.
