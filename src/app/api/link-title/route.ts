@@ -31,7 +31,13 @@ export async function GET(req: NextRequest) {
     reader.cancel().catch(() => {})
 
     const match = html.match(/<title[^>]*>([^<]*)<\/title>/i)
-    const title = match?.[1]?.trim().replace(/\s+/g, ' ').slice(0, 120) || null
+    let title = match?.[1]?.trim().replace(/\s+/g, ' ').slice(0, 120) || null
+    // Arquivo do Drive sem compartilhamento público (ou link que exige login)
+    // cai numa tela genérica cujo título não diz nada sobre o conteúdo real —
+    // melhor deixar null (o chamador tem um fallback melhor) do que mostrar
+    // "Fazer login - Contas do Google".
+    if (title && /^(sign in|log in|fazer login|entrar)\b/i.test(title)) title = null
+    if (title === 'Google Drive' || title === 'Instagram') title = null
     return NextResponse.json({ title })
   } catch {
     return NextResponse.json({ title: null })
