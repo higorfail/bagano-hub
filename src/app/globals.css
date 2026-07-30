@@ -99,6 +99,27 @@ html, body { background-color: var(--color-bg-page); }
    fazendo o preview parecer "aspect ratio errado" mesmo com o container certo. */
 img.h-full { height: 100% !important; }
 
+/* ── Cursor de mão em tudo que é clicável ────────────────────────────────────
+   O navegador NÃO põe cursor:pointer em <button> (só em <a href>), e o
+   preflight do Tailwind mantém esse padrão. Como quase tudo no hub é <button>
+   (atalhos, tema claro/escuro, "Para você", novo/editar cliente, atribuir
+   alguém, copiar link do card, excluir post, observar…), a mão só aparecia
+   nos poucos lugares onde alguém lembrou de escrever cursor-pointer à mão.
+   Regra única aqui em vez de caçar arquivo por arquivo — e vale pros que
+   vierem depois.
+
+   Dentro de :where() de propósito: assim a regra tem especificidade ZERO e
+   qualquer classe continua vencendo. Sem isso, um botão arrastável marcado
+   com cursor-grab (cards do Social/Kanban) perderia a mão de arrastar pra
+   esta regra, que é mais específica que uma classe. */
+:where(button:not(:disabled), [role="button"]:not([aria-disabled="true"]), label[for], select:not(:disabled), summary) {
+  cursor: pointer;
+}
+/* Desabilitado precisa dizer "não dá" — sem isso continua parecendo clicável. */
+:where(button:disabled, select:disabled, [aria-disabled="true"]) {
+  cursor: not-allowed;
+}
+
 /* ── Border-radius scale ─────────────────────────────────────────────────── */
 .rounded-lg   { border-radius: 0.625rem; }  /* 10px  (era 8px)  */
 .rounded-xl   { border-radius: 0.875rem; }  /* 14px  (era 12px) */
