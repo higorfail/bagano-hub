@@ -9,6 +9,7 @@ import { todayBrasiliaISO, addDaysISO } from '@/lib/timezone'
 import { CheckCircle2, Loader2, Pencil, X, Check, Filter, ChevronDown } from 'lucide-react'
 import PostCard from '@/components/PostCard'
 import MaterialCard from '@/components/MaterialCard'
+import ExtraCard from '@/components/ExtraCard'
 
 const POST_TYPES: Record<string, { label: string; emoji: string; color: string }> = {
   carrossel:         { label: 'Carrossel',         emoji: '🎠', color: '#3b82f6' },
@@ -115,6 +116,7 @@ export default function CriacaoPage() {
   const [editingPostId,setEditingPostId]= useState<string | null>(null)
   const [editingPostCtx, setEditingPostCtx] = useState<{ clientId: string; clientName: string; clientColor: string; month: number; year: number } | null>(null)
   const [openMaterialId, setOpenMaterialId] = useState<string | null>(null)
+  const [openExtraId, setOpenExtraId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoadError(false)
@@ -689,7 +691,8 @@ export default function CriacaoPage() {
                     {clientExtras.map(extra => {
                       const assigned = (extra.assigned_members || []).map(mid => memberMap[mid]).filter(Boolean)
                       return (
-                        <div key={extra.id} className="flex items-start gap-3 px-5 py-3">
+                        <button key={extra.id} onClick={() => setOpenExtraId(extra.id)}
+                          className="w-full flex items-start gap-3 px-5 py-3 text-left hover:bg-[var(--color-bg-subtle)] transition-colors">
                           <span className="text-base flex-shrink-0 mt-0.5">📋</span>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{extra.title}</p>
@@ -710,7 +713,7 @@ export default function CriacaoPage() {
                           {extra.due_date && (
                             <span className="text-[11px] text-[var(--color-text-muted)] flex-shrink-0 mt-0.5">📅 {formatDate(extra.due_date)}</span>
                           )}
-                        </div>
+                        </button>
                       )
                     })}
                   </div>
@@ -749,6 +752,17 @@ export default function CriacaoPage() {
         onClose={() => setOpenMaterialId(null)}
         onSaved={() => load()}
         onDeleted={() => { setOpenMaterialId(null); load() }}
+      />
+    )}
+
+    {/* Full ExtraCard modal — same as extras */}
+    {openExtraId && (
+      <ExtraCard
+        extraId={openExtraId}
+        clients={clients}
+        onClose={() => setOpenExtraId(null)}
+        onSaved={() => load()}
+        onDeleted={() => { setOpenExtraId(null); load() }}
       />
     )}
     </>
