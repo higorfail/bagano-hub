@@ -91,9 +91,9 @@ function daysBetween(a: Date, b: Date) {
 
 function pl(n: number, s: string, p: string) { return n === 1 ? s : p }
 
-const KIND_ICON: Record<string, string> = { post: '🎬', extra: '📎', material: '📦' }
-const KIND_CHIP_BG: Record<string, string> = { post: 'var(--ds-purple-bg)', extra: 'var(--ds-info-bg)', material: 'var(--color-bg-subtle)' }
-const KIND_LABEL: Record<string, [string, string]> = { post: ['post', 'posts'], extra: ['extra', 'extras'], material: ['material', 'materiais'] }
+const KIND_ICON: Record<string, string> = { post: '🎬', extra: '📎', material: '📦', task: '📌' }
+const KIND_CHIP_BG: Record<string, string> = { post: 'var(--ds-purple-bg)', extra: 'var(--ds-info-bg)', material: 'var(--color-bg-subtle)', task: 'var(--ds-warn-bg)' }
+const KIND_LABEL: Record<string, [string, string]> = { post: ['post', 'posts'], extra: ['extra', 'extras'], material: ['material', 'materiais'], task: ['tarefa', 'tarefas'] }
 // Tipo de conteúdo de verdade (Reel/Carrossel/Story…), não um ícone genérico
 // de "post" — mesmo mapa usado no Cronograma/Aprovações, pra bater visualmente.
 const TYPE_META: Record<string, { emoji: string; label: string; plural: string }> = {
@@ -153,7 +153,9 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     return KIND_ICON[it.kind] || '•'
   }
 
-  function renderRow(it: ParaVoceRowItem, key?: string, showAvatar = true) {
+  // Uma linha por item, tudo inline — nada de sublinha embaixo do título,
+  // que dobrava a altura de cada linha e fazia o card ocupar meia tela.
+  function renderRow(it: ParaVoceRowItem, key?: string) {
     const overdue = !!it.dueDate && it.dueDate < todayStr && !it.ajuste
     const updatedAt = agingMap?.[it.id]
     const ageDays = updatedAt ? Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000) : null
@@ -161,133 +163,101 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     const showAge = !overdue && ageDays !== null && ageDays >= ageThreshold
     const countdown = dueCountdown(it.dueDate, todayStr)
     const campaignName = it.campaignType ? campaignNameMap?.[`${it.clientId}:${it.campaignType}`] : null
-    const client = clientMap[it.clientId]
-    const sub = [showAvatar ? (client?.name || 'Sem cliente') : '', countdown, campaignName ? `📣 ${campaignName}` : '']
-      .filter(Boolean).join(' · ')
     return (
       <button key={key || it.id} onClick={() => router.push(it.href)}
-        className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
+        className="w-full text-left rounded-lg px-2.5 py-1.5 flex items-center gap-2 transition-colors hover:brightness-[0.97]"
         style={{ background: it.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-card)' }}>
-        {/* Sem avatar não sobra espaço reservado — dentro do bloco do cliente
-            o avatar já aparece no topo, e o texto começa na margem, sem o
-            buraco que a versão antiga deixava no lugar dele. */}
-        {showAvatar && <ClientAvatar client={client} />}
-        <div className="flex-1 min-w-0">
-          <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
-            {emojiFor(it)} {it.title || 'Sem título'}
-          </p>
-          {sub && <p className="text-[11px] text-[var(--color-text-muted)] truncate">{sub}</p>}
-        </div>
-        {/* Etiqueta do card (CRIAR LEGENDA, Criar o design…) — é o que diz o
-            que falta fazer ali, então precisa estar visível na lista, não só
-            dentro do card. */}
+        <span className="text-[11px] flex-shrink-0">{emojiFor(it)}</span>
+        <span className={`text-xs font-medium truncate flex-1 min-w-0 ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+          {it.title || 'Sem título'}
+        </span>
+        {countdown && <span className="text-[10px] text-[var(--color-text-muted)] flex-shrink-0">{countdown}</span>}
+        {campaignName && <span className="text-[10px] text-[var(--color-text-muted)] flex-shrink-0 hidden sm:inline">📣 {campaignName}</span>}
+        {/* Etiqueta é o que diz o trabalho que falta ali (CRIAR LEGENDA,
+            Criar o design…) — precisa ser visível sem abrir o card. */}
         {it.labels?.slice(0, 2).map((l, i) => (
           <span key={i} className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: l.color }}>
             {l.text}
           </span>
         ))}
         {overdue && (
-          <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
+          <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
         )}
         {showAge && (
-          <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>
-            {muted ? `aguardando ${ageDays}d` : `parado ${ageDays}d`}
+          <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>
+            {muted ? `${ageDays}d` : `parado ${ageDays}d`}
           </span>
         )}
       </button>
     )
   }
 
-  // Cliente vira um bloco só (avatar/nome aparecem uma vez, no topo dele) e,
-  // dentro, os itens agrupados por tipo — antes o mesmo cliente se repetia em
-  // toda linha. O bloco tem fundo próprio e as linhas ficam claras por cima,
-  // pra ler como um grupo coeso em vez de um cabeçalho solto sobre linhas.
+  // Agrupa SÓ por cliente — tudo daquele cliente (posts do crono, extras,
+  // materiais e tarefas) numa linha expansível, em vez de uma linha por
+  // cliente+tipo, que repetia o mesmo cliente várias vezes seguidas.
   const byClient = new Map<string, ParaVoceRowItem[]>()
   for (const it of items) {
     if (!byClient.has(it.clientId)) byClient.set(it.clientId, [])
     byClient.get(it.clientId)!.push(it)
   }
-  const clientBlocks = [...byClient.entries()].map(([clientId, its]) => ({ clientId, its }))
+  const clientGroups = [...byClient.entries()].map(([clientId, its]) => ({ key: clientId, its }))
   const totalItems = items.length
-  const shownItems = clientBlocks.slice(0, cap).reduce((s, c) => s + c.its.length, 0)
+  const shownItems = clientGroups.slice(0, cap).reduce((s, g) => s + g.its.length, 0)
 
-  function labelChips(its: ParaVoceRowItem[]) {
-    // Quantos do grupo pedem cada coisa (3 pra criar legenda, 2 pro design…)
-    // — resumido na linha pra não ter que abrir card por card pra saber.
-    const counts = new Map<string, { color: string; n: number }>()
-    its.forEach(i => i.labels?.forEach(l => {
-      const cur = counts.get(l.text)
-      counts.set(l.text, { color: l.color, n: (cur?.n || 0) + 1 })
-    }))
-    return [...counts.entries()].slice(0, 2).map(([text, { color, n }]) => (
-      <span key={text} className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: color }}>
-        {n === its.length ? text : `${n} ${text}`}
-      </span>
-    ))
+  // "1 material, 2 posts" — resumo curto do que tem ali dentro, já que o
+  // grupo agora mistura tipos.
+  function summarize(its: ParaVoceRowItem[]) {
+    const counts: Record<string, number> = {}
+    its.forEach(i => { counts[i.kind] = (counts[i.kind] || 0) + 1 })
+    return (['post', 'extra', 'material', 'task'] as const)
+      .filter(k => counts[k])
+      .map(k => { const n = counts[k]; const [s1, p1] = KIND_LABEL[k]; return `${n} ${pl(n, s1, p1)}` })
+      .join(', ')
   }
 
   return (
     <div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5 px-0.5">{label}</p>
-      <div className="flex flex-col gap-2">
-        {clientBlocks.slice(0, cap).map(({ clientId, its }) => {
-          const client = clientMap[clientId]
-          const blockOverdue = its.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
-
-          const subMap = new Map<string, ParaVoceRowItem[]>()
-          for (const it of its) {
-            const k = `${it.kind}:${it.postType || ''}:${it.ajuste ? 1 : 0}`
-            if (!subMap.has(k)) subMap.set(k, [])
-            subMap.get(k)!.push(it)
-          }
-          const subGroups = [...subMap.entries()].map(([k, subIts]) => ({ key: `${clientId}:${k}`, its: subIts }))
-
+      <div className="flex flex-col gap-1">
+        {clientGroups.slice(0, cap).map(({ key, its }) => {
+          const isOpen = expanded.has(key)
+          const client = clientMap[its[0].clientId]
+          const overdueCount = its.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
+          const hasAjuste = its.some(it => it.ajuste)
+          // Quantos pedem cada coisa (3 pra criar legenda, 2 pro design…),
+          // pra saber o trabalho sem precisar abrir.
+          const labelCounts = new Map<string, { color: string; n: number }>()
+          its.forEach(i => i.labels?.forEach(l => {
+            const cur = labelCounts.get(l.text)
+            labelCounts.set(l.text, { color: l.color, n: (cur?.n || 0) + 1 })
+          }))
           return (
-            <div key={clientId} className="rounded-2xl p-2" style={{ background: muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
-              <div className="flex items-center gap-2 px-1.5 pt-0.5 pb-2">
+            <div key={key}>
+              <button onClick={() => toggle(key)}
+                className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2 transition-colors hover:brightness-[0.97]"
+                style={{ background: hasAjuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
                 <ClientAvatar client={client} />
-                <span className="text-xs font-bold text-[var(--color-text-primary)] truncate flex-1 min-w-0">{client?.name || 'Sem cliente'}</span>
-                {blockOverdue > 0 && (
-                  <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
-                    {blockOverdue} atrasado{blockOverdue !== 1 ? 's' : ''}
+                <span className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+                  {client?.name || 'Sem cliente'}
+                </span>
+                <span className="text-[10px] text-[var(--color-text-muted)] truncate flex-1 min-w-0">{summarize(its)}</span>
+                {[...labelCounts.entries()].slice(0, 2).map(([text, { color, n }]) => (
+                  <span key={text} className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: color }}>
+                    {n === its.length ? text : `${n} ${text}`}
+                  </span>
+                ))}
+                {overdueCount > 0 && (
+                  <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
+                    {overdueCount} atrasado{overdueCount !== 1 ? 's' : ''}
                   </span>
                 )}
-              </div>
-              <div className="flex flex-col gap-1">
-                {subGroups.map(({ key, its: subIts }) => {
-                  if (subIts.length === 1) return renderRow(subIts[0], key, false)
-                  const first = subIts[0]
-                  const isOpen = expanded.has(key)
-                  const typeMeta = first.postType ? TYPE_META[first.postType] : null
-                  const [sing, plur] = typeMeta ? [typeMeta.label, typeMeta.plural] : KIND_LABEL[first.kind] || [first.kind, first.kind + 's']
-                  const subOverdue = subIts.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
-                  return (
-                    <div key={key}>
-                      <button onClick={() => toggle(key)}
-                        className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
-                        style={{ background: first.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-card)' }}>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
-                            {emojiFor(first)} {subIts.length} {pl(subIts.length, sing, plur)} {first.ajuste ? 'pedidos pelo cliente' : 'pendentes'}
-                          </p>
-                        </div>
-                        {labelChips(subIts)}
-                        {subOverdue > 0 && (
-                          <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
-                            {subOverdue} atrasado{subOverdue !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                        <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
-                      </button>
-                      {isOpen && (
-                        <div className="flex flex-col gap-1 mt-1 pl-3">
-                          {subIts.map(it => renderRow(it, `${key}-${it.id}`, false))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+                <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
+              </button>
+              {isOpen && (
+                <div className="flex flex-col gap-1 mt-1 pl-3">
+                  {its.map(it => renderRow(it, `${key}-${it.id}`))}
+                </div>
+              )}
             </div>
           )
         })}
@@ -325,6 +295,7 @@ export default function DashboardPage() {
   const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
   const [myExtras,     setMyExtras]     = useState<any[]>([])
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
+  const [myTasks,      setMyTasks]      = useState<any[]>([])
   const [digestText,   setDigestText]   = useState('')
   const [agingMap,     setAgingMap]     = useState<Record<string, string>>({})
   const [campaignNameMap, setCampaignNameMap] = useState<Record<string, string>>({})
@@ -409,6 +380,22 @@ export default function DashboardPage() {
           return assigned.includes(currentMember.id)
         }))
       })
+  }, [currentMember?.id])
+
+  // Tarefas/lembretes/notas do Quadro pessoal que estão ligadas a um cliente —
+  // ficavam de fora do "Para você", que só olhava post/extra/material, então
+  // um lembrete atribuído a você simplesmente não aparecia aqui. Só entram as
+  // que têm cliente: sem cliente não há bloco onde encaixar.
+  useEffect(() => {
+    if (!currentMember?.id) return
+    supabase
+      .from('personal_tasks')
+      .select('id, title, type, status, client_id, due_date, labels')
+      .neq('status', 'feito')
+      .not('client_id', 'is', null)
+      .eq('assigned_to', currentMember.id)
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .then(({ data }) => { if (data) setMyTasks(data) })
   }, [currentMember?.id])
 
   // Donut + evolução do "Visão geral" — busca o mês escolhido (só quando difere
@@ -597,7 +584,7 @@ export default function DashboardPage() {
   // "precisa de você" (ação sua) ou "esperando o cliente" (aguardando aprovação) —
   // ajuste solicitado conta como "precisa de você" (é ação sua consertar).
   type ParaVoceItem = {
-    id: string; kind: 'post' | 'extra' | 'material'; title: string
+    id: string; kind: 'post' | 'extra' | 'material' | 'task'; title: string
     clientId: string; dueDate: string | null; ajuste: boolean; waitingClient: boolean; href: string
     postType?: string | null; campaignType?: string | null; labels?: CardLabel[] | null
   }
@@ -633,6 +620,12 @@ export default function DashboardPage() {
       waitingClient: m.status === 'aguardando_aprovacao',
       href: m.client_id ? `/dashboard/clientes/${m.client_id}?tab=materiais` : '/dashboard/materiais',
       labels: asLabels(m.labels),
+    })),
+    ...myTasks.map((t): ParaVoceItem => ({
+      id: `task-${t.id}`, kind: 'task', title: t.title, clientId: t.client_id,
+      dueDate: t.due_date, ajuste: false, waitingClient: false,
+      href: `/dashboard/tarefas?task=${t.id}`,
+      labels: asLabels(t.labels),
     })),
   ]
   const needsYou = paraVoceItems.filter(i => !i.waitingClient)
@@ -735,7 +728,8 @@ export default function DashboardPage() {
     fetchAging('schedules', postIds, 'post')
     fetchAging('extras', extraIds, 'extra')
     fetchAging('materials', materialIds, 'material')
-  }, [loading, directAssigned.length, myExtras.length, myMaterials.length])
+    fetchAging('personal_tasks', myTasks.map(t => t.id), 'task')
+  }, [loading, directAssigned.length, myExtras.length, myMaterials.length, myTasks.length])
 
   // Nome de exibição da campanha (ex: "Dia dos Pais") pro selo em cada item —
   // campaign_type guarda só o slug ("pais"), o nome de verdade (que pode ser
@@ -800,11 +794,12 @@ export default function DashboardPage() {
   // contagem total ("3 pendências"), que não dizia nada sobre o que era.
   const paraVoceFallbackSummary = (() => {
     const REST_KIND_LABEL: Record<string, [string, string]> = {
-      post: ['post do crono', 'posts do crono'], extra: ['extra', 'extras'], material: ['material', 'materiais'],
+      post: ['post do crono', 'posts do crono'], extra: ['extra', 'extras'],
+      material: ['material', 'materiais'], task: ['tarefa', 'tarefas'],
     }
     const restCounts: Record<string, number> = {}
     needsYouRest.forEach(i => { restCounts[i.kind] = (restCounts[i.kind] || 0) + 1 })
-    const restParts = (['post', 'extra', 'material'] as const)
+    const restParts = (['post', 'extra', 'material', 'task'] as const)
       .filter(k => restCounts[k] > 0)
       .map(k => { const n = restCounts[k]; const [s, p] = REST_KIND_LABEL[k]; return `${n} ${pl(n, s, p)}` })
     const restJoined = restParts.length > 1
