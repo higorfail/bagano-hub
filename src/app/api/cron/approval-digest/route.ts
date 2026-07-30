@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     if (memberIds.length > 0) {
       const { data: subs } = await supabase.from('push_subscriptions')
         .select('id, endpoint, p256dh, auth').in('member_id', memberIds)
-      const payload = JSON.stringify({ title: '📋 Resumo de aprovação', body, url: '/dashboard/cronograma' })
+      const payload = JSON.stringify({ title: '📋 Resumo de aprovação', body, url: `/dashboard/cronograma?client=${row.client_id}` })
       await Promise.all((subs || []).map(async (sub: any) => {
         try {
           await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload)

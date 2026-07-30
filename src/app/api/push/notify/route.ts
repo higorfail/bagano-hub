@@ -55,10 +55,20 @@ export async function POST(req: NextRequest) {
     clientName = client?.name || null
   }
 
+  // O Cronograma carrega os posts por month/year (colunas próprias da
+  // tabela, diferentes de scheduled_date) — sem passar isso no link, clicar
+  // na notificação abria o cliente certo mas no mês atual, e o post do
+  // deep-link nunca aparecia na lista carregada (então nunca abria o card).
+  let url = buildUrl(recordId, clientId)
+  if (tableName === 'schedules') {
+    const { data: sched } = await supabase.from('schedules').select('month, year').eq('id', recordId).maybeSingle()
+    if (sched?.month && sched?.year) url += `&m=${sched.month}&y=${sched.year}`
+  }
+
   const payload = JSON.stringify({
     title: clientName ? `${clientName} · ${actorName || 'Bagano Hub'}` : (actorName || 'Bagano Hub'),
     body: description || 'Atualização num card que você acompanha',
-    url: buildUrl(recordId, clientId),
+    url,
   })
 
   let sent = 0

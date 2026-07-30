@@ -29,7 +29,11 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close()
-  const url = event.notification.data?.url || '/dashboard'
+  // Resolve sempre pra URL absoluta — client.navigate()/clients.openWindow()
+  // com caminho relativo tem histórico de resolver errado em alguns
+  // navegadores (principalmente Safari/iOS), abrindo a raiz do site em vez
+  // do link de verdade.
+  const url = new URL(event.notification.data?.url || '/dashboard', self.location.origin).href
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
