@@ -242,29 +242,50 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
             const cur = labelCounts.get(l.text)
             labelCounts.set(l.text, { color: l.color, n: (cur?.n || 0) + 1 })
           }))
+          // Cliente com um item só: a linha JÁ é o item — abre o card direto,
+          // sem seta. Expandir pra revelar uma única linha é clique à toa.
+          const single = its.length === 1 ? its[0] : null
+          const singleOverdue = !!single?.dueDate && single.dueDate < todayStr && !single.ajuste
+          const singleCountdown = single ? dueCountdown(single.dueDate, todayStr) : null
+
           return (
             <div key={key}>
-              <button onClick={() => toggle(key)}
+              <button onClick={() => single ? router.push(single.href) : toggle(key)}
                 className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2 transition-colors hover:brightness-[0.97]"
                 style={{ background: hasAjuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
                 <ClientAvatar client={client} />
-                <span className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+                <span className={`text-xs font-semibold truncate flex-shrink-0 ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
                   {client?.name || 'Sem cliente'}
                 </span>
-                <span className="text-[10px] text-[var(--color-text-muted)] truncate flex-1 min-w-0">{summarize(its)}</span>
+                {single ? (
+                  // Título do item no lugar do "1 post" — mesma informação que
+                  // apareceria ao expandir, só que já visível.
+                  <span className="text-[11px] text-[var(--color-text-secondary)] truncate flex-1 min-w-0">
+                    {emojiFor(single)} {single.title || 'Sem título'}
+                    {singleCountdown ? <span className="text-[var(--color-text-muted)]"> · {singleCountdown}</span> : null}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-[var(--color-text-muted)] truncate flex-1 min-w-0">{summarize(its)}</span>
+                )}
                 {[...labelCounts.entries()].slice(0, 2).map(([text, { color, n }]) => (
                   <span key={text} className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: color }}>
                     {n === its.length ? text : `${n} ${text}`}
                   </span>
                 ))}
-                {overdueCount > 0 && (
+                {single ? (
+                  singleOverdue && (
+                    <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
+                  )
+                ) : overdueCount > 0 && (
                   <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
                     {overdueCount} atrasado{overdueCount !== 1 ? 's' : ''}
                   </span>
                 )}
-                <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
+                {!single && (
+                  <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
+                )}
               </button>
-              {isOpen && (
+              {!single && isOpen && (
                 <div className="flex flex-col gap-1 mt-1 pl-3">
                   {its.map(it => renderRow(it, `${key}-${it.id}`))}
                 </div>
