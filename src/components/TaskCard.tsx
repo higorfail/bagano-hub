@@ -95,6 +95,8 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
   const [editingLabel, setEditingLabel] = useState<any>(null)
 
   const [attachments, setAttachments] = useState<any[]>([])
+  const [attachmentsLoaded, setAttachmentsLoaded] = useState(false)
+  const backfilledRef = useRef(false)
   const [uploads, setUploads] = useState<any[]>([])
   const [newAttachUrl, setNewAttachUrl] = useState('')
   const [newAttachTitle, setNewAttachTitle] = useState('')
@@ -129,7 +131,18 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
     setComments(cms || [])
     setAttachments(atts || [])
     setUploads(ups || [])
+    setAttachmentsLoaded(true)
   }, [])
+
+  // Links já escritos na nota/comentários ANTES do anexo automático existir
+  // nunca foram anexados (o auto-anexo só dispara ao editar). Varre uma vez,
+  // ao abrir, pra valer a regra "todo link do card aparece nos anexos".
+  useEffect(() => {
+    if (!id || !attachmentsLoaded || backfilledRef.current) return
+    backfilledRef.current = true
+    autoAttachLinks([note, ...comments.map((c: any) => c.body)].join('\n'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, attachmentsLoaded, comments.length])
 
   useEffect(() => {
     if (!taskId) return
@@ -319,6 +332,15 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
       setAttachments(a => a.map(x => x.id === data.id ? { ...x, title: fetched } : x))
     }
   }
+  // Link colado sem querer dentro da nota ou de um comentário passa
+  // despercebido lá dentro do texto — leva pros Anexos automaticamente (sem
+  // tirar do texto original).
+  async function autoAttachLinks(text: string) {
+    const urls = text.match(/https?:\/\/\S+/g) || []
+    for (const url of urls) {
+      if (!attachments.some(a => a.url === url)) await addAttachmentUrl(url)
+    }
+  }
   async function removeAttachment(aid: string) {
     const att = attachments.find(a => a.id === aid)
     await supabase.from('personal_task_attachments').delete().eq('id', aid)
@@ -365,6 +387,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
     await ensureWatchingFromMentions('personal_tasks', tid, body, members)
     await logActivity({ tableName: 'personal_tasks', recordId: tid, action: 'commented', actorName: author, description: `${author} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
+    await autoAttachLinks(body)
   }
   async function saveEditComment(cid: string) {
     const body = editCommentText.trim(); if (!body) return
@@ -566,6 +589,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
                 const summary = await generateAiSummary(v, title)
                 if (summary != null) await supabase.from('personal_tasks').update({ ai_summary: summary }).eq('id', tid)
               }
+              await autoAttachLinks(v)
             }}
           />
 
@@ -581,6 +605,10 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
               links={attachments}
               onRemoveUpload={u => removeUpload(u.id, u.file_url)}
               onRemoveLink={l => removeAttachment(l.id)}
+              onTitleResolved={async (aid, title) => {
+                await supabase.from('personal_task_attachments').update({ title }).eq('id', aid)
+                setAttachments(a => a.map(x => x.id === aid ? { ...x, title } : x))
+              }}
             />
 
             <div className="flex gap-2">
