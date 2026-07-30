@@ -42,6 +42,13 @@ const STATUS_OPTIONS: { value: ExtraStatus; label: string; color: string }[] = [
   { value: 'aguardando_aprovacao', label: 'Em aprovação',  color: '#EC4899' },
   { value: 'done',                 label: 'Finalizado',    color: '#22C55E' },
 ]
+// "Ajuste" não é um status próprio na tabela — é a combinação "A fazer" +
+// aprovação recusada, exatamente o estado em que o card cai quando o cliente
+// pede ajuste pelo link. Aparece como opção no seletor pra dar conta do caso
+// real de o cliente pedir ajuste por fora (WhatsApp, na reunião) e o time
+// registrar isso do mesmo jeito, com o mesmo destaque no Kanban.
+const AJUSTE_OPTION = { value: 'ajuste', label: 'Ajuste solicitado', color: '#ef4444' }
+const STATUS_SELECT_OPTIONS = [STATUS_OPTIONS[0], AJUSTE_OPTION, STATUS_OPTIONS[1], STATUS_OPTIONS[2]]
 const PRIORITY_OPTIONS: { value: ExtraPriority; label: string; color: string }[] = [
   { value: 'low',    label: 'Baixa',  color: '#94a3b8' },
   { value: 'normal', label: 'Normal', color: '#6b7280' },
@@ -345,6 +352,22 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
       `${who} moveu de "${old}" para "${STATUS_LABEL[v]}"`, 'status_changed',
     )
   }
+
+  // Marcar "Ajuste solicitado" à mão deixa o card exatamente no mesmo estado
+  // que o pedido de ajuste feito pelo cliente no link público (ver
+  // rejectExtra em AprovarClient): volta pra "A fazer" com a aprovação
+  // recusada, o que dispara o destaque amarelo e o selo no Kanban.
+  function changeStatusOrAjuste(v: string) {
+    if (v !== 'ajuste') { changeStatus(v as ExtraStatus); return }
+    if (clientApprovalStatus === 'recusado') return
+    setStatus('backlog')
+    originalStatusRef.current = 'backlog'
+    setClientApprovalStatus('recusado')
+    persist(
+      { status: 'backlog', completed_at: null, client_approval_status: 'recusado' },
+      `${who} marcou que o cliente pediu ajuste`, 'status_changed',
+    )
+  }
   function changeType(v: ExtraType) {
     const oldLabel = TYPE_OPTIONS.find(t => t.value === type)?.label || type
     const newLabel = TYPE_OPTIONS.find(t => t.value === v)?.label || v
@@ -627,6 +650,12 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   const checkPct   = checklist.length ? Math.round((checkDone / checklist.length) * 100) : 0
   const typeObj     = TYPE_OPTIONS.find(t => t.value === type) || TYPE_OPTIONS[3]
   const statusObj   = STATUS_OPTIONS.find(s => s.value === status)!
+  // Com ajuste pedido o seletor mostra "Ajuste solicitado" (em vermelho) em
+  // vez de "A fazer" — senão o card ficaria com destaque de ajuste no Kanban
+  // mas o seletor diria só "A fazer", parecendo um card comum.
+  const isAjuste = clientApprovalStatus === 'recusado'
+  const statusSelectValue = isAjuste ? 'ajuste' : status
+  const statusSelectObj = isAjuste ? AJUSTE_OPTION : statusObj
   const priorityObj = PRIORITY_OPTIONS.find(p => p.value === priority)!
   const clientName  = clients.find(c => c.id === clientId)?.name
 
@@ -789,11 +818,11 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
           {/* Status */}
           <PropertyPill label="Status">
             <div className="relative min-w-0">
-              <select value={status} onChange={e => changeStatus(e.target.value as ExtraStatus)}
-                className={pillSelectCls} style={{ background: statusObj.color + '18', color: statusObj.color, borderColor: statusObj.color + '44' }}>
-                {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
+              <select value={statusSelectValue} onChange={e => changeStatusOrAjuste(e.target.value)}
+                className={pillSelectCls} style={{ background: statusSelectObj.color + '18', color: statusSelectObj.color, borderColor: statusSelectObj.color + '44' }}>
+                {STATUS_SELECT_OPTIONS.map(s => <option key={s.value} value={s.value} style={{ color: 'var(--color-text-primary)' }}>{s.label}</option>)}
               </select>
-              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusObj.color }} />
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: statusSelectObj.color }} />
             </div>
           </PropertyPill>
           {/* Prioridade */}
