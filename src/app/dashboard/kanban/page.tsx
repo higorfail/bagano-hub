@@ -6,6 +6,7 @@ import PostCard from '@/components/PostCard'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import { groupByClient, useClientGrouping } from '@/lib/useClientGrouping'
+import { approvalKind } from '@/lib/approvalKind'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 type Post = {
@@ -336,7 +337,9 @@ export default function KanbanPage() {
                                       {TYPE_LABEL[post.post_type] || post.post_type}
                                     </span>
                                     {isApproved && !isRejected && (
-                                      <span className="text-[10px] font-semibold" style={{ color: 'var(--ds-success-text)' }}>✓</span>
+                                      <span className="text-[10px] font-semibold" style={{ color: 'var(--ds-success-text)' }}>
+                                        ✓ {approvalKind(post.status, post.approval_status) === 'final' ? 'Final' : 'Crono'}
+                                      </span>
                                     )}
                                   </div>
                                   <div className="flex items-center gap-2">

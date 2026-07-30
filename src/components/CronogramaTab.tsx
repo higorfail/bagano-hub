@@ -8,6 +8,7 @@ import PostCard from '@/components/PostCard'
 import PostMiniCard, { MiniPost } from '@/components/PostMiniCard'
 import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
+import { approvalKind } from '@/lib/approvalKind'
 import { dbError } from '@/lib/dbError'
 import { Check, Copy, Search, X, Zap, ClipboardCheck, Link2, Sparkles, ClipboardList } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
@@ -732,7 +733,11 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                     </span>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {post.approval_status === 'não aprovado' && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>✗</span>}
-                      {post.approval_status === 'aprovado' && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓</span>}
+                      {post.approval_status === 'aprovado' && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
+                          ✓ {approvalKind(post.status, post.approval_status) === 'final' ? 'Final' : 'Crono'}
+                        </span>
+                      )}
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
                         {STATUS_LABEL[post.status] || post.status}
                       </span>

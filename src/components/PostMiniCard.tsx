@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Calendar, Paperclip, Copy, Package, Play, Zap, MessageSquare } from 'lucide-react'
+import { approvalKind } from '@/lib/approvalKind'
 
 const TYPE: Record<string, { label: string; color: string }> = {
   carrossel:         { label: 'Carrossel',         color: '#3b82f6' },
@@ -247,7 +248,13 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
             {isAdjustedPending
               ? <span title={post.approval_comment || ''} className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>🟡 Ajustado</span>
               : isAdjusted && <span title={post.approval_comment || ''} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">✓ Ajuste aplicado</span>}
-            {isApproved && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓</span>}
+            {/* Diz QUAL aprovação foi: um "✓" sozinho não distinguia o
+                cronograma aprovado da arte final aprovada. */}
+            {isApproved && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
+                ✓ {approvalKind(post.status, post.approval_status) === 'final' ? 'Final' : 'Crono'}
+              </span>
+            )}
           </div>
         </div>
       </div>

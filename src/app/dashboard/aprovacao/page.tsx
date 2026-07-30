@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
 import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight, ChevronsUpDown, Search, Link2, LayoutGrid, List, Play, Megaphone, MessageSquare, Send, X, ExternalLink } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
+import { approvalKind, approvalLabel } from '@/lib/approvalKind'
 
 type Post = {
   id: string
@@ -242,7 +243,7 @@ function Lightbox({ post, client, waitDays, onClose, onOpenFull }: {
           <div className="flex items-start justify-between gap-2">
             <p className="font-semibold text-sm text-[var(--color-text-primary)]">{post.title || 'Sem título'}</p>
             {isApproved ? (
-              <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>✓ Aprovado</span>
+              <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>✓ {approvalLabel(post.status, post.approval_status)}</span>
             ) : needsRevision ? (
               <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>Revisão</span>
             ) : (
@@ -813,7 +814,7 @@ function AprovacaoPageInner() {
                               const isUrgent = waitDays !== null && waitDays >= 3 && !isApproved
                               const statusColor = isApproved ? 'var(--ds-success-accent)' : hasAdjustment || needsRevision ? '#ef4444' : 'var(--ds-info-accent)'
                               const nComments = commentsCount[p.id] || 0
-                              const statusLabel = isApproved ? 'Aprovado' : hasAdjustment || needsRevision ? 'Ajuste' : 'Aguardando'
+                              const statusLabel = isApproved ? (approvalKind(p.status, p.approval_status) === 'final' ? 'Final' : 'Crono') : hasAdjustment || needsRevision ? 'Ajuste' : 'Aguardando'
                               return (
                                 <div key={p.id} className="flex flex-col gap-1">
                                   <button onClick={() => setLightboxId(p.id)} title="Ver preview" className="relative rounded-lg overflow-hidden transition-all hover:opacity-90"
@@ -915,7 +916,7 @@ function AprovacaoPageInner() {
                                   <div className="flex-shrink-0">
                                     {isApproved ? (
                                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
-                                        ✓ Aprovado
+                                        ✓ {approvalLabel(p.status, p.approval_status)}
                                       </span>
                                     ) : hasAdjustment || needsRevision ? (
                                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border text-white" style={{ color: '#fff', background: '#ef4444', borderColor: '#ef4444' }}>

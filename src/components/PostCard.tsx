@@ -17,6 +17,7 @@ import { renderWithMentions } from '@/lib/useMentions'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { generateAiLegenda } from '@/lib/aiLegenda'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
+import { approvalKind, approvalLabel } from '@/lib/approvalKind'
 import WatchButton from '@/components/WatchButton'
 import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
@@ -1469,8 +1470,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             )}
             {approvalStatus === 'aprovado' && (
               <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl"
+                title={approvalKind(form.status, approvalStatus) === 'final'
+                  ? 'O cliente aprovou a arte final deste post'
+                  : 'O cliente aprovou a ideia no cronograma — a arte final ainda não foi aprovada'}
                 style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
-                ✓ Aprovado pelo cliente
+                ✓ {approvalLabel(form.status, approvalStatus)}
               </span>
             )}
             {currentId && (
