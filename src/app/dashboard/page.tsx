@@ -151,7 +151,10 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     return KIND_ICON[it.kind] || '•'
   }
 
-  function renderRow(it: ParaVoceRowItem, key?: string, showAvatar = true) {
+  // Linha sem avatar (usada dentro de uma seção de cliente, que já mostra o
+  // avatar uma vez só no cabeçalho — repetir em cada linha era redundante e
+  // deixava um "buraco" de espaço reservado quando não tinha o quê mostrar).
+  function renderRow(it: ParaVoceRowItem, key?: string) {
     const overdue = !!it.dueDate && it.dueDate < todayStr && !it.ajuste
     const updatedAt = agingMap?.[it.id]
     const ageDays = updatedAt ? Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000) : null
@@ -159,19 +162,19 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     const showAge = !overdue && ageDays !== null && ageDays >= ageThreshold
     const countdown = dueCountdown(it.dueDate, todayStr)
     const campaignName = it.campaignType ? campaignNameMap?.[`${it.clientId}:${it.campaignType}`] : null
-    const client = clientMap[it.clientId]
     return (
       <button key={key || it.id} onClick={() => router.push(it.href)}
         className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
         style={{ background: it.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
-        {showAvatar ? <ClientAvatar client={client} /> : <span className="w-7 flex-shrink-0" />}
         <div className="flex-1 min-w-0">
           <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
             {emojiFor(it)} {it.title || 'Sem título'}
           </p>
-          <p className="text-[11px] text-[var(--color-text-muted)] truncate">
-            {showAvatar ? (client?.name || 'Sem cliente') : null}{countdown ? `${showAvatar ? ' · ' : ''}${countdown}` : ''}{campaignName ? `${showAvatar || countdown ? ' · ' : ''}📣 ${campaignName}` : ''}
-          </p>
+          {(countdown || campaignName) && (
+            <p className="text-[11px] text-[var(--color-text-muted)] truncate">
+              {countdown || ''}{campaignName ? `${countdown ? ' · ' : ''}📣 ${campaignName}` : ''}
+            </p>
+          )}
         </div>
         {overdue && (
           <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
@@ -185,61 +188,87 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     )
   }
 
-  // Agrupa por cliente+tipo (+ ajuste separado de pendência normal) — várias
-  // pendências iguais do mesmo cliente (6 reels do mesmo crono, por ex.)
-  // viravam 6 linhas idênticas; agora uma linha só, expansível. Ajuste
-  // agrupa também (3 ajustes do mesmo cliente = 1 linha vermelha), só que
-  // nunca fica escondido: continua sempre no topo, com a cor de urgência.
-  const groupMap = new Map<string, ParaVoceRowItem[]>()
+  // Duas camadas de agrupamento: primeiro por CLIENTE (avatar/nome aparece
+  // uma vez só, igual Criação/Aprovações já fazem), depois por tipo dentro
+  // de cada cliente — material e post do mesmo cliente (Piastro Cucina, por
+  // ex.) ficam na mesma seção em vez de linhas soltas repetindo o cliente.
+  const byClient = new Map<string, ParaVoceRowItem[]>()
   for (const it of items) {
-    const key = `${it.clientId}:${it.kind}:${it.postType || ''}:${it.ajuste ? 1 : 0}`
-    if (!groupMap.has(key)) groupMap.set(key, [])
-    groupMap.get(key)!.push(it)
+    if (!byClient.has(it.clientId)) byClient.set(it.clientId, [])
+    byClient.get(it.clientId)!.push(it)
   }
-  const groups = [...groupMap.entries()].map(([key, its]) => ({ key, its }))
+  const clientSections = [...byClient.entries()].map(([clientId, its]) => ({ clientId, its }))
+  const totalItems = items.length
+  const shownItems = clientSections.slice(0, cap).reduce((s, c) => s + c.its.length, 0)
 
   return (
     <div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5 px-0.5">{label}</p>
-      <div className="flex flex-col gap-1">
-        {groups.slice(0, cap).map(({ key, its }) => {
-          if (its.length === 1) return renderRow(its[0])
-          const first = its[0]
-          const isOpen = expanded.has(key)
-          const typeMeta = first.postType ? TYPE_META[first.postType] : null
-          const [sing, plur] = typeMeta ? [typeMeta.label, typeMeta.plural] : KIND_LABEL[first.kind] || [first.kind, first.kind + 's']
+      <div className="flex flex-col gap-2.5">
+        {clientSections.slice(0, cap).map(({ clientId, its }) => {
+          const client = clientMap[clientId]
+          const isAjuste = its[0]?.ajuste
           const overdueCount = its.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
-          const client = clientMap[first.clientId]
+
+          // Dentro do cliente, agrupa por tipo (6 reels do mesmo crono viram
+          // 1 linha expansível em vez de 6 linhas idênticas).
+          const subMap = new Map<string, ParaVoceRowItem[]>()
+          for (const it of its) {
+            const key = `${it.kind}:${it.postType || ''}`
+            if (!subMap.has(key)) subMap.set(key, [])
+            subMap.get(key)!.push(it)
+          }
+          const subGroups = [...subMap.entries()].map(([key, subIts]) => ({ key: `${clientId}:${key}`, its: subIts }))
+
           return (
-            <div key={key}>
-              <button onClick={() => toggle(key)}
-                className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
-                style={{ background: first.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
+            <div key={clientId} className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 px-0.5">
                 <ClientAvatar client={client} />
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
-                    {emojiFor(first)} {its.length} {pl(its.length, sing, plur)} {first.ajuste ? 'pedidos pelo cliente' : 'pendentes'}
-                  </p>
-                  <p className="text-[11px] text-[var(--color-text-muted)] truncate">{client?.name || 'Sem cliente'}</p>
-                </div>
+                <span className="text-xs font-semibold text-[var(--color-text-primary)] truncate">{client?.name || 'Sem cliente'}</span>
                 {overdueCount > 0 && (
                   <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
                     {overdueCount} atrasado{overdueCount !== 1 ? 's' : ''}
                   </span>
                 )}
-                <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
-              </button>
-              {isOpen && (
-                <div className="flex flex-col gap-1 mt-1 pl-3">
-                  {its.map(it => renderRow(it, `${key}-${it.id}`, false))}
-                </div>
-              )}
+              </div>
+              {subGroups.map(({ key, its: subIts }) => {
+                if (subIts.length === 1) return renderRow(subIts[0], key)
+                const first = subIts[0]
+                const isOpen = expanded.has(key)
+                const typeMeta = first.postType ? TYPE_META[first.postType] : null
+                const [sing, plur] = typeMeta ? [typeMeta.label, typeMeta.plural] : KIND_LABEL[first.kind] || [first.kind, first.kind + 's']
+                const subOverdue = subIts.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
+                return (
+                  <div key={key}>
+                    <button onClick={() => toggle(key)}
+                      className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
+                      style={{ background: isAjuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+                          {emojiFor(first)} {subIts.length} {pl(subIts.length, sing, plur)} {isAjuste ? 'pedidos pelo cliente' : 'pendentes'}
+                        </p>
+                      </div>
+                      {subOverdue > 0 && (
+                        <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
+                          {subOverdue} atrasado{subOverdue !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
+                    </button>
+                    {isOpen && (
+                      <div className="flex flex-col gap-1 mt-1 pl-3">
+                        {subIts.map(it => renderRow(it, `${key}-${it.id}`))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )
         })}
-        {groups.length > cap && (
+        {totalItems > shownItems && (
           <p className="text-[11px] text-[var(--color-text-faint)] px-0.5">
-            + {groups.slice(cap).reduce((s, g) => s + g.its.length, 0)} {groups.slice(cap).reduce((s, g) => s + g.its.length, 0) === 1 ? 'item' : 'itens'}
+            + {totalItems - shownItems} {totalItems - shownItems === 1 ? 'item' : 'itens'}
           </p>
         )}
       </div>
@@ -728,13 +757,26 @@ export default function DashboardPage() {
   // Título + resumo juntos numa linha só (era "Para você, Nome" + um parágrafo
   // logo abaixo repetindo a mesma informação) — a IA já resume tudo, só
   // faltava não duplicar espaço/atenção com dois textos dizendo quase a
-  // mesma coisa. Fallback determinístico (contagem simples) até a IA responder.
+  // mesma coisa. Fallback determinístico até a IA responder (ou se falhar) —
+  // detalha por tipo ("6 posts do crono, 1 extra e 1 material"), não só a
+  // contagem total ("3 pendências"), que não dizia nada sobre o que era.
   const paraVoceFallbackSummary = (() => {
+    const REST_KIND_LABEL: Record<string, [string, string]> = {
+      post: ['post do crono', 'posts do crono'], extra: ['extra', 'extras'], material: ['material', 'materiais'],
+    }
+    const restCounts: Record<string, number> = {}
+    needsYouRest.forEach(i => { restCounts[i.kind] = (restCounts[i.kind] || 0) + 1 })
+    const restParts = (['post', 'extra', 'material'] as const)
+      .filter(k => restCounts[k] > 0)
+      .map(k => { const n = restCounts[k]; const [s, p] = REST_KIND_LABEL[k]; return `${n} ${pl(n, s, p)}` })
+    const restJoined = restParts.length > 1
+      ? restParts.slice(0, -1).join(', ') + ' e ' + restParts[restParts.length - 1]
+      : restParts[0] || ''
     const parts = [
       needsYouAjusteItems.length > 0 && `${needsYouAjusteItems.length} ${pl(needsYouAjusteItems.length, 'ajuste pedido', 'ajustes pedidos')} pelo cliente`,
-      needsYouRest.length > 0 && `${needsYouRest.length} ${pl(needsYouRest.length, 'pendência', 'pendências')}`,
+      restJoined,
     ].filter(Boolean)
-    return parts.length ? parts.join(' e ') + '.' : ''
+    return parts.length ? parts.join(', ') + '.' : ''
   })()
   const paraVoceSummary = digestText || paraVoceFallbackSummary
   const paraVoceTitle = paraVoceContent && paraVoceSummary ? `Para você, ${firstName}: ${paraVoceSummary}` : `Para você, ${firstName}`
