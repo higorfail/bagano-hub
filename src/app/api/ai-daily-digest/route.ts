@@ -9,11 +9,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ digest: '' })
   }
 
-  const itemsText = items.slice(0, 20).map((it: any) =>
-    `- ${it.kind} "${it.title}" (${it.clientName || 'sem cliente'})${it.ajuste ? ' — AJUSTE PEDIDO PELO CLIENTE' : ''}${it.overdue ? ' — ATRASADO' : ''}${it.dueDate ? ` — prazo ${it.dueDate}` : ''}`
-  ).join('\n')
+  const itemsText = items.slice(0, 20).map((it: any) => {
+    const tipo = it.postType || it.kind
+    const etiquetas = Array.isArray(it.labels) && it.labels.length ? ` — etiquetas: ${it.labels.join(', ')}` : ''
+    return `- ${tipo} "${it.title}" (${it.clientName || 'sem cliente'})${it.ajuste ? ' — AJUSTE PEDIDO PELO CLIENTE' : ''}${it.overdue ? ' — ATRASADO' : ''}${it.dueDate ? ` — prazo ${it.dueDate}` : ''}${etiquetas}`
+  }).join('\n')
 
-  const prompt = `Você é um assistente de produtividade de uma agência de social media. Escreva só a CONTINUAÇÃO de uma frase que já começa com "Para você, ${memberName || 'a pessoa'}: " — não repita o nome nem cumprimente, comece direto pelo resumo (ex: "1 ajuste pedido pelo cliente e 8 reels pra produzir."). Máximo 25 palavras, em português. Resuma o que é mais urgente da lista de pendências abaixo, agrupando por tipo de conteúdo quando fizer sentido (ex: "8 reels" em vez de "8 posts"). Priorize: ajustes pedidos pelo cliente primeiro, depois atrasados, depois o resto. Não invente nada que não está na lista. Não use markdown. Termine com ponto final. Responda só com essa continuação.
+  const prompt = `Você é um assistente de produtividade de uma agência de social media. Escreva só a CONTINUAÇÃO de uma frase que já começa com "Para você, ${memberName || 'a pessoa'}: " — não repita o nome nem cumprimente, comece direto pelo resumo. Máximo 30 palavras, em português. Termine com ponto final. Não use markdown. Responda só com essa continuação.
+
+Regras:
+- Agrupe por tipo de conteúdo usando o nome real (reels, carrossel, story, post), não "posts" genérico.
+- As ETIQUETAS dizem o trabalho que falta em cada card. Use-as pra descrever a tarefa em português natural, não copie o texto da etiqueta cru: "CRIAR LEGENDA" vira "criar a legenda", "Criar o design" vira "criar o design", "AGENDAR" vira "agendar". Ex: "6 reels do Mundo Selvagem — 4 pra criar legenda e 2 pro design."
+- Priorize: ajustes pedidos pelo cliente primeiro, depois atrasados, depois o resto.
+- Cite nome de cliente quando ajudar a localizar o trabalho.
+- Não invente nada que não está na lista.
 
 Pendências:
 ${itemsText}`

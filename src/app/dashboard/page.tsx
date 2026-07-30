@@ -115,9 +115,11 @@ function dueCountdown(dueDate: string | null, todayStr: string): string | null {
   return `vence em ${diff}d`
 }
 
+type CardLabel = { text: string; color: string }
 type ParaVoceRowItem = {
   id: string; kind: string; title: string; clientId: string; dueDate: string | null
   ajuste: boolean; href: string; postType?: string | null; campaignType?: string | null
+  labels?: CardLabel[] | null
 }
 
 function ClientAvatar({ client }: { client?: { name: string; color_hex?: string; logo_url?: string | null } }) {
@@ -151,10 +153,7 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     return KIND_ICON[it.kind] || '•'
   }
 
-  // Linha sem avatar (usada dentro de uma seção de cliente, que já mostra o
-  // avatar uma vez só no cabeçalho — repetir em cada linha era redundante e
-  // deixava um "buraco" de espaço reservado quando não tinha o quê mostrar).
-  function renderRow(it: ParaVoceRowItem, key?: string) {
+  function renderRow(it: ParaVoceRowItem, key?: string, showAvatar = true) {
     const overdue = !!it.dueDate && it.dueDate < todayStr && !it.ajuste
     const updatedAt = agingMap?.[it.id]
     const ageDays = updatedAt ? Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000) : null
@@ -162,20 +161,31 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     const showAge = !overdue && ageDays !== null && ageDays >= ageThreshold
     const countdown = dueCountdown(it.dueDate, todayStr)
     const campaignName = it.campaignType ? campaignNameMap?.[`${it.clientId}:${it.campaignType}`] : null
+    const client = clientMap[it.clientId]
+    const sub = [showAvatar ? (client?.name || 'Sem cliente') : '', countdown, campaignName ? `📣 ${campaignName}` : '']
+      .filter(Boolean).join(' · ')
     return (
       <button key={key || it.id} onClick={() => router.push(it.href)}
         className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
         style={{ background: it.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
+        {/* Sem avatar não sobra espaço reservado — nas linhas de dentro de um
+            grupo o texto começa na margem, sem o buraco que a versão antiga
+            deixava no lugar do avatar. */}
+        {showAvatar && <ClientAvatar client={client} />}
         <div className="flex-1 min-w-0">
           <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
             {emojiFor(it)} {it.title || 'Sem título'}
           </p>
-          {(countdown || campaignName) && (
-            <p className="text-[11px] text-[var(--color-text-muted)] truncate">
-              {countdown || ''}{campaignName ? `${countdown ? ' · ' : ''}📣 ${campaignName}` : ''}
-            </p>
-          )}
+          {sub && <p className="text-[11px] text-[var(--color-text-muted)] truncate">{sub}</p>}
         </div>
+        {/* Etiqueta do card (CRIAR LEGENDA, Criar o design…) — é o que diz o
+            que falta fazer ali, então precisa estar visível na lista, não só
+            dentro do card. */}
+        {it.labels?.slice(0, 2).map((l, i) => (
+          <span key={i} className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: l.color }}>
+            {l.text}
+          </span>
+        ))}
         {overdue && (
           <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
         )}
@@ -188,87 +198,74 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     )
   }
 
-  // Duas camadas de agrupamento: primeiro por CLIENTE (avatar/nome aparece
-  // uma vez só, igual Criação/Aprovações já fazem), depois por tipo dentro
-  // de cada cliente — material e post do mesmo cliente (Piastro Cucina, por
-  // ex.) ficam na mesma seção em vez de linhas soltas repetindo o cliente.
-  const byClient = new Map<string, ParaVoceRowItem[]>()
+  // Agrupa por cliente+tipo (+ ajuste separado de pendência normal) — várias
+  // pendências iguais do mesmo cliente (6 reels do mesmo crono, por ex.)
+  // viravam 6 linhas idênticas; agora uma linha só, expansível. Ajuste
+  // agrupa também (3 ajustes do mesmo cliente = 1 linha vermelha), só que
+  // nunca fica escondido: continua sempre no topo, com a cor de urgência.
+  const groupMap = new Map<string, ParaVoceRowItem[]>()
   for (const it of items) {
-    if (!byClient.has(it.clientId)) byClient.set(it.clientId, [])
-    byClient.get(it.clientId)!.push(it)
+    const key = `${it.clientId}:${it.kind}:${it.postType || ''}:${it.ajuste ? 1 : 0}`
+    if (!groupMap.has(key)) groupMap.set(key, [])
+    groupMap.get(key)!.push(it)
   }
-  const clientSections = [...byClient.entries()].map(([clientId, its]) => ({ clientId, its }))
-  const totalItems = items.length
-  const shownItems = clientSections.slice(0, cap).reduce((s, c) => s + c.its.length, 0)
+  const groups = [...groupMap.entries()].map(([key, its]) => ({ key, its }))
 
   return (
     <div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5 px-0.5">{label}</p>
-      <div className="flex flex-col gap-2.5">
-        {clientSections.slice(0, cap).map(({ clientId, its }) => {
-          const client = clientMap[clientId]
-          const isAjuste = its[0]?.ajuste
+      <div className="flex flex-col gap-1">
+        {groups.slice(0, cap).map(({ key, its }) => {
+          if (its.length === 1) return renderRow(its[0])
+          const first = its[0]
+          const isOpen = expanded.has(key)
+          const typeMeta = first.postType ? TYPE_META[first.postType] : null
+          const [sing, plur] = typeMeta ? [typeMeta.label, typeMeta.plural] : KIND_LABEL[first.kind] || [first.kind, first.kind + 's']
           const overdueCount = its.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
-
-          // Dentro do cliente, agrupa por tipo (6 reels do mesmo crono viram
-          // 1 linha expansível em vez de 6 linhas idênticas).
-          const subMap = new Map<string, ParaVoceRowItem[]>()
-          for (const it of its) {
-            const key = `${it.kind}:${it.postType || ''}`
-            if (!subMap.has(key)) subMap.set(key, [])
-            subMap.get(key)!.push(it)
-          }
-          const subGroups = [...subMap.entries()].map(([key, subIts]) => ({ key: `${clientId}:${key}`, its: subIts }))
-
+          const client = clientMap[first.clientId]
+          // Quantos do grupo pedem cada coisa (3 pra criar legenda, 2 pro
+          // design…) — resumido no cabeçalho pra não ter que abrir e conferir
+          // card por card o que falta.
+          const labelCounts = new Map<string, { color: string; n: number }>()
+          its.forEach(i => i.labels?.forEach(l => {
+            const cur = labelCounts.get(l.text)
+            labelCounts.set(l.text, { color: l.color, n: (cur?.n || 0) + 1 })
+          }))
           return (
-            <div key={clientId} className="flex flex-col gap-1">
-              <div className="flex items-center gap-2 px-0.5">
+            <div key={key}>
+              <button onClick={() => toggle(key)}
+                className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
+                style={{ background: first.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
                 <ClientAvatar client={client} />
-                <span className="text-xs font-semibold text-[var(--color-text-primary)] truncate">{client?.name || 'Sem cliente'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+                    {emojiFor(first)} {its.length} {pl(its.length, sing, plur)} {first.ajuste ? 'pedidos pelo cliente' : 'pendentes'}
+                  </p>
+                  <p className="text-[11px] text-[var(--color-text-muted)] truncate">{client?.name || 'Sem cliente'}</p>
+                </div>
+                {[...labelCounts.entries()].slice(0, 2).map(([text, { color, n }]) => (
+                  <span key={text} className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: color }}>
+                    {n === its.length ? text : `${n} ${text}`}
+                  </span>
+                ))}
                 {overdueCount > 0 && (
                   <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
                     {overdueCount} atrasado{overdueCount !== 1 ? 's' : ''}
                   </span>
                 )}
-              </div>
-              {subGroups.map(({ key, its: subIts }) => {
-                if (subIts.length === 1) return renderRow(subIts[0], key)
-                const first = subIts[0]
-                const isOpen = expanded.has(key)
-                const typeMeta = first.postType ? TYPE_META[first.postType] : null
-                const [sing, plur] = typeMeta ? [typeMeta.label, typeMeta.plural] : KIND_LABEL[first.kind] || [first.kind, first.kind + 's']
-                const subOverdue = subIts.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
-                return (
-                  <div key={key}>
-                    <button onClick={() => toggle(key)}
-                      className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
-                      style={{ background: isAjuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
-                          {emojiFor(first)} {subIts.length} {pl(subIts.length, sing, plur)} {isAjuste ? 'pedidos pelo cliente' : 'pendentes'}
-                        </p>
-                      </div>
-                      {subOverdue > 0 && (
-                        <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
-                          {subOverdue} atrasado{subOverdue !== 1 ? 's' : ''}
-                        </span>
-                      )}
-                      <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
-                    </button>
-                    {isOpen && (
-                      <div className="flex flex-col gap-1 mt-1 pl-3">
-                        {subIts.map(it => renderRow(it, `${key}-${it.id}`))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
+              </button>
+              {isOpen && (
+                <div className="flex flex-col gap-1 mt-1 pl-3">
+                  {its.map(it => renderRow(it, `${key}-${it.id}`, false))}
+                </div>
+              )}
             </div>
           )
         })}
-        {totalItems > shownItems && (
+        {groups.length > cap && (
           <p className="text-[11px] text-[var(--color-text-faint)] px-0.5">
-            + {totalItems - shownItems} {totalItems - shownItems === 1 ? 'item' : 'itens'}
+            + {groups.slice(cap).reduce((s, g) => s + g.its.length, 0)} {groups.slice(cap).reduce((s, g) => s + g.its.length, 0) === 1 ? 'item' : 'itens'}
           </p>
         )}
       </div>
@@ -328,7 +325,7 @@ export default function DashboardPage() {
             .eq('status', 'active')
             .order('name'),
           supabase.from(CFG.t.schedules)
-            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type')
+            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels')
             .eq('month', month)
             .eq('year', year),
           supabase.from(CFG.t.specialDates)
@@ -363,7 +360,7 @@ export default function DashboardPage() {
     if (!currentMember?.id) return
     supabase
       .from('extras')
-      .select('id, title, type, status, priority, client_id, due_date, client_approval_status, campaign_type')
+      .select('id, title, type, status, priority, client_id, due_date, client_approval_status, campaign_type, labels')
       .neq('status', 'done')
       .contains('assigned_members', [currentMember.id])
       .order('due_date', { ascending: true, nullsFirst: false })
@@ -374,7 +371,7 @@ export default function DashboardPage() {
     if (!currentMember?.id) return
     supabase
       .from('materials')
-      .select('id, title, status, client_id, due_date, assigned_members, assigned_to')
+      .select('id, title, status, client_id, due_date, assigned_members, assigned_to, labels')
       .neq('status', 'finalizado')
       .order('due_date', { ascending: true, nullsFirst: false })
       .then(({ data }) => {
@@ -574,7 +571,13 @@ export default function DashboardPage() {
   type ParaVoceItem = {
     id: string; kind: 'post' | 'extra' | 'material'; title: string
     clientId: string; dueDate: string | null; ajuste: boolean; waitingClient: boolean; href: string
-    postType?: string | null; campaignType?: string | null
+    postType?: string | null; campaignType?: string | null; labels?: CardLabel[] | null
+  }
+  // Etiqueta às vezes vem como texto JSON do banco, não como lista — normaliza
+  // pra nunca quebrar a exibição nem o resumo da IA.
+  const asLabels = (v: any): CardLabel[] => {
+    const raw = typeof v === 'string' ? (() => { try { return JSON.parse(v) } catch { return [] } })() : v
+    return Array.isArray(raw) ? raw.filter(l => l && typeof l.text === 'string') : []
   }
   const paraVoceItems: ParaVoceItem[] = [
     ...directAssigned.map((s): ParaVoceItem => ({
@@ -586,6 +589,7 @@ export default function DashboardPage() {
       // quando recebe esses 3 parâmetros, só não estavam sendo passados).
       href: `/dashboard/clientes/${s.client_id}?tab=cronograma&post=${s.id}&m=${s.month}&y=${s.year}`,
       postType: s.post_type, campaignType: (s as any).campaign_type || null,
+      labels: asLabels((s as any).labels),
     })),
     ...myExtras.map((e): ParaVoceItem => ({
       id: `extra-${e.id}`, kind: 'extra', title: e.title, clientId: e.client_id,
@@ -593,12 +597,14 @@ export default function DashboardPage() {
       waitingClient: e.client_approval_status === 'aguardando',
       href: e.client_id ? `/dashboard/clientes/${e.client_id}?tab=extras` : '/dashboard/kanban',
       postType: e.type, campaignType: e.campaign_type || null,
+      labels: asLabels(e.labels),
     })),
     ...myMaterials.map((m): ParaVoceItem => ({
       id: `material-${m.id}`, kind: 'material', title: m.title, clientId: m.client_id,
       dueDate: m.due_date, ajuste: m.status === 'ajuste',
       waitingClient: m.status === 'aguardando_aprovacao',
       href: m.client_id ? `/dashboard/clientes/${m.client_id}?tab=materiais` : '/dashboard/materiais',
+      labels: asLabels(m.labels),
     })),
   ]
   const needsYou = paraVoceItems.filter(i => !i.waitingClient)
@@ -657,6 +663,10 @@ export default function DashboardPage() {
     const items = needsYou.slice(0, 20).map(i => ({
       kind: i.kind, title: i.title, clientName: clientMap[i.clientId]?.name,
       ajuste: i.ajuste, overdue: !!i.dueDate && i.dueDate < todayStr, dueDate: i.dueDate,
+      // A etiqueta é o que diz o que falta fazer no card ("CRIAR LEGENDA",
+      // "Criar o design") — sem ela o resumo só sabia contar, não dizia o
+      // trabalho de verdade.
+      postType: i.postType, labels: (i.labels || []).map(l => l.text),
     }))
     fetch('/api/ai-daily-digest', {
       method: 'POST', headers: { 'content-type': 'application/json' },
