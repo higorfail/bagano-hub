@@ -454,16 +454,26 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   }
 
   async function duplicatePost(post: Post) {
-    const { title, copy, post_type, drive_url, reference_notes, funil, campaign_type } = post as any
+    // Busca o post completo do banco em vez de reaproveitar o que já tá
+    // carregado — a lista do Kanban não traz briefing/legenda/hora (só o
+    // necessário pra exibir o card), então duplicar direto dali sem essa
+    // busca completa deixava esses campos (e responsável/status/data, que
+    // antes eram sempre resetados de propósito) faltando na cópia.
+    const { data: full } = await supabase.from('schedules').select('*').eq('id', post.id).single()
+    if (!full) { toast('Erro ao duplicar post'); return }
     const { data, error } = await supabase.from('schedules').insert({
-      client_id: clientId, month, year,
-      post_number: posts.length + 1,
-      title: `${title} (cópia)`, copy, post_type, drive_url, reference_notes,
-      funil, campaign_type,
-      status: 'estrategia', scheduled_date: null,
+      client_id: clientId, month, year, post_number: posts.length + 1,
+      title: `${full.title} (cópia)`, briefing: full.briefing, copy: full.copy, legenda: full.legenda,
+      post_type: full.post_type, status: full.status, scheduled_date: full.scheduled_date, scheduled_time: full.scheduled_time,
+      drive_url: full.drive_url, drive_folder_url: full.drive_folder_url,
+      reference_notes: full.reference_notes, funil: full.funil, campaign_type: full.campaign_type, labels: full.labels,
+      assigned_members: full.assigned_members,
     }).select('id').single()
     if (error) { toast('Erro ao duplicar post'); return }
-    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title} (cópia)" (duplicado)` })
+    if (data) {
+      await ensureWatching('schedules', data.id, full.assigned_members?.length ? full.assigned_members : [currentMember?.id])
+      await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} duplicou de "${full.title}"` })
+    }
     await loadPosts()
     toast('Post duplicado!')
   }
