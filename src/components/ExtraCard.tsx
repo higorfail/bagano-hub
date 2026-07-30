@@ -398,10 +398,17 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
       await logActivity({ tableName: 'extras', recordId: data.id, clientId: resolvedClientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
       setActivityKey(k => k + 1)
     } else {
-      // Rede de segurança: garante que tudo esteja persistido ao fechar.
-      // O histórico detalhado por campo já é registrado nos handlers granulares (persist()),
-      // então aqui não logamos nada — evita duplicar/generalizar o que já foi registrado.
-      const { data } = await supabase.from('extras').update(payload).eq('id', id).select('*').single()
+      // Se o extra já existe, não escreve nada aqui — cada campo já persiste
+      // sozinho no momento em que muda (os vários persist() espalhados pelo
+      // card). Essa "rede de segurança" reescrevia TUDO com o estado local ao
+      // fechar, que podia estar desatualizado se outra pessoa tivesse editado
+      // o mesmo card enquanto este ficava aberto — desfazia a mudança da
+      // outra pessoa silenciosamente, sem nenhum rastro no histórico (foi
+      // assim que uma etiqueta removida por alguém reapareceu depois que
+      // outra pessoa fechou o card com a etiqueta ainda na memória dela). Só
+      // relê o registro atual (sem escrever nada) pra avisar quem tem a lista
+      // aberta que algo mudou.
+      const { data } = await supabase.from('extras').select('*').eq('id', id).single()
       savedData = data ? withRelations(data) : null
     }
     setSaving(false)

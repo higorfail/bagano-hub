@@ -318,12 +318,15 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
         await logActivity({ tableName: 'materials', recordId: data.id, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
         setActivityKey(k => k + 1)
       }
-    } else {
-      // Rede de segurança: garante que tudo esteja persistido ao fechar.
-      // O histórico detalhado por campo já é registrado nos handlers granulares (persist()),
-      // então aqui não logamos nada — evita duplicar/generalizar o que já foi registrado.
-      await supabase.from('materials').update(payload).eq('id', id)
     }
+    // Se o material já existe, não escreve nada aqui — cada campo já persiste
+    // sozinho no momento em que muda (os vários persist() espalhados pelo
+    // card). Essa "rede de segurança" reescrevia TUDO com o estado local ao
+    // fechar, que podia estar desatualizado se outra pessoa tivesse editado
+    // o mesmo card enquanto este ficava aberto — desfazia a mudança da outra
+    // pessoa silenciosamente, sem nenhum rastro no histórico (foi assim que
+    // uma etiqueta removida por alguém reapareceu depois que outra pessoa
+    // fechou o card com a etiqueta ainda na memória dela).
     setSaving(false)
     toast('Material salvo!')
     onSaved()
