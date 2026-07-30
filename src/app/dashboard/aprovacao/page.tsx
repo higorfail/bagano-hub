@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useMemo, useRef, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
 import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight, ChevronsUpDown, Search, Link2, LayoutGrid, List, Play, Megaphone, MessageSquare, Send, X, ExternalLink } from 'lucide-react'
@@ -282,9 +282,16 @@ function Lightbox({ post, client, waitDays, onClose, onOpenFull }: {
   )
 }
 
-export default function AprovacaoPage() {
+function AprovacaoPageInner() {
   useEffect(() => { document.title = 'Aprovação · Bagano Hub' }, [])
   const router  = useRouter()
+  const searchParams = useSearchParams()
+  // Chegando de um link do Hub (ex: "N itens esperando o cliente") — foca
+  // direto no cliente certo, e se for 1 item só, já abre o preview dele.
+  const focusClientId = searchParams.get('client')
+  const highlightId    = searchParams.get('highlight')
+  const highlightKind  = searchParams.get('kind')
+  const scrolledRef = useRef(false)
   const { toast } = useToast()
   const [posts,   setPosts]   = useState<Post[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -333,10 +340,16 @@ export default function AprovacaoPage() {
         setPosts(allPosts)
         setClients(clientData || [])
         setExtrasPending(extrasData || [])
-        // Auto-expand clients com revisão solicitada
+        // Auto-expand clients com revisão solicitada + o cliente que veio no link (se veio)
         const urgentClients = new Set<string>()
         allPosts.forEach(p => { if (p.status === 'ajuste') urgentClients.add(p.client_id) })
+        if (focusClientId) urgentClients.add(focusClientId)
         setExpanded(urgentClients)
+
+        if (highlightId) {
+          if (highlightKind === 'extra') setExtraLightboxId(highlightId)
+          else setLightboxId(highlightId)
+        }
 
         const ids = allPosts.map(p => p.id)
         if (ids.length > 0) {
@@ -455,6 +468,13 @@ export default function AprovacaoPage() {
     const days = Object.values(waitingSince).map(iso => daysAgo(iso))
     return days.length > 0 ? Math.max(...days) : null
   }, [waitingSince])
+
+  // Rola até o cliente indicado pelo link, uma vez, depois que a lista carregou.
+  useEffect(() => {
+    if (!focusClientId || loading || scrolledRef.current) return
+    const el = document.getElementById(`aprovacao-client-${focusClientId}`)
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); scrolledRef.current = true }
+  }, [focusClientId, byClient, loading])
 
   function toggle(id: string) {
     setExpanded(prev => {
@@ -630,6 +650,7 @@ export default function AprovacaoPage() {
           return (
             <div
               key={clientId}
+              id={`aprovacao-client-${clientId}`}
               className="bg-[var(--color-bg-card)] border rounded-2xl overflow-hidden shadow-card transition-all"
               style={{ borderColor: hasUrgency ? 'var(--ds-warn-border)' : 'var(--color-border)' }}
             >
@@ -941,4 +962,8 @@ export default function AprovacaoPage() {
       )}
     </div>
   )
+}
+
+export default function AprovacaoPage() {
+  return <Suspense><AprovacaoPageInner /></Suspense>
 }

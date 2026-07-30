@@ -481,6 +481,24 @@ export default function DashboardPage() {
   needsYou.sort(itemSort)
   waitingOnClient.sort(itemSort)
 
+  // Destino do clique em "N itens esperando o cliente": foca o cliente certo
+  // (e se for 1 item só, já abre o preview dele) em vez de sempre cair na
+  // central de aprovações sem nenhuma pista de qual item era. Materiais não
+  // têm fluxo de aprovação pelo cliente (sem link público /aprovar) — não tem
+  // o que focar na central, então esses continuam indo pro próprio cliente.
+  function waitingOnClientHref(): string {
+    const nonMaterial = waitingOnClient.filter(i => i.kind !== 'material')
+    if (nonMaterial.length === 0) return waitingOnClient[0]?.href || '/dashboard/aprovacao'
+    if (waitingOnClient.length === 1) {
+      const item = nonMaterial[0]
+      const rawId = item.id.slice(item.kind.length + 1)
+      return `/dashboard/aprovacao?client=${item.clientId}&highlight=${rawId}&kind=${item.kind}`
+    }
+    const clientIds = new Set(nonMaterial.map(i => i.clientId))
+    if (clientIds.size === 1) return `/dashboard/aprovacao?client=${[...clientIds][0]}`
+    return '/dashboard/aprovacao'
+  }
+
   // Ajuste pedido pelo cliente é sempre o grupo de maior prioridade, com ou sem prazo —
   // o resto vira uma lista só ("Pendências"), já ordenada por urgência (itemSort).
   const needsYouAjusteItems = needsYou.filter(i => i.ajuste)
@@ -640,7 +658,7 @@ export default function DashboardPage() {
                   <ParaVoceGroup label="Pendências" items={needsYouRest} clientMap={clientMap} router={router} todayStr={todayStr} cap={5} agingMap={agingMap} />
                 )}
                 {waitingOnClient.length > 0 && (
-                  <ParaVoceSummaryRow icon="⏳" label={`${waitingOnClient.length} ${pl(waitingOnClient.length, 'item esperando', 'itens esperando')} o cliente`} onClick={() => router.push('/dashboard/aprovacao')} muted />
+                  <ParaVoceSummaryRow icon="⏳" label={`${waitingOnClient.length} ${pl(waitingOnClient.length, 'item esperando', 'itens esperando')} o cliente`} onClick={() => router.push(waitingOnClientHref())} muted />
                 )}
               </SectionCard>
             )}
