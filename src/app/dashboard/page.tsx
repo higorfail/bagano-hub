@@ -247,6 +247,7 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
           const single = its.length === 1 ? its[0] : null
           const singleOverdue = !!single?.dueDate && single.dueDate < todayStr && !single.ajuste
           const singleCountdown = single ? dueCountdown(single.dueDate, todayStr) : null
+          const singleCampaign = single?.campaignType ? campaignNameMap?.[`${single.clientId}:${single.campaignType}`] : null
 
           return (
             <div key={key}>
@@ -259,10 +260,13 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
                 </span>
                 {single ? (
                   // Título do item no lugar do "1 post" — mesma informação que
-                  // apareceria ao expandir, só que já visível.
+                  // apareceria ao expandir, só que já visível. A campanha vem
+                  // junto: é ela que dá o senso de prazo real (Dia dos Pais
+                  // não espera), e some se ficar só na linha de dentro.
                   <span className="text-[11px] text-[var(--color-text-secondary)] truncate flex-1 min-w-0">
                     {emojiFor(single)} {single.title || 'Sem título'}
                     {singleCountdown ? <span className="text-[var(--color-text-muted)]"> · {singleCountdown}</span> : null}
+                    {singleCampaign ? <span className="text-[var(--color-text-muted)]"> · 📣 {singleCampaign}</span> : null}
                   </span>
                 ) : (
                   <span className="text-[10px] text-[var(--color-text-muted)] truncate flex-1 min-w-0">{summarize(its)}</span>
