@@ -83,6 +83,17 @@ function getDayGreeting() {
   return 'Boa noite'
 }
 
+// Período do dia — vira parte da chave do cache da frase: a saudação já muda
+// sozinha (bom dia → boa tarde → boa noite), então a frase acompanha. Dentro
+// do mesmo período ela fica fixa, senão trocaria a cada refresh e perderia a
+// graça de "a frase de hoje".
+function getDayPeriod() {
+  const h = new Date().getHours()
+  if (h < 12) return 'manhã'
+  if (h < 18) return 'tarde'
+  return 'noite'
+}
+
 function daysBetween(a: Date, b: Date) {
   const aMid = new Date(a); aMid.setHours(0, 0, 0, 0)
   const bMid = new Date(b); bMid.setHours(0, 0, 0, 0)
@@ -297,6 +308,7 @@ export default function DashboardPage() {
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
   const [myTasks,      setMyTasks]      = useState<any[]>([])
   const [digestText,   setDigestText]   = useState('')
+  const [greetingLine, setGreetingLine] = useState('')
   const [agingMap,     setAgingMap]     = useState<Record<string, string>>({})
   const [campaignNameMap, setCampaignNameMap] = useState<Record<string, string>>({})
   const [loading,      setLoading]      = useState(true)
@@ -748,6 +760,54 @@ export default function DashboardPage() {
       })
   }, [loading, paraVoceItems.length])
 
+  // Frase do dia (a que acompanha "Bom dia, Fulano"). Cacheada por
+  // pessoa+dia+período: dentro do mesmo turno é sempre a mesma, senão trocaria
+  // a cada refresh. A saudação padrão aparece na hora e a frase entra quando
+  // chega — nunca deixa o topo da tela esperando a IA.
+  useEffect(() => {
+    if (!currentMember || loading) return
+    const period = getDayPeriod()
+    const cacheKey = `bagano_greeting_v1_${currentMember.id}_${todayStr}_${period}`
+    try {
+      const cached = localStorage.getItem(cacheKey)
+      if (cached) { setGreetingLine(cached); return }
+    } catch {}
+
+    const overdueCount = needsYou.filter(i => i.dueDate && i.dueDate < todayStr).length
+    const dueTodayCount = needsYou.filter(i => i.dueDate === todayStr).length
+    const nextDate = specialDates[0]
+      ? `${specialDates[0].name} em ${daysBetween(now, new Date(specialDates[0].date + 'T12:00:00'))} dias`
+      : null
+
+    fetch('/api/ai-greeting', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        memberName: currentMember.name?.split(' ')[0],
+        role: currentMember.role,
+        weekday: DAYS[now.getDay()],
+        period,
+        dateLabel: `${now.getDate()} de ${MONTHS[now.getMonth()]}`,
+        pending: needsYou.length,
+        overdue: overdueCount,
+        dueToday: dueTodayCount,
+        waitingClient: waitingOnClient.length,
+        ajustes: needsYouAjusteItems.length,
+        clientsWithWork: [...new Set(needsYou.map(i => clientMap[i.clientId]?.name).filter(Boolean))],
+        nextSpecialDate: nextDate,
+        publishedThisMonth: published,
+        totalThisMonth: total,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.greeting) return
+        setGreetingLine(data.greeting)
+        try { localStorage.setItem(cacheKey, data.greeting) } catch {}
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMember?.id, loading, todayStr, needsYou.length])
+
   if (loading) return (
     <div className="flex items-center justify-center h-full">
       <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[var(--color-accent)] rounded-full animate-spin" />
@@ -822,9 +882,14 @@ export default function DashboardPage() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">
-              {getDayGreeting()}{firstName ? `, ${firstName}` : ''} 👋
+              {getDayGreeting()}{firstName ? `, ${firstName}` : ''}{greetingLine ? '.' : ' 👋'}
             </h1>
-            <p className="text-sm text-[var(--color-text-muted)] mt-1">Aqui está o que está acontecendo hoje na Bagano.</p>
+            {/* Frase do dia escrita pela IA com base no que a pessoa tem pra
+                fazer. Até chegar (ou se falhar/estourar o limite gratuito),
+                fica a frase fixa de sempre — o topo nunca espera a IA. */}
+            <p className="text-sm text-[var(--color-text-muted)] mt-1">
+              {greetingLine || 'Aqui está o que está acontecendo hoje na Bagano.'}
+            </p>
           </div>
           <p className="text-xs font-medium text-[var(--color-text-muted)] whitespace-nowrap mt-1">
             {DAYS[now.getDay()]}, {now.getDate()} de {MONTHS[now.getMonth()]} de {year}

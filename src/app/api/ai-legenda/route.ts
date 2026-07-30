@@ -41,7 +41,10 @@ Responda APENAS com o texto da legenda pronta, sem explicações, sem aspas, sem
         headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 500, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } },
+          // Sem thinkingConfig: o modelo por trás de gemini-flash-lite-latest
+          // passou a recusar thinkingBudget:0 (INVALID_ARGUMENT), o que
+          // derrubou silenciosamente TODAS as chamadas de IA do Hub.
+          generationConfig: { maxOutputTokens: 500, temperature: 0.7 },
         }),
       }
     )
