@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { logActivity } from '@/lib/activity'
 import { ensureWatchingFromAssigned } from '@/lib/watch'
@@ -35,7 +35,7 @@ function driveStreamUrl(id: string) {
 // sempre no mesmo lugar embaixo do player, nunca sobreposto ao vídeo.
 type DriveVideoStage = 'video' | 'iframe' | 'failed'
 
-function DriveVideoMedia({ id, stage, setStage, style }: { id: string; stage: DriveVideoStage; setStage: (s: DriveVideoStage) => void; style: React.CSSProperties }) {
+function DriveVideoMedia({ id, stage, setStage, style, onLoadedMetadata }: { id: string; stage: DriveVideoStage; setStage: (s: DriveVideoStage) => void; style: React.CSSProperties; onLoadedMetadata?: (e: React.SyntheticEvent<HTMLVideoElement>) => void }) {
   if (stage === 'failed') return (
     <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 20 }}>
       <span style={{ fontSize: 13, color: '#d1d5db', maxWidth: 240 }}>Não conseguimos carregar o vídeo aqui.</span>
@@ -46,7 +46,7 @@ function DriveVideoMedia({ id, stage, setStage, style }: { id: string; stage: Dr
       style={{ ...style, border: 'none' }}
       onError={() => setStage('failed')} />
   )
-  return <video src={driveStreamUrl(id)} controls playsInline onError={() => setStage('iframe')} style={style} />
+  return <video src={driveStreamUrl(id)} controls playsInline onError={() => setStage('iframe')} onLoadedMetadata={onLoadedMetadata} style={style} />
 }
 
 function DriveVideo({ id, folderUrl, ratio = '177.78%' }: { id: string; folderUrl?: string; ratio?: string }) {
@@ -68,15 +68,62 @@ function DriveVideo({ id, folderUrl, ratio = '177.78%' }: { id: string; folderUr
 
 // Vídeo dentro do carrossel: usa só o media (sem o botão "abrir no Drive" embaixo)
 // porque o carrossel já tem seu próprio rodapé fixo "Abrir pasta no Drive".
-function CarouselVideoSlide({ id, style }: { id: string; style: React.CSSProperties }) {
+function CarouselVideoSlide({ id, style, onLoadedMetadata }: { id: string; style: React.CSSProperties; onLoadedMetadata?: (e: React.SyntheticEvent<HTMLVideoElement>) => void }) {
   const [stage, setStage] = useState<DriveVideoStage>('video')
-  return <DriveVideoMedia id={id} stage={stage} setStage={setStage} style={style} />
+  return <DriveVideoMedia id={id} stage={stage} setStage={setStage} style={style} onLoadedMetadata={onLoadedMetadata} />
+}
+
+// O quadro do preview assume a proporção REAL da mídia, em vez de uma altura
+// fixa. Com altura fixa só havia duas saídas ruins: sobrar fundo nas laterais
+// (a "borda preta") ou cortar a imagem. Medindo a mídia, o quadro fica exato —
+// nada sobra, nada corta. Num carrossel a primeira mídia define o quadro (na
+// prática todas têm a mesma escala); se alguma vier diferente, ela ainda
+// aparece inteira (objectFit contain), só com um resto de fundo — nunca
+// cortada.
+function useMediaRatio(fallback: string) {
+  const [ratio, setRatio] = useState<string | null>(null)
+  function onMediaSize(w: number, h: number) {
+    if (w > 0 && h > 0) setRatio(prev => prev ?? `${(h / w) * 100}%`)
+  }
+  return { ratio: ratio ?? fallback, onMediaSize }
+}
+
+// Arrastar/deslizar pra trocar de slide — no celular é o gesto que todo mundo
+// tenta primeiro (ninguém procura as setinhas), e no desktop funciona
+// arrastando com o mouse. Touch e mouse tratados separadamente de propósito:
+// usar pointer events pros dois dispara duas vezes em alguns navegadores.
+function useSwipe(onPrev: () => void, onNext: () => void) {
+  const startX = useRef<number | null>(null)
+  const THRESHOLD = 40 // px — abaixo disso é toque/clique, não arrasto
+
+  function start(x: number) { startX.current = x }
+  function end(x: number) {
+    const from = startX.current
+    startX.current = null
+    if (from === null) return
+    const dx = x - from
+    if (Math.abs(dx) < THRESHOLD) return
+    if (dx > 0) onPrev(); else onNext()
+  }
+
+  return {
+    onTouchStart: (e: React.TouchEvent) => start(e.touches[0].clientX),
+    onTouchEnd:   (e: React.TouchEvent) => end(e.changedTouches[0].clientX),
+    onPointerDown: (e: React.PointerEvent) => { if (e.pointerType === 'mouse') start(e.clientX) },
+    onPointerUp:   (e: React.PointerEvent) => { if (e.pointerType === 'mouse') end(e.clientX) },
+  }
 }
 
 function CarouselPreview({ folderId, folderUrl, ratio = '100%' }: { folderId: string; folderUrl: string; ratio?: string }) {
   const [items, setItems] = useState<{ id: string; name: string; isVideo: boolean }[]>([])
   const [slide, setSlide]   = useState(0)
   const [ready, setReady]   = useState(false)
+  const { ratio: frameRatio, onMediaSize } = useMediaRatio(ratio)
+  // Hooks sempre no topo, antes de qualquer return condicional (regra do React).
+  const swipeHandlers = useSwipe(
+    () => setSlide(s => (s - 1 + items.length) % items.length),
+    () => setSlide(s => (s + 1) % items.length),
+  )
 
   useEffect(() => {
     fetch(`/api/drive-folder?folderId=${folderId}`)
@@ -109,18 +156,22 @@ function CarouselPreview({ folderId, folderUrl, ratio = '100%' }: { folderId: st
   const prev = () => setSlide(s => (s - 1 + items.length) % items.length)
   const next = () => setSlide(s => (s + 1) % items.length)
   const current = items[slide]
+  const swipe = items.length > 1 ? swipeHandlers : {}
 
   return (
     <div style={{ position: 'relative', background: '#1c1a18', userSelect: 'none' }}>
-      <div style={{ position: 'relative', paddingTop: ratio, overflow: 'hidden' }}>
+      <div {...swipe} style={{ position: 'relative', paddingTop: frameRatio, overflow: 'hidden', cursor: items.length > 1 ? 'grab' : 'default', touchAction: 'pan-y' }}>
         {current.isVideo ? (
           <CarouselVideoSlide key={current.id} id={current.id}
+            onLoadedMetadata={(e: React.SyntheticEvent<HTMLVideoElement>) => onMediaSize(e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : (
           <img
             key={current.id}
             src={`/api/drive-thumb?id=${current.id}&sz=w800`}
             alt={`Slide ${slide + 1}`}
+            onLoad={e => onMediaSize(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+            draggable={false}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
           />
         )}
@@ -150,12 +201,17 @@ function CarouselPreview({ folderId, folderUrl, ratio = '100%' }: { folderId: st
 // trata tudo como imagem, que é o caso real que motivou isso).
 function MultiFilePreview({ ids, fallbackUrl, ratio = '100%' }: { ids: string[]; fallbackUrl?: string | null; ratio?: string }) {
   const [slide, setSlide] = useState(0)
+  const { ratio: frameRatio, onMediaSize } = useMediaRatio(ratio)
   const prev = () => setSlide(s => (s - 1 + ids.length) % ids.length)
   const next = () => setSlide(s => (s + 1) % ids.length)
+  const swipeHandlers = useSwipe(prev, next)
+  const swipe = ids.length > 1 ? swipeHandlers : {}
   return (
     <div style={{ position: 'relative', background: '#1c1a18', userSelect: 'none' }}>
-      <div style={{ position: 'relative', paddingTop: ratio, overflow: 'hidden' }}>
+      <div {...swipe} style={{ position: 'relative', paddingTop: frameRatio, overflow: 'hidden', cursor: ids.length > 1 ? 'grab' : 'default', touchAction: 'pan-y' }}>
         <img key={ids[slide]} src={`/api/drive-thumb?id=${ids[slide]}&sz=w800`} alt={`Slide ${slide + 1}`}
+          onLoad={e => onMediaSize(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+          draggable={false}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
       </div>
       {ids.length > 1 && (
@@ -650,17 +706,26 @@ export default function ApprovalPage({ token }: { token: string }) {
         ) : embedVideoId ? (
           <DriveVideo id={embedVideoId} folderUrl={extra.drive_url} />
         ) : thumbUrl ? (
-          <div style={{ background: '#1c1a18', lineHeight: 0, position: 'relative', paddingTop: '125%', overflow: 'hidden' }}>
+          // Sem altura fixa: a imagem ocupa a largura e a altura sai da
+          // proporção real dela — não sobra fundo nem corta nada.
+          <div style={{ background: '#1c1a18', lineHeight: 0 }}>
             <img src={thumbUrl} alt={extra.title}
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+              style={{ width: '100%', height: 'auto', display: 'block' }}
               onError={e => { const wrap = (e.target as HTMLImageElement).parentElement; if (wrap) wrap.style.display = 'none' }} />
           </div>
         ) : null}
 
         <div style={{ padding: '16px 18px' }}>
           <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.3 }}>{extra.title}</h3>
-          {(extra.ai_summary || extra.description) && (
-            <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px', lineHeight: 1.6 }}>{extra.ai_summary || extra.description}</p>
+          {/* `description` é um campo ANTIGO, substituído por briefing/copy/
+              legenda e hoje invisível no card do Hub — mas continuava sendo
+              exibido aqui pro cliente. Resultado real: um recado interno
+              ("Pessoal vou escrever agora só pra não esquecer…") ficou
+              visível pro cliente do Satō, e ninguém do time conseguia ver
+              nem apagar isso pela interface. Só ai_summary (gerado da copy)
+              fica; briefing/copy/legenda já aparecem logo abaixo. */}
+          {extra.ai_summary && (
+            <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px', lineHeight: 1.6 }}>{extra.ai_summary}</p>
           )}
 
           {extra.briefing && (
@@ -1085,8 +1150,10 @@ export default function ApprovalPage({ token }: { token: string }) {
         ) : isMultiFile ? (
           <MultiFilePreview ids={driveIds} fallbackUrl={post.drive_url} />
         ) : thumbUrl ? (
-          <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight: 220, overflow: 'hidden' }}>
-            <img src={thumbUrl} alt={post.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 220 }}
+          // Altura natural da imagem — antes tinha maxHeight+cover, que
+          // cortava a arte pela metade pro cliente aprovar.
+          <div style={{ background: '#f5f5f3', lineHeight: 0 }}>
+            <img src={thumbUrl} alt={post.title} style={{ width: '100%', height: 'auto', display: 'block' }}
               onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
           </div>
         ) : null}
@@ -1838,8 +1905,8 @@ export default function ApprovalPage({ token }: { token: string }) {
                 ) : sheetIsMultiFile ? (
                   <MultiFilePreview ids={sheetDriveIds} fallbackUrl={sheetPost.drive_url} />
                 ) : thumbUrl ? (
-                  <div style={{ background: '#f5f5f3', maxHeight: 300, overflow: 'hidden' }}>
-                    <img src={thumbUrl} alt={sheetPost.title} style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight: 300 }}
+                  <div style={{ background: '#f5f5f3', lineHeight: 0 }}>
+                    <img src={thumbUrl} alt={sheetPost.title} style={{ width: '100%', height: 'auto', display: 'block' }}
                       onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
                   </div>
                 ) : null}
