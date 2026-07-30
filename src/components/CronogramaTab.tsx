@@ -380,7 +380,11 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   async function toggleFinalized() {
     setTogglingStatus(true)
     const isFinalized = cronoStatus?.status === 'finalizado'
-    const { data: existing } = await supabase.from('cronograma_status').select('id')
+    // client_id (não id) — cronograma_status não tem coluna id; pedir uma
+    // coluna inexistente faz o PostgREST rejeitar a requisição inteira,
+    // inclusive quando encadeada com update/insert (já aconteceu: finalizar
+    // "dava erro" e nem chegava a salvar o status).
+    const { data: existing } = await supabase.from('cronograma_status').select('client_id')
       .eq('client_id', clientId).eq('month', month).eq('year', year).maybeSingle()
 
     if (isFinalized) {
@@ -409,18 +413,25 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     setTogglingStatus(true)
     const by = currentMember?.name || null
     const payload = { status: 'finalizado', finalized_at: new Date().toISOString(), finalized_by: by }
-    const { data: existing } = await supabase.from('cronograma_status').select('id')
+    // client_id, não id — ver nota em toggleFinalized().
+    const { data: existing } = await supabase.from('cronograma_status').select('client_id')
       .eq('client_id', clientId).eq('month', month).eq('year', year).maybeSingle()
     setCronoStatus(payload)
-    const { data: saved, error } = existing
-      ? await supabase.from('cronograma_status').update(payload).eq('client_id', clientId).eq('month', month).eq('year', year).select('id').maybeSingle()
-      : await supabase.from('cronograma_status').insert({ client_id: clientId, month, year, ...payload }).select('id').maybeSingle()
+    const { error } = existing
+      ? await supabase.from('cronograma_status').update(payload).eq('client_id', clientId).eq('month', month).eq('year', year)
+      : await supabase.from('cronograma_status').insert({ client_id: clientId, month, year, ...payload })
     setTogglingStatus(false)
     if (error) { toast(`Erro ao finalizar: ${error.message}`); return }
+    toast('Cronograma marcado como finalizado!')
+
     // Todo o time do cliente precisa saber que a pauta do mês fechou — não só
-    // quem por acaso observa esse registro (ninguém observaria um
-    // cronograma_status até agora, já que ele nunca teve card_watchers antes).
-    const statusId = existing?.id || saved?.id
+    // quem por acaso observa esse registro. Busca o id à parte, DEPOIS do
+    // finalize em si já ter sido salvo com sucesso — se essa parte falhar
+    // (ex: coluna id ainda não criada), só a notificação fica de fora, o
+    // cronograma continua finalizado normalmente.
+    const { data: saved } = await supabase.from('cronograma_status').select('id')
+      .eq('client_id', clientId).eq('month', month).eq('year', year).maybeSingle()
+    const statusId = (saved as any)?.id
     if (statusId) {
       const { data: team } = await supabase.from('client_team').select('member_id').eq('client_id', clientId)
       if (team?.length) {
