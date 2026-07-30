@@ -8,6 +8,7 @@ import CronogramaTab, { CRONO_MONTHS } from '@/components/CronogramaTab'
 import Button from '@/components/ui/Button'
 import { Check } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
+import { readLastPeriod, saveLastPeriod } from '@/lib/lastPeriod'
 
 type Client = { id: string; name: string; color_hex: string; logo_url?: string | null }
 
@@ -26,13 +27,16 @@ function CronogramaPageInner() {
   const syncKey = `${clientParam}|${postParam}|${searchParams.get('m')}|${searchParams.get('y')}`
 
   const [selectedClient, setSelectedClient] = useState<string>(() => clientParam || '')
+  // Prioridade: o que veio no link > último período visto > mês atual.
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const m = parseInt(searchParams.get('m') || '')
-    return !isNaN(m) && m >= 1 && m <= 12 ? m : new Date().getMonth() + 1
+    if (!isNaN(m) && m >= 1 && m <= 12) return m
+    return readLastPeriod()?.m ?? new Date().getMonth() + 1
   })
   const [selectedYear, setSelectedYear] = useState(() => {
     const y = parseInt(searchParams.get('y') || '')
-    return !isNaN(y) && y > 2000 ? y : new Date().getFullYear()
+    if (!isNaN(y) && y > 2000) return y
+    return readLastPeriod()?.y ?? new Date().getFullYear()
   })
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [postCount, setPostCount] = useState(0)
@@ -86,6 +90,7 @@ function CronogramaPageInner() {
   useEffect(() => {
     if (!selectedClient) return
     localStorage.setItem(LAST_CLIENT_KEY, selectedClient)
+    saveLastPeriod(selectedMonth, selectedYear)
     const params = new URLSearchParams(searchParams.toString())
     params.set('client', selectedClient)
     params.set('m', String(selectedMonth))

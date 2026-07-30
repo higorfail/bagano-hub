@@ -12,6 +12,7 @@ import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import { getOrCreateGeneralApprovalToken } from '@/lib/approvalLinks'
 import { copyTextAsync } from '@/lib/clipboard'
+import { readLastPeriod, saveLastPeriod } from '@/lib/lastPeriod'
 import CampaignsTab from '@/components/CampaignsTab'
 import CronogramaTab, { CRONO_MONTHS } from '@/components/CronogramaTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
@@ -55,15 +56,20 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [client, setClient] = useState<Client | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [tab, setTab] = useState(() => searchParams.get('tab') || 'cronograma')
+  // Prioridade: o que veio no link > último período visto no Cronograma >
+  // mês atual. Sem o meio, abrir um cliente jogava sempre no mês atual, mesmo
+  // com a pessoa trabalhando no cronograma do mês seguinte.
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const mParam = searchParams.get('m')
     const m = mParam ? parseInt(mParam) : NaN
-    return !isNaN(m) && m >= 1 && m <= 12 ? m : new Date().getMonth() + 1
+    if (!isNaN(m) && m >= 1 && m <= 12) return m
+    return readLastPeriod()?.m ?? new Date().getMonth() + 1
   })
   const [selectedYear, setSelectedYear] = useState(() => {
     const yParam = searchParams.get('y')
     const y = yParam ? parseInt(yParam) : NaN
-    return !isNaN(y) && y > 2000 ? y : new Date().getFullYear()
+    if (!isNaN(y) && y > 2000) return y
+    return readLastPeriod()?.y ?? new Date().getFullYear()
   })
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -118,6 +124,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 
   // Mantém aba/mês/ano na URL, pra dar pra copiar e colar o link e cair direto na mesma view
   useEffect(() => {
+    saveLastPeriod(selectedMonth, selectedYear)
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', tab)
     params.set('m', String(selectedMonth))
