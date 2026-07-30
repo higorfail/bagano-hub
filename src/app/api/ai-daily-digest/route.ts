@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     `- ${it.kind} "${it.title}" (${it.clientName || 'sem cliente'})${it.ajuste ? ' — AJUSTE PEDIDO PELO CLIENTE' : ''}${it.overdue ? ' — ATRASADO' : ''}${it.dueDate ? ` — prazo ${it.dueDate}` : ''}`
   ).join('\n')
 
-  const prompt = `Você é um assistente de produtividade de uma agência de social media. Escreva UMA frase curta e direta (máximo 30 palavras), em português, cumprimentando ${memberName || 'a pessoa'} e resumindo o que é mais urgente da lista de pendências abaixo, pra ela saber por onde começar o dia. Priorize: ajustes pedidos pelo cliente primeiro, depois atrasados, depois o resto. Não invente nada que não está na lista. Não use markdown. Responda só com a frase.
+  const prompt = `Você é um assistente de produtividade de uma agência de social media. Escreva só a CONTINUAÇÃO de uma frase que já começa com "Para você, ${memberName || 'a pessoa'}: " — não repita o nome nem cumprimente, comece direto pelo resumo (ex: "1 ajuste pedido pelo cliente e 8 reels pra produzir."). Máximo 25 palavras, em português. Resuma o que é mais urgente da lista de pendências abaixo, agrupando por tipo de conteúdo quando fizer sentido (ex: "8 reels" em vez de "8 posts"). Priorize: ajustes pedidos pelo cliente primeiro, depois atrasados, depois o resto. Não invente nada que não está na lista. Não use markdown. Termine com ponto final. Responda só com essa continuação.
 
 Pendências:
 ${itemsText}`

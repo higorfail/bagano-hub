@@ -122,7 +122,7 @@ type ParaVoceRowItem = {
 
 function ClientAvatar({ client }: { client?: { name: string; color_hex?: string; logo_url?: string | null } }) {
   return (
-    <span className="w-7 h-7 rounded-lg overflow-hidden flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
+    <span className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
       style={{ background: client?.color_hex || '#6b7280' }}>
       {client?.logo_url ? <img src={client.logo_url} alt="" className="w-full h-full object-cover" /> : getInitials(client?.name || '?')}
     </span>
@@ -151,7 +151,7 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     return KIND_ICON[it.kind] || '•'
   }
 
-  function renderRow(it: ParaVoceRowItem, key?: string) {
+  function renderRow(it: ParaVoceRowItem, key?: string, showAvatar = true) {
     const overdue = !!it.dueDate && it.dueDate < todayStr && !it.ajuste
     const updatedAt = agingMap?.[it.id]
     const ageDays = updatedAt ? Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000) : null
@@ -164,13 +164,13 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
       <button key={key || it.id} onClick={() => router.push(it.href)}
         className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
         style={{ background: it.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
-        <ClientAvatar client={client} />
+        {showAvatar ? <ClientAvatar client={client} /> : <span className="w-7 flex-shrink-0" />}
         <div className="flex-1 min-w-0">
           <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
             {emojiFor(it)} {it.title || 'Sem título'}
           </p>
           <p className="text-[11px] text-[var(--color-text-muted)] truncate">
-            {client?.name || 'Sem cliente'}{countdown ? ` · ${countdown}` : ''}{campaignName ? ` · 📣 ${campaignName}` : ''}
+            {showAvatar ? (client?.name || 'Sem cliente') : null}{countdown ? `${showAvatar ? ' · ' : ''}${countdown}` : ''}{campaignName ? `${showAvatar || countdown ? ' · ' : ''}📣 ${campaignName}` : ''}
           </p>
         </div>
         {overdue && (
@@ -231,7 +231,7 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
               </button>
               {isOpen && (
                 <div className="flex flex-col gap-1 mt-1 pl-3">
-                  {its.map(it => renderRow(it, `${key}-${it.id}`))}
+                  {its.map(it => renderRow(it, `${key}-${it.id}`, false))}
                 </div>
               )}
             </div>
@@ -552,7 +552,10 @@ export default function DashboardPage() {
       id: `post-${s.id}`, kind: 'post', title: s.title, clientId: s.client_id,
       dueDate: s.scheduled_date, ajuste: s.status === CFG.S.ajuste,
       waitingClient: s.status === CFG.S.aguardandoAprovacao,
-      href: `/dashboard/clientes/${s.client_id}?tab=cronograma`,
+      // post/m/y — sem isso o clique só caía na aba de cronograma do cliente,
+      // sem abrir o post específico (o CronogramaTab já sabe abrir direto
+      // quando recebe esses 3 parâmetros, só não estavam sendo passados).
+      href: `/dashboard/clientes/${s.client_id}?tab=cronograma&post=${s.id}&m=${s.month}&y=${s.year}`,
       postType: s.post_type, campaignType: (s as any).campaign_type || null,
     })),
     ...myExtras.map((e): ParaVoceItem => ({
@@ -607,7 +610,6 @@ export default function DashboardPage() {
   // o resto vira uma lista só ("Pendências"), já ordenada por urgência (itemSort).
   const needsYouAjusteItems = needsYou.filter(i => i.ajuste)
   const needsYouRest        = needsYou.filter(i => !i.ajuste)
-  const needsYouOverdue = needsYou.filter(i => i.dueDate && i.dueDate < todayStr).length
 
   // Resumo diário por IA — 1 frase, cacheada por pessoa+dia+conteúdo (evita gerar
   // de novo a cada reload; só refaz se a lista de pendências mudar de fato).
@@ -723,6 +725,20 @@ export default function DashboardPage() {
   const firstName = currentMember?.name.split(' ')[0]
   const paraVoceContent = paraVoceItems.length > 0
 
+  // Título + resumo juntos numa linha só (era "Para você, Nome" + um parágrafo
+  // logo abaixo repetindo a mesma informação) — a IA já resume tudo, só
+  // faltava não duplicar espaço/atenção com dois textos dizendo quase a
+  // mesma coisa. Fallback determinístico (contagem simples) até a IA responder.
+  const paraVoceFallbackSummary = (() => {
+    const parts = [
+      needsYouAjusteItems.length > 0 && `${needsYouAjusteItems.length} ${pl(needsYouAjusteItems.length, 'ajuste pedido', 'ajustes pedidos')} pelo cliente`,
+      needsYouRest.length > 0 && `${needsYouRest.length} ${pl(needsYouRest.length, 'pendência', 'pendências')}`,
+    ].filter(Boolean)
+    return parts.length ? parts.join(' e ') + '.' : ''
+  })()
+  const paraVoceSummary = digestText || paraVoceFallbackSummary
+  const paraVoceTitle = paraVoceContent && paraVoceSummary ? `Para você, ${firstName}: ${paraVoceSummary}` : `Para você, ${firstName}`
+
   return (
     <div className="min-h-screen bg-[var(--color-bg-page)]">
       <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-5 md:py-8 space-y-5 md:space-y-6">
@@ -761,15 +777,9 @@ export default function DashboardPage() {
 
             {/* Para você — sozinha na linha, sem "buraco" causado por um vizinho mais curto */}
             {currentMember && (
-              <SectionCard title={`Para você, ${firstName}`} icon={Zap} iconTone="amber" bodyClassName="px-4 pb-4 space-y-3">
+              <SectionCard title={paraVoceTitle} icon={Zap} iconTone="amber" bodyClassName="px-4 pb-4 space-y-3">
                 {!paraVoceContent && (
                   <p className="text-sm text-[var(--color-text-muted)] py-6 text-center">Nada pendente pra você 🎉</p>
-                )}
-
-                {paraVoceContent && (needsYouAjusteItems.length > 0 || needsYouOverdue > 0 || digestText) && (
-                  <div className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>
-                    {digestText || `${needsYouAjusteItems.length > 0 ? `${needsYouAjusteItems.length} ${pl(needsYouAjusteItems.length, 'ajuste pedido', 'ajustes pedidos')} pelo cliente. ` : ''}${needsYouOverdue > 0 ? `${needsYouOverdue} ${pl(needsYouOverdue, 'item atrasado', 'itens atrasados')}.` : ''}`}
-                  </div>
                 )}
 
                 {needsYouAjusteItems.length > 0 && (
