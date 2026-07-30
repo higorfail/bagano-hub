@@ -5,6 +5,7 @@
 // demais tipos) + nome curto embaixo, em vez da lista antiga (ícone genérico
 // + nome da URL inteira numa linha).
 
+import { useId } from 'react'
 import { File, FileText, Trash2 } from 'lucide-react'
 import { hostOf, formatBytes } from '@/lib/url'
 
@@ -19,17 +20,40 @@ function isImage(mime?: string | null, url?: string) {
 }
 
 // O favicon genérico (google.com/s2/favicons) devolve um "G" cinza pro Drive
-// em vez do triângulo colorido de verdade — logo oficial embutido aqui pra
-// nunca depender de um serviço de terceiro pra isso.
+// em vez do logo de verdade — logo oficial (redesign 2026, triângulo
+// arredondado com gradiente) embutido aqui pra nunca depender de um serviço
+// de terceiro. IDs de máscara/gradiente sufixados com useId() — sem isso,
+// duas miniaturas de Drive na mesma página colidiam no mesmo id de <mask>/
+// <linearGradient> (namespace global do DOM), e a segunda "roubava" o
+// gradiente da primeira.
 function DriveIcon() {
+  const uid = useId()
+  const m = `drv-mask-${uid}`, g1 = `drv-g1-${uid}`, g2 = `drv-g2-${uid}`, g3 = `drv-g3-${uid}`
   return (
-    <svg viewBox="0 0 87.3 78" className="w-7 h-7">
-      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da" />
-      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47" />
-      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335" />
-      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d" />
-      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc" />
-      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00" />
+    <svg viewBox="0 0 800 741.3696" className="w-7 h-7">
+      <mask id={m} width="168" height="154" x="12" y="18" maskUnits="userSpaceOnUse">
+        <path fill="#fff" d="M63.09 37c14.626-25.333 51.193-25.334 65.819 0l45.033 78c14.626 25.334-3.657 57.001-32.91 57.001H50.967c-29.253 0-47.536-31.667-32.91-57.001Z" />
+      </mask>
+      <g mask={`url(#${m})`} transform="matrix(4.8140532,0,0,4.8140532,-62.146701,-86.652356)">
+        <path fill={`url(#${g1})`} d="M206.905 172.02h-91.888l-19.015-32.934 45.944-79.578Z" />
+        <path fill={`url(#${g2})`} d="M-14.919 172.006 50.04 59.494v.002L31.032 92.422h38.02L115 172.004l-129.918.001Z" />
+        <path fill={`url(#${g3})`} d="M96.007-20.085 141.954 59.5l-19.011 32.928H31.048Z" />
+      </g>
+      <defs>
+        <linearGradient id={g1} x1="193.6" x2="103.09" y1="165.6" y2="111.21" gradientUnits="userSpaceOnUse">
+          <stop offset=".09" stopColor="#ffe921" />
+          <stop offset="1" stopColor="#fec700" />
+        </linearGradient>
+        <linearGradient id={g2} x1="114.4" x2="15.53" y1="181.61" y2="121.8" gradientUnits="userSpaceOnUse">
+          <stop offset=".15" stopColor="#a9a8ff" />
+          <stop offset=".33" stopColor="#6d97ff" />
+          <stop offset=".48" stopColor="#3186ff" />
+        </linearGradient>
+        <linearGradient id={g3} x1="128.88" x2="28.7" y1="37.88" y2="84.64" gradientUnits="userSpaceOnUse">
+          <stop offset=".55" stopColor="#0ebc5f" />
+          <stop offset=".85" stopColor="#78c9ff" />
+        </linearGradient>
+      </defs>
     </svg>
   )
 }
