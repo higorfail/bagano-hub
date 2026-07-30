@@ -392,6 +392,16 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   }
 
   const who = currentMember?.name || 'Alguém'
+  // "mudou de X para Y" em vez de só "definiu a data para Y" — pra quem
+  // acompanha (Social Media, principalmente) o que importa é saber que a data
+  // SAIU de um dia que já estava no radar dela.
+  function dateChangeMsg(newDate: string) {
+    const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+    const prev = formRef.current.scheduled_date
+    return prev && prev !== newDate
+      ? `${who} mudou a data de ${fmt(prev)} para ${fmt(newDate)}`
+      : `${who} definiu a data para ${fmt(newDate)}`
+  }
   const FIELD_LABEL: Record<TextField, string> = { title: 'o título', briefing: 'o briefing', copy: 'a copy', legenda: 'a legenda', reference_notes: 'as referências', drive_url: 'o link do Drive', drive_folder_url: 'a pasta do carrossel' }
 
   const AUTO_ATTACH_FIELDS: TextField[] = ['briefing', 'copy', 'legenda', 'reference_notes']
@@ -955,14 +965,14 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               function pick(d: number) {
                 const mm = String(calMonth.m+1).padStart(2,'0'), dd = String(d).padStart(2,'0')
                 const s = `${calMonth.y}-${mm}-${dd}`
-                setForm(f => ({ ...f, scheduled_date: s })); persist({ scheduled_date: s }, `${who} definiu a data para ${new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`); setShowCal(false)
+                const msg = dateChangeMsg(s); setForm(f => ({ ...f, scheduled_date: s })); persist({ scheduled_date: s }, msg); setShowCal(false)
               }
               function applyTyped() {
                 const m = dateText.trim().match(/^(\d{4})-(\d{2})-(\d{2})$|^(\d{2})\/(\d{2})\/(\d{4})$/)
                 if (!m) return
                 const s = m[1] ? `${m[1]}-${m[2]}-${m[3]}` : `${m[6]}-${m[5]}-${m[4]}`
                 if (Number.isNaN(new Date(s + 'T12:00:00').getTime())) return
-                setForm(f => ({ ...f, scheduled_date: s })); persist({ scheduled_date: s }, `${who} definiu a data para ${new Date(s + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`); setShowCal(false)
+                const msg = dateChangeMsg(s); setForm(f => ({ ...f, scheduled_date: s })); persist({ scheduled_date: s }, msg); setShowCal(false)
               }
               return (
                 <ModalPortal>

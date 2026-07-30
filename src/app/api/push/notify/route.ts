@@ -40,7 +40,32 @@ export async function POST(req: NextRequest) {
 
   const { data: watchers } = await supabase.from('card_watchers')
     .select('member_id').eq('table_name', tableName).eq('record_id', recordId)
-  const memberIds = [...new Set((watchers || []).map((w: any) => w.member_id))].filter(id => id && id !== actorId)
+  let memberIds = [...new Set((watchers || []).map((w: any) => w.member_id))].filter(id => id && id !== actorId)
+
+  // Post de cronograma: precisa do estágio pra decidir quem mais avisar, e do
+  // month/year pro link abrir no mês certo (o Cronograma filtra por essas
+  // colunas, diferentes de scheduled_date — sem elas o deep-link abria o
+  // cliente certo mas no mês atual, sem o post).
+  let sched: { month?: number; year?: number; status?: string } | null = null
+  if (tableName === 'schedules') {
+    const { data } = await supabase.from('schedules').select('month, year, status').eq('id', recordId).maybeSingle()
+    sched = data
+  }
+
+  // Depois de aprovado o post é responsabilidade da Social Media — é ela quem
+  // agenda e publica. Qualquer mexida dali em diante (principalmente TROCAR A
+  // DATA) precisa chegar nela, mesmo que nunca tenha aberto o card. Sem isso
+  // ela só descobria a mudança ao procurar o post no dia e não achar — caso
+  // real com um post do Satō. Não basta virar watcher ao aprovar: quando quem
+  // aprova é o cliente pelo link público, esse caminho nem passa pelo Hub.
+  const isLiveStage = ['aprovado', 'agendado', 'publicado'].includes(sched?.status || '')
+  if (isLiveStage && clientId) {
+    const { data: social } = await supabase.from('client_team')
+      .select('member_id').eq('client_id', clientId).eq('funcao', 'social')
+    const socialIds = (social || []).map((s: any) => s.member_id).filter((id: string) => id && id !== actorId)
+    memberIds = [...new Set([...memberIds, ...socialIds])]
+  }
+
   if (memberIds.length === 0) return NextResponse.json({ sent: 0 })
 
   const { data: subs } = await supabase.from('push_subscriptions')
@@ -55,15 +80,8 @@ export async function POST(req: NextRequest) {
     clientName = client?.name || null
   }
 
-  // O Cronograma carrega os posts por month/year (colunas próprias da
-  // tabela, diferentes de scheduled_date) — sem passar isso no link, clicar
-  // na notificação abria o cliente certo mas no mês atual, e o post do
-  // deep-link nunca aparecia na lista carregada (então nunca abria o card).
   let url = buildUrl(recordId, clientId)
-  if (tableName === 'schedules') {
-    const { data: sched } = await supabase.from('schedules').select('month, year').eq('id', recordId).maybeSingle()
-    if (sched?.month && sched?.year) url += `&m=${sched.month}&y=${sched.year}`
-  }
+  if (sched?.month && sched?.year) url += `&m=${sched.month}&y=${sched.year}`
 
   const payload = JSON.stringify({
     title: clientName ? `${clientName} · ${actorName || 'Bagano Hub'}` : (actorName || 'Bagano Hub'),

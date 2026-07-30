@@ -498,8 +498,12 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     const who = currentMember?.name || 'Alguém'
     logActivity({
       tableName: 'schedules', recordId: postId, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id,
+      // Diz de ONDE saiu, não só pra onde foi — quem acompanha (Social Media)
+      // precisa saber que o post deixou um dia que já estava no radar dela.
       description: date
-        ? `${who} moveu "${post.title}" para ${new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} no calendário`
+        ? (post.scheduled_date
+            ? `${who} mudou "${post.title}" de ${new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} para ${new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
+            : `${who} moveu "${post.title}" para ${new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} no calendário`)
         : `${who} removeu a data de "${post.title}" no calendário`,
     })
   }
