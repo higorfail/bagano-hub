@@ -93,10 +93,13 @@ function pl(n: number, s: string, p: string) { return n === 1 ? s : p }
 
 const KIND_ICON: Record<string, string> = { post: '🎬', extra: '📎', material: '📦' }
 const KIND_CHIP_BG: Record<string, string> = { post: 'var(--ds-purple-bg)', extra: 'var(--ds-info-bg)', material: 'var(--color-bg-subtle)' }
+const KIND_LABEL: Record<string, [string, string]> = { post: ['post', 'posts'], extra: ['extra', 'extras'], material: ['material', 'materiais'] }
+
+type ParaVoceRowItem = { id: string; kind: string; title: string; clientId: string; dueDate: string | null; ajuste: boolean; href: string }
 
 function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap }: {
   label: string
-  items: { id: string; kind: string; title: string; clientId: string; dueDate: string | null; ajuste: boolean; href: string }[]
+  items: ParaVoceRowItem[]
   clientMap: Record<string, { name: string }>
   router: ReturnType<typeof useRouter>
   todayStr: string
@@ -104,43 +107,100 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
   cap?: number
   agingMap?: Record<string, string>
 }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  function toggle(key: string) {
+    setExpanded(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
+  }
+
+  function renderRow(it: ParaVoceRowItem, key?: string) {
+    const overdue = !!it.dueDate && it.dueDate < todayStr && !it.ajuste
+    const isToday = it.dueDate === todayStr
+    const updatedAt = agingMap?.[it.id]
+    const ageDays = updatedAt ? Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000) : null
+    const ageThreshold = muted ? 1 : 3
+    const showAge = !overdue && ageDays !== null && ageDays >= ageThreshold
+    const dueLabel = it.dueDate ? (isToday ? 'hoje' : new Date(it.dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })) : null
+    return (
+      <button key={key || it.id} onClick={() => router.push(it.href)}
+        className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
+        style={{ background: it.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+          style={{ background: it.ajuste ? 'var(--ds-error-accent)' : KIND_CHIP_BG[it.kind] || 'var(--color-bg-subtle)' }}>
+          {it.ajuste ? '⚠️' : KIND_ICON[it.kind] || '•'}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>{it.title || 'Sem título'}</p>
+          <p className="text-[11px] text-[var(--color-text-muted)] truncate">{clientMap[it.clientId]?.name || 'Sem cliente'}{dueLabel ? ` · ${dueLabel}` : ''}</p>
+        </div>
+        {overdue && (
+          <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
+        )}
+        {showAge && (
+          <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>
+            {muted ? `aguardando ${ageDays}d` : `parado ${ageDays}d`}
+          </span>
+        )}
+      </button>
+    )
+  }
+
+  // Agrupa por cliente+tipo (+ ajuste separado de pendência normal) — várias
+  // pendências iguais do mesmo cliente (6 reels do mesmo crono, por ex.)
+  // viravam 6 linhas idênticas; agora uma linha só, expansível. Ajuste
+  // agrupa também (3 ajustes do mesmo cliente = 1 linha vermelha), só que
+  // nunca fica escondido: continua sempre no topo, com a cor de urgência.
+  const groupMap = new Map<string, ParaVoceRowItem[]>()
+  for (const it of items) {
+    const key = `${it.clientId}:${it.kind}:${it.ajuste ? 1 : 0}`
+    if (!groupMap.has(key)) groupMap.set(key, [])
+    groupMap.get(key)!.push(it)
+  }
+  const groups = [...groupMap.entries()].map(([key, its]) => ({ key, its }))
+
   return (
     <div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5 px-0.5">{label}</p>
       <div className="flex flex-col gap-1">
-        {items.slice(0, cap).map(it => {
-          const overdue = !!it.dueDate && it.dueDate < todayStr && !it.ajuste
-          const isToday = it.dueDate === todayStr
-          const updatedAt = agingMap?.[it.id]
-          const ageDays = updatedAt ? Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000) : null
-          const ageThreshold = muted ? 1 : 3
-          const showAge = !overdue && ageDays !== null && ageDays >= ageThreshold
-          const dueLabel = it.dueDate ? (isToday ? 'hoje' : new Date(it.dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })) : null
+        {groups.slice(0, cap).map(({ key, its }) => {
+          if (its.length === 1) return renderRow(its[0])
+          const first = its[0]
+          const isOpen = expanded.has(key)
+          const [sing, plur] = KIND_LABEL[first.kind] || [first.kind, first.kind + 's']
+          const overdueCount = its.filter(it => !!it.dueDate && it.dueDate < todayStr && !it.ajuste).length
           return (
-            <button key={it.id} onClick={() => router.push(it.href)}
-              className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
-              style={{ background: it.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
-              <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
-                style={{ background: it.ajuste ? 'var(--ds-error-accent)' : KIND_CHIP_BG[it.kind] || 'var(--color-bg-subtle)' }}>
-                {it.ajuste ? '⚠️' : KIND_ICON[it.kind] || '•'}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>{it.title || 'Sem título'}</p>
-                <p className="text-[11px] text-[var(--color-text-muted)] truncate">{clientMap[it.clientId]?.name || 'Sem cliente'}{dueLabel ? ` · ${dueLabel}` : ''}</p>
-              </div>
-              {overdue && (
-                <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
-              )}
-              {showAge && (
-                <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>
-                  {muted ? `aguardando ${ageDays}d` : `parado ${ageDays}d`}
+            <div key={key}>
+              <button onClick={() => toggle(key)}
+                className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors hover:brightness-[0.97]"
+                style={{ background: first.ajuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                  style={{ background: first.ajuste ? 'var(--ds-error-accent)' : KIND_CHIP_BG[first.kind] || 'var(--color-bg-subtle)' }}>
+                  {first.ajuste ? '⚠️' : KIND_ICON[first.kind] || '•'}
                 </span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-semibold truncate ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+                    {its.length} {pl(its.length, sing, plur)} {first.ajuste ? 'pedidos pelo cliente' : 'pendentes'}
+                  </p>
+                  <p className="text-[11px] text-[var(--color-text-muted)] truncate">{clientMap[first.clientId]?.name || 'Sem cliente'}</p>
+                </div>
+                {overdueCount > 0 && (
+                  <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
+                    {overdueCount} atrasado{overdueCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+                <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
+              </button>
+              {isOpen && (
+                <div className="flex flex-col gap-1 mt-1 pl-3">
+                  {its.map(it => renderRow(it, `${key}-${it.id}`))}
+                </div>
               )}
-            </button>
+            </div>
           )
         })}
-        {items.length > cap && (
-          <p className="text-[11px] text-[var(--color-text-faint)] px-0.5">+ {items.length - cap} {items.length - cap === 1 ? 'item' : 'itens'}</p>
+        {groups.length > cap && (
+          <p className="text-[11px] text-[var(--color-text-faint)] px-0.5">
+            + {groups.slice(cap).reduce((s, g) => s + g.its.length, 0)} {groups.slice(cap).reduce((s, g) => s + g.its.length, 0) === 1 ? 'item' : 'itens'}
+          </p>
         )}
       </div>
     </div>
