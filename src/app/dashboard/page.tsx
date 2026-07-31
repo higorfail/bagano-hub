@@ -912,7 +912,10 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-page)]">
-      <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-5 md:py-8 space-y-5 md:space-y-6">
+      {/* Respiro de 16px no celular (20 no desktop): recupera uns 25px ao
+          longo da rolagem, e padding é o tipo de coisa cuja falta ninguém
+          sente — diferente de cortar conteúdo. */}
+      <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-4 md:py-8 space-y-4 md:space-y-6">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -927,7 +930,9 @@ export default function DashboardPage() {
               {greetingLine || 'Aqui está o que está acontecendo hoje na Bagano.'}
             </p>
           </div>
-          <p className="text-xs font-medium text-[var(--color-text-muted)] whitespace-nowrap mt-1">
+          {/* No celular a data vive na barra do topo (ver layout.tsx): lá ela
+              não custa altura nenhuma, porque aquela faixa já existe. */}
+          <p className="hidden md:block text-xs font-medium text-[var(--color-text-muted)] whitespace-nowrap mt-1">
             {DAYS[now.getDay()]}, {now.getDate()} de {MONTHS[now.getMonth()]} de {year}
           </p>
         </div>
@@ -938,17 +943,23 @@ export default function DashboardPage() {
             trabalho. Seis colunas de ícone — no desktop os atalhos seguem no
             card da direita e as métricas voltam como cards. */}
         <div className="md:hidden">
-          <Card padded className="flex items-stretch gap-1">
+          {/* p-3 em vez do p-5 padrão: com o conteúdo em ~54px, os 20px de
+              respiro em cima e embaixo eram quase metade da altura do card —
+              era o vazio em volta, não o ícone, que fazia isso não parecer
+              um atalho. O ladrilho ocupa a coluna inteira (antes era um
+              quadrado fixo de 36px numa coluna de ~52px, sobrando espaço
+              morto dos dois lados), no padrão de tela inicial de celular. */}
+          <Card className="p-3 flex items-stretch gap-1">
             {shortcuts.map(s => (
               <button key={s.label} onClick={() => router.push(s.href)}
                 title={s.label}
-                className="relative flex-1 min-w-0 flex flex-col items-center gap-1.5 py-0.5">
-                <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: TONE_BG[s.tone] }}>
-                  <s.icon size={17} strokeWidth={2} style={{ color: TONE_FG[s.tone] }} />
+                className="relative flex-1 min-w-0 flex flex-col items-center gap-1">
+                <span className="w-full h-11 rounded-xl flex items-center justify-center" style={{ background: TONE_BG[s.tone] }}>
+                  <s.icon size={24} strokeWidth={2} style={{ color: TONE_FG[s.tone] }} />
                 </span>
                 <span className="text-[8px] font-medium text-[var(--color-text-muted)] leading-none whitespace-nowrap">{s.label}</span>
                 {!!s.badge && s.badge > 0 && (
-                  <span className="absolute top-0 right-1 min-w-[14px] h-[14px] rounded-full text-white text-[8px] font-bold flex items-center justify-center px-1" style={{ background: 'var(--color-accent)' }}>{s.badge}</span>
+                  <span className="absolute -top-1 -right-0.5 min-w-[15px] h-[15px] rounded-full text-white text-[8px] font-bold flex items-center justify-center px-1 ring-2 ring-[var(--color-bg-card)]" style={{ background: 'var(--color-accent)' }}>{s.badge}</span>
                 )}
               </button>
             ))}
@@ -967,10 +978,10 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Bento ───────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-12 gap-5 items-start">
+        <div className="grid grid-cols-12 gap-4 md:gap-5 items-start">
 
           {/* Região esquerda */}
-          <div className="col-span-12 lg:col-span-8 space-y-5">
+          <div className="col-span-12 lg:col-span-8 space-y-4 md:space-y-5">
 
             {/* Para você — sozinha na linha, sem "buraco" causado por um vizinho mais curto */}
             {currentMember && (
@@ -1043,17 +1054,20 @@ export default function DashboardPage() {
           </div>
 
           {/* Região direita */}
-          <div className="col-span-12 lg:col-span-4 space-y-5">
+          <div className="col-span-12 lg:col-span-4 space-y-4 md:space-y-5">
 
             {/* Atalhos rápidos — no celular já estão em cima, na faixa de 6 */}
             <SectionCard title="Atalhos rápidos" className="hidden md:block">
+              {/* Ícone maior e rótulo menor, com o respiro encolhendo na mesma
+                  medida em que o ícone cresce — a célula fica com a mesma
+                  altura de antes. */}
               <div className="grid grid-cols-3 gap-2.5">
                 {shortcuts.map(s => (
                   <button key={s.label} onClick={() => router.push(s.href)}
-                    className="relative rounded-xl py-4 px-2 flex flex-col items-center gap-2 border border-[var(--color-border)] hover:-translate-y-0.5 hover:shadow-card transition-all"
+                    className="relative rounded-xl py-3.5 px-2 flex flex-col items-center gap-1.5 border border-[var(--color-border)] hover:-translate-y-0.5 hover:shadow-card transition-all"
                     style={{ background: TONE_BG[s.tone] }}>
-                    <s.icon size={22} strokeWidth={2} style={{ color: TONE_FG[s.tone] }} />
-                    <span className="text-[11px] font-medium text-[var(--color-text-primary)] text-center leading-tight">{s.label}</span>
+                    <s.icon size={28} strokeWidth={2} style={{ color: TONE_FG[s.tone] }} />
+                    <span className="text-[10px] font-medium text-[var(--color-text-primary)] text-center leading-tight">{s.label}</span>
                     {!!s.badge && s.badge > 0 && (
                       <span className="absolute top-1.5 right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1" style={{ background: 'var(--color-accent)' }}>{s.badge}</span>
                     )}

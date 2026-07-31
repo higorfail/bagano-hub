@@ -84,6 +84,17 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   // Sidebar vira gaveta (drawer) em telas pequenas — fecha sozinha ao navegar
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+
+  // Data curta da barra do topo (só no celular, onde ela saiu do corpo da
+  // página pra não gastar uma linha inteira). Calculada no efeito, não no
+  // render: servidor e navegador podem estar em fusos diferentes e o texto
+  // sairia diferente nos dois, quebrando a hidratação.
+  const [topDate, setTopDate] = useState('')
+  useEffect(() => {
+    const d = new Date()
+    const dias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+    setTopDate(`${dias[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }, [])
   useEffect(() => { setMobileNavOpen(false) }, [pathname])
 
   // Push notification (PWA) — verifica se já está inscrito assim que sabe quem é o usuário
@@ -766,6 +777,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               className="md:hidden w-9 h-9 rounded-xl hover:bg-[var(--color-bg-subtle)] flex items-center justify-center flex-shrink-0 text-[var(--color-text-secondary)]">
               <Menu size={18} strokeWidth={1.75} />
             </button>
+            {topDate && (
+              <span className="md:hidden text-xs font-medium text-[var(--color-text-muted)] whitespace-nowrap capitalize">
+                {topDate}
+              </span>
+            )}
             <div className="hidden sm:block min-w-0">
               <CommandPalette />
             </div>
