@@ -60,7 +60,7 @@ export function bucketOf(iso: string, now = new Date()): NotifBucket {
 export async function fetchNotifications(memberId: string, limit = 120): Promise<NotificationRow[]> {
   const supabase = createClient()
   const { data, error } = await supabase
-    .from('notifications')
+    .from('hub_notifications')
     .select('*')
     .eq('member_id', memberId)
     .order('created_at', { ascending: false })
@@ -80,7 +80,7 @@ export async function fetchNotifications(memberId: string, limit = 120): Promise
 export async function fetchUnreadCount(memberId: string): Promise<number> {
   const supabase = createClient()
   const { count, error } = await supabase
-    .from('notifications')
+    .from('hub_notifications')
     .select('id', { count: 'exact', head: true })
     .eq('member_id', memberId)
     .is('read_at', null)
@@ -120,12 +120,12 @@ export function groupByCard(rows: NotificationRow[]): NotificationGroup[] {
 export async function markRead(ids: string[]) {
   if (!ids.length) return
   const supabase = createClient()
-  await supabase.from('notifications').update({ read_at: new Date().toISOString() }).in('id', ids)
+  await supabase.from('hub_notifications').update({ read_at: new Date().toISOString() }).in('id', ids)
 }
 
 export async function markAllRead(memberId: string) {
   const supabase = createClient()
-  await supabase.from('notifications')
+  await supabase.from('hub_notifications')
     .update({ read_at: new Date().toISOString() })
     .eq('member_id', memberId)
     .is('read_at', null)

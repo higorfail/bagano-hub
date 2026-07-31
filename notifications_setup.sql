@@ -17,7 +17,7 @@
 -- Rodar no SQL Editor do Supabase.
 -- ─────────────────────────────────────────────────────────────────────────────
 
-create table if not exists public.notifications (
+create table if not exists public.hub_notifications (
   id           uuid primary key default gen_random_uuid(),
   member_id    uuid not null,
   -- Card de origem: é por ele que a lista agrupa (três mudanças de data no
@@ -36,36 +36,36 @@ create table if not exists public.notifications (
 );
 
 -- A consulta do sininho é sempre "as minhas, mais novas primeiro".
-create index if not exists notifications_member_created_idx
-  on public.notifications (member_id, created_at desc);
+create index if not exists hub_notifications_member_created_idx
+  on public.hub_notifications (member_id, created_at desc);
 
 -- Contador de não lidas e filtro "só não lidas".
-create index if not exists notifications_unread_idx
-  on public.notifications (member_id) where read_at is null;
+create index if not exists hub_notifications_unread_idx
+  on public.hub_notifications (member_id) where read_at is null;
 
 -- Agrupamento por card.
-create index if not exists notifications_card_idx
-  on public.notifications (card_table, card_id);
+create index if not exists hub_notifications_card_idx
+  on public.hub_notifications (card_table, card_id);
 
 -- O hub roda como role `anon` (não tem login de verdade). Sem estes GRANTs a
 -- tabela responde 401/42501 — mesmo problema que já apareceu em card_watchers
 -- e push_subscriptions.
-grant select, insert, update, delete on public.notifications to anon;
-grant select, insert, update, delete on public.notifications to authenticated;
-grant select, insert, update, delete on public.notifications to service_role;
+grant select, insert, update, delete on public.hub_notifications to anon;
+grant select, insert, update, delete on public.hub_notifications to authenticated;
+grant select, insert, update, delete on public.hub_notifications to service_role;
 
-alter table public.notifications enable row level security;
+alter table public.hub_notifications enable row level security;
 
-drop policy if exists "notifications open" on public.notifications;
-create policy "notifications open" on public.notifications
+drop policy if exists "hub_notifications open" on public.hub_notifications;
+create policy "hub_notifications open" on public.hub_notifications
   for all to anon, authenticated using (true) with check (true);
 
 -- Faxina: sem isso a tabela cresce pra sempre. Lidas com mais de 30 dias e
 -- qualquer coisa com mais de 90 dias saem — o histórico de verdade continua
 -- no activity_log, que não é apagado.
-create or replace function public.cleanup_notifications()
+create or replace function public.cleanup_hub_notifications()
 returns void language sql as $$
-  delete from public.notifications
+  delete from public.hub_notifications
    where (read_at is not null and created_at < now() - interval '30 days')
       or created_at < now() - interval '90 days';
 $$;

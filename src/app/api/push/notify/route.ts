@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
   // skipPush (o resumo em lote evita um push por post), e antes disso ela
   // simplesmente não existia pro sininho.
   const cardTitle = await resolveCardTitle(tableName, recordId)
-  await supabase.from('notifications').insert(
+  await supabase.from('hub_notifications').insert(
     memberIds.map(memberId => ({
       member_id: memberId,
       card_table: tableName,

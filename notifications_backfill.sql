@@ -19,7 +19,7 @@
 --     pra consulta, não pra cobrança.
 -- ─────────────────────────────────────────────────────────────────────────────
 
-insert into public.notifications
+insert into public.hub_notifications
   (member_id, card_table, card_id, client_id, kind, actor_name, title, body, url, read_at, created_at)
 select
   w.member_id,
@@ -58,7 +58,7 @@ where a.created_at >= now() - interval '30 days'
       ))
   and a.table_name in ('schedules', 'materials', 'extras', 'personal_tasks')
   and not exists (
-    select 1 from public.notifications n
+    select 1 from public.hub_notifications n
      where n.member_id  = w.member_id
        and n.card_id    = a.record_id
        and n.created_at = a.created_at
@@ -66,7 +66,7 @@ where a.created_at >= now() - interval '30 days'
 
 -- Conferência: quantas notificações cada pessoa passou a ter.
 select tm.name, count(*) as notificacoes
-  from public.notifications n
+  from public.hub_notifications n
   join public.team_members tm on tm.id = n.member_id
  group by tm.name
  order by notificacoes desc;
