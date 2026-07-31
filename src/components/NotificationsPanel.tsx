@@ -95,6 +95,10 @@ export default function NotificationsPanel({
   function openGroup(g: NotificationGroup) {
     const unreadIds = g.items.filter(i => !i.read_at).map(i => i.id)
     if (unreadIds.length) applyRead(unreadIds)
+    // Card apagado não abre: o link levaria pro cronograma sem o post, e
+    // aterrissar num lugar vazio é pior que não sair do lugar. O histórico
+    // continua legível aqui mesmo.
+    if (g.deleted) return
     onClose()
     if (g.url) router.push(g.url)
   }
@@ -235,14 +239,14 @@ export default function NotificationsPanel({
                   // de botão é HTML inválido — daí role/tabIndex + o
                   // stopPropagation lá embaixo.
                   <div key={g.key}
-                    role="button" tabIndex={0}
+                    role={g.deleted ? undefined : 'button'} tabIndex={g.deleted ? undefined : 0}
                     onClick={() => openGroup(g)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGroup(g) } }}
                     // Não lida ganha o mesmo azul do pontinho de não lida, em
                     // vez do cinza que era idêntico à cor de hover. A variável
                     // diz ao CSS qual é o fundo desta linha, pro hover partir
                     // dele (ver .notif-row em globals.css).
-                    className="notif-row flex gap-3 px-4 py-3 border-b border-[var(--color-border)] text-left transition-colors"
+                    className={`${g.deleted ? '' : 'notif-row'} flex gap-3 px-4 py-3 border-b border-[var(--color-border)] text-left transition-colors`}
                     style={g.unread > 0
                       ? { background: 'var(--ds-info-bg)', ['--notif-row-bg' as any]: 'var(--ds-info-bg)' }
                       : undefined}>
@@ -272,7 +276,15 @@ export default function NotificationsPanel({
                               {badge.label}
                             </span>
                           )}
-                          <span className="text-[12px] text-[var(--color-text-primary)] truncate">{g.title || 'Card'}</span>
+                          <span className={`text-[12px] truncate ${g.deleted ? 'text-[var(--color-text-faint)] line-through' : 'text-[var(--color-text-primary)]'}`}>
+                            {g.title || (g.deleted ? 'Card excluído' : 'Card')}
+                          </span>
+                          {g.deleted && (
+                            <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-px rounded flex-shrink-0 flex-shrink-0"
+                              style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-faint)' }}>
+                              excluído
+                            </span>
+                          )}
                         </div>
                       </div>
 

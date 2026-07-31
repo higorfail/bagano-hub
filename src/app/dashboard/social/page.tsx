@@ -85,7 +85,7 @@ export default function SocialPage() {
           </div>
         }
         trailing={
-          <div className="flex items-center gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1 w-full md:w-auto">
+          <div className="flex items-center gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1 w-full xl:w-auto xl:ml-auto">
             {/* Largura cheia com 4 fatias iguais no celular: com a largura do
                 próprio texto, "Pendências" ficava pra fora da borda da tela.
                 Os ícones somem no telefone — os rótulos identificam melhor e
@@ -94,11 +94,11 @@ export default function SocialPage() {
               <button
                 key={opt.key}
                 onClick={() => setView(opt.key)}
-                className={`relative flex-1 md:flex-none flex items-center justify-center gap-1.5 text-[11px] md:text-xs font-semibold px-1.5 md:px-3 py-1.5 rounded-lg transition-colors ${
+                className={`relative flex-1 xl:flex-none flex items-center justify-center gap-1.5 text-[11px] md:text-xs font-semibold px-1.5 md:px-3 py-2 md:py-1.5 rounded-lg transition-colors ${
                   view === opt.key ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'
                 }`}
               >
-                <opt.icon size={13} className="hidden md:block" />{opt.label}
+                <opt.icon size={13} className="hidden sm:block" />{opt.label}
                 {!!opt.badge && (
                   <span className="text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full" style={{ background: view === opt.key ? 'rgba(255,255,255,0.3)' : 'var(--ds-error-accent)', color: view === opt.key ? '#fff' : '#fff' }}>
                     {opt.badge}

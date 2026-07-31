@@ -15,6 +15,7 @@ import LogoIcon from '@/components/logos/LogoIcon'
 import { pushSupported, isSubscribedToPush, subscribeToPush, isIOS, isStandalonePWA } from '@/lib/push'
 import { useEdgeSwipe, useDragToDismiss, usePullToRefresh } from '@/lib/gestures'
 import { fetchUnreadCount } from '@/lib/notifications'
+import { installTouchDragBridge } from '@/lib/touchDragBridge'
 import { BellRing, RefreshCw } from 'lucide-react'
 
 const navItems = [
@@ -103,6 +104,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     setTopDate(`${dias[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`)
   }, [])
   useEffect(() => { setMobileNavOpen(false) }, [pathname])
+
+  // Sem isso, arrastar card não funciona em nenhum quadro no iPad/iPhone.
+  useEffect(() => { installTouchDragBridge() }, [])
 
   // Push notification (PWA) — verifica se já está inscrito assim que sabe quem é o usuário
   const [pushState, setPushState] = useState<'unsupported' | 'off' | 'on' | 'busy'>('off')
@@ -204,7 +208,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   function NavItem({ href, icon: Icon, label, external, badge }: { href: string; icon: any; label: string; external?: boolean; badge?: number }) {
     const active = pathname === href
-    const cls = `relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all ${
+    const cls = `relative flex items-center gap-2.5 px-3 md:px-0 md:justify-center xl:px-3 xl:justify-start py-2 md:py-2.5 xl:py-2 rounded-xl text-sm transition-all ${
       active
         ? 'text-[var(--color-accent)] font-semibold'
         : 'text-[var(--color-text-muted)] font-normal hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-secondary)]'
@@ -212,9 +216,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     const content = <>
       {active && <span className="absolute inset-0 rounded-xl -z-0" style={{ background: 'var(--color-accent-bg)' }} />}
       <Icon size={15} strokeWidth={active ? 2.25 : 1.75} className="flex-shrink-0 relative z-10" />
-      <span className="truncate relative z-10">{label}</span>
+      <span className="truncate relative z-10 md:hidden xl:inline">{label}</span>
       {!!badge && badge > 0 && (
-        <span className="ml-auto relative z-10 min-w-[18px] h-[18px] rounded-full text-white text-[10px] font-bold flex items-center justify-center px-1" style={{ background: 'var(--color-accent)' }}>
+        <span className="ml-auto md:absolute md:top-0.5 md:right-0.5 xl:static relative z-10 min-w-[18px] h-[18px] rounded-full text-white text-[10px] font-bold flex items-center justify-center px-1" style={{ background: 'var(--color-accent)' }}>
           {badge > 9 ? '9+' : badge}
         </span>
       )}
@@ -242,7 +246,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       {/* Arrastar a gaveta pra esquerda fecha. O X continua ali: gesto é
           invisível, então quem não souber que existe precisa ter o botão. */}
       <aside {...(mobileNavOpen ? navDrag.handlers : {})}
-        className={`w-64 md:w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 fixed md:relative inset-y-0 left-0 z-50 md:translate-x-0 ${navDrag.dragging || edgeDrag.dragging ? '' : 'transition-transform duration-200'} touch-pan-y ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`w-64 md:w-[4.5rem] xl:w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 md:px-2 xl:px-4 fixed md:relative inset-y-0 left-0 z-50 md:translate-x-0 ${navDrag.dragging || edgeDrag.dragging ? '' : 'transition-transform duration-200'} touch-pan-y ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}
         style={{
           paddingTop: 'calc(1.5rem + env(safe-area-inset-top))',
           paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
@@ -255,9 +259,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               : {}),
         }}>
         <div className="flex items-center justify-between mb-8">
-          <Link href="/dashboard" className="flex items-center gap-2.5 px-2 rounded-xl hover:opacity-80 transition-opacity" title="Ir para o início">
+          <Link href="/dashboard" className="flex items-center gap-2.5 px-2 md:px-0 md:justify-center xl:px-2 xl:justify-start rounded-xl hover:opacity-80 transition-opacity flex-1 min-w-0" title="Ir para o início">
             <LogoIcon size={34} className="text-[var(--color-logo)] flex-shrink-0" />
-            <span className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight">Bagano Hub</span>
+            <span className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight md:hidden xl:inline">Bagano Hub</span>
           </Link>
           <button onClick={() => setMobileNavOpen(false)} className="md:hidden w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)] flex-shrink-0">
             <XIcon size={16} />
@@ -265,17 +269,20 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
-          <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Geral</p>
+          <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2 md:hidden xl:block">Geral</p>
+          <div className="hidden md:block xl:hidden h-px bg-[var(--color-border)] mx-2 mb-2" />
           <nav className="flex flex-col gap-0.5 mb-6">
             {navItems.map(item => <NavItem key={item.href} {...item} />)}
           </nav>
 
-          <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Produção</p>
+          <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2 md:hidden xl:block">Produção</p>
+          <div className="hidden md:block xl:hidden h-px bg-[var(--color-border)] mx-2 mb-2" />
           <nav className="flex flex-col gap-0.5 mb-6">
             {productionItems.map(item => <NavItem key={item.href} {...item} badge={item.href === '/dashboard/aprovacao' ? approvalsBadge : undefined} />)}
           </nav>
 
-          <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2">Conteúdo</p>
+          <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-widest px-3 mb-2 md:hidden xl:block">Conteúdo</p>
+          <div className="hidden md:block xl:hidden h-px bg-[var(--color-border)] mx-2 mb-2" />
           <nav className="flex flex-col gap-0.5">
             {contentItems.map(item => <NavItem key={item.href} {...item} />)}
           </nav>
@@ -284,18 +291,18 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         <div className="pt-4 border-t border-[var(--color-border)]" ref={memberRef}>
           <button
             onClick={() => setShowMemberPicker(v => !v)}
-            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-[var(--color-bg-subtle)] transition-colors text-left group"
+            className="w-full flex items-center gap-2.5 px-2 md:px-0 md:justify-center xl:px-2 xl:justify-start py-1.5 rounded-xl hover:bg-[var(--color-bg-subtle)] transition-colors text-left group"
           >
             {currentMember ? (
               <>
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: currentMember.color || 'var(--color-brand)' }}>
                   {currentMember.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 md:hidden xl:block">
                   <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate leading-tight">{currentMember.name.split(' ')[0]}</p>
                   <p className="text-[10px] text-[var(--color-text-muted)] capitalize truncate">{currentMember.role.replace('_', ' ')}</p>
                 </div>
-                <ChevronDown size={13} className="text-[var(--color-text-faint)] group-hover:text-[var(--color-text-muted)] flex-shrink-0 transition-colors" />
+                <ChevronDown size={13} className="text-[var(--color-text-faint)] group-hover:text-[var(--color-text-muted)] flex-shrink-0 transition-colors md:hidden xl:block" />
               </>
             ) : (
               <span className="text-sm text-[var(--color-text-muted)] px-1">Quem é você?</span>
@@ -303,7 +310,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </button>
 
           {currentMember && (
-            <div className="flex items-center mt-2 bg-[var(--color-bg-subtle)] rounded-lg p-0.5">
+            <div className="flex items-center mt-2 bg-[var(--color-bg-subtle)] rounded-lg p-0.5 md:hidden xl:flex">
               <button
                 onClick={() => setShowOnlyMine(true)}
                 className={`flex-1 py-1 rounded-md text-[11px] font-medium transition-all ${showOnlyMine ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}

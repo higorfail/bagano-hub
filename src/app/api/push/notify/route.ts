@@ -110,6 +110,16 @@ export async function POST(req: NextRequest) {
   // faz o sininho e o push serem a mesma coisa: aprovação do cliente vem com
   // skipPush (o resumo em lote evita um push por post), e antes disso ela
   // simplesmente não existia pro sininho.
+  // Card apagado: o histórico FICA (deletar não desfaz o que aconteceu), mas
+  // as notificações dele passam a dizer isso. Sem essa marca elas continuavam
+  // parecendo abríveis e o clique largava a pessoa no cronograma vazio.
+  if (action === 'deleted') {
+    await supabase.from('hub_notifications')
+      .update({ card_deleted: true })
+      .eq('card_table', tableName)
+      .eq('card_id', recordId)
+  }
+
   const card = await resolveCardMeta(tableName, recordId)
   await supabase.from('hub_notifications').insert(
     memberIds.map(memberId => ({
@@ -123,6 +133,7 @@ export async function POST(req: NextRequest) {
       title: card.title,
       card_type: card.type,
       card_number: card.number,
+      card_deleted: action === 'deleted',
       body: description || 'Atualização num card que você acompanha',
       url,
     }))

@@ -72,7 +72,7 @@ function FilterDropdown({ label, count, showBadge = true, children }: { label: s
           própria célula da grade, senão voltam a ter a largura do texto. */}
       <button
         onClick={() => setOpen(o => !o)}
-        className={`w-full md:w-auto h-8 flex items-center justify-between md:justify-start gap-1.5 text-xs font-medium px-2.5 rounded-lg border transition-colors ${
+        className={`w-full xl:w-auto h-8 flex items-center justify-between xl:justify-start gap-1.5 text-xs font-medium px-2.5 rounded-lg border transition-colors ${
           count > 0 ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/8' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'
         }`}
       >
@@ -122,22 +122,22 @@ export default function SocialFilterBar({ clients, filters, onChange, leading, t
     // Antes era tudo numa barra só com flex-wrap, e ela se quebrava sozinha em
     // 4 fileiras irregulares — o seletor de visão, que é a navegação principal
     // da social media, sobrava no fim e ainda saía cortado pela borda.
-    <div className="flex flex-col gap-2 px-4 md:px-6 py-2.5 border-b border-[var(--color-border)] md:flex-row md:items-center md:flex-wrap">
+    <div className="flex flex-col gap-2 px-4 md:px-6 py-2.5 border-b border-[var(--color-border)] xl:flex-row xl:items-center xl:flex-wrap">
       {leading}
 
-      <div className="flex items-center gap-2 md:contents">
-        <div className="relative flex-1 md:flex-none">
+      <div className="flex items-center gap-2 xl:contents">
+        <div className="relative flex-1 xl:flex-none">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
           <input
             value={filters.search}
             onChange={e => onChange({ ...filters, search: e.target.value })}
             placeholder="Buscar por título…"
-            className="w-full md:w-40 h-8 pl-7 pr-3 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-brand)]"
+            className="w-full xl:w-40 h-8 pl-7 pr-3 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-brand)]"
           />
         </div>
         <button
           onClick={() => setPanelOpen(o => !o)}
-          className={`md:hidden h-8 flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 rounded-lg border transition-colors ${
+          className={`xl:hidden h-8 flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 rounded-lg border transition-colors ${
             activeCount > 0 ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/8' : 'border-[var(--color-border)] text-[var(--color-text-secondary)]'
           }`}
         >
@@ -148,15 +148,17 @@ export default function SocialFilterBar({ clients, filters, onChange, leading, t
       </div>
 
       {/* Painel de filtros — grade de 2 colunas no celular, tudo em linha no
-          iPad/desktop (md:contents faz este wrapper sumir do layout). */}
-      <div className={`${panelOpen ? 'grid' : 'hidden'} grid-cols-2 gap-2 md:contents`}>
+          desktop (xl:contents faz este wrapper sumir do layout). O corte é em
+          1280, não 768: no iPad cabia tudo em linha só na teoria — na prática
+          a barra quebrava em duas fileiras irregulares. */}
+      <div className={`${panelOpen ? 'grid' : 'hidden'} grid-cols-2 gap-2 xl:contents`}>
 
-      <div className="col-span-2 md:col-auto flex items-center gap-1 bg-[var(--color-bg-subtle)] rounded-lg p-0.5">
+      <div className="col-span-2 xl:col-auto flex items-center gap-1 bg-[var(--color-bg-subtle)] rounded-lg p-0.5">
         {DATE_OPTIONS.map(opt => (
           <button
             key={opt.key}
             onClick={() => onChange({ ...filters, dateFilter: opt.key })}
-            className={`flex-1 md:flex-none text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${
+            className={`flex-1 xl:flex-none text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${
               filters.dateFilter === opt.key ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'
             }`}
           >
@@ -214,12 +216,12 @@ export default function SocialFilterBar({ clients, filters, onChange, leading, t
         })}
       </FilterDropdown>
 
-      <div className="col-span-2 md:col-auto flex items-center gap-1 bg-[var(--color-bg-subtle)] rounded-lg p-0.5">
+      <div className="col-span-2 xl:col-auto flex items-center gap-1 bg-[var(--color-bg-subtle)] rounded-lg p-0.5">
         {SOURCE_OPTIONS.map(opt => (
           <button
             key={opt.key}
             onClick={() => setSource(opt.key)}
-            className={`flex-1 md:flex-none text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${
+            className={`flex-1 xl:flex-none text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${
               currentSource === opt.key ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'
             }`}
           >
@@ -231,7 +233,7 @@ export default function SocialFilterBar({ clients, filters, onChange, leading, t
       {hasAnyFilter && (
         <button
           onClick={() => onChange({ clientIds: new Set(), types: new Set(), sources: new Set(), dateFilter: 'todos', missingDateOnly: false, overdueOnly: false, monthFilter: null, search: '' })}
-          className="col-span-2 md:col-auto text-[11px] text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] px-1 py-1"
+          className="col-span-2 xl:col-auto text-[11px] text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] px-1 py-1"
         >
           ✕ limpar filtros
         </button>
@@ -239,7 +241,7 @@ export default function SocialFilterBar({ clients, filters, onChange, leading, t
 
       </div>
 
-      <div className="hidden md:block md:flex-1" />
+      <div className="hidden xl:block xl:flex-1" />
       {trailing}
     </div>
   )

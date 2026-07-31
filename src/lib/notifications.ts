@@ -16,6 +16,7 @@ export type NotificationRow = {
   card_number: number | null
   body: string
   url: string | null
+  card_deleted: boolean | null
   read_at: string | null
   created_at: string
 }
@@ -59,6 +60,7 @@ export type NotificationGroup = {
   title: string | null
   cardType: string | null
   cardNumber: number | null
+  deleted: boolean
   url: string | null
   items: NotificationRow[]
   unread: number
@@ -139,6 +141,7 @@ export function groupByCard(rows: NotificationRow[]): NotificationGroup[] {
         title: r.title,
         cardType: r.card_type,
         cardNumber: r.card_number,
+        deleted: !!r.card_deleted,
         url: r.url,
         items: [r],
         unread: r.read_at ? 0 : 1,

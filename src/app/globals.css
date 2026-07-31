@@ -120,6 +120,28 @@ img.h-full { height: 100% !important; }
   cursor: not-allowed;
 }
 
+/* ── Alvos de toque ──────────────────────────────────────────────────────────
+   Aumenta a ÁREA de toque sem mexer no tamanho desenhado: o ::after estende
+   o alvo pros 44px da referência da Apple por fora do botão, então o layout
+   fica idêntico e só o dedo ganha folga.
+
+   É opt-in (`.tap`) de propósito. Uma regra geral de `min-height: 44px` em
+   todo botão parece a solução óbvia, mas `pointer: coarse` também é o celular
+   — ela inflaria as pílulas de filtro, a barra do card e a faixa de atalhos
+   que acabamos de compactar, desfazendo o trabalho de espaço no telefone
+   inteiro pra resolver um problema que é do iPad. */
+@media (pointer: coarse) {
+  :where(.tap) { position: relative; }
+  :where(.tap)::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
 /* ── Linha do painel de notificações ─────────────────────────────────────────
    O hover precisa valer tanto na linha lida (fundo transparente) quanto na
    não lida (que já vem com um fundo azulado). Um `hover:bg-...` único não
