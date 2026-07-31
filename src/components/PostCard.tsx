@@ -432,7 +432,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     setGeneratingLegenda(true)
     const f = formRef.current
     const suggestion = await generateAiLegenda({
-      title: f.title, post_type: f.post_type, briefing: f.briefing, copy: f.copy, manual: clientManual,
+      title: f.title, post_type: f.post_type, briefing: f.briefing, copy: f.copy, manual: clientManual, clientId,
     })
     setGeneratingLegenda(false)
     if (!suggestion) { toast('Não consegui gerar uma sugestão agora.'); return }

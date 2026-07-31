@@ -7,6 +7,8 @@ export async function generateAiLegenda(opts: {
   briefing?: string
   copy?: string
   manual?: any
+  /** Sem isto a IA não consegue buscar as legendas antigas desta marca. */
+  clientId?: string
 }): Promise<string | null> {
   if (!opts.briefing?.trim() && !opts.copy?.trim()) return null
   try {

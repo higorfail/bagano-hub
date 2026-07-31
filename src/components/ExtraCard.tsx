@@ -394,7 +394,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   }
   async function suggestLegenda() {
     setGeneratingLegenda(true)
-    const suggestion = await generateAiLegenda({ title, post_type: type, briefing, copy, manual: clientManual })
+    const suggestion = await generateAiLegenda({ title, post_type: type, briefing, copy, manual: clientManual, clientId: fixedClientId || clientId })
     setGeneratingLegenda(false)
     if (!suggestion) { toast('Não consegui gerar uma sugestão agora.'); return }
     setLegenda(suggestion)
