@@ -832,6 +832,105 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     )
   }
 
+  // Rodapé como variável pra existir em dois lugares sem duplicar código: no
+  // celular ele entra no fim do conteúdo e ROLA junto (padrão Trello — a tela
+  // é curta demais pra sustentar cabeçalho e rodapé travados ao mesmo tempo);
+  // no desktop segue ancorado embaixo, onde sobra altura.
+  const footerBar = (
+        <div className="px-4 md:px-7 py-3 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-card)] relative">
+          {!isNew ? (
+            confirmDelete ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium" style={{ color: 'var(--ds-error-text)' }}>Confirmar exclusão?</span>
+                <button onClick={() => setConfirmDelete(false)} className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
+                <button onClick={handleDelete} disabled={deleting} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white disabled:opacity-50" style={{ background: 'var(--ds-error-accent)' }}>
+                  {deleting ? 'Excluindo…' : 'Excluir'}
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
+                <Trash2 size={13} /> Excluir post
+              </button>
+            )
+          ) : <div />}
+
+          <div className="flex items-center gap-3">
+            {form.status === 'revisao_interna' && currentId && (
+              <button
+                onClick={() => changeStatus('aguardando_aprovacao')}
+                className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl transition-all"
+                style={{ background: '#8b5cf6', color: '#fff' }}
+              >
+                ✓ Aprovado internamente — Enviar pro cliente
+              </button>
+            )}
+            {form.status === 'ajuste' && currentId && (
+              <button
+                onClick={async () => {
+                  setForm(f => ({ ...f, status: 'aguardando_aprovacao' }))
+                  setApprovalStatus('')
+                  await persist({ approval_status: null, status: 'aguardando_aprovacao' }, `${who} marcou ajuste como feito e reenviou para aprovação`, 'status_changed')
+                }}
+                className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl transition-all"
+                style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)', border: '1px solid var(--ds-error-border)' }}
+              >
+                ✏ Ajuste feito — Reenviar para aprovação
+              </button>
+            )}
+            {approvalStatus === 'aprovado' && (
+              <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl"
+                title={approvalKind(form.status, approvalStatus) === 'final'
+                  ? 'O cliente aprovou a arte final deste post'
+                  : 'O cliente aprovou a ideia no cronograma — a arte final ainda não foi aprovada'}
+                style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
+                ✓ {approvalLabel(form.status, approvalStatus)}
+              </span>
+            )}
+            {currentId && (
+              <div className="relative">
+                <button onClick={() => setMoveOpen(v => !v)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
+                  <Move size={13} /> Mover / Duplicar
+                </button>
+                {moveOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[79]" onClick={() => setMoveOpen(false)} />
+                    <div className="absolute bottom-9 right-0 z-[80] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-pop p-3 w-64 flex flex-col gap-3">
+                      <button onClick={duplicatePost} className="w-full text-left text-xs font-medium px-2 py-1.5 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center gap-2 transition-colors">
+                        <Copy size={13} /> Duplicar post (este mês)
+                      </button>
+                      <div className="border-t border-[var(--color-border)]" />
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Mover para o mês</p>
+                        <div className="flex items-center gap-1.5">
+                          <select value={moveMonth} onChange={e => setMoveMonth(Number(e.target.value))} className="flex-1 capitalize text-xs border border-[var(--color-border)] rounded-lg px-2 py-1.5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none">
+                            {MESES.map((m, i) => <option key={i} value={i + 1} className="capitalize">{m}</option>)}
+                          </select>
+                          <select value={moveYear} onChange={e => setMoveYear(Number(e.target.value))} className="text-xs border border-[var(--color-border)] rounded-lg px-2 py-1.5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none">
+                            {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
+                          </select>
+                          <button onClick={moveToMonth} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: 'var(--color-accent)' }}>Ir</button>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Mover para o cliente</p>
+                        <select value="" onChange={e => { if (e.target.value) moveToClientId(e.target.value) }} className="w-full text-xs border border-[var(--color-border)] rounded-lg px-2 py-1.5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none">
+                          <option value="">Escolher cliente…</option>
+                          {clientList.filter(c => c.id !== clientId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-faint)]">
+              <Check size={12} /> Salvo automaticamente
+            </div>
+          </div>
+        </div>
+  )
+
   return (
     <ModalPortal>
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center md:py-4 md:px-4"
@@ -853,6 +952,27 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
         <div className="h-[3px] flex-shrink-0 md:rounded-t-2xl" style={{ background: clientColor || typeObj.color }} />
 
+        {/* Barra fina fixa no celular: com o cabeçalho rolando junto, sobrou
+            faltando a âncora de "onde estou" e o botão de fechar sempre à
+            mão — é o que o Trello mantém preso no topo. */}
+        <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
+          <span className="flex-1 min-w-0 truncate text-sm font-semibold text-[var(--color-text-primary)]">
+            {form.title || 'Post sem título'}
+          </span>
+          {currentId && (
+            <button onClick={() => { const url = `${window.location.origin}/dashboard/cronograma?client=${clientId}&post=${currentId}&m=${month}&y=${year}`; navigator.clipboard.writeText(url); setLinkCopied(true); if (linkCopiedTimer.current) clearTimeout(linkCopiedTimer.current); linkCopiedTimer.current = setTimeout(() => setLinkCopied(false), 2000) }}
+              title="Copiar link do card"
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ color: linkCopied ? 'var(--ds-success-text)' : 'var(--color-text-secondary)' }}>
+              {linkCopied ? <Check size={15} /> : <Link2 size={15} />}
+            </button>
+          )}
+          <button onClick={() => { (document.activeElement as HTMLElement)?.blur(); onClose() }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[var(--color-text-secondary)]">
+            <X size={17} />
+          </button>
+        </div>
+
         {/* Abas Detalhes/Comentários — só no mobile (padrão Trello: alterna em vez de empilhar) */}
         <div className="md:hidden flex items-center border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
           <button onClick={() => setMobilePane('details')}
@@ -871,7 +991,11 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
         {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total (abas no mobile, lado a lado no desktop) */}
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden divide-y md:divide-y-0 md:divide-x divide-[var(--color-border)]">
-        <div className={`${mobilePane === 'comments' ? 'hidden md:flex' : 'flex'} flex-1 min-w-0 flex-col overflow-hidden`}>
+        {/* No celular a coluna inteira rola: antes só o miolo rolava, e o
+            cabeçalho (título, cliente, tipo/status/data, 11 membros e
+            etiquetas) ficava travado ocupando quase metade da tela, deixando
+            o conteúdo numa fatia fina. Igual ao Trello: tudo rola junto. */}
+        <div className={`${mobilePane === 'comments' ? 'hidden md:flex' : 'flex'} flex-1 min-w-0 flex-col overflow-y-auto md:overflow-hidden`}>
 
         {/* HEADER — título */}
         <div className="flex items-start justify-between gap-4 px-4 md:px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
@@ -894,7 +1018,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* No celular fechar/copiar link vivem na barra fina fixa acima */}
+          <div className="hidden md:flex items-center gap-2 flex-shrink-0">
             <span className={`flex items-center gap-1 text-[11px] font-medium text-[var(--ds-success-text)] transition-opacity ${justSaved ? 'opacity-100' : 'opacity-0'}`}>
               <Check size={12} /> salvo
             </span>
@@ -1161,7 +1286,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
         )}
 
           {/* LEFT — campos + referências + entrega */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-y-auto px-4 md:px-7 py-5 gap-5">
+          <div className="min-w-0 flex flex-col md:flex-1 md:overflow-y-auto px-4 md:px-7 py-5 gap-5">
 
             {textField('briefing', 'Briefing', '· instruções pro time (o que fazer)', 'O que precisa ser feito, direção criativa, referências de estilo…', 70)}
             {textField('copy', 'Copy', '· conceito / roteiro', 'Ideia central, roteiro do reels, texto das artes…', 70)}
@@ -1278,6 +1403,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 }
               }}
             />
+
+            {/* Rodapé rola junto no celular (ver footerBar) */}
+            <div className="md:hidden -mx-4 mt-1">{footerBar}</div>
           </div>
           </div>
 
@@ -1437,99 +1565,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           </div>
         </div>
 
-        {/* FOOTER */}
-        <div className="px-4 md:px-7 py-3 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-card)] relative">
-          {!isNew ? (
-            confirmDelete ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium" style={{ color: 'var(--ds-error-text)' }}>Confirmar exclusão?</span>
-                <button onClick={() => setConfirmDelete(false)} className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
-                <button onClick={handleDelete} disabled={deleting} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white disabled:opacity-50" style={{ background: 'var(--ds-error-accent)' }}>
-                  {deleting ? 'Excluindo…' : 'Excluir'}
-                </button>
-              </div>
-            ) : (
-              <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
-                <Trash2 size={13} /> Excluir post
-              </button>
-            )
-          ) : <div />}
-
-          <div className="flex items-center gap-3">
-            {form.status === 'revisao_interna' && currentId && (
-              <button
-                onClick={() => changeStatus('aguardando_aprovacao')}
-                className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl transition-all"
-                style={{ background: '#8b5cf6', color: '#fff' }}
-              >
-                ✓ Aprovado internamente — Enviar pro cliente
-              </button>
-            )}
-            {form.status === 'ajuste' && currentId && (
-              <button
-                onClick={async () => {
-                  setForm(f => ({ ...f, status: 'aguardando_aprovacao' }))
-                  setApprovalStatus('')
-                  await persist({ approval_status: null, status: 'aguardando_aprovacao' }, `${who} marcou ajuste como feito e reenviou para aprovação`, 'status_changed')
-                }}
-                className="flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl transition-all"
-                style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)', border: '1px solid var(--ds-error-border)' }}
-              >
-                ✏ Ajuste feito — Reenviar para aprovação
-              </button>
-            )}
-            {approvalStatus === 'aprovado' && (
-              <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl"
-                title={approvalKind(form.status, approvalStatus) === 'final'
-                  ? 'O cliente aprovou a arte final deste post'
-                  : 'O cliente aprovou a ideia no cronograma — a arte final ainda não foi aprovada'}
-                style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
-                ✓ {approvalLabel(form.status, approvalStatus)}
-              </span>
-            )}
-            {currentId && (
-              <div className="relative">
-                <button onClick={() => setMoveOpen(v => !v)}
-                  className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
-                  <Move size={13} /> Mover / Duplicar
-                </button>
-                {moveOpen && (
-                  <>
-                    <div className="fixed inset-0 z-[79]" onClick={() => setMoveOpen(false)} />
-                    <div className="absolute bottom-9 right-0 z-[80] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-pop p-3 w-64 flex flex-col gap-3">
-                      <button onClick={duplicatePost} className="w-full text-left text-xs font-medium px-2 py-1.5 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center gap-2 transition-colors">
-                        <Copy size={13} /> Duplicar post (este mês)
-                      </button>
-                      <div className="border-t border-[var(--color-border)]" />
-                      <div>
-                        <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Mover para o mês</p>
-                        <div className="flex items-center gap-1.5">
-                          <select value={moveMonth} onChange={e => setMoveMonth(Number(e.target.value))} className="flex-1 capitalize text-xs border border-[var(--color-border)] rounded-lg px-2 py-1.5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none">
-                            {MESES.map((m, i) => <option key={i} value={i + 1} className="capitalize">{m}</option>)}
-                          </select>
-                          <select value={moveYear} onChange={e => setMoveYear(Number(e.target.value))} className="text-xs border border-[var(--color-border)] rounded-lg px-2 py-1.5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none">
-                            {[year - 1, year, year + 1].map(y => <option key={y} value={y}>{y}</option>)}
-                          </select>
-                          <button onClick={moveToMonth} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: 'var(--color-accent)' }}>Ir</button>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Mover para o cliente</p>
-                        <select value="" onChange={e => { if (e.target.value) moveToClientId(e.target.value) }} className="w-full text-xs border border-[var(--color-border)] rounded-lg px-2 py-1.5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none">
-                          <option value="">Escolher cliente…</option>
-                          {clientList.filter(c => c.id !== clientId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-            <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-faint)]">
-              <Check size={12} /> Salvo automaticamente
-            </div>
-          </div>
-        </div>
+        <div className="hidden md:block">{footerBar}</div>
 
       </div>
     </div>
