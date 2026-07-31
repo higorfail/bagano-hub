@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   const cutoff = new Date(Date.now() - QUIET_MINUTES * 60 * 1000).toISOString()
   const { data: due } = await supabase.from('approval_digest_queue')
-    .select('client_id, approved_count, rejected_count, clients(name)')
+    .select('client_id, approved_count, rejected_count, window_start, clients(name)')
     .lte('last_action_at', cutoff)
 
   const pending = (due || []).filter((r: any) => r.approved_count > 0 || r.rejected_count > 0)
@@ -41,9 +41,36 @@ export async function GET(req: NextRequest) {
   let sent = 0
   for (const row of pending as any[]) {
     const clientName = row.clients?.name || 'Cliente'
+
+    // Conta POSTS DISTINTOS na janela, não eventos. O contador acumulado
+    // dizia "12 conteúdos" pra 11 posts porque um deles foi aprovado duas
+    // vezes (aprovado → marcado como ajuste internamente → aprovado de novo).
+    const since = row.window_start || row.last_action_at
+    const { data: events } = await supabase.from('activity_log')
+      .select('record_id, action')
+      .eq('client_id', row.client_id)
+      .in('action', ['client_approved', 'client_rejected', 'crono_approved', 'crono_rejected'])
+      .gte('created_at', since)
+
+    const approvedIds = new Set<string>()
+    const rejectedIds = new Set<string>()
+    for (const e of (events || []) as any[]) {
+      // Um post que foi aprovado E teve ajuste pedido na mesma janela conta
+      // como ajuste: é o estado em que ele terminou, e é o que exige ação.
+      if (e.action === 'client_rejected' || e.action === 'crono_rejected') { rejectedIds.add(e.record_id); approvedIds.delete(e.record_id) }
+      else if (!rejectedIds.has(e.record_id)) approvedIds.add(e.record_id)
+    }
+    // Sem eventos no activity_log (janela antiga), cai no contador de antes.
+    const approvedN = events?.length ? approvedIds.size : row.approved_count
+    const rejectedN = events?.length ? rejectedIds.size : row.rejected_count
+    if (approvedN === 0 && rejectedN === 0) {
+      await supabase.from('approval_digest_queue').delete().eq('client_id', row.client_id)
+      continue
+    }
+
     const parts: string[] = []
-    if (row.approved_count > 0) parts.push(`aprovou ${row.approved_count} conteúdo${row.approved_count !== 1 ? 's' : ''}`)
-    if (row.rejected_count > 0) parts.push(`pediu ajuste em ${row.rejected_count} conteúdo${row.rejected_count !== 1 ? 's' : ''}`)
+    if (approvedN > 0) parts.push(`aprovou ${approvedN} conteúdo${approvedN !== 1 ? 's' : ''}`)
+    if (rejectedN > 0) parts.push(`pediu ajuste em ${rejectedN} conteúdo${rejectedN !== 1 ? 's' : ''}`)
     const body = `${clientName} ${parts.join(', ')}.`
 
     const { data: team } = await supabase.from('client_team').select('member_id').eq('client_id', row.client_id)

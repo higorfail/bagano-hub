@@ -25,7 +25,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title,
       description,
-      images: client?.logo_url ? [{ url: client.logo_url }] : undefined,
+      // Explícito de propósito: sem isto, a página herdaria o
+      // opengraph-image da raiz — o banner INTERNO "Bagano Hub", que vai pro
+      // WhatsApp do cliente quando o link de aprovação é enviado. Quem recebe
+      // este link é o cliente, não a equipe.
+      images: client?.logo_url
+        ? [{ url: client.logo_url }]
+        : [{ url: '/icons/icon-512.png', width: 512, height: 512 }],
     },
   }
 }

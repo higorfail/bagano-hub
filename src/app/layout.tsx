@@ -32,7 +32,11 @@ export const metadata: Metadata = {
     title: "Bagano Hub",
     description: "Hub interno Bagano",
     siteName: "Bagano Hub",
-    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+    type: "website",
+    locale: "pt_BR",
+    // Sem `images` aqui de propósito: quem define é src/app/opengraph-image.tsx
+    // (1200×630). Antes era o ícone do app em 512×512 — quadrado desse tamanho,
+    // o WhatsApp renderiza como cartão gigante e o logo tomava a conversa.
   },
 };
 
