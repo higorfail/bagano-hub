@@ -20,7 +20,7 @@ type Props = {
   needsIOSInstall: boolean
   onEnablePush: () => void
   onClose: () => void
-  onUnreadChange: (n: number) => void
+  onUnreadChange?: (n: number) => void
 }
 
 function relTime(iso: string) {
@@ -57,7 +57,7 @@ export default function NotificationsPanel({
   }, [memberId])
 
   const unreadTotal = rows.filter(r => !r.read_at).length
-  useEffect(() => { onUnreadChange(unreadTotal) }, [unreadTotal, onUnreadChange])
+  useEffect(() => { onUnreadChange?.(unreadTotal) }, [unreadTotal, onUnreadChange])
 
   const groups = useMemo(() => {
     const matcher = KIND_GROUPS.find(k => k.key === kind) || KIND_GROUPS[0]

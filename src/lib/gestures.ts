@@ -78,7 +78,18 @@ export function useDrawer({ open, setOpen, width = 256, zone = 36 }: {
   const setOpenRef = useRef(setOpen); setOpenRef.current = setOpen
 
   useEffect(() => {
-    const inset = isStandalone() ? 0 : 20
+    // ABRIR pela borda só existe no app instalado.
+    //
+    // No Safari, arrastar da borda esquerda pra direita é o "voltar" do iOS, e
+    // minha faixa ficava exatamente em cima dele: em vez de abrir o menu, a
+    // página inteira deslizava e voltava. Não dá pra cancelar (os listeners
+    // são passivos de propósito, pra não engasgar a rolagem) e nem se deveria
+    // — a pessoa perderia o "voltar" do navegador numa faixa da tela.
+    //
+    // Instalado na tela de início não existe gesto de voltar, então a borda
+    // fica livre. É onde a equipe usa, já que notificação no iPhone só
+    // funciona nesse modo. No Safari o burger abre, como sempre abriu.
+    const canOpenByEdge = isStandalone()
     let startX: number | null = null
     let startY = 0
     let axis: 'none' | 'x' | 'other' = 'none'
@@ -97,8 +108,10 @@ export function useDrawer({ open, setOpen, width = 256, zone = 36 }: {
       // tela está atrás de um véu e não tem nada pra fazer ali, então exigir
       // que o dedo comece em cima dela é uma restrição sem motivo.
       // FECHADA: só a faixa da borda, senão roubaria a rolagem da página.
+      // FECHAR arrastando vale sempre e em qualquer ponto: o movimento é pra
+      // esquerda, que não disputa com gesto nenhum do sistema.
       if (openRef.current) startX = t.clientX
-      else startX = (t.clientX >= inset && t.clientX <= inset + zone) ? t.clientX : null
+      else startX = (canOpenByEdge && t.clientX <= zone) ? t.clientX : null
     }
     function onMove(e: TouchEvent) {
       if (startX === null) return
