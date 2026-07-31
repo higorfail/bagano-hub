@@ -228,13 +228,13 @@ function MateriaisContent() {
           ))}
         </div>
       ) : (
-      {/* Classes idênticas às do Extras, que encaixa certo. A única diferença
-          que este quadro tinha era o `flex-1` no elemento que rola — ele existe
-          pra altura no desktop, mas no celular entrava num contêiner que já é
-          o scroller, e era o único quadro do hub em que o encaixe não pegava.
-          Não consegui provar a causa lendo o código; convergir pro que
-          funciona é mais honesto que inventar uma terceira teoria. */}
       <div className="flex gap-5 md:flex-1 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0 items-stretch">
+        {/* Classes idênticas às do Extras, que encaixa certo. A única diferença
+            que este quadro tinha era o `flex-1` no elemento que rola — ele
+            existe pra altura no desktop, mas no celular ficava no próprio
+            scroller, e era o único quadro do hub onde o encaixe não pegava.
+            Não consegui provar a causa lendo o código; convergir pro que
+            funciona é mais honesto que inventar uma terceira teoria. */}
         {COLUMNS.map((col, colIdx) => {
           const items      = colMaterials(col.key)
           const isDragOver = dragOverCol === col.key
