@@ -21,6 +21,32 @@ const URL_BY_TABLE: Record<string, (recordId: string, clientId?: string | null) 
   personal_tasks: id => `/dashboard/tarefas?task=${id}`,
 }
 
+// ─── O que interrompe vs. o que só fica registrado ───────────────────────────
+//
+// Tudo continua sendo GRAVADO na caixa de entrada e no histórico do card. O
+// que muda aqui é o que vibra o telefone.
+//
+// A ação `updated` é um balaio: cobre desde "colou um link" até "mudou a data
+// de publicação". Notificando tudo, a caixa recebia 900+ avisos em 3 dias e
+// virava ruído — três pushes em três segundos por colar três links num card.
+// No volume errado, a notificação que importa some junto com o resto.
+//
+// Lista de PERMISSÃO, não de proibição: evento novo nasce silencioso. Quem
+// está consertando excesso não quer que o próximo tipo entre gritando.
+const PUSH_WORTHY_UPDATE = [
+  /adicionou .+ (ao|à) /i,                       // te puseram num card
+  /removeu .+ (do|da) /i,                        // te tiraram de um card
+  /(definiu|mudou|atualizou) (a data|o prazo|a hora|o horário)/i,
+  /mudou a data/i,
+  /entregou o conteúdo/i,                        // marco de produção
+  /atribuiu essa tarefa/i,
+]
+
+// Etiqueta é caso à parte: no fluxo da Bagano ela É a tarefa ("CRIAR
+// LEGENDA"), então vale interromper — mas só quem está marcado no card, não
+// todos os observadores.
+const LABEL_UPDATE = /etiqueta/i
+
 // Identidade do card na notificação: título, que tipo é e o número do post.
 // É o que permite a lista mostrar "#11 · Reels · Feijoada" em vez de só um
 // título solto — o tipo diz o trabalho que é, e o número é como o time se
@@ -153,10 +179,26 @@ export async function POST(req: NextRequest) {
     if (retry.error) console.error('push/notify: NÃO consegui gravar a notificação', retry.error)
   }
 
-  if (!canPush) return NextResponse.json({ sent: 0, stored: memberIds.length })
+  // Daqui pra baixo decide-se só QUEM VIBRA. A gravação acima já aconteceu
+  // pra todo mundo — ninguém perde histórico por causa deste filtro.
+  let pushTargets = memberIds
+  if (action === 'updated') {
+    const desc = description || ''
+    if (LABEL_UPDATE.test(desc)) {
+      // Etiqueta interrompe só quem está marcado no card: é uma tarefa
+      // atribuída, não um recado pra toda a lista de observadores.
+      const { data: card } = await supabase.from(tableName).select('assigned_members').eq('id', recordId).maybeSingle()
+      const assigned: string[] = Array.isArray((card as any)?.assigned_members) ? (card as any).assigned_members : []
+      pushTargets = memberIds.filter(id => assigned.includes(id))
+    } else if (!PUSH_WORTHY_UPDATE.some(re => re.test(desc))) {
+      pushTargets = []
+    }
+  }
+
+  if (!canPush || pushTargets.length === 0) return NextResponse.json({ sent: 0, stored: memberIds.length })
 
   const { data: subs } = await supabase.from('push_subscriptions')
-    .select('id, member_id, endpoint, p256dh, auth').in('member_id', memberIds)
+    .select('id, member_id, endpoint, p256dh, auth').in('member_id', pushTargets)
   if (!subs || subs.length === 0) return NextResponse.json({ sent: 0, stored: memberIds.length })
 
   const payload = JSON.stringify({
