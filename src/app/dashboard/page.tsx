@@ -492,12 +492,14 @@ export default function DashboardPage() {
   const inProd     = schedules.filter(s => [CFG.S.captacao, CFG.S.producao].includes(s.status)).length
   const withClient = schedules.filter(s => s.status === CFG.S.aguardandoAprovacao).length
 
-  const metricCards: { label: string; value: number; icon: typeof SquarePen; tone: BadgeTone }[] = [
-    { label: 'Posts do mês', value: total,      icon: SquarePen,     tone: 'red'     },
-    { label: 'Em produção',  value: inProd,      icon: CalendarClock, tone: 'orange'  },
-    { label: 'Aprovados',    value: approved,    icon: CheckCircle2,  tone: 'green'   },
-    { label: 'Com cliente',  value: withClient,  icon: UserCheck,     tone: 'purple'  },
-    { label: 'Publicados',   value: published,   icon: Send,          tone: 'neutral' },
+  // `short`: no celular são 5 colunas numa faixa só, onde "Posts do mês"
+  // quebraria em três linhas e desalinharia tudo.
+  const metricCards: { label: string; short: string; value: number; icon: typeof SquarePen; tone: BadgeTone }[] = [
+    { label: 'Posts do mês', short: 'Total',      value: total,      icon: SquarePen,     tone: 'red'     },
+    { label: 'Em produção',  short: 'Produção',   value: inProd,      icon: CalendarClock, tone: 'orange'  },
+    { label: 'Aprovados',    short: 'Aprovados',  value: approved,    icon: CheckCircle2,  tone: 'green'   },
+    { label: 'Com cliente',  short: 'Cliente',    value: withClient,  icon: UserCheck,     tone: 'purple'  },
+    { label: 'Publicados',   short: 'Publicados', value: published,   icon: Send,          tone: 'neutral' },
   ]
 
   // Atalhos rápidos
@@ -926,8 +928,23 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* ── Métricas ────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        {/* ── Métricas ──────────────────────────────────────────────────────
+            No celular vira uma faixa só: os 5 cards grandes empilhavam em 3
+            fileiras e comiam a tela inteira antes de chegar no "Para você",
+            que é o que a pessoa abre o hub pra ver. É um panorama, não uma
+            tarefa — ocupa o canto do olho, não o centro. No desktop sobra
+            largura, então continuam cards. */}
+        <div className="md:hidden">
+          <Card padded className="flex items-stretch gap-1">
+            {metricCards.map((m, i) => (
+              <div key={m.label} className={`flex-1 min-w-0 text-center ${i > 0 ? 'border-l border-[var(--color-border)]' : ''}`}>
+                <p className="text-lg font-bold leading-none" style={{ color: TONE_FG[m.tone] }}>{m.value}</p>
+                <p className="text-[9px] text-[var(--color-text-muted)] mt-1 leading-tight truncate px-0.5">{m.short}</p>
+              </div>
+            ))}
+          </Card>
+        </div>
+        <div className="hidden md:grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {metricCards.map(m => (
             <Card key={m.label} padded className="flex items-center gap-3.5">
               <IconBadge icon={m.icon} tone={m.tone} size="lg" />
@@ -972,7 +989,10 @@ export default function DashboardPage() {
                   Ver todos <ArrowRight size={13} />
                 </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {/* 2 colunas já no celular: em 1 coluna a lista de ~19 clientes
+                  virava uma rolagem interminável. O card encolhe junto (avatar,
+                  fontes e espaçamentos) pra caber nos ~170px de cada coluna. */}
+              <div className="grid grid-cols-2 xl:grid-cols-3 gap-2.5 md:gap-4">
                 {clients.map(client => {
                   const cp        = schedules.filter(s => s.client_id === client.id)
                   const cpTotal   = cp.length
@@ -984,22 +1004,22 @@ export default function DashboardPage() {
                   const hasIssue  = cpRej > 0 || cpDelayed > 0
                   return (
                     <Card key={client.id} hover padded className="cursor-pointer" onClick={() => router.push(`/dashboard/clientes/${client.id}`)}>
-                      <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center gap-2 md:gap-3 mb-2.5 md:mb-3">
                         {client.logo_url
-                          ? <img src={client.logo_url} alt={client.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                          : <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+                          ? <img src={client.logo_url} alt={client.name} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                          : <div className="w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white text-[11px] md:text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
                         }
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-[var(--color-text-primary)] truncate text-sm">{client.name}</p>
-                          <p className="text-xs text-[var(--color-text-muted)]">{cpTotal} {pl(cpTotal, 'post', 'posts')} · {allDone ? 'concluído' : cpTotal === 0 ? 'sem posts' : 'em andamento'}</p>
+                          <p className="font-semibold text-[var(--color-text-primary)] truncate text-xs md:text-sm">{client.name}</p>
+                          <p className="text-[10px] md:text-xs text-[var(--color-text-muted)] truncate">{cpTotal} {pl(cpTotal, 'post', 'posts')} · {allDone ? 'concluído' : cpTotal === 0 ? 'sem posts' : 'em andamento'}</p>
                         </div>
                       </div>
                       <div className="h-1.5 bg-[var(--color-bg-subtle)] rounded-full mb-2.5 overflow-hidden">
                         <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: client.color_hex }} />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-[var(--color-text-muted)]">{cpPub}/{cpTotal} publicados</span>
-                        <div className="flex items-center gap-1">
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        <span className="text-[10px] md:text-xs text-[var(--color-text-muted)]">{cpPub}/{cpTotal} publicados</span>
+                        <div className="flex items-center gap-1 flex-wrap">
                           {cpDelayed > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>{cpDelayed} atrasado{cpDelayed !== 1 ? 's' : ''}</span>}
                           {cpRej > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>{cpRej} ajuste{cpRej !== 1 ? 's' : ''}</span>}
                           {!hasIssue && allDone && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ ok</span>}
