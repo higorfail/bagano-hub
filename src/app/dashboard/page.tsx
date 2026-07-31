@@ -638,8 +638,15 @@ export default function DashboardPage() {
     // posts de agosto e o painel só olhava julho.
     return pendingSchedules.filter(s => {
       if ([CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)) return false
-      if (s.status === CFG.S.revisaoInterna) return myStrategistClients.has(s.client_id)
-      return (s.assigned_members || []).includes(currentMember.id)
+      // Em "Revisão interna" a estrategista do cliente vê o card MESMO sem
+      // estar marcada nele — é etapa dela. Mas isso é um acréscimo, não uma
+      // troca: quem está marcado continua vendo. Escrito como troca (um
+      // `return` que só olhava a estrategista), o card sumia de quem estava
+      // marcado — foi o que aconteceu com a Gabi nos posts do Number Seven,
+      // onde ela é a responsável mas não é da equipe do cliente.
+      const assignedToMe = (s.assigned_members || []).includes(currentMember.id)
+      if (s.status === CFG.S.revisaoInterna) return assignedToMe || myStrategistClients.has(s.client_id)
+      return assignedToMe
     })
   }, [pendingSchedules, currentMember, myStrategistClients])
 
