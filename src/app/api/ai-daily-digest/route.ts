@@ -11,7 +11,12 @@ export async function POST(req: NextRequest) {
 
   const itemsText = items.slice(0, 20).map((it: any) => {
     const tipo = it.postType || it.kind
-    const etiquetas = Array.isArray(it.labels) && it.labels.length ? ` — etiquetas: ${it.labels.join(', ')}` : ''
+    // Diz explicitamente quando NÃO há etiqueta. Mandar o campo vazio deixava
+    // um buraco que o modelo preenchia sozinho — foi assim que ele passou a
+    // afirmar "criar a legenda" pra cards que não pediam legenda nenhuma.
+    const etiquetas = Array.isArray(it.labels) && it.labels.length
+      ? ` — etiquetas: ${it.labels.join(', ')}`
+      : ' — sem etiqueta (tarefa desconhecida)'
     const campanha = it.campaign ? ` — campanha: ${it.campaign}` : ''
     return `- ${tipo} "${it.title}" (${it.clientName || 'sem cliente'})${it.ajuste ? ' — AJUSTE PEDIDO PELO CLIENTE' : ''}${it.overdue ? ' — ATRASADO' : ''}${it.dueDate ? ` — prazo ${it.dueDate}` : ''}${campanha}${etiquetas}`
   }).join('\n')
@@ -20,11 +25,18 @@ export async function POST(req: NextRequest) {
 
 Regras:
 - Agrupe por tipo de conteúdo usando o nome real (reels, carrossel, story, post), não "posts" genérico.
-- As ETIQUETAS dizem o trabalho que falta em cada card. Use-as pra descrever a tarefa em português natural, não copie o texto da etiqueta cru: "CRIAR LEGENDA" vira "criar a legenda", "Criar o design" vira "criar o design", "AGENDAR" vira "agendar". Ex: "6 reels do Mundo Selvagem — 4 pra criar legenda e 2 pro design."
-- Quando um item for de CAMPANHA (Dia dos Pais, Natal…), cite a campanha junto — é o que dá o senso de prazo real. Ex: "1 reels de Dia dos Pais do Zebuino". Não invente campanha pra item que não tem.
+- As ETIQUETAS dizem o trabalho que falta em cada card. Use-as pra descrever a tarefa em português natural, não copie o texto da etiqueta cru: "CRIAR LEGENDA" vira "criar a legenda", "Criar o design" vira "criar o design", "AGENDAR" vira "agendar".
+- Item SEM etiqueta não tem tarefa conhecida: cite só o tipo e o cliente, sem inventar o que falta fazer.
+- Quando um item for de CAMPANHA (Dia dos Pais, Natal…), cite a campanha junto — é o que dá o senso de prazo real. Não invente campanha pra item que não tem.
 - Priorize: ajustes pedidos pelo cliente primeiro, depois atrasados, depois o resto.
 - Cite nome de cliente quando ajudar a localizar o trabalho.
-- Não invente nada que não está na lista.
+
+FORMATO (é só a forma da frase — os nomes, números e tarefas abaixo são
+inventados e NÃO podem aparecer na resposta):
+  «N» «tipo» de «cliente» pra «tarefa da etiqueta», mais «N» «tipo» de «cliente».
+
+REGRA MAIS IMPORTANTE: todo cliente, número, tipo e tarefa da sua resposta tem
+que sair da lista de Pendências abaixo. Se algo não está lá, não existe.
 
 Pendências:
 ${itemsText}`
