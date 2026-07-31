@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { stripAiTells, NO_AI_TELLS } from '@/lib/aiText'
 
 // Frase do dia que acompanha o "Bom dia, Fulano" no topo do Hub — escrita
 // como um colega de equipe comentaria, usando o que a pessoa realmente tem
@@ -120,7 +121,7 @@ Escreva a frase (só ela, sem a saudação, máximo 75 caracteres):`
     if (!res.ok) return NextResponse.json({ greeting: '' })
 
     const data = await res.json()
-    let greeting: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
+    let greeting: string = stripAiTells(data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '')
     // O modelo às vezes devolve a saudação junto mesmo sendo instruído a não
     // fazer isso — corta pra não sair "Bom dia, Higor. Bom dia, Higor. ...".
     // O \b no fim do nome é essencial: a equipe tem "Gabi" e "Gabis", e sem

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { stripAiTells, NO_AI_TELLS } from '@/lib/aiText'
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     return `- ${tipo} "${it.title}" (${it.clientName || 'sem cliente'})${it.ajuste ? ' — AJUSTE PEDIDO PELO CLIENTE' : ''}${it.overdue ? ' — ATRASADO' : ''}${it.dueDate ? ` — prazo ${it.dueDate}` : ''}${campanha}${etiquetas}`
   }).join('\n')
 
-  const prompt = `Você é um assistente de produtividade de uma agência de social media. Escreva só a CONTINUAÇÃO de uma frase que já começa com "Para você, ${memberName || 'a pessoa'}: " — não repita o nome nem cumprimente, comece direto pelo resumo. Máximo 30 palavras, em português. Termine com ponto final. Não use markdown. Responda só com essa continuação.
+  const prompt = `Você é um assistente de produtividade de uma agência de social media. Escreva só a CONTINUAÇÃO de uma frase que já começa com "Para você, ${memberName || 'a pessoa'}: " — não repita o nome nem cumprimente, comece direto pelo resumo. Máximo 30 palavras, em português. Termine com ponto final. Não use markdown. ${NO_AI_TELLS} Responda só com essa continuação.
 
 Regras:
 - Agrupe por tipo de conteúdo usando o nome real (reels, carrossel, story, post), não "posts" genérico.
@@ -67,7 +68,7 @@ ${itemsText}`
     }
 
     const data = await res.json()
-    const digest = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
+    const digest = stripAiTells(data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '')
     return NextResponse.json({ digest })
   } catch (e) {
     return NextResponse.json({ error: 'Erro ao chamar API do Gemini' }, { status: 500 })

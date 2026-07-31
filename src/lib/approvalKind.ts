@@ -13,7 +13,21 @@ export type ApprovalKind = 'crono' | 'final' | null
 
 export function approvalKind(status?: string | null, approvalStatus?: string | null): ApprovalKind {
   if (approvalStatus !== 'aprovado') return null
+  // Post em AJUSTE não exibe aprovação, mesmo que o cronograma tenha sido
+  // aprovado antes. approval_status continua 'aprovado' desde aquela
+  // aprovação, então o card mostrava "✓ Crono" verde enquanto pedia trabalho.
+  // O selo tem que dizer onde o post ESTÁ, não onde ele já esteve.
+  if (status === 'ajuste') return null
   return FINAL_STAGES.includes(status || '') ? 'final' : 'crono'
+}
+
+// Rótulo de uma palavra pros selos compactos (mini card, kanban, cronograma).
+// Existe pra esses lugares perguntarem à biblioteca em vez de testarem
+// approval_status na mão — foi assim que a regra do ajuste passou batida em
+// quatro telas ao mesmo tempo.
+export function approvalShort(status?: string | null, approvalStatus?: string | null): string | null {
+  const kind = approvalKind(status, approvalStatus)
+  return kind === 'final' ? 'Final' : kind === 'crono' ? 'Crono' : null
 }
 
 // Rótulo curto na linguagem que o time usa no dia a dia.

@@ -1,10 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { stripAiTells, NO_AI_TELLS } from '@/lib/aiText'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
+
+
+/**
+ * Encontra o bloco fixo de rodapé que a marca repete no fim das legendas
+ * (endereço, WhatsApp, horário…).
+ *
+ * Por que em código e não pelo modelo: o modelo REPRODUZ o padrão, mas
+ * reescrevendo — e reescrever um telefone ou um número de rua significa
+ * eventualmente trocar um dígito. Legenda publicada com telefone errado é erro
+ * que chega no cliente. Aqui o bloco é COPIADO da legenda aprovada, exatamente
+ * como está, então não existe transcrição pra dar errado.
+ *
+ * Detecta sozinho: nenhum cliente precisa ser configurado, e cliente que não
+ * usa rodapé simplesmente não bate o limite e não ganha nada.
+ */
+function detectSignature(samples: string[]): string | null {
+  if (samples.length < 3) return null
+  const linesOf = (t: string) => t.split('\n').map(l => l.trimEnd()).filter((l, i, a) => !(l === '' && i === a.length - 1))
+  const docs = samples.map(linesOf).filter(l => l.length >= 2)
+  if (docs.length < 3) return null
+
+  let best: string | null = null
+  // Profundidades maiores primeiro: prefere o rodapé inteiro a só a última linha.
+  for (let depth = 5; depth >= 1; depth--) {
+    const counts = new Map<string, number>()
+    for (const d of docs) {
+      if (d.length < depth) continue
+      const block = d.slice(d.length - depth).join('\n').trim()
+      // Linha curta demais é coincidência ("Peça já!"), não assinatura.
+      if (block.length < 15) continue
+      counts.set(block, (counts.get(block) || 0) + 1)
+    }
+    for (const [block, n] of counts) {
+      // Maioria clara: aparece em pelo menos 60% das legendas recentes.
+      if (n / docs.length >= 0.6) { best = block; break }
+    }
+    if (best) break
+  }
+  return best
+}
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY
@@ -45,6 +86,9 @@ export async function POST(req: NextRequest) {
     ? manual.tone_of_voice.caption_samples.filter((t: any) => typeof t === 'string' && t.trim().length > 20)
     : []
   const samples = [...curated, ...voiceSamples].slice(0, 10)
+  // Só as legendas do banco entram na detecção: são texto aprovado de verdade,
+  // e é delas que o bloco vai ser copiado.
+  const signature = detectSignature(voiceSamples)
 
   const tov = manual?.tone_of_voice
   const manualContext = manual ? `
@@ -69,14 +113,21 @@ as frases delas. A legenda nova é sobre o briefing acima e mais nada.
 ${samples.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 ` : ''
 
+  const signatureContext = signature ? `
+Esta marca termina as legendas com um bloco fixo (endereço/contato). NÃO
+escreva esse bloco: ele é acrescentado automaticamente depois, copiado do
+original. Escreva só a legenda e pare — sem endereço, sem telefone, sem
+horário no final.
+` : ''
+
   const prompt = `Você é um social media escrevendo a legenda de um post de Instagram para uma marca.
-Escreva uma sugestão de legenda em português, natural, no tom da marca descrito abaixo. Pode incluir emojis com moderação e uma chamada pra ação no final, se fizer sentido. Não use hashtags a menos que o briefing peça. Não invente informações que não estão no briefing/copy.
+Escreva uma sugestão de legenda em português, natural, no tom da marca descrito abaixo. Pode incluir emojis com moderação e uma chamada pra ação no final, se fizer sentido. Não use hashtags a menos que o briefing peça. ${NO_AI_TELLS} Não invente informações que não estão no briefing/copy.
 
 Tipo de post: ${post_type || 'não especificado'}
 Título/tema do post: ${title || 'sem título'}
 Briefing: ${briefing || 'não informado'}
 Copy/roteiro de referência: ${copy || 'não informado'}
-${manualContext}${samplesContext}
+${manualContext}${samplesContext}${signatureContext}
 Responda APENAS com o texto da legenda pronta, sem explicações, sem aspas, sem markdown.`
 
   async function callGemini(model: string) {
@@ -110,7 +161,24 @@ Responda APENAS com o texto da legenda pronta, sem explicações, sem aspas, sem
     }
 
     const data = await res.json()
-    const legenda = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
+    let legenda = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
+    // Limpa ANTES de colar o rodapé: o endereço de alguns clientes tem
+    // travessão de verdade ("207F (fundos) – Praia dos Amores") e não pode
+    // ser mexido. Só o texto gerado passa por aqui.
+    legenda = stripAiTells(legenda)
+
+    // Cola o rodapé COPIADO, nunca gerado. Se o modelo tiver escrito algo
+    // parecido mesmo com a instrução, corta a versão dele antes — senão o
+    // endereço apareceria duas vezes, uma delas possivelmente errada.
+    if (legenda && signature) {
+      const firstLine = signature.split('\n')[0].trim()
+      if (firstLine) {
+        const at = legenda.indexOf(firstLine)
+        if (at > 0) legenda = legenda.slice(0, at).trimEnd()
+      }
+      if (!legenda.includes(signature)) legenda = `${legenda}\n\n${signature}`
+    }
+
     return NextResponse.json({ legenda })
   } catch (e) {
     return NextResponse.json({ error: 'Erro ao chamar API do Gemini' }, { status: 500 })

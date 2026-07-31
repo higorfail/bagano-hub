@@ -904,7 +904,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 ✏ Ajuste feito — Reenviar para aprovação
               </button>
             )}
-            {approvalStatus === 'aprovado' && (
+            {approvalLabel(form.status, approvalStatus) && (
               <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl"
                 title={approvalKind(form.status, approvalStatus) === 'final'
                   ? 'O cliente aprovou a arte final deste post'
