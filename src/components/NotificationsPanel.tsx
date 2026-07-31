@@ -8,6 +8,7 @@ import {
   bucketOf, bucketLabel, KIND_GROUPS,
   type NotificationRow, type NotificationGroup, type NotifBucket,
 } from '@/lib/notifications'
+import { fetchAgencyAlerts, type AgencyAlert } from '@/lib/agencyAlerts'
 
 type Client = { id: string; name: string; color_hex: string }
 
@@ -44,10 +45,12 @@ export default function NotificationsPanel({
   const [loading, setLoading] = useState(true)
   const [kind, setKind] = useState('todos')
   const [onlyUnread, setOnlyUnread] = useState(false)
+  const [alerts, setAlerts] = useState<AgencyAlert[]>([])
 
   useEffect(() => {
     let alive = true
     fetchNotifications(memberId).then(r => { if (alive) { setRows(r); setLoading(false) } })
+    fetchAgencyAlerts().then(a => { if (alive) setAlerts(a) })
     return () => { alive = false }
   }, [memberId])
 
@@ -172,6 +175,29 @@ export default function NotificationsPanel({
 
         {/* Lista */}
         <div className="flex-1 overflow-y-auto overscroll-contain">
+
+          {/* Atenção da agência — condições, não eventos: não têm "lido", não
+              entram no contador vermelho e somem sozinhas quando resolvem.
+              Ficam acima porque são o que pode dar problema hoje. */}
+          {kind === 'todos' && !onlyUnread && alerts.length > 0 && (
+            <div className="border-b border-[var(--color-border)]">
+              <p className="px-4 pt-3 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-faint)]">
+                Atenção da agência
+              </p>
+              {alerts.map(a => (
+                <button key={a.id} onClick={() => { onClose(); router.push(a.href) }}
+                  className="w-full text-left flex items-center gap-2.5 px-4 py-2 hover:bg-[var(--color-bg-subtle)] transition-colors">
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: a.severity === 'alta' ? 'var(--ds-error-accent)' : 'var(--ds-warn-accent)' }} />
+                  <span className="text-[12px] text-[var(--color-text-secondary)] min-w-0 flex-1">
+                    {a.label}
+                    {a.detail && <span className="text-[var(--color-text-faint)]"> · {a.detail}</span>}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {loading ? (
             <div className="flex items-center justify-center py-16 text-[var(--color-text-faint)]">
               <Loader2 size={20} className="animate-spin" />
