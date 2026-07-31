@@ -10,7 +10,7 @@ import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
 import { approvalKind } from '@/lib/approvalKind'
 import { dbError } from '@/lib/dbError'
-import { Check, Copy, Search, X, Zap, ClipboardCheck, Link2, Sparkles, ClipboardList } from 'lucide-react'
+import { Check, Copy, Search, X, Zap, ClipboardCheck, Link2, Sparkles, ClipboardList, ChevronDown } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { ensureWatching } from '@/lib/watch'
@@ -183,6 +183,8 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [filterStatus, setFilterStatus] = useState('')
   const [filterType, setFilterType] = useState('')
 
+  // Ações do crono recolhidas no celular (ver toolbar); no desktop ficam sempre visíveis.
+  const [showActions, setShowActions] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'calendar'>(() => {
     if (typeof window === 'undefined') return 'grid'
     const saved = localStorage.getItem('crono_view')
@@ -606,18 +608,18 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
         <>
           {/* Toolbar única: busca + filtros à esquerda · ações à direita */}
           <div className="flex items-center gap-2 flex-wrap mb-4">
-            <div className="relative w-[200px]">
+            <div className="relative w-full md:w-[200px]">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
               <input value={filterText} onChange={e => setFilterText(e.target.value)} placeholder="Buscar..."
                 className="w-full pl-8 pr-3 py-1.5 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]" />
             </div>
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-              className="text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
+              className="flex-1 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
               <option value="">Status</option>
               {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
             <select value={filterType} onChange={e => setFilterType(e.target.value)}
-              className="text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
+              className="flex-1 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
               <option value="">Tipo</option>
               {POST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
@@ -628,7 +630,17 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               </button>
             )}
 
-            <div className="ml-auto flex items-center gap-2 flex-wrap">
+            {/* No celular as 5 ações do crono viravam 3 fileiras de botões
+                largos, sem hierarquia — o que a pessoa mais usa (trocar de
+                visualização, criar post) ficava perdido no meio. Aqui elas
+                entram atrás de um botão; no desktop segue tudo à mostra. */}
+            <button onClick={() => setShowActions(v => !v)}
+              className="md:hidden flex items-center justify-between gap-1.5 w-full text-xs font-medium px-3 py-1.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)]">
+              Ações do cronograma
+              <ChevronDown size={13} className="transition-transform" style={{ transform: showActions ? 'rotate(180deg)' : 'none' }} />
+            </button>
+
+            <div className={`${showActions ? 'flex' : 'hidden'} md:flex w-full md:w-auto md:ml-auto items-center gap-2 flex-wrap`}>
               {/* Grupo Crono: finalizar+enviar (sempre) + Pra Criação (se houver pendência) + copiar link (sempre) */}
               <div className="flex items-center rounded-xl border overflow-hidden" style={{ borderColor: isFinalized ? 'var(--ds-success-border)' : 'var(--ds-purple-border,var(--color-border))' }}>
                 <button onClick={finalizeCrono} disabled={togglingStatus}
@@ -698,15 +710,20 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 <ClipboardList size={12} /> Checklist
               </button>
 
-              {/* Toggle de visualização */}
-              <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
-                <button onClick={() => changeView('list')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
-                <button onClick={() => changeView('grid')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
-                <button onClick={() => changeView('calendar')} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='calendar'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Calendário</button>
+            </div>
+
+            {/* Fora do menu: trocar de visualização e criar post são o que mais
+                se usa, então ficam sempre à mão — no celular dividindo a
+                própria linha, com as abas ocupando o espaço que sobra. */}
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="flex-1 md:flex-none flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
+                <button onClick={() => changeView('list')} className={`flex-1 md:flex-none px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
+                <button onClick={() => changeView('grid')} className={`flex-1 md:flex-none px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
+                <button onClick={() => changeView('calendar')} className={`flex-1 md:flex-none px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='calendar'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Calendário</button>
               </div>
 
               <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-90"
+                className="flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-90"
                 style={{ background: clientColor || 'var(--color-brand)' }}>
                 + Novo post
               </button>
