@@ -271,53 +271,52 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   return (
     <div className="flex flex-col gap-3">
 
-      {/* Link de aprovação de extras — só faz sentido no contexto de um cliente */}
-      {clientId && (
-        <div className="flex justify-end">
-          <button onClick={copyExtrasApprovalLink}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors"
-            style={copiedLink
-              ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
-              : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
-            {copiedLink ? <><Check size={12} /> Link copiado!</> : <><Link2 size={12} /> Link de aprovação dos extras</>}
-          </button>
-        </div>
-      )}
-
-      {/* Filtro de cliente — select compacto (20+ clientes não cabem como chips).
-          Some some no header da página quando hideClientFilterUI é passado. */}
-      {globalMode && !hideClientFilterUI && (
-        <div className="flex items-center gap-2">
-          <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
-            className="text-sm rounded-lg border bg-[var(--color-bg-card)] px-3 py-1.5 outline-none cursor-pointer font-medium"
-            style={filterClient !== 'all'
-              ? { borderColor: clients.find(c => c.id === filterClient)?.color_hex || 'var(--color-border-strong)', color: 'var(--color-text-primary)' }
-              : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
-            <option value="all">Todos os clientes</option>
-            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            <option value="global">Sem cliente</option>
-          </select>
-          {filterClient !== 'all' && (
-            <button onClick={() => setFilterClient('all')} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">✕ limpar</button>
+      {/* Uma barra só: antes o link de aprovação e o Arquivo eram dois blocos
+          justify-end separados, cada um numa linha própria e com a largura do
+          próprio texto — duas faixas gastas e nenhuma margem em comum. Todos
+          em h-8 e alinhados à direita a partir do mesmo ponto. */}
+      {(clientId || (globalMode && !hideClientFilterUI) || !hideArchiveToggleUI) && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {globalMode && !hideClientFilterUI && (
+            <>
+              <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
+                className="h-8 text-sm rounded-lg border bg-[var(--color-bg-card)] px-3 outline-none font-medium"
+                style={filterClient !== 'all'
+                  ? { borderColor: clients.find(c => c.id === filterClient)?.color_hex || 'var(--color-border-strong)', color: 'var(--color-text-primary)' }
+                  : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+                <option value="all">Todos os clientes</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="global">Sem cliente</option>
+              </select>
+              {filterClient !== 'all' && (
+                <button onClick={() => setFilterClient('all')} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">✕ limpar</button>
+              )}
+            </>
           )}
+          <div className="flex items-center gap-2 ml-auto">
+            {clientId && (
+              <button onClick={copyExtrasApprovalLink}
+                className="h-8 flex items-center gap-1.5 text-xs font-semibold px-3 rounded-lg border transition-colors"
+                style={copiedLink
+                  ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
+                  : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+                {copiedLink ? <><Check size={12} /> Link copiado!</> : <><Link2 size={12} /> <span className="hidden sm:inline">Link de aprovação dos extras</span><span className="sm:hidden">Link de aprovação</span></>}
+              </button>
+            )}
+            {!hideArchiveToggleUI && (
+              <button
+                onClick={() => setShowArchived(!showArchived)}
+                className="h-8 flex items-center gap-1.5 text-xs font-medium px-2.5 rounded-lg border transition-colors flex-shrink-0"
+                style={showArchived
+                  ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent)/8' }
+                  : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+              >
+                {showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+                {showArchived ? 'Ver board' : `Arquivo${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
+              </button>
+            )}
+          </div>
         </div>
-      )}
-
-      {/* Toggle de arquivados — some depois de finalizado deixa de ocupar espaço aqui.
-          Some daqui quando hideArchiveToggleUI é passado (o header da página renderiza). */}
-      {!hideArchiveToggleUI && (
-      <div className="flex justify-end">
-        <button
-          onClick={() => setShowArchived(!showArchived)}
-          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors"
-          style={showArchived
-            ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent)/8' }
-            : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
-        >
-          {showArchived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
-          {showArchived ? 'Ver board' : `Arquivo${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
-        </button>
-      </div>
       )}
 
       {showArchived ? (

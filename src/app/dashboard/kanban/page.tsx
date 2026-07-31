@@ -157,40 +157,43 @@ export default function KanbanPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 md:px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Kanban</h1>
-            <p className="text-[var(--color-text-muted)] text-xs mt-0.5">{publishedPosts}/{totalPosts} publicados · {filterPeriod ? `${MONTHS_FULL[filterPeriod.month - 1]} ${filterPeriod.year}` : 'todos os meses'}</p>
-          </div>
+      <div className="px-4 md:px-6 py-3 md:py-4 border-b border-[var(--color-border)] flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between md:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Kanban</h1>
+          {/* O período saiu daqui: o seletor logo ao lado já mostra qual é, e
+              repetir "todos os meses" gastava a linha sem dizer nada novo. */}
+          <p className="text-[var(--color-text-muted)] text-xs mt-0.5">{publishedPosts}/{totalPosts} publicados</p>
+        </div>
+        {/* Selos e seletor na mesma linha: cada selo ocupava uma faixa inteira
+            da tela pra dizer um número. Selos em h-8 e o seletor em h-9 — a
+            diferença de altura é o que marca quem é leitura e quem é controle. */}
+        <div className="flex items-center gap-2 flex-wrap md:flex-nowrap md:flex-shrink-0">
           {cronoFeitoCount > 0 && (
-            <div className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 border" style={{ background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
-              <span className="text-xs font-semibold" style={{ color: 'var(--ds-success-text)' }}>✓ {cronoFeitoCount} {cronoFeitoCount === 1 ? 'crono finalizado' : 'cronos finalizados'}</span>
+            <div className="h-8 flex items-center rounded-lg px-2.5 border flex-shrink-0" style={{ background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
+              <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: 'var(--ds-success-text)' }}>✓ {cronoFeitoCount} {cronoFeitoCount === 1 ? 'crono' : 'cronos'}<span className="hidden sm:inline"> {cronoFeitoCount === 1 ? 'finalizado' : 'finalizados'}</span></span>
             </div>
           )}
           {pendingApproval > 0 && (
-            <div className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 border" style={{ background: 'var(--ds-error-bg)', borderColor: 'var(--ds-error-border)' }}>
-              <span className="text-xs font-semibold" style={{ color: 'var(--ds-error-text)' }}>✗ {pendingApproval} não aprovado{pendingApproval > 1 ? 's' : ''}</span>
+            <div className="h-8 flex items-center rounded-lg px-2.5 border flex-shrink-0" style={{ background: 'var(--ds-error-bg)', borderColor: 'var(--ds-error-border)' }}>
+              <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: 'var(--ds-error-text)' }}>✗ {pendingApproval} não aprovado{pendingApproval > 1 ? 's' : ''}</span>
             </div>
           )}
-        </div>
-        {/* Largura cheia no celular: solto ele quebrava pra linha de baixo com
-            a largura do texto do mês, desalinhado de tudo em volta. */}
-        <div className="relative w-full md:w-auto">
-          <select
-            value={filterPeriod ? `${filterPeriod.month}-${filterPeriod.year}` : 'all'}
-            onChange={e => {
-              if (e.target.value === 'all') { setFilterPeriod(null); return }
-              const [m, y] = e.target.value.split('-').map(Number)
-              setFilterPeriod({ month: m, year: y })
-            }}
-            className="appearance-none w-full md:w-auto h-9 text-sm font-medium rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] pl-3 pr-8 text-[var(--color-text-primary)] outline-none hover:border-[var(--color-border-hover)]">
-            <option value="all">Todos os meses</option>
-            {periodOptions.map(p => (
-              <option key={`${p.month}-${p.year}`} value={`${p.month}-${p.year}`}>{MONTHS_FULL[p.month - 1]} {p.year}</option>
-            ))}
-          </select>
-          <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+          <div className="relative flex-1 min-w-[150px] md:flex-none">
+            <select
+              value={filterPeriod ? `${filterPeriod.month}-${filterPeriod.year}` : 'all'}
+              onChange={e => {
+                if (e.target.value === 'all') { setFilterPeriod(null); return }
+                const [m, y] = e.target.value.split('-').map(Number)
+                setFilterPeriod({ month: m, year: y })
+              }}
+              className="appearance-none w-full h-9 text-sm font-medium rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] pl-3 pr-8 text-[var(--color-text-primary)] outline-none hover:border-[var(--color-border-hover)]">
+              <option value="all">Todos os meses</option>
+              {periodOptions.map(p => (
+                <option key={`${p.month}-${p.year}`} value={`${p.month}-${p.year}`}>{MONTHS_FULL[p.month - 1]} {p.year}</option>
+              ))}
+            </select>
+            <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+          </div>
         </div>
       </div>
 

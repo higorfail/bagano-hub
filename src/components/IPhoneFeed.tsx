@@ -605,13 +605,13 @@ function PostPanel({ post, onClose, nativeVideo }: { post: FeedPost; onClose: ()
   const videoEmbedUrl = media?.carouselVideoEmbeds?.[slide]
 
   return (
-    <div style={{ width: 300, flexShrink: 0, background: 'var(--color-bg-card)', border: '0.5px solid var(--color-border)', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '0.5px solid var(--color-border)' }}>
-        <div>
+    <div className="ifeed-panel">
+      <div className="ifeed-panel-head">
+        <div style={{ minWidth: 0 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{post.title}</span>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 8, textTransform: 'capitalize' }}>{post.type}</span>
         </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 2 }}><X size={15} /></button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 2, flexShrink: 0 }}><X size={15} /></button>
       </div>
 
       <div style={{ aspectRatio: post.type === 'story' ? '9/16' : '4/5', background: 'var(--color-bg-subtle)', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
@@ -751,8 +751,56 @@ export default function IPhoneFeed({
           0%, 100% { box-shadow: 0 0 0 0 rgba(220,39,67,0.5); }
           50% { box-shadow: 0 0 0 6px rgba(220,39,67,0); }
         }
+        /* Este componente é todo estilo inline, e inline vence classe — então
+           tudo que precisa mudar no celular tem que morar aqui, não no style={}. */
+        .ifeed-row {
+          display: flex;
+          gap: 24px;
+          align-items: flex-start;
+          justify-content: center;
+        }
+        .ifeed-panel {
+          width: 300px;
+          flex-shrink: 0;
+          background: var(--color-bg-card);
+          border: 0.5px solid var(--color-border);
+          border-radius: 16px;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        .ifeed-panel-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 14px;
+          border-bottom: 0.5px solid var(--color-border);
+          background: var(--color-bg-card);
+        }
+        @media (max-width: 767px) {
+          /* O painel era uma coluna de 300px ao lado de um iPhone de 290: 614px
+             de largura numa tela de ~390, então abrir um post empurrava o
+             telefone pra fora e a página inteira andava de lado. No celular
+             ele vira folha de tela cheia, igual aos cards do resto do hub. */
+          .ifeed-panel {
+            position: fixed;
+            inset: 0;
+            z-index: 90;
+            width: 100%;
+            border: none;
+            border-radius: 0;
+            overflow-y: auto;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+          }
+          .ifeed-panel-head {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+          }
+        }
       `}</style>
-      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      <div className="ifeed-row">
 
         {/* iPhone */}
         <div style={{ flexShrink: 0 }}>

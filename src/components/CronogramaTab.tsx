@@ -115,11 +115,19 @@ function CalendarChip({ post, members, dragging, otherCronograma, onDragStart, o
 
   return (
     <div draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onClick={onClick}
-      className={`group/chip flex items-center gap-1.5 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg pl-1 pr-1.5 py-1 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:border-[var(--color-border-hover)] transition-all select-none ${dragging ? 'opacity-40' : ''}`}>
-      <div className="w-8 h-8 rounded-md flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+      className={`group/chip flex items-center gap-1.5 rounded-lg cursor-grab active:cursor-grabbing transition-all select-none border-0 bg-transparent md:bg-[var(--color-bg-card)] md:border md:border-[var(--color-border)] md:pl-1 md:pr-1.5 md:py-1 md:shadow-sm md:hover:shadow-md md:hover:border-[var(--color-border-hover)] ${dragging ? 'opacity-40' : ''}`}>
+      {/* No celular a célula do mês tem ~52px de largura: miniatura de 32px
+          mais título não cabem, e o que sobrava vazava pra cima dos dias
+          vizinhos. Sobra a tarja de status com o número do post — dá pra ver
+          quantos posts tem no dia e em que pé estão, e o toque abre o card. */}
+      <span className={`md:hidden w-full block text-[9px] font-bold leading-[1.4] px-1 rounded text-center truncate ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}
+        title={`${post.post_number != null ? `#${post.post_number} ` : ''}${post.title || 'Sem título'} — ${st}`}>
+        {post.post_number != null ? `#${post.post_number}` : '•'}
+      </span>
+      <div className="hidden md:block w-8 h-8 rounded-md flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
         {thumbUrl && <img src={thumbUrl} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />}
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="hidden md:block min-w-0 flex-1">
         <div className="flex items-center gap-1 mb-0.5">
           <span className={`text-[8px] font-bold uppercase tracking-wide px-1 py-px rounded truncate ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{st}</span>
           {otherCronograma && (
@@ -135,7 +143,7 @@ function CalendarChip({ post, members, dragging, otherCronograma, onDragStart, o
             </span>
           )}
         </div>
-        <p className="text-[11px] font-semibold text-[var(--color-text-primary)] leading-tight truncate">
+        <p className="text-[11px] font-semibold text-[var(--color-text-primary)] leading-tight truncate" title={post.title || 'Sem título'}>
           {post.post_number != null && <span className="text-[var(--color-text-faint)]">#{post.post_number} </span>}
           {post.title || 'Sem título'}
         </p>
@@ -184,7 +192,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [filterType, setFilterType] = useState('')
 
   // Ações do crono recolhidas no celular (ver toolbar); no desktop ficam sempre visíveis.
-  const [showActions, setShowActions] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'calendar'>(() => {
     if (typeof window === 'undefined') return 'grid'
     const saved = localStorage.getItem('crono_view')
@@ -606,48 +613,49 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
         </div>
       ) : (
         <>
-          {/* Toolbar única: busca + filtros à esquerda · ações à direita */}
+          {/* Toolbar única. No celular a ordem é invertida em relação ao
+              desktop: as ações do crono (finalizar, links, checklist) vêm
+              primeiro porque são o trabalho de verdade, e os filtros vão pro
+              fim — buscar por status/tipo é o que menos se faz aqui. */}
           <div className="flex items-center gap-2 flex-wrap mb-4">
-            <div className="relative w-full md:w-[200px]">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
-              <input value={filterText} onChange={e => setFilterText(e.target.value)} placeholder="Buscar..."
-                className="w-full pl-8 pr-3 py-1.5 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]" />
+
+            {/* FILTROS — última linha no celular, tudo junto em vez da busca
+                sozinha ocupando uma faixa inteira só pra ela. */}
+            <div className="order-3 md:order-1 w-full md:w-auto flex items-center gap-2">
+              <div className="relative flex-1 md:w-[200px] md:flex-none">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+                <input value={filterText} onChange={e => setFilterText(e.target.value)} placeholder="Buscar..."
+                  className="w-full h-8 pl-8 pr-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]" />
+              </div>
+              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                className="h-8 flex-shrink-0 text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 text-[var(--color-text-secondary)] outline-none">
+                <option value="">Status</option>
+                {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+              <select value={filterType} onChange={e => setFilterType(e.target.value)}
+                className="h-8 flex-shrink-0 text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 text-[var(--color-text-secondary)] outline-none">
+                <option value="">Tipo</option>
+                {POST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+              {hasFilter && (
+                <button onClick={() => { setFilterText(''); setFilterStatus(''); setFilterType('') }}
+                  className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0">
+                  <X size={11} /> {visiblePosts.length}/{posts.length}
+                </button>
+              )}
             </div>
-            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-              className="flex-1 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
-              <option value="">Status</option>
-              {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-            <select value={filterType} onChange={e => setFilterType(e.target.value)}
-              className="flex-1 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
-              <option value="">Tipo</option>
-              {POST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-            {hasFilter && (
-              <button onClick={() => { setFilterText(''); setFilterStatus(''); setFilterType('') }}
-                className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
-                <X size={11} /> {visiblePosts.length}/{posts.length}
-              </button>
-            )}
 
-            {/* No celular as 5 ações do crono viravam 3 fileiras de botões
-                largos, sem hierarquia — o que a pessoa mais usa (trocar de
-                visualização, criar post) ficava perdido no meio. Aqui elas
-                entram atrás de um botão; no desktop segue tudo à mostra. */}
-            <button onClick={() => setShowActions(v => !v)}
-              className="md:hidden flex items-center justify-between gap-1.5 w-full text-xs font-medium px-3 py-1.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)]">
-              Ações do cronograma
-              <ChevronDown size={13} className="transition-transform" style={{ transform: showActions ? 'rotate(180deg)' : 'none' }} />
-            </button>
-
-            <div className={`${showActions ? 'grid' : 'hidden'} grid-cols-2 gap-2 w-full md:flex md:w-auto md:ml-auto md:items-center md:gap-2 md:flex-wrap`}>
+            {/* AÇÕES DO CRONO — primeiro no celular. Estavam atrás de um
+                "Ações do cronograma" que precisava ser aberto toda vez; o
+                acordeão gastava uma linha pra esconder o que mais importa. */}
+            <div className="order-1 md:order-2 grid grid-cols-2 gap-2 w-full md:flex md:w-auto md:ml-auto md:items-center md:gap-2 md:flex-wrap">
               {/* Grupo Crono: finalizar+enviar (sempre) + Pra Criação (se houver pendência) + copiar link (sempre) */}
               <div className="col-span-2 md:col-auto flex items-center rounded-xl border overflow-hidden" style={{ borderColor: isFinalized ? 'var(--ds-success-border)' : 'var(--ds-purple-border,var(--color-border))' }}>
                 <button onClick={finalizeCrono} disabled={togglingStatus}
                   title={isFinalized
                     ? `Cronograma finalizado${cronoStatus?.finalized_by ? ` por ${cronoStatus.finalized_by}` : ''} — clique pra reabrir e voltar a editar`
                     : `Finalizar cronograma e enviar${estrategiaPosts.length > 0 ? ` ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} em estratégia` : ''} pra aprovação do cliente`}
-                  className="flex-1 md:flex-none justify-center flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-all hover:opacity-90 disabled:opacity-50"
+                  className="flex-1 md:flex-none h-8 justify-center flex items-center gap-1.5 text-xs font-semibold px-3 transition-all hover:opacity-90 disabled:opacity-50"
                   style={isFinalized
                     ? { color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
                     : { color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
@@ -664,7 +672,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                       toast(`${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} enviado${estrategiaPosts.length !== 1 ? 's' : ''} para Criação!`)
                     }} disabled={saving}
                       title={`Pular aprovação e mandar ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} direto pra Criação`}
-                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 border-l transition-all hover:opacity-90 disabled:opacity-50"
+                      className="h-8 flex items-center gap-1.5 text-xs font-semibold px-3 border-l transition-all hover:opacity-90 disabled:opacity-50"
                       style={{ borderColor: '#f59e0b66', color: '#b45309', background: '#f59e0b18' }}>
                       <Zap size={12} /> Pra Criação
                     </button>
@@ -672,7 +680,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 )}
                 <button onClick={() => copyTypeApprovalLink('cronograma')}
                   title="Copiar link de aprovação do cronograma (pauta/estratégia, sem produção)"
-                  className="flex-1 md:flex-none justify-center flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border-l transition-all hover:opacity-90"
+                  className="flex-1 md:flex-none h-8 justify-center flex items-center gap-1.5 text-xs font-medium px-3 border-l transition-all hover:opacity-90"
                   style={copiedLinkType === 'cronograma'
                     ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
                     : { borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)' }}>
@@ -681,19 +689,21 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 </button>
               </div>
 
-              {/* Grupo Aprovação final: ação (se houver pendência) + copiar link (sempre) */}
-              <div className="col-span-2 md:col-auto flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-success-border,var(--color-border))' }}>
+              {/* Grupo Aprovação final: ação (se houver pendência) + copiar link (sempre).
+                  Sem pendência sobra só "Link final", que divide a linha com o
+                  Checklist em vez de cada um gastar uma faixa inteira. */}
+              <div className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto flex items-center rounded-xl border overflow-hidden`} style={{ borderColor: 'var(--ds-success-border,var(--color-border))' }}>
                 {revisaoPosts.length > 0 && (
                   <button onClick={() => openApprovalModal('final')}
                     title={`Enviar ${revisaoPosts.length} post${revisaoPosts.length !== 1 ? 's' : ''} em revisão pra aprovação final do cliente`}
-                    className="flex-1 md:flex-none justify-center flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-all hover:opacity-90"
+                    className="flex-1 md:flex-none h-8 justify-center flex items-center gap-1.5 text-xs font-semibold px-3 transition-all hover:opacity-90"
                     style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
                     <ClipboardCheck size={12} /> Conteúdo entregue · {revisaoPosts.length}
                   </button>
                 )}
                 <button onClick={() => copyTypeApprovalLink('final')}
                   title="Copiar link de aprovação final (conteúdo já produzido)"
-                  className={`flex-1 md:flex-none justify-center flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 transition-all hover:opacity-90 ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
+                  className={`flex-1 md:flex-none h-8 justify-center flex items-center gap-1.5 text-xs font-medium px-3 transition-all hover:opacity-90 ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
                   style={copiedLinkType === 'final'
                     ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
                     : { borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)' }}>
@@ -705,20 +715,17 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               {/* Checklist de produção — gerado por IA, sob demanda, sem misturar com aprovação */}
               <button onClick={generatePreplist}
                 title="Gerar checklist de produção do mês com IA — pra equipe de captação usar no dia da gravação"
-                className="col-span-2 md:col-auto justify-center md:justify-start flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
+                className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto h-8 justify-center md:justify-start flex items-center gap-1.5 text-xs font-medium px-3 rounded-xl border transition-all hover:opacity-90`}
                 style={{ borderColor: '#8b5cf666', color: '#8b5cf6' }}>
                 <ClipboardList size={12} /> Checklist
               </button>
 
             </div>
 
-            {/* Fora do menu: trocar de visualização e criar post são o que mais
-                se usa, então ficam sempre à mão — no celular dividindo a
-                própria linha, com as abas ocupando o espaço que sobra. */}
-            {/* No celular cada um ocupa a própria linha: lado a lado, as abas
-                largas e o botão estreito ficavam desproporcionais. Criar post
-                é a ação principal — linha inteira, fácil de acertar. */}
-            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 w-full md:w-auto">
+            {/* Trocar de visualização e criar post: no celular cada um ocupa a
+                própria linha — lado a lado, as abas largas e o botão estreito
+                ficavam desproporcionais. */}
+            <div className="order-2 md:order-3 flex flex-col md:flex-row items-stretch md:items-center gap-2 w-full md:w-auto">
               <div className="flex-1 md:flex-none flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
                 <button onClick={() => changeView('list')} className={`flex-1 md:flex-none px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
                 <button onClick={() => changeView('grid')} className={`flex-1 md:flex-none px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
@@ -877,7 +884,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                     {Array.from({ length: totalCells }, (_, i) => {
                       const d = i - startWeekday + 1
                       const inMonth = d >= 1 && d <= daysInMonth
-                      if (!inMonth) return <div key={i} className="min-h-[110px] bg-[var(--color-bg-subtle)]/60 border-b border-r border-[var(--color-border)] [&:nth-child(7n)]:border-r-0" />
+                      if (!inMonth) return <div key={i} className="min-h-[62px] md:min-h-[110px] bg-[var(--color-bg-subtle)]/60 border-b border-r border-[var(--color-border)] [&:nth-child(7n)]:border-r-0" />
                       const key = dayKey(d)
                       const isToday = isThisMonth && today.getDate() === d
                       const dayPosts = byDay[key] || []
@@ -888,11 +895,11 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                           onDragLeave={() => setCalDragOver(v => v === key ? null : v)}
                           onDrop={() => { if (calDragId) setPostDate(calDragId, key); setCalDragId(null); setCalDragOver(null) }}
                           onClick={() => { setNewPostDate(key); setNewPostMonth(calMonth); setNewPostYear(calYear); setEditingPostId(null); setShowPostCard(true) }}
-                          className={`group/day min-h-[110px] border-b border-r border-[var(--color-border)] [&:nth-child(7n)]:border-r-0 p-1.5 flex flex-col gap-1 cursor-pointer transition-colors ${isOver ? 'bg-[var(--color-bg-subtle)] ring-2 ring-inset ring-[var(--color-accent)]' : 'hover:bg-[var(--color-bg-subtle)]/50'}`}>
+                          className={`group/day min-h-[62px] md:min-h-[110px] border-b border-r border-[var(--color-border)] [&:nth-child(7n)]:border-r-0 p-0.5 md:p-1.5 flex flex-col gap-0.5 md:gap-1 cursor-pointer transition-colors ${isOver ? 'bg-[var(--color-bg-subtle)] ring-2 ring-inset ring-[var(--color-accent)]' : 'hover:bg-[var(--color-bg-subtle)]/50'}`}>
                           <div className="flex items-center justify-between">
-                            <span className={`text-[11px] font-semibold w-5 h-5 rounded-full flex items-center justify-center ${isToday ? 'text-white' : 'text-[var(--color-text-muted)]'}`}
+                            <span className={`text-[10px] md:text-[11px] font-semibold w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center ${isToday ? 'text-white' : 'text-[var(--color-text-muted)]'}`}
                               style={isToday ? { background: clientColor || 'var(--color-brand)' } : {}}>{d}</span>
-                            <span className="text-[10px] text-[var(--color-text-faint)] opacity-0 group-hover/day:opacity-100 transition-opacity">+ post</span>
+                            <span className="hidden md:inline text-[10px] text-[var(--color-text-faint)] opacity-0 group-hover/day:opacity-100 transition-opacity">+ post</span>
                           </div>
                           {dayPosts.map(chip)}
                         </div>

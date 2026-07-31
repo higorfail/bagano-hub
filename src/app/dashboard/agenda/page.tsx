@@ -17,6 +17,9 @@ type Captacao     = {
 
 const DAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta']
 const DAYS_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex']
+// Formato curto pro celular — o toLocaleDateString pt-BR devolve "27 de jul.",
+// longo demais pra caber na barra de navegação da semana.
+const MONTH_SHORT_BR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 const STATUS_LABEL: Record<string, string> = { agendada: 'Agendada', realizada: 'Realizada', cancelada: 'Cancelada' }
 const STATUS_COLOR: Record<string, string> = {
   agendada:  'border bg-[var(--ds-info-bg)] text-[var(--ds-info-text)] border-[var(--ds-info-border)]',
@@ -286,22 +289,33 @@ export default function AgendaPage() {
                 className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors text-[var(--color-text-secondary)] flex-shrink-0">
                 <ChevronLeft size={14} />
               </button>
-              <span className="text-xs md:text-sm font-medium text-[var(--color-text-primary)] tabular-nums w-32 md:w-40 text-center flex-shrink-0">
-                {weekStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} –{' '}
-                {weekEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+              {/* Versão curta no celular: o formato longo ("27 de jul. – 02 de
+                  ago. de 2026") não cabia na largura fixa e quebrava em duas
+                  linhas, esticando a barra e desalinhando as setas. */}
+              <span className="text-xs md:text-sm font-medium text-[var(--color-text-primary)] tabular-nums w-[7.5rem] md:w-40 text-center flex-shrink-0">
+                <span className="md:hidden">
+                  {weekStart.getDate()} {MONTH_SHORT_BR[weekStart.getMonth()]} – {weekEnd.getDate()} {MONTH_SHORT_BR[weekEnd.getMonth()]}
+                </span>
+                <span className="hidden md:inline">
+                  {weekStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} –{' '}
+                  {weekEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
               </span>
               <button onClick={() => setWeekStart(d => getMonday(addDays(d, 7)))}
                 className="w-8 h-8 flex items-center justify-center rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors text-[var(--color-text-secondary)] flex-shrink-0">
                 <ChevronRight size={14} />
               </button>
               <button onClick={() => setWeekStart(getMonday(new Date()))}
-                className="text-xs px-3 py-1.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)] transition-colors flex-shrink-0">
+                className="h-8 text-xs px-3 rounded-xl border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)] transition-colors flex-shrink-0">
                 Hoje
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 md:gap-3">
+          {/* Uma coluna no celular: em duas, os 5 dias davam 2+2+1 (o último
+              órfão) e o nome do cliente não cabia — virava "Mundo Selvage…".
+              Em largura cheia o nome aparece inteiro e os cards ficam iguais. */}
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 sm:gap-2.5 md:gap-3">
             {dayDates.map((date, dayIndex) => {
               const dateStr  = toLocalISO(date)
               const isToday  = dateStr === todayStr
@@ -312,10 +326,11 @@ export default function AgendaPage() {
                   onDragOver={e => { e.preventDefault(); setDragOverDay(dayIndex) }}
                   onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDay(null) }}
                   onDrop={() => { if (dragEntryId !== null) moveEntry(dragEntryId, dayIndex); setDragOverDay(null) }}
-                  className={`bg-[var(--color-bg-card)] rounded-2xl border p-3 md:p-4 flex flex-col gap-2 min-h-[150px] md:min-h-[180px] transition-colors ${isToday ? 'border-[var(--color-brand)]' : dragOverDay === dayIndex ? 'border-[var(--color-brand)] bg-[var(--color-brand)]/5' : 'border-[var(--color-border)]'}`}>
-                  {/* Day header */}
+                  className={`bg-[var(--color-bg-card)] rounded-2xl border p-3 md:p-4 flex flex-col gap-2 min-h-0 sm:min-h-[150px] md:min-h-[180px] transition-colors ${isToday ? 'border-[var(--color-brand)]' : dragOverDay === dayIndex ? 'border-[var(--color-brand)] bg-[var(--color-brand)]/5' : 'border-[var(--color-border)]'}`}>
+                  {/* Day header — dia e número lado a lado no celular: em card
+                      de largura cheia, empilhados só gastavam altura. */}
                   <div className="flex items-center justify-between mb-1">
-                    <div>
+                    <div className="flex items-baseline gap-2 sm:block">
                       <p className={`text-xs font-semibold uppercase tracking-wider ${isToday ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>
                         {DAYS_SHORT[dayIndex]}
                       </p>

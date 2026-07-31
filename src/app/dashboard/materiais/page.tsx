@@ -180,18 +180,19 @@ function MateriaisContent() {
           <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Materiais</h1>
           <p className="text-[var(--color-text-muted)] text-sm truncate">{visible.length} materia{visible.length === 1 ? 'l' : 'is'} · menus, cardápios, artes</p>
         </div>
-        {/* No celular vira grade de 2 colunas: em linha, cada controle tinha a
-            largura do próprio texto e o "+ Novo material" era empurrado pra
-            fora da tela. Todos com h-9 — as alturas diferentes (py-1.5 vs h-9)
-            eram o que fazia a barra parecer desalinhada. */}
-        <div className="grid grid-cols-2 gap-2 w-full md:flex md:w-auto md:items-center">
-          <select value={filterClient} onChange={e => setFilterClient(e.target.value)} className="col-span-2 md:col-auto h-9 border border-[var(--color-border)] rounded-xl px-3 text-sm bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)]">
+        {/* Os três numa linha só: o filtro estica pra ocupar a sobra e os dois
+            botões ficam no tamanho do próprio texto. "Novo material" encurta
+            pra "Novo" no celular — é o rótulo que não cabia e obrigava a
+            empurrar tudo pra uma segunda fileira. Todos em h-9: as alturas
+            diferentes eram o que deixava a barra torta. */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <select value={filterClient} onChange={e => setFilterClient(e.target.value)} className="flex-1 md:flex-none min-w-0 h-9 border border-[var(--color-border)] rounded-xl px-3 text-sm bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)]">
             <option value="">Todos os clientes</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <button
             onClick={() => setShowArchived(s => !s)}
-            className="h-9 flex items-center justify-center gap-1.5 text-sm font-medium px-3 rounded-xl border transition-colors"
+            className="h-9 flex-shrink-0 flex items-center justify-center gap-1.5 text-sm font-medium px-3 rounded-xl border transition-colors"
             style={showArchived
               ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }
               : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
@@ -199,7 +200,9 @@ function MateriaisContent() {
             {showArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
             {showArchived ? 'Ver board' : `Arquivo${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
           </button>
-          <Button variant="dark" onClick={() => setCardOpen('new')}>+ Novo material</Button>
+          <Button variant="dark" className="flex-shrink-0" onClick={() => setCardOpen('new')}>
+            + Novo<span className="hidden sm:inline"> material</span>
+          </Button>
         </div>
       </div>
 
