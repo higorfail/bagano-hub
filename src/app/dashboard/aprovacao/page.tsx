@@ -848,13 +848,19 @@ function AprovacaoPageInner() {
                           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 p-4 items-start">
                             {mPosts.map(p => {
                               const needsRevision = p.approval_status === 'não aprovado'
-                              const hasAdjustment = p.status === 'ajuste'
-                              const isApproved    = p.approval_status === 'aprovado'
+                              const hasAdjustment = p.status === 'ajuste' || p.approval_status === 'não aprovado'
+                              // isFinalApproved, não o campo cru: approval_status
+                              // continua 'aprovado' desde a aprovação do
+                              // CRONOGRAMA. Testando o campo direto, um post que
+                              // o cliente pediu ajuste por WhatsApp e o time moveu
+                              // pra Ajuste continuava verde, parecendo pronto.
+                              const isApproved    = isFinalApproved(p) && !hasAdjustment
                               const waitDays = waitingSince[p.id] ? daysAgo(waitingSince[p.id]) : null
                               const isUrgent = waitDays !== null && waitDays >= 3 && !isApproved
-                              const statusColor = isApproved ? 'var(--ds-success-accent)' : hasAdjustment || needsRevision ? '#ef4444' : 'var(--ds-info-accent)'
+                              // Ajuste vem primeiro: é o estado que pede ação.
+                              const statusColor = hasAdjustment || needsRevision ? '#ef4444' : isApproved ? 'var(--ds-success-accent)' : 'var(--ds-info-accent)'
                               const nComments = commentsCount[p.id] || 0
-                              const statusLabel = isApproved ? (approvalKind(p.status, p.approval_status) === 'final' ? 'Final' : 'Crono') : hasAdjustment || needsRevision ? 'Ajuste' : 'Aguardando'
+                              const statusLabel = hasAdjustment || needsRevision ? 'Ajuste' : isApproved ? 'Final' : 'Aguardando'
                               return (
                                 <div key={p.id} className="flex flex-col gap-1">
                                   <button onClick={() => setLightboxId(p.id)} title="Ver preview" className="relative rounded-lg overflow-hidden transition-all hover:opacity-90"
@@ -893,8 +899,13 @@ function AprovacaoPageInner() {
                           <div className="divide-y divide-[var(--color-bg-subtle)]">
                             {mPosts.map(p => {
                               const needsRevision = p.approval_status === 'não aprovado'
-                              const hasAdjustment = p.status === 'ajuste'
-                              const isApproved    = p.approval_status === 'aprovado'
+                              const hasAdjustment = p.status === 'ajuste' || p.approval_status === 'não aprovado'
+                              // isFinalApproved, não o campo cru: approval_status
+                              // continua 'aprovado' desde a aprovação do
+                              // CRONOGRAMA. Testando o campo direto, um post que
+                              // o cliente pediu ajuste por WhatsApp e o time moveu
+                              // pra Ajuste continuava verde, parecendo pronto.
+                              const isApproved    = isFinalApproved(p) && !hasAdjustment
                               const waitDays = waitingSince[p.id] ? daysAgo(waitingSince[p.id]) : null
                               const isUrgent = waitDays !== null && waitDays >= 3 && !isApproved
                               const nComments = commentsCount[p.id] || 0
@@ -954,13 +965,13 @@ function AprovacaoPageInner() {
                                     </div>
                                   </button>
                                   <div className="flex-shrink-0">
-                                    {isApproved ? (
-                                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
-                                        ✓ {approvalLabel(p.status, p.approval_status)}
-                                      </span>
-                                    ) : hasAdjustment || needsRevision ? (
+                                    {hasAdjustment || needsRevision ? (
                                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border text-white" style={{ color: '#fff', background: '#ef4444', borderColor: '#ef4444' }}>
                                         Ajuste
+                                      </span>
+                                    ) : isApproved ? (
+                                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
+                                        ✓ {approvalLabel(p.status, p.approval_status)}
                                       </span>
                                     ) : (
                                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)', borderColor: 'var(--ds-info-border)' }}>
