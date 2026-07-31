@@ -7,7 +7,8 @@ import { useUser } from '@/lib/UserContext'
 import {
   ArrowRight, AlertTriangle, Clock, CalendarDays, ChevronRight, ChevronDown,
   Zap, CheckCircle2, Camera, CheckSquare, SquarePen, CalendarClock, UserCheck, Send,
-  Feather, ShieldCheck, LayoutGrid, Kanban, Package, Target,
+  Feather, Kanban, Package, Target,
+  Calendar, LayoutList, ClipboardCheck, Share2,
 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { Card, SectionCard } from '@/components/ui/Card'
@@ -504,13 +505,16 @@ export default function DashboardPage() {
 
   // Atalhos rápidos
   const approvalsBadge = rejected.length + pendingApproval.length
+  // Mesmos ícones da barra lateral de propósito: atalho e menu apontam pro
+  // mesmo lugar, então ícone diferente pro mesmo destino faria parecer que são
+  // telas diferentes.
   const shortcuts: { label: string; icon: typeof Feather; tone: BadgeTone; href: string; badge?: number }[] = [
-    { label: 'Novo post',   icon: Feather,     tone: 'red',     href: '/dashboard/cronograma' },
-    { label: 'Calendário',  icon: CalendarDays, tone: 'amber',   href: '/dashboard/calendario' },
-    { label: 'Aprovações',  icon: ShieldCheck, tone: 'green',   href: '/dashboard/aprovacao', badge: approvalsBadge },
-    { label: 'Feed Visual', icon: LayoutGrid,  tone: 'purple',  href: '/dashboard/feed' },
-    { label: 'Kanban',      icon: Kanban,      tone: 'blue',    href: '/dashboard/kanban' },
-    { label: 'Materiais',   icon: Package,     tone: 'neutral', href: '/dashboard/materiais' },
+    { label: 'Cronograma',   icon: Calendar,       tone: 'red',     href: '/dashboard/cronograma' },
+    { label: 'Extras',       icon: LayoutList,     tone: 'amber',   href: '/dashboard/extras' },
+    { label: 'Materiais',    icon: Package,        tone: 'neutral', href: '/dashboard/materiais' },
+    { label: 'Aprovações',   icon: ClipboardCheck, tone: 'green',   href: '/dashboard/aprovacao', badge: approvalsBadge },
+    { label: 'Kanban',       icon: Kanban,         tone: 'blue',    href: '/dashboard/kanban' },
+    { label: 'Publicações',  icon: Share2,         tone: 'purple',  href: '/dashboard/social' },
   ]
 
   // ── Alertas de captação ──────────────────────────────────────────────────
@@ -928,19 +932,25 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* ── Métricas ──────────────────────────────────────────────────────
-            No celular vira uma faixa só: os 5 cards grandes empilhavam em 3
-            fileiras e comiam a tela inteira antes de chegar no "Para você",
-            que é o que a pessoa abre o hub pra ver. É um panorama, não uma
-            tarefa — ocupa o canto do olho, não o centro. No desktop sobra
-            largura, então continuam cards. */}
+        {/* ── Atalhos (celular) ─────────────────────────────────────────────
+            No lugar da faixa de métricas: números de panorama não levam a
+            lugar nenhum, e aqui em cima o que vale é chegar rápido na tela de
+            trabalho. Seis colunas de ícone — no desktop os atalhos seguem no
+            card da direita e as métricas voltam como cards. */}
         <div className="md:hidden">
           <Card padded className="flex items-stretch gap-1">
-            {metricCards.map((m, i) => (
-              <div key={m.label} className={`flex-1 min-w-0 text-center ${i > 0 ? 'border-l border-[var(--color-border)]' : ''}`}>
-                <p className="text-lg font-bold leading-none" style={{ color: TONE_FG[m.tone] }}>{m.value}</p>
-                <p className="text-[9px] text-[var(--color-text-muted)] mt-1 leading-tight truncate px-0.5">{m.short}</p>
-              </div>
+            {shortcuts.map(s => (
+              <button key={s.label} onClick={() => router.push(s.href)}
+                title={s.label}
+                className="relative flex-1 min-w-0 flex flex-col items-center gap-1.5 py-0.5">
+                <span className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: TONE_BG[s.tone] }}>
+                  <s.icon size={17} strokeWidth={2} style={{ color: TONE_FG[s.tone] }} />
+                </span>
+                <span className="text-[8px] font-medium text-[var(--color-text-muted)] leading-none whitespace-nowrap">{s.label}</span>
+                {!!s.badge && s.badge > 0 && (
+                  <span className="absolute top-0 right-1 min-w-[14px] h-[14px] rounded-full text-white text-[8px] font-bold flex items-center justify-center px-1" style={{ background: 'var(--color-accent)' }}>{s.badge}</span>
+                )}
+              </button>
             ))}
           </Card>
         </div>
@@ -1035,8 +1045,8 @@ export default function DashboardPage() {
           {/* Região direita */}
           <div className="col-span-12 lg:col-span-4 space-y-5">
 
-            {/* Atalhos rápidos */}
-            <SectionCard title="Atalhos rápidos">
+            {/* Atalhos rápidos — no celular já estão em cima, na faixa de 6 */}
+            <SectionCard title="Atalhos rápidos" className="hidden md:block">
               <div className="grid grid-cols-3 gap-2.5">
                 {shortcuts.map(s => (
                   <button key={s.label} onClick={() => router.push(s.href)}
