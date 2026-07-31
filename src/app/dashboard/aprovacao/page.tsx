@@ -4,8 +4,9 @@ import { useEffect, useState, useMemo, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
-import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight, ChevronsUpDown, Search, Link2, LayoutGrid, List, Play, Megaphone, MessageSquare, Send, X, ExternalLink } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight, ChevronsUpDown, Search, Link2, LayoutGrid, List, Play, Megaphone, MessageSquare, Send, X, ExternalLink, CalendarCheck } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
+import CronoApprovals from '@/components/CronoApprovals'
 import { approvalKind, approvalLabel } from '@/lib/approvalKind'
 
 // "Aprovado" nesta página significa APROVAÇÃO FINAL do conteúdo. O campo
@@ -319,6 +320,17 @@ function AprovacaoPageInner() {
   const [loading,   setLoading]   = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [filter,    setFilter]    = useState<'todos' | 'aguardando' | 'revisao' | 'aprovado'>('todos')
+  // Aprovação de CRONO fica numa superfície separada, não misturada nos
+  // filtros: são conversas diferentes com o cliente (pauta x arte), e
+  // misturar as duas foi o que gerou a confusão da HAGO.
+  const [surface,   setSurface]   = useState<'conteudo' | 'crono'>('conteudo')
+  const [cronoPendentes, setCronoPendentes] = useState(0)
+  useEffect(() => {
+    createClient().from('schedules')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'aguardando_aprovacao_crono')
+      .then(({ count }) => setCronoPendentes(count || 0))
+  }, [])
   const [search,    setSearch]    = useState('')
   const [monthFilter, setMonthFilter] = useState('')
   const [view,      setView]      = useState<'list' | 'grid'>(() => {
@@ -592,6 +604,23 @@ function AprovacaoPageInner() {
                 {allExpanded ? 'Colapsar todos' : 'Expandir todos'}
               </button>
             )}
+            {/* Discreto de propósito: não disputa atenção com a aprovação de
+                conteúdo, que é o trabalho do dia a dia. Só muda de tom quando
+                tem cronograma parado esperando resposta. */}
+            <button onClick={() => setSurface(s => s === 'crono' ? 'conteudo' : 'crono')}
+              title="Cronogramas aguardando aprovação do cliente"
+              className="h-9 flex items-center gap-1.5 text-xs font-medium px-3 rounded-xl border transition-colors"
+              style={surface === 'crono'
+                ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent-bg)' }
+                : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+              <CalendarCheck size={13} />
+              {surface === 'crono' ? 'Ver conteúdo' : 'Cronogramas'}
+              {surface !== 'crono' && cronoPendentes > 0 && (
+                <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>
+                  {cronoPendentes}
+                </span>
+              )}
+            </button>
             <div className="h-9 flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-0.5">
               <button onClick={() => setViewMode('list')} title="Lista"
                 className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${view === 'list' ? 'bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>
@@ -605,6 +634,7 @@ function AprovacaoPageInner() {
           </div>
         </div>
 
+        {surface === 'crono' ? <CronoApprovals clients={clients} /> : <>
         {/* Busca + Filtros — no celular a busca ocupa a linha inteira e os
             quatro filtros viram 2×2. Em linha corrida eles quebravam em
             1-2-2 conforme o texto de cada um, que é o que fazia a barra
@@ -992,6 +1022,7 @@ function AprovacaoPageInner() {
             </div>
           )
         })}
+        </>}
       </div>
 
       {lightboxPost && (
