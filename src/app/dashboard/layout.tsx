@@ -13,9 +13,9 @@ import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider, useToast } from '@/lib/ToastContext'
 import LogoIcon from '@/components/logos/LogoIcon'
 import { pushSupported, isSubscribedToPush, subscribeToPush, isIOS, isStandalonePWA } from '@/lib/push'
-import { useEdgeSwipe, useDragToDismiss } from '@/lib/gestures'
+import { useEdgeSwipe, useDragToDismiss, usePullToRefresh } from '@/lib/gestures'
 import { fetchUnreadCount } from '@/lib/notifications'
-import { BellRing } from 'lucide-react'
+import { BellRing, RefreshCw } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard',          icon: Home,          label: 'Início' },
@@ -80,12 +80,17 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   // Arrastar da borda esquerda abre a gaveta; arrastar ela pra esquerda fecha.
   // O botão de menu e o X seguem à mostra — gesto não substitui controle.
-  useEdgeSwipe({ onOpen: () => setMobileNavOpen(true), enabled: !mobileNavOpen })
+  const edgeDrag = useEdgeSwipe({ onOpen: () => setMobileNavOpen(true), enabled: !mobileNavOpen, width: 256 })
   const navDrag = useDragToDismiss({
     axis: 'x', direction: -1, threshold: 70,
     onDismiss: () => setMobileNavOpen(false),
     enabled: mobileNavOpen,
   })
+
+  // Puxar pra atualizar. Recarrega a rota inteira porque cada página busca os
+  // próprios dados no cliente — um refresh de rota do Next não re-executaria
+  // esses efeitos, e o gesto pareceria não fazer nada.
+  const pull = usePullToRefresh(() => { window.location.reload() })
 
   // Data curta da barra do topo (só no celular, onde ela saiu do corpo da
   // página pra não gastar uma linha inteira). Calculada no efeito, não no
@@ -222,19 +227,32 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-[var(--color-bg-page)] overflow-hidden">
       {/* Backdrop da gaveta — só existe (e só fecha) no mobile, com a sidebar aberta */}
-      {mobileNavOpen && (
-        <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setMobileNavOpen(false)} />
+      {/* O escurecido acompanha o arrasto: some junto quando a gaveta sai e
+          aparece junto quando ela entra. Fundo fixo enquanto o painel se move
+          entrega que são duas coisas separadas. */}
+      {(mobileNavOpen || edgeDrag.offset > 0) && (
+        <div className="fixed inset-0 bg-black z-40 md:hidden"
+          onClick={() => setMobileNavOpen(false)}
+          style={{
+            opacity: 0.4 * (mobileNavOpen ? (256 + navDrag.offset) / 256 : edgeDrag.offset / 256),
+            transition: (navDrag.dragging || edgeDrag.dragging) ? 'none' : 'opacity .2s',
+            pointerEvents: mobileNavOpen ? 'auto' : 'none',
+          }} />
       )}
       {/* Arrastar a gaveta pra esquerda fecha. O X continua ali: gesto é
           invisível, então quem não souber que existe precisa ter o botão. */}
       <aside {...(mobileNavOpen ? navDrag.handlers : {})}
-        className={`w-64 md:w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 fixed md:relative inset-y-0 left-0 z-50 md:translate-x-0 ${navDrag.dragging ? '' : 'transition-transform duration-200'} ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`w-64 md:w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 fixed md:relative inset-y-0 left-0 z-50 md:translate-x-0 ${navDrag.dragging || edgeDrag.dragging ? '' : 'transition-transform duration-200'} touch-pan-y ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}
         style={{
           paddingTop: 'calc(1.5rem + env(safe-area-inset-top))',
           paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
-          // Acompanha o dedo enquanto arrasta — gesto sem resposta visual
-          // parece travado.
-          ...(mobileNavOpen && navDrag.offset ? { transform: `translateX(${navDrag.offset}px)` } : {}),
+          // Acompanha o dedo nos dois sentidos: saindo (navDrag) e entrando
+          // (edgeDrag). Gesto sem resposta visual parece travado.
+          ...(mobileNavOpen && navDrag.offset
+            ? { transform: `translateX(${navDrag.offset}px)` }
+            : !mobileNavOpen && edgeDrag.offset
+              ? { transform: `translateX(${edgeDrag.offset - 256}px)` }
+              : {}),
         }}>
         <div className="flex items-center justify-between mb-8">
           <Link href="/dashboard" className="flex items-center gap-2.5 px-2 rounded-xl hover:opacity-80 transition-opacity" title="Ir para o início">
@@ -411,7 +429,21 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <main className="flex-1 overflow-auto page-content" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        {/* Puxar pra atualizar. No app instalado o navegador não oferece isso,
+            então sem esse gesto não existe NENHUMA forma de recarregar sem
+            fechar e abrir. Vale pro hub inteiro porque todas as páginas rolam
+            dentro deste <main>. */}
+        <main {...pull.handlers}
+          className="flex-1 overflow-auto page-content relative" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className="md:hidden absolute inset-x-0 top-0 flex justify-center pointer-events-none z-10 overflow-hidden"
+            style={{ height: pull.pull || (pull.refreshing ? 44 : 0), transition: pull.pull ? 'none' : 'height .2s' }}>
+            <div className="flex items-center gap-1.5 text-[11px] font-medium mt-2"
+              style={{ color: pull.armed || pull.refreshing ? 'var(--color-accent)' : 'var(--color-text-faint)' }}>
+              <RefreshCw size={13} className={pull.refreshing ? 'animate-spin' : ''}
+                style={{ transform: pull.refreshing ? undefined : `rotate(${pull.pull * 4}deg)` }} />
+              {pull.refreshing ? 'Atualizando…' : pull.armed ? 'Solte pra atualizar' : 'Puxe pra atualizar'}
+            </div>
+          </div>
           {children}
         </main>
       </div>

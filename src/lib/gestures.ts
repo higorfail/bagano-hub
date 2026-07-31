@@ -20,24 +20,32 @@ export function isStandalone(): boolean {
   return window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true
 }
 
-/** Sobe pelos pais procurando algo que já role no eixo pedido. */
-function hasScrollableAncestor(start: EventTarget | null, axis: 'x' | 'y', stopAt?: HTMLElement | null): boolean {
+/**
+ * Existe algum pai que ainda consegue rolar NAQUELE sentido?
+ *
+ * Só dá pra perguntar isso depois de saber a direção do gesto — por isso a
+ * checagem acontece no momento em que a direção trava, não no início do toque.
+ * Perguntar antes era um bug real: a barra lateral tem um menu que rola na
+ * vertical e, pela regra do CSS, um elemento com `overflow-y: auto` passa a
+ * computar `overflow-x: auto` também. A checagem enxergava esse menu como
+ * rolável na horizontal e desistia do gesto antes de ele começar — era por
+ * isso que arrastar a gaveta de volta não fechava.
+ */
+function canScrollFurther(
+  start: EventTarget | null, axis: 'x' | 'y', sign: 1 | -1, stopAt?: HTMLElement | null,
+): boolean {
   let el = start as HTMLElement | null
   while (el && el !== stopAt) {
     const style = window.getComputedStyle(el)
     const overflow = axis === 'x' ? style.overflowX : style.overflowY
-    const scrollable = overflow === 'auto' || overflow === 'scroll'
-    const size = axis === 'x'
-      ? el.scrollWidth - el.clientWidth
-      : el.scrollHeight - el.clientHeight
-    // Só conta se de fato tem o que rolar: um container "auto" sem excesso
-    // de conteúdo não está disputando o gesto com ninguém.
-    if (scrollable && size > 2) {
+    if (overflow === 'auto' || overflow === 'scroll') {
+      const max = axis === 'x' ? el.scrollWidth - el.clientWidth : el.scrollHeight - el.clientHeight
       const pos = axis === 'x' ? el.scrollLeft : el.scrollTop
-      // No topo/início ele não vai rolar mais nesse sentido, então libera.
-      if (pos > 0) return true
-      if (axis === 'y' && pos <= 0) { el = el.parentElement; continue }
-      return true
+      if (max > 2) {
+        // Dedo pra direita/baixo (sign 1) revela conteúdo anterior: só rola se
+        // não estiver no começo. Pro outro lado, se não estiver no fim.
+        if (sign === 1 ? pos > 1 : pos < max - 1) return true
+      }
     }
     el = el.parentElement
   }
@@ -58,39 +66,66 @@ type EdgeSwipeOptions = {
  * iOS — briga que não se ganha nem se deve ganhar —, então a faixa começa
  * alguns pixels pra dentro e deixa o extremo pro sistema.
  */
-export function useEdgeSwipe({ onOpen, zone = 28, enabled = true }: EdgeSwipeOptions) {
+export function useEdgeSwipe({ onOpen, zone = 28, enabled = true, width = 256 }: EdgeSwipeOptions & { width?: number }) {
   const startX = useRef<number | null>(null)
   const startY = useRef(0)
-  const fired = useRef(false)
+  const decided = useRef<'none' | 'yes' | 'no'>('none')
+  // Deslocamento ao vivo pra gaveta acompanhar o dedo em vez de aparecer de
+  // uma vez ao passar de um limite. Abrir "pulando" e fechar acompanhando
+  // seriam dois gestos diferentes pro mesmo movimento.
+  const [offset, setOffset] = useState(0)
+  const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled) { setOffset(0); setDragging(false); return }
     const inset = isStandalone() ? 0 : 20
 
     function onStart(e: TouchEvent) {
       const t = e.touches[0]
-      fired.current = false
+      decided.current = 'none'
       startX.current = (t.clientX >= inset && t.clientX <= inset + zone) ? t.clientX : null
       startY.current = t.clientY
     }
     function onMove(e: TouchEvent) {
-      if (startX.current === null || fired.current) return
+      if (startX.current === null) return
       const t = e.touches[0]
       const dx = t.clientX - startX.current
-      const dy = Math.abs(t.clientY - startY.current)
-      if (dx > 45 && dx > dy * 1.5) { fired.current = true; onOpen() }
+      const dy = t.clientY - startY.current
+      if (decided.current === 'none') {
+        if (Math.abs(dx) < DIRECTION_LOCK && Math.abs(dy) < DIRECTION_LOCK) return
+        decided.current = dx > Math.abs(dy) ? 'yes' : 'no'
+        if (decided.current === 'yes') setDragging(true)
+      }
+      if (decided.current !== 'yes') return
+      setOffset(Math.max(0, Math.min(dx, width)))
     }
-    function onEnd() { startX.current = null }
+    function onEnd() {
+      const opened = decided.current === 'yes' && offsetRef.current > width * 0.35
+      startX.current = null
+      decided.current = 'none'
+      setDragging(false)
+      setOffset(0)
+      if (opened) onOpen()
+    }
 
     document.addEventListener('touchstart', onStart, { passive: true })
     document.addEventListener('touchmove', onMove, { passive: true })
     document.addEventListener('touchend', onEnd, { passive: true })
+    document.addEventListener('touchcancel', onEnd, { passive: true })
     return () => {
       document.removeEventListener('touchstart', onStart)
       document.removeEventListener('touchmove', onMove)
       document.removeEventListener('touchend', onEnd)
+      document.removeEventListener('touchcancel', onEnd)
     }
-  }, [onOpen, zone, enabled])
+  }, [onOpen, zone, enabled, width])
+
+  // O listener é registrado uma vez e não enxerga o estado novo; a ref é o que
+  // permite ler o deslocamento atual na hora de soltar.
+  const offsetRef = useRef(0)
+  offsetRef.current = offset
+
+  return { offset, dragging }
 }
 
 /**
@@ -112,15 +147,17 @@ export function useDragToDismiss(opts: {
   const start = useRef<{ x: number; y: number } | null>(null)
   const locked = useRef<'none' | 'yes' | 'no'>('none')
 
+  const target = useRef<EventTarget | null>(null)
+  const container = useRef<HTMLElement | null>(null)
+
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     if (!enabled) return
-    // Se o dedo caiu sobre algo que ainda tem pra rolar nesse eixo, o gesto é
-    // da rolagem, não nosso.
-    if (hasScrollableAncestor(e.target, axis, e.currentTarget as HTMLElement)) { locked.current = 'no'; return }
     const t = e.touches[0]
     start.current = { x: t.clientX, y: t.clientY }
+    target.current = e.target
+    container.current = e.currentTarget as HTMLElement
     locked.current = 'none'
-  }, [axis, enabled])
+  }, [enabled])
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     if (!start.current || locked.current === 'no') return
@@ -133,8 +170,12 @@ export function useDragToDismiss(opts: {
     if (locked.current === 'none') {
       if (Math.abs(main) < DIRECTION_LOCK && Math.abs(cross) < DIRECTION_LOCK) return
       // Movimento mais no outro eixo: é rolagem, sai do caminho.
-      locked.current = Math.abs(main) > Math.abs(cross) ? 'yes' : 'no'
-      if (locked.current === 'no') return
+      if (Math.abs(main) <= Math.abs(cross)) { locked.current = 'no'; return }
+      // Agora que a direção é conhecida, dá pra perguntar se algum pai ainda
+      // rola PRA ESSE LADO. Se rola, o gesto é dele.
+      const sign: 1 | -1 = main > 0 ? 1 : -1
+      if (canScrollFurther(target.current, axis, sign, container.current)) { locked.current = 'no'; return }
+      locked.current = 'yes'
       setDragging(true)
     }
     // Só arrasta no sentido que fecha; no contrário fica firme.
