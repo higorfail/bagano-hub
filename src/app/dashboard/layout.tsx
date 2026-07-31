@@ -45,7 +45,7 @@ const contentItems = [
 
 function DashboardInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { members, currentMember, setCurrentMember, showOnlyMine, setShowOnlyMine } = useUser()
+  const { members, currentMember, setCurrentMember, showOnlyMine, setShowOnlyMine, loggedMember, canImpersonate } = useUser()
   const { toast } = useToast()
   const [showMemberPicker, setShowMemberPicker] = useState(false)
   const memberRef = useRef<HTMLDivElement>(null)
@@ -284,6 +284,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         <div className="pt-4 border-t border-[var(--color-border)]" ref={memberRef}>
           <button
             onClick={() => setShowMemberPicker(v => !v)}
+            title={canImpersonate ? 'Trocar de pessoa, sair, senha' : 'Sua conta'}
             className="w-full flex items-center gap-2.5 px-2 md:px-0 md:justify-center xl:px-2 xl:justify-start py-1.5 rounded-xl hover:bg-[var(--color-bg-subtle)] transition-colors text-left group"
           >
             {currentMember ? (
@@ -321,7 +322,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
           {showMemberPicker && (
             <div className="absolute bottom-16 left-3 right-3 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] shadow-xl overflow-hidden z-50 max-h-72 overflow-y-auto">
-              {members.map(m => (
+              {/* Trocar de pessoa é coisa de sócio. Antes qualquer um se
+                  identificava como qualquer um, e tudo que fizesse depois
+                  (card, comentário, registro de atividade) saía no nome do
+                  outro — sem má intenção nenhuma, só por ter esquecido. */}
+              {canImpersonate && members.map(m => (
                 <button
                   key={m.id}
                   onClick={() => { setCurrentMember(m); setShowMemberPicker(false) }}
@@ -418,6 +423,16 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           </div>
           </div>{/* flex items-center gap-1 */}
         </div>
+
+        {/* Vendo como outra pessoa: aviso fixo e visível. Sem isso um sócio
+            troca, esquece, e o trabalho do dia nasce no nome errado. */}
+        {loggedMember && currentMember && currentMember.id !== loggedMember.id && (
+          <button onClick={() => setCurrentMember(loggedMember)}
+            className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold w-full"
+            style={{ background: 'var(--ds-caution-bg)', color: 'var(--ds-caution-text)' }}>
+            Você está vendo o hub como <strong>{currentMember.name}</strong> · voltar a ser {loggedMember.name.split(' ')[0]}
+          </button>
+        )}
 
         {needsIOSInstall && !pushBannerDismissed && (
           <div className="flex items-center gap-3 px-4 md:px-6 py-2.5 border-b border-[var(--color-border)]" style={{ background: 'var(--color-accent-bg)' }}>
