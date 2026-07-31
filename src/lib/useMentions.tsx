@@ -3,6 +3,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Link2, Folder } from 'lucide-react'
+import { isQuoteLine, stripQuoteMarker } from './commentReply'
 
 type Member = { id: string; name: string; color?: string | null }
 
@@ -60,13 +61,35 @@ function renderLine(line: string, key: string) {
 // (em especial do Drive, com chip de nome de arquivo) em algo clicável.
 // Linhas que são só um link viram um bloco próprio (evita ficar espremido junto do texto).
 export function renderWithMentions(body: string) {
-  return body.split('\n').map((line, i) => {
-    const trimmed = line.trim()
-    if (URL_TEST_RE.test(trimmed)) {
-      return <div key={i} className="my-1 first:mt-0 last:mb-0">{renderLine(trimmed, String(i))}</div>
+  const lines = body.split('\n')
+  const out: React.ReactNode[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    // Linhas de citação seguidas viram um bloco só — uma caixa por linha
+    // deixaria a citação picotada. Ver src/lib/commentReply.ts.
+    if (isQuoteLine(lines[i])) {
+      const start = i
+      const quoted: string[] = []
+      while (i < lines.length && isQuoteLine(lines[i])) quoted.push(stripQuoteMarker(lines[i++]))
+      i-- // o for volta a avançar
+      // A linha em branco logo depois da citação só existe pra separar do
+      // texto da resposta; a margem do bloco já faz esse papel.
+      if (lines[i + 1]?.trim() === '') i++
+      out.push(
+        <div key={`q${start}`} className="border-l-2 border-[var(--color-border-strong)] pl-2 mb-1.5 text-[var(--color-text-faint)] italic">
+          {quoted.map((q, qi) => <div key={qi}>{renderLine(q, `q${start}-${qi}`) || <>&nbsp;</>}</div>)}
+        </div>
+      )
+      continue
     }
-    return <div key={i}>{renderLine(line, String(i)) || <>&nbsp;</>}</div>
-  })
+    const trimmed = lines[i].trim()
+    if (URL_TEST_RE.test(trimmed)) {
+      out.push(<div key={i} className="my-1 first:mt-0 last:mb-0">{renderLine(trimmed, String(i))}</div>)
+      continue
+    }
+    out.push(<div key={i}>{renderLine(lines[i], String(i)) || <>&nbsp;</>}</div>)
+  }
+  return out
 }
 
 function memberInitials(name: string) {

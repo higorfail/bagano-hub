@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, Upload, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, Upload, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles, Reply } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash } from '@/lib/trash'
@@ -14,6 +14,7 @@ import { fetchLinkTitle } from '@/lib/linkTitle'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import AttachmentsGrid from '@/components/AttachmentsGrid'
 import { renderWithMentions } from '@/lib/useMentions'
+import { buildReplyDraft } from '@/lib/commentReply'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { generateAiLegenda } from '@/lib/aiLegenda'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
@@ -556,6 +557,21 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       ta?.focus()
       const p = start + firstName.length + 2
       ta?.setSelectionRange(p, p)
+    })
+  }
+
+  // Responder = citar (jeito do Trello): preenche a caixa com o trecho e a
+  // menção ao autor, em vez de aninhar. A menção não é enfeite — é ela que
+  // faz quem foi respondido virar observador e receber push.
+  function replyToComment(author: string | null, body: string) {
+    setNewComment(draft => buildReplyDraft(author, body, draft))
+    requestAnimationFrame(() => {
+      const el = commentTextareaRef.current
+      if (!el) return
+      el.focus()
+      el.selectionStart = el.selectionEnd = el.value.length
+      autoGrow(el)
+      el.scrollIntoView({ block: 'nearest' })
     })
   }
 
@@ -1508,7 +1524,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                         <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{item.author || 'Alguém'}</span>
                         <span className="text-[10px] text-[var(--color-text-faint)]" title={fullDateTime(item.at)}>{fullDateTime(item.at)} · {relTime(item.at)}</span>
                         {editingCommentId !== item.cid && (
-                          <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="ml-auto flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => replyToComment(item.author, item.body)} title="Responder"
+                              className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-page)] transition-colors"><Reply size={11} /></button>
                             <button onClick={() => { setEditingCommentId(item.cid); setEditCommentText(item.body) }} title="Editar"
                               className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-page)] transition-colors"><Pencil size={11} /></button>
                             <button onClick={() => deleteComment(item.cid)} title="Excluir"

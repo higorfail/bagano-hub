@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
-import { useMentions } from '@/lib/useMentions'
+import { useMentions, renderWithMentions } from '@/lib/useMentions'
+import { buildReplyDraft } from '@/lib/commentReply'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { autoGrow } from '@/lib/autoGrow'
@@ -16,7 +17,7 @@ import ModalPortal from '@/components/ModalPortal'
 import WatchButton from '@/components/WatchButton'
 import AttachmentsGrid from '@/components/AttachmentsGrid'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
-import { X, Calendar, ChevronDown, Send, Pencil, Trash2, Check, Link2, Tag, Upload } from 'lucide-react'
+import { X, Calendar, ChevronDown, Send, Pencil, Trash2, Check, Link2, Tag, Upload , Reply} from 'lucide-react'
 
 const TYPE_OPTIONS = [
   { value: 'tarefa',   label: 'Tarefa',   color: '#3B82F6' },
@@ -391,6 +392,21 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
     setActivityKey(k => k + 1)
     await autoAttachLinks(body)
   }
+  // Responder = citar (jeito do Trello): preenche a caixa com o trecho e a
+  // menção ao autor, em vez de aninhar. A menção não é enfeite — é ela que
+  // faz quem foi respondido virar observador e receber push.
+  function replyToComment(author: string | null, body: string) {
+    setNewComment(draft => buildReplyDraft(author, body, draft))
+    requestAnimationFrame(() => {
+      const el = mentions.textareaRef.current
+      if (!el) return
+      el.focus()
+      el.selectionStart = el.selectionEnd = el.value.length
+      autoGrow(el)
+      el.scrollIntoView({ block: 'nearest' })
+    })
+  }
+
   async function saveEditComment(cid: string) {
     const body = editCommentText.trim(); if (!body) return
     const { error } = await supabase.from('personal_task_comments').update({ body }).eq('id', cid)
@@ -731,7 +747,9 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
                       <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{item.author || 'Alguém'}</span>
                       <span className="text-[10px] text-[var(--color-text-faint)]" title={fullDateTime(item.at)}>{fullDateTime(item.at)}</span>
                       {editingCommentId !== item.cid && (
-                        <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="ml-auto flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => replyToComment(item.author, item.body)} title="Responder"
+                            className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-page)] transition-colors"><Reply size={11} /></button>
                           <button onClick={() => { setEditingCommentId(item.cid); setEditCommentText(item.body) }} title="Editar"
                             className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-page)] transition-colors"><Pencil size={11} /></button>
                           <button onClick={() => deleteComment(item.cid)} title="Excluir"
@@ -749,7 +767,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
                         </div>
                       </div>
                     ) : (
-                      <p className="text-xs text-[var(--color-text-primary)] leading-relaxed whitespace-pre-wrap">{item.body}</p>
+                      <div className="text-xs text-[var(--color-text-primary)] leading-relaxed whitespace-pre-line break-words">{renderWithMentions(item.body)}</div>
                     )}
                   </div>
                 </div>

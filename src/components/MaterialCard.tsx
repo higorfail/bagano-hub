@@ -7,6 +7,7 @@ import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
+import { buildReplyDraft } from '@/lib/commentReply'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { autoGrow } from '@/lib/autoGrow'
@@ -23,7 +24,7 @@ import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, ChevronDown, Users, Tag,
   Upload, File, ExternalLink, Check, Package, Send, Pencil
-} from 'lucide-react'
+, Reply} from 'lucide-react'
 
 const TYPE_OPTIONS = ['Menu', 'Cardápio', 'Arte avulsa', 'Logo', 'Manual', 'Placa', 'Cartão', 'Sacola', 'Sousplat', 'Story', 'Capas destaque', 'Fundos', 'Outro']
 const STATUS_OPTIONS = [
@@ -400,6 +401,21 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
     await logActivity({ tableName: 'materials', recordId: mid, action: 'commented', actorName: author, description: `${author} comentou: "${commentBody.slice(0, 80)}${commentBody.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
     await autoAttachLinks(commentBody)
+  }
+
+  // Responder = citar (jeito do Trello): preenche a caixa com o trecho e a
+  // menção ao autor, em vez de aninhar. A menção não é enfeite — é ela que
+  // faz quem foi respondido virar observador e receber push.
+  function replyToComment(author: string | null, body: string) {
+    setNewComment(draft => buildReplyDraft(author, body, draft))
+    requestAnimationFrame(() => {
+      const el = mentions.textareaRef.current
+      if (!el) return
+      el.focus()
+      el.selectionStart = el.selectionEnd = el.value.length
+      autoGrow(el)
+      el.scrollIntoView({ block: 'nearest' })
+    })
   }
 
   async function saveEditComment(cid: string) {
@@ -1052,7 +1068,9 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
                         <span className="text-[11px] font-semibold text-[var(--color-text-primary)]">{item.author || 'Alguém'}</span>
                         <span className="text-[10px] text-[var(--color-text-faint)]" title={fullDateTime(item.at)}>{fullDateTime(item.at)}</span>
                         {editingCommentId !== item.cid && (
-                          <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="ml-auto flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => replyToComment(item.author, item.body)} title="Responder"
+                              className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-page)] transition-colors"><Reply size={11} /></button>
                             <button onClick={() => { setEditingCommentId(item.cid); setEditCommentText(item.body) }} title="Editar"
                               className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-page)] transition-colors"><Pencil size={11} /></button>
                             <button onClick={() => deleteComment(item.cid)} title="Excluir"
