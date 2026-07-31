@@ -120,6 +120,21 @@ img.h-full { height: 100% !important; }
   cursor: not-allowed;
 }
 
+/* ── Linha do painel de notificações ─────────────────────────────────────────
+   O hover precisa valer tanto na linha lida (fundo transparente) quanto na
+   não lida (que já vem com um fundo azulado). Um `hover:bg-...` único não
+   resolvia: na não lida a cor do hover era idêntica ao fundo que ela já
+   tinha, então justamente a linha que mais se clica não dava retorno nenhum.
+
+   A mistura com a cor do texto escurece no tema claro e clareia no escuro,
+   que é o comportamento certo nos dois — um cinza fixo funcionaria só num. */
+:where(.notif-row):hover { background-color: var(--color-bg-subtle); }
+@supports (background: color-mix(in srgb, red 5%, transparent)) {
+  :where(.notif-row):hover {
+    background-color: color-mix(in srgb, var(--color-text-primary) 6%, var(--notif-row-bg, transparent));
+  }
+}
+
 /* ── Border-radius scale ─────────────────────────────────────────────────── */
 .rounded-lg   { border-radius: 0.625rem; }  /* 10px  (era 8px)  */
 .rounded-xl   { border-radius: 0.875rem; }  /* 14px  (era 12px) */

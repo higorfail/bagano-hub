@@ -238,7 +238,14 @@ export default function NotificationsPanel({
                     role="button" tabIndex={0}
                     onClick={() => openGroup(g)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGroup(g) } }}
-                    className={`flex gap-3 px-4 py-3 border-b border-[var(--color-border)] text-left hover:bg-[var(--color-bg-subtle)] transition-colors ${g.unread > 0 ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
+                    // Não lida ganha o mesmo azul do pontinho de não lida, em
+                    // vez do cinza que era idêntico à cor de hover. A variável
+                    // diz ao CSS qual é o fundo desta linha, pro hover partir
+                    // dele (ver .notif-row em globals.css).
+                    className="notif-row flex gap-3 px-4 py-3 border-b border-[var(--color-border)] text-left transition-colors"
+                    style={g.unread > 0
+                      ? { background: 'var(--ds-info-bg)', ['--notif-row-bg' as any]: 'var(--ds-info-bg)' }
+                      : undefined}>
                     <span className="w-1 rounded-full flex-shrink-0" style={{ background: client?.color_hex || 'var(--color-border-strong)' }} />
                     <div className="flex-1 min-w-0">
                       {/* Cliente acima do card, e maior: o time pensa por
