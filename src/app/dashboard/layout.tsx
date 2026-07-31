@@ -14,7 +14,7 @@ import { ToastProvider, useToast } from '@/lib/ToastContext'
 import LogoIcon from '@/components/logos/LogoIcon'
 import { pushSupported, isSubscribedToPush, subscribeToPush, isIOS, isStandalonePWA } from '@/lib/push'
 import { useDrawer, usePullToRefresh } from '@/lib/gestures'
-import { fetchUnseenCount, markNotificationsSeen } from '@/lib/notifications'
+import { fetchUnreadCount } from '@/lib/notifications'
 import { installTouchDragBridge } from '@/lib/touchDragBridge'
 import { BellRing, RefreshCw } from 'lucide-react'
 
@@ -68,7 +68,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   // mostra o número depois de clicado não serve pra nada.
   useEffect(() => {
     if (!currentMember?.id) { setUnreadCount(0); return }
-    const load = () => fetchUnseenCount(currentMember.id).then(setUnreadCount)
+    const load = () => fetchUnreadCount(currentMember.id).then(setUnreadCount)
     load()
     const t = setInterval(load, 30000)
     return () => clearInterval(t)
@@ -378,13 +378,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             {/* Abrir NÃO marca tudo como lido — antes marcava, e bastava
                 espiar o sininho pra perder o registro do que ainda não tinha
                 sido visto. Marca ao abrir o card, ou no "Marcar tudo". */}
-            <button onClick={() => {
-                // Abrir = VISTO: o número vermelho zera porque você passou o
-                // olho. O destaque azul de cada linha continua até você abrir
-                // o card — ver e resolver não são a mesma coisa.
-                if (!showNotifications && currentMember) { markNotificationsSeen(currentMember.id); setUnreadCount(0) }
-                setShowNotifications(v => !v)
-              }}
+            <button onClick={() => setShowNotifications(v => !v)}
               className="relative w-9 h-9 rounded-xl hover:bg-[var(--color-bg-subtle)] flex items-center justify-center transition-all">
               <Bell size={18} strokeWidth={1.75} className="text-[var(--color-text-secondary)]" />
               {unreadCount > 0 && (
@@ -402,6 +396,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 needsIOSInstall={needsIOSInstall}
                 onEnablePush={enablePush}
                 onClose={() => setShowNotifications(false)}
+                onUnreadChange={setUnreadCount}
               />
             )}
           </div>

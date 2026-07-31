@@ -86,10 +86,13 @@ export default function NotificationsPanel({
     markRead(ids)
   }
 
-  async function readAll() {
-    const now = new Date().toISOString()
-    setRows(prev => prev.map(r => r.read_at ? r : { ...r, read_at: now }))
-    await markAllRead(memberId)
+  // Marca como lido AO FECHAR, não ao abrir: assim o destaque azul ainda
+  // cumpre a função dele — dizer o que é novo — durante a olhada, e some
+  // sozinho depois. Marcar ao abrir apagaria antes de você ver; não marcar
+  // nunca deixava tudo aceso pra sempre, que foi o que aconteceu.
+  function closePanel() {
+    if (unreadTotal > 0) { markAllRead(memberId); onUnreadChange?.(0) }
+    onClose()
   }
 
   function openGroup(g: NotificationGroup) {
@@ -99,7 +102,7 @@ export default function NotificationsPanel({
     // aterrissar num lugar vazio é pior que não sair do lugar. O histórico
     // continua legível aqui mesmo.
     if (g.deleted) return
-    onClose()
+    closePanel()
     if (g.url) router.push(g.url)
   }
 
@@ -107,7 +110,7 @@ export default function NotificationsPanel({
     <>
       {/* Fundo escuro só no celular, onde o painel é tela cheia. No desktop ele
           é um popover e um véu preto sobre a página inteira seria exagero. */}
-      <div className="fixed inset-0 bg-black/40 z-[60] md:hidden" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/40 z-[60] md:hidden" onClick={closePanel} />
 
       <div
         // No desktop é comprido de propósito (como o do Trello): a lista
@@ -128,13 +131,7 @@ export default function NotificationsPanel({
             </span>
           )}
           <div className="ml-auto flex items-center gap-1">
-            {unreadTotal > 0 && (
-              <button onClick={readAll} title="Marcar tudo como lido"
-                className="h-8 px-2.5 rounded-lg text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
-                Marcar tudo
-              </button>
-            )}
-            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">
+            <button onClick={closePanel} className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">
               <X size={17} />
             </button>
           </div>
@@ -195,7 +192,7 @@ export default function NotificationsPanel({
                 Atenção da agência
               </p>
               {alerts.map(a => (
-                <button key={a.id} onClick={() => { onClose(); router.push(a.href) }}
+                <button key={a.id} onClick={() => { closePanel(); router.push(a.href) }}
                   className="w-full text-left flex items-center gap-2.5 px-4 py-2 hover:bg-[var(--color-bg-subtle)] transition-colors">
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                     style={{ background: a.severity === 'alta' ? 'var(--ds-error-accent)' : 'var(--ds-warn-accent)' }} />
@@ -247,8 +244,11 @@ export default function NotificationsPanel({
                     // diz ao CSS qual é o fundo desta linha, pro hover partir
                     // dele (ver .notif-row em globals.css).
                     className={`${g.deleted ? '' : 'notif-row'} flex gap-3 px-4 py-3 border-b border-[var(--color-border)] text-left transition-colors`}
+                    // Fundo de não lida derivado da cor do card, não uma cor
+                    // fixa: --ds-info-bg é #0d1628 no escuro, MAIS escuro que
+                    // o card, e a linha virava um buraco em vez de destaque.
                     style={g.unread > 0
-                      ? { background: 'var(--ds-info-bg)', ['--notif-row-bg' as any]: 'var(--ds-info-bg)' }
+                      ? { background: 'var(--notif-unread-bg)', ['--notif-row-bg' as any]: 'var(--notif-unread-bg)' }
                       : undefined}>
                     <span className="w-1 rounded-full flex-shrink-0" style={{ background: client?.color_hex || 'var(--color-border-strong)' }} />
                     <div className="flex-1 min-w-0">
@@ -258,8 +258,13 @@ export default function NotificationsPanel({
                           cliente virava legenda miúda embaixo, invertendo isso. */}
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className="text-[13px] font-bold uppercase tracking-wide truncate"
-                            style={{ color: client?.color_hex || 'var(--color-text-primary)' }}>
+                          {/* A cor do cliente vive na barra lateral, não no
+                              texto: são cores escolhidas livremente, e um
+                              marrom escuro (Dom Leonello) sobre fundo escuro
+                              fica ilegível. O nome usa a cor de texto do tema
+                              e continua sobressaindo por peso e caixa alta. */}
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: client?.color_hex || 'var(--color-border-strong)' }} />
+                          <p className="text-[13px] font-bold uppercase tracking-wide truncate text-[var(--color-text-primary)]">
                             {client?.name || 'Sem cliente'}
                           </p>
                           {g.unread > 0 && (

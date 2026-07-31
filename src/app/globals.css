@@ -158,6 +158,16 @@ img.h-full { height: 100% !important; }
 
    A mistura com a cor do texto escurece no tema claro e clareia no escuro,
    que é o comportamento certo nos dois — um cinza fixo funcionaria só num. */
+/* Fundo da linha não lida, derivado da cor do CARD em vez de fixo.
+   --ds-info-bg é #0d1628 no tema escuro: mais escuro que o card (#252320), e a
+   linha não lida virava um buraco preto em vez de destaque. Misturando o azul
+   dentro da cor do card, ela clareia no escuro e tinge no claro — destaque nos
+   dois, sem cor chapada. */
+:root { --notif-unread-bg: var(--ds-info-bg); }
+@supports (background: color-mix(in srgb, red 5%, transparent)) {
+  :root { --notif-unread-bg: color-mix(in srgb, var(--ds-info-accent) 14%, var(--color-bg-card)); }
+}
+
 :where(.notif-row):hover { background-color: var(--color-bg-subtle); }
 @supports (background: color-mix(in srgb, red 5%, transparent)) {
   :where(.notif-row):hover {

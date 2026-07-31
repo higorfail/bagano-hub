@@ -104,39 +104,19 @@ export async function fetchNotifications(memberId: string, limit = 120): Promise
 }
 
 /**
- * Contador do sininho = o que você ainda NÃO VIU, não o que não leu.
- *
- * São duas coisas diferentes e o hub estava tratando como uma só:
- *   • VISTO  — você abriu o painel e passou o olho. Zera o número vermelho.
- *   • LIDO   — você abriu o card e resolveu. Tira o destaque azul da linha.
- *
- * Com os dois amarrados, ou abrir o sininho apagava o registro do que ainda
- * não tinha sido tratado (era assim antes), ou o número ficava lá pra sempre
- * depois de você já ter lido tudo por cima (era assim agora). Separando,
- * cada um faz o seu: o número some ao abrir, o destaque fica até resolver.
- *
- * O carimbo de "visto" mora no banco, não no aparelho: ler no computador
- * precisa apagar o número no celular também.
+ * Contador do sininho. Fica simples de novo porque o painel marca tudo como
+ * lido AO FECHAR: o número some sozinho depois da olhada, sem precisar de um
+ * estado separado de "visto" que nunca se limpava.
  */
-export async function fetchUnseenCount(memberId: string): Promise<number> {
+export async function fetchUnreadCount(memberId: string): Promise<number> {
   const supabase = createClient()
-  const { data: member } = await supabase
-    .from('team_members').select('notifications_seen_at').eq('id', memberId).maybeSingle()
-  let q = supabase.from('hub_notifications')
+  const { count, error } = await supabase
+    .from('hub_notifications')
     .select('id', { count: 'exact', head: true })
     .eq('member_id', memberId)
-  const seenAt = (member as any)?.notifications_seen_at
-  if (seenAt) q = q.gt('created_at', seenAt)
-  const { count, error } = await q
+    .is('read_at', null)
   if (error) return 0
   return count || 0
-}
-
-export async function markNotificationsSeen(memberId: string) {
-  const supabase = createClient()
-  await supabase.from('team_members')
-    .update({ notifications_seen_at: new Date().toISOString() })
-    .eq('id', memberId)
 }
 
 export function groupByCard(rows: NotificationRow[]): NotificationGroup[] {
