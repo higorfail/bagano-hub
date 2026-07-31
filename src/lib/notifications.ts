@@ -12,10 +12,38 @@ export type NotificationRow = {
   actor_name: string | null
   actor_id: string | null
   title: string | null
+  card_type: string | null
+  card_number: number | null
   body: string
   url: string | null
   read_at: string | null
   created_at: string
+}
+
+/** Rótulo e cor do selo de tipo — "Reels", "Extra", "Material"… */
+export const TYPE_BADGE: Record<string, { label: string; color: string }> = {
+  carrossel:         { label: 'Carrossel',  color: '#3b82f6' },
+  reels:             { label: 'Reels',      color: '#ef4444' },
+  post:              { label: 'Post',       color: '#f59e0b' },
+  story:             { label: 'Story',      color: '#8b5cf6' },
+  carrossel_stories: { label: 'Carrossel/Stories', color: '#6366f1' },
+  material:          { label: 'Material',   color: '#0ea5e9' },
+  extra:             { label: 'Extra',      color: '#14b8a6' },
+  tarefa:            { label: 'Tarefa',     color: '#6b7280' },
+  lembrete:          { label: 'Lembrete',   color: '#f59e0b' },
+  nota:              { label: 'Nota',       color: '#8b5cf6' },
+}
+
+/**
+ * Comentário vira balão, não linha de log. O activity_log grava a descrição
+ * como `Fulano comentou: "texto"` — aqui separamos as duas partes pra lista
+ * mostrar quem falou e o que falou, como no Trello, em vez de repetir o nome
+ * dentro de uma frase corrida.
+ */
+export function splitComment(body: string): { author: string; text: string } | null {
+  const m = body.match(/^(.+?) comentou: "([\s\S]*)"$/)
+  if (!m) return null
+  return { author: m[1], text: m[2] }
 }
 
 /**
@@ -29,6 +57,8 @@ export type NotificationGroup = {
   cardId: string | null
   clientId: string | null
   title: string | null
+  cardType: string | null
+  cardNumber: number | null
   url: string | null
   items: NotificationRow[]
   unread: number
@@ -107,6 +137,8 @@ export function groupByCard(rows: NotificationRow[]): NotificationGroup[] {
         cardId: r.card_id,
         clientId: r.client_id,
         title: r.title,
+        cardType: r.card_type,
+        cardNumber: r.card_number,
         url: r.url,
         items: [r],
         unread: r.read_at ? 0 : 1,

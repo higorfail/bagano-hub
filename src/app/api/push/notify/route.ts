@@ -21,21 +21,31 @@ const URL_BY_TABLE: Record<string, (recordId: string, clientId?: string | null) 
   personal_tasks: id => `/dashboard/tarefas?task=${id}`,
 }
 
-// Título do card pra notificação — é ele que agrupa a lista do sininho ("POST
-// 11 — REEL" com as três mudanças de data embaixo, em vez de três linhas
-// soltas). Cada tabela guarda o nome numa coluna diferente.
-const TITLE_COLUMN: Record<string, string> = {
-  schedules: 'title',
-  materials: 'title',
-  extras: 'title',
-  personal_tasks: 'title',
-}
+// Identidade do card na notificação: título, que tipo é e o número do post.
+// É o que permite a lista mostrar "#11 · Reels · Feijoada" em vez de só um
+// título solto — o tipo diz o trabalho que é, e o número é como o time se
+// refere ao post na conversa do dia a dia.
+type CardMeta = { title: string | null; type: string | null; number: number | null }
 
-async function resolveCardTitle(tableName: string, recordId: string): Promise<string | null> {
-  const col = TITLE_COLUMN[tableName]
-  if (!col) return null
-  const { data } = await supabase.from(tableName).select(col).eq('id', recordId).maybeSingle()
-  return (data as any)?.[col] || null
+async function resolveCardMeta(tableName: string, recordId: string): Promise<CardMeta> {
+  const empty: CardMeta = { title: null, type: null, number: null }
+  if (tableName === 'schedules') {
+    const { data } = await supabase.from('schedules').select('title, post_type, post_number').eq('id', recordId).maybeSingle()
+    return { title: data?.title || null, type: data?.post_type || null, number: data?.post_number ?? null }
+  }
+  if (tableName === 'extras') {
+    const { data } = await supabase.from('extras').select('title, type').eq('id', recordId).maybeSingle()
+    return { title: data?.title || null, type: data?.type || 'extra', number: null }
+  }
+  if (tableName === 'materials') {
+    const { data } = await supabase.from('materials').select('title').eq('id', recordId).maybeSingle()
+    return { title: data?.title || null, type: 'material', number: null }
+  }
+  if (tableName === 'personal_tasks') {
+    const { data } = await supabase.from('personal_tasks').select('title, type').eq('id', recordId).maybeSingle()
+    return { title: data?.title || null, type: data?.type || 'tarefa', number: null }
+  }
+  return empty
 }
 
 // Dispara push pros watchers de um card (schedules/materials/extras), sempre que
@@ -100,7 +110,7 @@ export async function POST(req: NextRequest) {
   // faz o sininho e o push serem a mesma coisa: aprovação do cliente vem com
   // skipPush (o resumo em lote evita um push por post), e antes disso ela
   // simplesmente não existia pro sininho.
-  const cardTitle = await resolveCardTitle(tableName, recordId)
+  const card = await resolveCardMeta(tableName, recordId)
   await supabase.from('hub_notifications').insert(
     memberIds.map(memberId => ({
       member_id: memberId,
@@ -110,7 +120,9 @@ export async function POST(req: NextRequest) {
       kind: action || 'activity',
       actor_name: actorName || null,
       actor_id: actorId || null,
-      title: cardTitle,
+      title: card.title,
+      card_type: card.type,
+      card_number: card.number,
       body: description || 'Atualização num card que você acompanha',
       url,
     }))

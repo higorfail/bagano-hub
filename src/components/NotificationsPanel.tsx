@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Bell, BellRing, Check, X, AtSign, Loader2 } from 'lucide-react'
 import {
   fetchNotifications, groupByCard, markRead, markAllRead,
-  bucketOf, bucketLabel, KIND_GROUPS,
+  bucketOf, bucketLabel, KIND_GROUPS, TYPE_BADGE, splitComment,
   type NotificationRow, type NotificationGroup, type NotifBucket,
 } from '@/lib/notifications'
 import { fetchAgencyAlerts, type AgencyAlert } from '@/lib/agencyAlerts'
@@ -46,6 +46,8 @@ export default function NotificationsPanel({
   const [kind, setKind] = useState('todos')
   const [onlyUnread, setOnlyUnread] = useState(false)
   const [alerts, setAlerts] = useState<AgencyAlert[]>([])
+  // Quais cards estão com a lista completa aberta ("ver mais").
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let alive = true
@@ -224,40 +226,78 @@ export default function NotificationsPanel({
               </p>
               {sec.groups.map(g => {
                 const client = g.clientId ? clients[g.clientId] : null
+                const badge = g.cardType ? TYPE_BADGE[g.cardType] : null
+                const open = expanded.has(g.key)
+                const shown = open ? g.items : g.items.slice(0, 4)
                 return (
-                  <button key={g.key} onClick={() => openGroup(g)}
-                    className={`w-full text-left flex gap-3 px-4 py-3 border-b border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors ${g.unread > 0 ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
-                    {/* Barra na cor do cliente: diz de quem é o card antes de
-                        ler qualquer texto. */}
+                  <div key={g.key}
+                    className={`flex gap-3 px-4 py-3 border-b border-[var(--color-border)] ${g.unread > 0 ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
                     <span className="w-1 rounded-full flex-shrink-0" style={{ background: client?.color_hex || 'var(--color-border-strong)' }} />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-[13px] font-semibold text-[var(--color-text-primary)] truncate">
-                          {g.title || 'Card'}
-                        </p>
-                        {g.unread > 0 && (
-                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--ds-info-accent)' }} />
-                        )}
-                      </div>
-                      {client && (
-                        <p className="text-[10px] font-bold uppercase tracking-wide mt-0.5" style={{ color: client.color_hex }}>{client.name}</p>
-                      )}
-                      {/* Eventos do card, agrupados. Três mudanças de data no
-                          mesmo post viram três linhas aqui dentro, não três
-                          notificações soltas na lista. */}
-                      <div className="mt-1.5 flex flex-col gap-1">
-                        {g.items.slice(0, 4).map(item => (
-                          <p key={item.id} className="text-[11px] text-[var(--color-text-secondary)] leading-snug">
-                            {item.body}
-                            <span className="text-[var(--color-text-faint)]" title={new Date(item.created_at).toLocaleString('pt-BR')}> · {relTime(item.created_at)}</span>
+                      {/* Cliente acima do card, e maior: o time pensa por
+                          cliente primeiro ("o que tem do Mundo Selvagem?") e só
+                          depois por card. Antes o título vinha em cima e o
+                          cliente virava legenda miúda embaixo, invertendo isso. */}
+                      <button onClick={() => openGroup(g)} className="w-full text-left">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[13px] font-bold uppercase tracking-wide truncate"
+                            style={{ color: client?.color_hex || 'var(--color-text-primary)' }}>
+                            {client?.name || 'Sem cliente'}
                           </p>
-                        ))}
+                          {g.unread > 0 && (
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--ds-info-accent)' }} />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1 min-w-0">
+                          {g.cardNumber != null && (
+                            <span className="text-[11px] font-bold text-[var(--color-text-faint)] flex-shrink-0">#{g.cardNumber}</span>
+                          )}
+                          {badge && (
+                            <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-px rounded flex-shrink-0"
+                              style={{ background: badge.color + '22', color: badge.color }}>
+                              {badge.label}
+                            </span>
+                          )}
+                          <span className="text-[12px] text-[var(--color-text-primary)] truncate">{g.title || 'Card'}</span>
+                        </div>
+                      </button>
+
+                      {/* Eventos do card. Comentário vira balão com o texto de
+                          verdade; o resto fica como linha de log. */}
+                      <div className="mt-1.5 flex flex-col gap-1">
+                        {shown.map(item => {
+                          const comment = splitComment(item.body)
+                          return comment ? (
+                            <div key={item.id} className="flex flex-col gap-0.5">
+                              <span className="text-[11px] font-semibold text-[var(--color-text-secondary)]">
+                                {comment.author}
+                                <span className="font-normal text-[var(--color-text-faint)]"> · {relTime(item.created_at)}</span>
+                              </span>
+                              <p className="text-[11px] text-[var(--color-text-primary)] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg rounded-tl-sm px-2 py-1.5 leading-snug break-words">
+                                {comment.text}
+                              </p>
+                            </div>
+                          ) : (
+                            <p key={item.id} className="text-[11px] text-[var(--color-text-secondary)] leading-snug">
+                              {item.body}
+                              <span className="text-[var(--color-text-faint)]" title={new Date(item.created_at).toLocaleString('pt-BR')}> · {relTime(item.created_at)}</span>
+                            </p>
+                          )
+                        })}
                         {g.items.length > 4 && (
-                          <p className="text-[10px] text-[var(--color-text-faint)]">+{g.items.length - 4} antes neste card</p>
+                          <button
+                            onClick={() => setExpanded(prev => {
+                              const next = new Set(prev)
+                              if (next.has(g.key)) next.delete(g.key); else next.add(g.key)
+                              return next
+                            })}
+                            className="self-start text-[10px] font-semibold text-[var(--color-accent)] hover:underline mt-0.5">
+                            {open ? 'Ocultar' : `Ver mais ${g.items.length - 4} neste card`}
+                          </button>
                         )}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 )
               })}
             </div>
