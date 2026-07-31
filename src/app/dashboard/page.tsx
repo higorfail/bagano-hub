@@ -984,12 +984,24 @@ export default function DashboardPage() {
           <div className="col-span-12 lg:col-span-8 space-y-4 md:space-y-5">
 
             {/* Para você — sozinha na linha, sem "buraco" causado por um vizinho mais curto */}
-            {currentMember && (
-              <SectionCard title={paraVoceTitle} icon={Zap} iconTone="amber" bodyClassName="px-4 pb-4 space-y-3">
-                {!paraVoceContent && (
-                  <p className="text-sm text-[var(--color-text-muted)] py-6 text-center">Nada pendente pra você 🎉</p>
-                )}
+            {/* Sem pendência, o card inteiro (cabeçalho + corpo folgado) gastava
+                ~110px pra dizer uma frase. Vira uma linha fina de ~36px. Não
+                some de vez de propósito: o card carrega depois dos dados, então
+                ausência ficaria indistinguível de "não carregou" — e o "nada
+                pendente" é a única confirmação de que a pessoa está em dia. */}
+            {currentMember && !paraVoceContent && (
+              <Card className="px-4 py-2.5 flex items-center gap-2.5">
+                <IconBadge icon={Zap} tone="amber" size="sm" />
+                <p className="text-sm text-[var(--color-text-secondary)] min-w-0">
+                  <span className="font-semibold text-[var(--color-text-primary)]">Para você, {firstName}</span>
+                  <span className="mx-1.5 text-[var(--color-text-faint)]">·</span>
+                  Nada pendente 🎉
+                </p>
+              </Card>
+            )}
 
+            {currentMember && paraVoceContent && (
+              <SectionCard title={paraVoceTitle} icon={Zap} iconTone="amber" bodyClassName="px-4 pb-4 space-y-3">
                 {needsYouAjusteItems.length > 0 && (
                   <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} />
                 )}
