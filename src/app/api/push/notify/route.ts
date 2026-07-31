@@ -122,6 +122,22 @@ export async function POST(req: NextRequest) {
     memberIds = [...new Set([...memberIds, ...socialIds])]
   }
 
+  // Resposta do cliente (aprovou ou pediu ajuste) vai pra EQUIPE DO CLIENTE
+  // inteira, não só pra quem observa aquele card.
+  //
+  // Observar um card é escolha individual; atender um cliente é
+  // responsabilidade. Um pedido de ajuste que chega e não encontra nenhum
+  // observador simplesmente não avisava ninguém — e é o tipo de recado que
+  // não pode depender de alguém ter clicado em "observar" antes. Foi o que
+  // aconteceu com um ajuste do Entre Nós.
+  const CLIENT_REPLY = ['client_approved', 'client_rejected', 'crono_approved', 'crono_rejected']
+  if (CLIENT_REPLY.includes(action) && clientId) {
+    const { data: team } = await supabase.from('client_team')
+      .select('member_id').eq('client_id', clientId)
+    const teamIds = (team || []).map((t: any) => t.member_id).filter((id: string) => id && id !== actorId)
+    memberIds = [...new Set([...memberIds, ...teamIds])]
+  }
+
   if (memberIds.length === 0) return NextResponse.json({ sent: 0 })
 
   // Com vários clientes, "Gee moveu de X pra Y" sozinho não diz de qual —
