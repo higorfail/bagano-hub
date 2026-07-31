@@ -215,8 +215,13 @@ function Lightbox({ post, client, waitDays, onClose, onOpenFull }: {
   onClose: () => void; onOpenFull: () => void
 }) {
   const { thumbUrl, isThumbVideo } = useDriveThumb(post.drive_url, post.drive_folder_url, post.post_type === 'reels')
-  const needsRevision = post.approval_status === 'não aprovado'
-  const isApproved    = post.approval_status === 'aprovado'
+  const needsRevision = post.approval_status === 'não aprovado' || post.status === 'ajuste'
+  // Selo mostra o estado ATUAL, não o passado. approval_status continua
+  // 'aprovado' depois que o cliente aprovou o cronograma — então um post que
+  // sofreu ajuste depois disso aparecia verde "✓ CRONO", dizendo aprovado
+  // enquanto pedia trabalho. O crono aprovado vira informação secundária.
+  const isApproved    = isFinalApproved(post)
+  const cronoOk       = approvalKind(post.status, post.approval_status) === 'crono' && post.status !== 'ajuste'
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
@@ -251,9 +256,14 @@ function Lightbox({ post, client, waitDays, onClose, onOpenFull }: {
             {isApproved ? (
               <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>✓ {approvalLabel(post.status, post.approval_status)}</span>
             ) : needsRevision ? (
-              <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>Revisão</span>
+              <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>Ajuste</span>
             ) : (
               <span className="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ds-info-text)', background: 'var(--ds-info-bg)' }}>Aguardando</span>
+            )}
+            {/* Crono aprovado sem cor de sucesso: é contexto útil ("a pauta já
+                passou pelo cliente"), não um estado de resolvido. */}
+            {cronoOk && !isApproved && (
+              <span className="flex-shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ color: 'var(--color-text-muted)', background: 'var(--color-bg-subtle)' }}>crono ok</span>
             )}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap text-xs text-[var(--color-text-muted)]">
@@ -659,8 +669,11 @@ function AprovacaoPageInner() {
           if (!client) return null
           const isOpen    = expanded.has(clientId)
           const pendentes  = clientPosts.filter(p => p.status === 'aguardando_aprovacao' && !isFinalApproved(p)).length
-          const revisoes   = clientPosts.filter(p => p.approval_status === 'não aprovado').length
-          const aprovados  = clientPosts.filter(p => p.approval_status === 'aprovado').length
+          const revisoes   = clientPosts.filter(p => p.approval_status === 'não aprovado' || p.status === 'ajuste').length
+          // "aprovado" no cabeçalho do cliente = aprovação FINAL, igual à aba.
+          // Contando o crono junto, um cliente com tudo em produção aparecia
+          // com "N aprovados" como se estivesse resolvido.
+          const aprovados  = clientPosts.filter(p => isFinalApproved(p)).length
           const extrasPendentes = extrasPendingByClient[clientId] || 0
           const clientExtras = extrasPending.filter(e => e.client_id === clientId)
           const hasUrgency = revisoes > 0
