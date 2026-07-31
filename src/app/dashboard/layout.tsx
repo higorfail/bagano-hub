@@ -13,6 +13,7 @@ import { ToastProvider, useToast } from '@/lib/ToastContext'
 import LogoIcon from '@/components/logos/LogoIcon'
 import { pushSupported, isSubscribedToPush, subscribeToPush, isIOS, isStandalonePWA } from '@/lib/push'
 import { todayBrasiliaISO, addDaysISO } from '@/lib/timezone'
+import { useEdgeSwipe, useDragToDismiss } from '@/lib/gestures'
 import { BellRing } from 'lucide-react'
 
 const navItems = [
@@ -84,6 +85,15 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   // Sidebar vira gaveta (drawer) em telas pequenas — fecha sozinha ao navegar
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+
+  // Arrastar da borda esquerda abre a gaveta; arrastar ela pra esquerda fecha.
+  // O botão de menu e o X seguem à mostra — gesto não substitui controle.
+  useEdgeSwipe({ onOpen: () => setMobileNavOpen(true), enabled: !mobileNavOpen })
+  const navDrag = useDragToDismiss({
+    axis: 'x', direction: -1, threshold: 70,
+    onDismiss: () => setMobileNavOpen(false),
+    enabled: mobileNavOpen,
+  })
 
   // Data curta da barra do topo (só no celular, onde ela saiu do corpo da
   // página pra não gastar uma linha inteira). Calculada no efeito, não no
@@ -680,8 +690,17 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       {mobileNavOpen && (
         <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setMobileNavOpen(false)} />
       )}
-      <aside className={`w-64 md:w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 fixed md:relative inset-y-0 left-0 z-50 transition-transform duration-200 md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}
-        style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+      {/* Arrastar a gaveta pra esquerda fecha. O X continua ali: gesto é
+          invisível, então quem não souber que existe precisa ter o botão. */}
+      <aside {...(mobileNavOpen ? navDrag.handlers : {})}
+        className={`w-64 md:w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 fixed md:relative inset-y-0 left-0 z-50 md:translate-x-0 ${navDrag.dragging ? '' : 'transition-transform duration-200'} ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{
+          paddingTop: 'calc(1.5rem + env(safe-area-inset-top))',
+          paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
+          // Acompanha o dedo enquanto arrasta — gesto sem resposta visual
+          // parece travado.
+          ...(mobileNavOpen && navDrag.offset ? { transform: `translateX(${navDrag.offset}px)` } : {}),
+        }}>
         <div className="flex items-center justify-between mb-8">
           <Link href="/dashboard" className="flex items-center gap-2.5 px-2 rounded-xl hover:opacity-80 transition-opacity" title="Ir para o início">
             <LogoIcon size={34} className="text-[var(--color-logo)] flex-shrink-0" />

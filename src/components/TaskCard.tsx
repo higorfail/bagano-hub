@@ -12,6 +12,7 @@ import { generateAiSummary } from '@/lib/aiSummary'
 import { autoGrow } from '@/lib/autoGrow'
 import { hostOf } from '@/lib/url'
 import { fetchLinkTitle } from '@/lib/linkTitle'
+import { useDragToDismiss } from '@/lib/gestures'
 import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
 import WatchButton from '@/components/WatchButton'
@@ -69,6 +70,10 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
   const [showDetails, setShowDetails] = useState(false)
   const [mobilePane, setMobilePane] = useState<'details' | 'comments'>('details')
   const [titleScrolled, setTitleScrolled] = useState(false)
+  // Arrastar a barra do topo pra baixo fecha o card, como folha de iOS.
+  // A alcinha cinza existe pra isso ser descobrível — gesto sem pista
+  // visível ninguém acha. O X continua ali do lado.
+  const sheetDrag = useDragToDismiss({ axis: 'y', direction: 1, threshold: 100, onDismiss: () => { (document.activeElement as HTMLElement)?.blur(); onClose() } })
   const scrollColRef = useRef<HTMLDivElement>(null)
   const [activityKey, setActivityKey] = useState(0)
   const [activities, setActivities] = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
@@ -452,7 +457,8 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center md:py-6 md:px-4"
       onClick={e => { if (e.target === e.currentTarget) { (document.activeElement as HTMLElement)?.blur(); onClose() } }}>
       <div className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
-        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)',
+          ...(sheetDrag.offset ? { transform: `translateY(${sheetDrag.offset}px)`, transition: 'none' } : {}) }}
         onPaste={handlePaste}
         onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setCardDragOver(true) } }}
         onDragLeave={e => { if (e.currentTarget === e.target) setCardDragOver(false) }}
@@ -466,7 +472,10 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
         {/* Barra fina fixa no celular: com o cabeçalho rolando junto, sobrou
             faltando a âncora de "onde estou" e o botão de fechar sempre à
             mão — é o que o Trello mantém preso no topo. */}
-        <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
+        <div {...sheetDrag.handlers}
+          className="md:hidden flex flex-col border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0 touch-pan-y">
+          <div className="mx-auto mt-1.5 mb-0.5 w-9 h-1 rounded-full bg-[var(--color-border-strong)]" />
+          <div className="flex items-center gap-2 px-3 pb-2 pt-0.5">
           <span className={`flex-1 min-w-0 truncate text-sm font-semibold text-[var(--color-text-primary)] transition-opacity duration-150 ${titleScrolled ? 'opacity-100' : 'opacity-0'}`}>
             {title || 'Tarefa sem título'}
           </span>
@@ -482,6 +491,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
             className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[var(--color-text-secondary)]">
             <X size={17} />
           </button>
+          </div>
         </div>
 
         <div className="md:hidden flex items-center border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
