@@ -104,9 +104,13 @@ export default function NotificationsPanel({
       <div className="fixed inset-0 bg-black/40 z-[60] md:hidden" onClick={onClose} />
 
       <div
+        // No desktop é comprido de propósito (como o do Trello): a lista
+        // agrupada por card gasta altura, e num painel curto cabiam duas
+        // notificações — o resto virava rolagem dentro de uma caixinha.
         className="fixed inset-0 z-[61] flex flex-col bg-[var(--color-bg-card)]
-                   md:absolute md:inset-auto md:right-0 md:top-11 md:z-50 md:w-[440px]
-                   md:max-h-[78vh] md:rounded-2xl md:border md:border-[var(--color-border)] md:shadow-xl md:overflow-hidden"
+                   md:absolute md:inset-auto md:right-0 md:top-11 md:z-50 md:w-[460px]
+                   md:h-[calc(100vh-6rem)] md:max-h-[860px]
+                   md:rounded-2xl md:border md:border-[var(--color-border)] md:shadow-xl md:overflow-hidden"
         style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {/* Cabeçalho */}

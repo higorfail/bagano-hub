@@ -7,6 +7,7 @@ import { useUser } from '@/lib/UserContext'
 import { dbError } from '@/lib/dbError'
 import { todayBrasiliaISO } from '@/lib/timezone'
 import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
+import SwipeAction from '@/components/SwipeAction'
 import SocialItemPopover, { PopoverAnchor } from './SocialItemPopover'
 import { ChevronLeft, ChevronRight, CheckCircle2, Clock3, BadgeCheck, AlertTriangle, Play } from 'lucide-react'
 
@@ -186,17 +187,31 @@ export default function SocialWeekView({ items, clients, onOpenItem, onItemsChan
               </div>
               <div className={`flex-1 p-1.5 flex flex-col gap-1 min-h-[80px] ${isDragOver ? 'bg-[var(--color-accent)]/5' : ''}`}>
                 {dayItems.length === 0 && <span className="text-[10px] text-[var(--color-text-faint)] text-center py-3">—</span>}
+                {/* Arrastar pra esquerda marca como publicado. Vale aqui e nas
+                    Pendências, que empilham na vertical — no Board e no
+                    Calendário o horizontal já rola coluna, e gesto no mesmo
+                    eixo da rolagem nativa briga com ela. */}
                 {dayItems.map(item => (
-                  <WeekDayItem
+                  <SwipeAction
                     key={item.id}
-                    item={item}
-                    client={getClient(item.clientId)}
-                    overdue={isOverdue(item, todayISO)}
-                    dragging={dragging?.id === item.id}
-                    onClick={e => openPopover(e, item)}
-                    onDragStart={() => setDragging(item)}
-                    onDragEnd={() => { setDragging(null); setDragOverDay(null) }}
-                  />
+                    className="rounded-lg"
+                    right={item.column === 'publicado' ? undefined : {
+                      label: 'Publicado',
+                      icon: <CheckCircle2 size={14} />,
+                      color: 'var(--ds-success-accent)',
+                      onAction: () => publish(item),
+                    }}
+                  >
+                    <WeekDayItem
+                      item={item}
+                      client={getClient(item.clientId)}
+                      overdue={isOverdue(item, todayISO)}
+                      dragging={dragging?.id === item.id}
+                      onClick={e => openPopover(e, item)}
+                      onDragStart={() => setDragging(item)}
+                      onDragEnd={() => { setDragging(null); setDragOverDay(null) }}
+                    />
+                  </SwipeAction>
                 ))}
               </div>
             </div>

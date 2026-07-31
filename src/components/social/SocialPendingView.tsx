@@ -5,7 +5,8 @@ import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { dbError } from '@/lib/dbError'
 import SocialItemCard from './SocialItemCard'
-import { CalendarPlus, AlertTriangle } from 'lucide-react'
+import SwipeAction from '@/components/SwipeAction'
+import { CalendarPlus, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
 type Client = { id: string; name: string; color_hex: string }
 
@@ -53,15 +54,29 @@ export default function SocialPendingView({ items, clients, onOpenItem, onItemsC
         <p className="text-xs text-[var(--color-text-faint)] px-1">Nada por aqui — tudo em dia 🎉</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {/* Arrastar pra esquerda marca como publicado — é a ação que se
+              repete dezenas de vezes aqui, e abrir/fechar card pra cada uma
+              custa três toques em vez de um gesto. Os botões do card
+              continuam valendo; o gesto é atalho, não substituto. */}
           {list.map(item => (
-            <SocialItemCard
+            <SwipeAction
               key={item.id}
-              item={item}
-              client={getClient(item.clientId)}
-              onClick={() => onOpenItem(item)}
-              onPublish={() => publish(item)}
-              onSchedule={date => schedule(item, date)}
-            />
+              className="rounded-2xl"
+              right={{
+                label: 'Publicado',
+                icon: <CheckCircle2 size={16} />,
+                color: 'var(--ds-success-accent)',
+                onAction: () => publish(item),
+              }}
+            >
+              <SocialItemCard
+                item={item}
+                client={getClient(item.clientId)}
+                onClick={() => onOpenItem(item)}
+                onPublish={() => publish(item)}
+                onSchedule={date => schedule(item, date)}
+              />
+            </SwipeAction>
           ))}
         </div>
       )}
