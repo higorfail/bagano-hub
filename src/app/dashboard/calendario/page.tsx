@@ -49,6 +49,10 @@ const EMPTY_FORM = { title: '', event_type: 'reuniao', date: '', start_time: '',
 
 function pad(n: number) { return String(n).padStart(2, '0') }
 function toISO(d: Date)  { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` }
+// Iniciais pras tarjas do celular — na célula de ~50px não cabe nome nem título.
+function initials(name: string) {
+  return (name || '?').split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
 
 export default function CalendarioPage() {
   useEffect(() => { document.title = 'Calendário · Bagano Hub' }, [])
@@ -327,27 +331,38 @@ export default function CalendarioPage() {
   }
 
   return (
-    <div className="p-6 flex flex-col gap-4 h-full overflow-auto page-content">
+    <div className="p-4 md:p-6 flex flex-col gap-3 md:gap-4 h-full overflow-auto page-content">
 
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Calendário</h1>
-          <p className="text-[var(--color-text-muted)] text-sm mt-0.5">{MONTHS[month-1]} {year}</p>
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">Calendário</h1>
+          {/* O mês já aparece na navegação ao lado — repetir aqui só gastava linha */}
+          <p className="hidden md:block text-[var(--color-text-muted)] text-sm mt-0.5">{MONTHS[month-1]} {year}</p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Client filter */}
-          <div className="flex items-center gap-1.5">
-            <Filter size={12} className="text-[var(--color-text-muted)]" />
-            <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
-              className="text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-1.5 text-[var(--color-text-secondary)] outline-none">
-              <option value="">Todos os clientes</option>
-              {allClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+        <div className="flex flex-col gap-2 w-full md:w-auto md:flex-row md:items-center md:gap-3 md:flex-wrap">
+
+          {/* Filtro de cliente + novo evento dividem a linha no celular */}
+          <div className="flex items-center gap-2 md:contents">
+            <div className="flex items-center gap-1.5 flex-1 md:flex-none min-w-0">
+              <Filter size={12} className="text-[var(--color-text-muted)] flex-shrink-0 hidden md:block" />
+              <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
+                className="w-full md:w-auto h-8 min-w-0 text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 text-[var(--color-text-secondary)] outline-none">
+                <option value="">Todos os clientes</option>
+                {allClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+
+            <button onClick={() => openNewEvent(todayISO)}
+              className="h-8 flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold px-3 rounded-xl border transition-all hover:opacity-90"
+              style={{ background: '#10b98122', color: '#059669', borderColor: '#10b98166' }}>
+              <Plus size={12} /> <span className="hidden sm:inline">Novo </span>evento
+            </button>
           </div>
 
-          {/* Type toggles */}
-          <div className="flex items-center gap-1.5">
+          {/* Type toggles — 4 células iguais no celular, em vez de quatro
+              larguras diferentes ("Posts" vs "Captação") quebrando torto */}
+          <div className="grid grid-cols-4 gap-1.5 md:flex md:items-center">
             {([
               { key: 'posts',    label: 'Posts',    active: showPosts,    toggle: () => setShowPosts(v => !v),    color: '#3b82f6', icon: null },
               { key: 'criacao',  label: 'Criação',  active: showCriacao,  toggle: () => setShowCriacao(v => !v),  color: '#f59e0b', icon: <PenLine size={9} /> },
@@ -355,7 +370,7 @@ export default function CalendarioPage() {
               { key: 'eventos',  label: 'Eventos',  active: showEventos,  toggle: () => setShowEventos(v => !v),  color: '#10b981', icon: <CalendarDays size={9} /> },
             ] as const).map(({ key, label, active, toggle, color, icon }) => (
               <button key={key} onClick={toggle}
-                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border transition-all"
+                className="h-7 flex items-center justify-center gap-1 text-[11px] md:text-xs font-semibold px-1.5 md:px-2.5 rounded-full border transition-all"
                 style={active
                   ? { background: color + '22', color, borderColor: color + '66' }
                   : { color: 'var(--color-text-faint)', borderColor: 'var(--color-border)' }}>
@@ -364,29 +379,24 @@ export default function CalendarioPage() {
             ))}
           </div>
 
-          {/* New event button */}
-          <button onClick={() => openNewEvent(todayISO)}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
-            style={{ background: '#10b98122', color: '#059669', borderColor: '#10b98166' }}>
-            <Plus size={12} /> Novo evento
-          </button>
-
           {/* Month nav */}
-          <div className="flex items-center gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1">
-            <button onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
+          <div className="flex items-center justify-between md:justify-start gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1">
+            <button onClick={prevMonth} className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
               <ChevronLeft size={14} className="text-[var(--color-text-secondary)]" />
             </button>
             <span className="text-xs font-semibold text-[var(--color-text-primary)] min-w-[110px] text-center">{MONTHS[month-1]} {year}</span>
-            <button onClick={nextMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
+            <button onClick={nextMonth} className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
               <ChevronRight size={14} className="text-[var(--color-text-secondary)]" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Legend */}
+      {/* Legenda de clientes — some no celular: são 17 clientes, ~7 fileiras,
+          quase meia tela só de chave de cores, e o filtro "Todos os clientes"
+          logo acima já faz o mesmo trabalho de recortar por cliente. */}
       {legendClients.length > 0 && (
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="hidden md:flex flex-wrap gap-2 items-center">
           {legendClients.map(c => (
             <button key={c.id}
               onClick={() => setFilterClient(fc => fc === c.id ? '' : c.id)}
@@ -426,17 +436,17 @@ export default function CalendarioPage() {
 
             return (
               <div key={i}
-                className={`group/cell min-h-[110px] border-r border-b border-[var(--color-border)] p-1.5 flex flex-col gap-1 last:border-r-0 ${!day ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
+                className={`group/cell min-h-[74px] md:min-h-[110px] border-r border-b border-[var(--color-border)] p-0.5 md:p-1.5 flex flex-col gap-0.5 md:gap-1 last:border-r-0 ${!day ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
                 {day && (
                   <div className="flex items-center justify-between mb-0.5 px-0.5">
-                    <span className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full ${todayCell ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)]'}`}>
+                    <span className={`text-[10px] md:text-xs font-semibold w-4 h-4 md:w-6 md:h-6 flex items-center justify-center rounded-full flex-shrink-0 ${todayCell ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)]'}`}>
                       {day}
                     </span>
                     <div className="flex items-center gap-1">
                       {totalItems > 0 && <span className="text-[9px] text-[var(--color-text-faint)]">{totalItems}</span>}
                       <button
                         onClick={() => openNewEvent(dayISO(day))}
-                        className="opacity-0 group-hover/cell:opacity-100 w-5 h-5 rounded-md flex items-center justify-center transition-all hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)]"
+                        className="hidden md:flex opacity-0 group-hover/cell:opacity-100 w-5 h-5 rounded-md items-center justify-center transition-all hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)]"
                         title="Novo evento">
                         <Plus size={10} />
                       </button>
@@ -451,11 +461,12 @@ export default function CalendarioPage() {
                     return (
                       <button key={`ev-${item.id}`}
                         onClick={() => openEditEvent(ev)}
-                        className="rounded-md px-1.5 py-0.5 text-[10px] font-medium truncate border text-left w-full flex items-center gap-1 hover:opacity-80 transition-opacity"
+                        className="rounded md:rounded-md px-1 md:px-1.5 py-px md:py-0.5 text-[9px] md:text-[10px] font-medium truncate border text-left w-full flex items-center gap-0.5 md:gap-1 hover:opacity-80 transition-opacity"
                         style={{ background: et.color + '22', color: et.color, borderColor: et.color + '44' }}
                         title={`${et.label}: ${ev.title}${ev.start_time ? ' · ' + ev.start_time.slice(0,5) : ''}`}>
                         <et.Icon size={8} className="flex-shrink-0" />
-                        <span className="truncate">{ev.start_time ? ev.start_time.slice(0,5) + ' ' : ''}{ev.title}</span>
+                        <span className="truncate md:hidden">{initials(ev.title)}</span>
+                        <span className="truncate hidden md:inline">{ev.start_time ? ev.start_time.slice(0,5) + ' ' : ''}{ev.title}</span>
                       </button>
                     )
                   }
@@ -464,11 +475,12 @@ export default function CalendarioPage() {
                     const memberNames = (e.member_ids || []).map(mid => memberMap[mid]?.name.split(' ')[0]).filter(Boolean)
                     return (
                       <div key={`cr-${item.id}`}
-                        className="rounded-md px-1.5 py-0.5 text-[10px] font-medium truncate border flex items-center gap-1"
+                        className="rounded md:rounded-md px-1 md:px-1.5 py-px md:py-0.5 text-[9px] md:text-[10px] font-medium truncate border flex items-center gap-0.5 md:gap-1"
                         style={{ background: '#f59e0b22', color: '#b45309', borderColor: '#f59e0b44' }}
                         title={`Criação: ${e.client_name}${memberNames.length ? ' · ' + memberNames.join(', ') : ''}`}>
                         <PenLine size={8} className="flex-shrink-0" />
-                        <span className="truncate">{e.client_name}</span>
+                        <span className="truncate md:hidden">{initials(e.client_name)}</span>
+                        <span className="truncate hidden md:inline">{e.client_name}</span>
                       </div>
                     )
                   }
@@ -476,11 +488,12 @@ export default function CalendarioPage() {
                     const c = item.data as Captacao
                     return (
                       <div key={`cap-${item.id}`}
-                        className="rounded-md px-1.5 py-0.5 text-[10px] font-medium truncate border flex items-center gap-1"
+                        className="rounded md:rounded-md px-1 md:px-1.5 py-px md:py-0.5 text-[9px] md:text-[10px] font-medium truncate border flex items-center gap-0.5 md:gap-1"
                         style={{ background: '#8b5cf622', color: '#6d28d9', borderColor: '#8b5cf644' }}
                         title={`Captação${c.scheduled_time ? ' ' + c.scheduled_time.slice(0,5) : ''}: ${item.label}`}>
                         <Camera size={8} className="flex-shrink-0" />
-                        <span className="truncate">{c.scheduled_time ? c.scheduled_time.slice(0,5) + ' ' : ''}{item.label}</span>
+                        <span className="truncate md:hidden">{initials(item.label)}</span>
+                        <span className="truncate hidden md:inline">{c.scheduled_time ? c.scheduled_time.slice(0,5) + ' ' : ''}{item.label}</span>
                       </div>
                     )
                   }
@@ -489,10 +502,14 @@ export default function CalendarioPage() {
                   return (
                     <button key={`p-${item.id}`}
                       onClick={() => { setEditingPostId(p.id); setEditingPostCtx({ clientId: p.client_id, clientName: p.client_name, clientColor: p.client_color, month: p.month, year: p.year }); setShowPostCard(true) }}
-                      className="rounded-md px-1.5 py-0.5 text-[10px] font-medium truncate border text-left w-full hover:opacity-80 transition-opacity"
+                      className="rounded md:rounded-md px-1 md:px-1.5 py-px md:py-0.5 text-[9px] md:text-[10px] font-medium truncate border text-left w-full hover:opacity-80 transition-opacity"
                       style={{ background: p.client_color + '22', color: p.client_color, borderColor: p.client_color + '44' }}
-                      title={p.title}>
-                      {p.title}
+                      title={`${p.client_name} — ${p.title}`}>
+                      {/* No celular a célula tem ~50px: o título virava uma
+                          letra e meia. As iniciais do cliente pelo menos
+                          dizem de quem é; o toque abre o post. */}
+                      <span className="md:hidden">{initials(p.client_name)}</span>
+                      <span className="hidden md:inline">{p.title}</span>
                     </button>
                   )
                 })}
