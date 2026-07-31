@@ -16,6 +16,11 @@ const STATUS_META = {
   atrasado:  { label: 'Atrasado',  icon: AlertTriangle, color: 'var(--ds-error-accent)' },
 } as const
 
+// Iniciais do cliente pra tarja do celular, onde não cabe o nome inteiro.
+function initials(name: string) {
+  return (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const WEEKDAYS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
 
@@ -90,19 +95,21 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
 
   return (
     <div className="flex-1 flex flex-col gap-3 p-4 overflow-auto">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-3 text-[11px] text-[var(--color-text-muted)]">
+      {/* Navegação do mês antes da legenda no celular: a legenda tem 4 itens e
+          empurrava o seletor de mês pra uma linha solta embaixo. */}
+      <div className="flex flex-col-reverse gap-2 md:flex-row md:items-center md:justify-between md:flex-wrap">
+        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] text-[var(--color-text-muted)]">
           <span className="flex items-center gap-1.5"><BadgeCheck size={12} style={{ color: STATUS_META.aprovado.color }} /> Aprovado</span>
           <span className="flex items-center gap-1.5"><Clock3 size={12} style={{ color: STATUS_META.agendado.color }} /> Agendado</span>
           <span className="flex items-center gap-1.5"><CheckCircle2 size={12} style={{ color: STATUS_META.publicado.color }} /> Publicado</span>
           <span className="flex items-center gap-1.5"><AlertTriangle size={12} style={{ color: 'var(--ds-error-accent)' }} /> Atrasado</span>
         </div>
-        <div className="flex items-center gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1">
-          <button onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
+        <div className="flex items-center justify-between md:justify-start gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1">
+          <button onClick={prevMonth} className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
             <ChevronLeft size={14} className="text-[var(--color-text-secondary)]" />
           </button>
           <span className="text-xs font-semibold text-[var(--color-text-primary)] min-w-[110px] text-center">{MONTHS[month - 1]} {year}</span>
-          <button onClick={nextMonth} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
+          <button onClick={nextMonth} className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
             <ChevronRight size={14} className="text-[var(--color-text-secondary)]" />
           </button>
         </div>
@@ -123,13 +130,13 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
             return (
               <div
                 key={i}
-                className={`min-h-[128px] border-r border-b p-1.5 flex flex-col gap-1 last:border-r-0 transition-colors ${!day ? 'bg-[var(--color-bg-subtle)] border-[var(--color-border)]' : isDragOver ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5' : 'border-[var(--color-border)]'}`}
+                className={`min-h-[74px] md:min-h-[128px] border-r border-b p-0.5 md:p-1.5 flex flex-col gap-0.5 md:gap-1 last:border-r-0 transition-colors ${!day ? 'bg-[var(--color-bg-subtle)] border-[var(--color-border)]' : isDragOver ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5' : 'border-[var(--color-border)]'}`}
                 onDragOver={e => { if (day && dragging) { e.preventDefault(); setDragOverDay(day) } }}
                 onDragLeave={() => setDragOverDay(prev => (prev === day ? null : prev))}
                 onDrop={e => { e.preventDefault(); if (day) dropOnDay(day) }}
               >
                 {day && (
-                  <span className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full ${todayCell ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)]'}`}>
+                  <span className={`text-[10px] md:text-xs font-semibold w-4 h-4 md:w-6 md:h-6 flex items-center justify-center rounded-full flex-shrink-0 ${todayCell ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)]'}`}>
                     {day}
                   </span>
                 )}
@@ -147,17 +154,30 @@ export default function SocialCalendarView({ items, clients, onOpenItem, onItems
                       onDragStart={() => setDragging(item)}
                       onDragEnd={() => { setDragging(null); setDragOverDay(null) }}
                       onClick={e => openPopover(e, item)}
-                      title="Arraste pra outro dia pra mudar a data"
-                      className={`rounded-lg px-1.5 py-1 text-left w-full border transition-opacity hover:opacity-85 flex flex-col gap-0.5 cursor-grab active:cursor-grabbing ${dragging?.id === item.id ? 'opacity-40' : ''}`}
-                      style={published
-                        ? { background: accent, borderColor: accent }
-                        : { background: accent + '16', borderColor: accent + (overdue ? '80' : '55') }}
+                      title={`${client?.name || 'Sem cliente'}${item.scheduledTime ? ` · ${item.scheduledTime.slice(0, 5)}` : ''} — ${item.title}. Arraste pra outro dia pra mudar a data.`}
+                      className={`rounded md:rounded-lg px-1 md:px-1.5 py-px md:py-1 text-left w-full border transition-opacity hover:opacity-85 flex flex-col gap-0.5 cursor-grab active:cursor-grabbing ${dragging?.id === item.id ? 'opacity-40' : ''}`}
+                      style={{
+                        ...(published
+                          ? { background: accent, borderColor: accent }
+                          : { background: accent + '16', borderColor: accent + (overdue ? '80' : '55') }),
+                        // Faixa na cor do cliente: o preenchimento diz o status
+                        // (a legenda acima vale), a faixa diz de quem é.
+                        borderLeftWidth: 3,
+                        borderLeftColor: client?.color_hex || accent,
+                      }}
                     >
-                      <span className="flex items-center gap-1 text-[10px] font-bold truncate" style={{ color: published ? '#fff' : accent }}>
+                      {/* Na célula de ~50px do celular o nome do cliente virava
+                          "Ze", "Ba", "En" — não identificava nada. Sobra a
+                          inicial mais o horário, que é o que ela precisa ler de
+                          relance; o toque abre o resto. */}
+                      <span className="md:hidden text-[9px] font-bold leading-[1.3] truncate" style={{ color: published ? '#fff' : accent }}>
+                        {initials(client?.name || '?')}{item.scheduledTime ? ` ${item.scheduledTime.slice(0, 5)}` : ''}
+                      </span>
+                      <span className="hidden md:flex items-center gap-1 text-[10px] font-bold truncate" style={{ color: published ? '#fff' : accent }}>
                         <status.icon size={9} className="flex-shrink-0" />
                         {client?.name || 'Sem cliente'}
                       </span>
-                      <span className="text-[9px] truncate" style={{ color: published ? 'rgba(255,255,255,0.85)' : 'var(--color-text-muted)' }}>
+                      <span className="hidden md:block text-[9px] truncate" style={{ color: published ? 'rgba(255,255,255,0.85)' : 'var(--color-text-muted)' }}>
                         {item.scheduledTime ? item.scheduledTime.slice(0, 5) + ' · ' : ''}{item.postNumber ? `#${item.postNumber} ` : ''}{item.title}
                       </span>
                     </button>

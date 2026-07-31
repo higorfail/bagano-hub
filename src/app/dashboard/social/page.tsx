@@ -77,22 +77,28 @@ export default function SocialPage() {
         filters={filters}
         onChange={setFilters}
         leading={
-          <div className="pr-2 mr-1 border-r border-[var(--color-border)] flex flex-col justify-center" title="Diferente do Kanban: aqui conta todos os meses + Extras juntos. Use o filtro de Mês pra comparar 1:1 com o Kanban.">
-            <h1 className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight leading-none">Publicações</h1>
-            <p className="text-[var(--color-text-muted)] text-[10px] mt-1 whitespace-nowrap">{scheduledCount} agendado{scheduledCount === 1 ? '' : 's'} · {publishedToday} hoje · todos os meses</p>
+          // A divisória vertical só faz sentido quando o título está em linha
+          // com o resto; empilhado no celular ela vira um risco solto.
+          <div className="md:pr-2 md:mr-1 md:border-r border-[var(--color-border)] flex flex-col justify-center" title="Diferente do Kanban: aqui conta todos os meses + Extras juntos. Use o filtro de Mês pra comparar 1:1 com o Kanban.">
+            <h1 className="text-base md:text-sm font-bold text-[var(--color-text-primary)] tracking-tight leading-none">Publicações</h1>
+            <p className="text-[var(--color-text-muted)] text-[10px] mt-1">{scheduledCount} agendado{scheduledCount === 1 ? '' : 's'} · {publishedToday} hoje · todos os meses</p>
           </div>
         }
         trailing={
-          <div className="flex items-center gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1">
+          <div className="flex items-center gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1 w-full md:w-auto">
+            {/* Largura cheia com 4 fatias iguais no celular: com a largura do
+                próprio texto, "Pendências" ficava pra fora da borda da tela.
+                Os ícones somem no telefone — os rótulos identificam melhor e
+                é o espaço deles que falta. */}
             {VIEW_OPTIONS.map(opt => (
               <button
                 key={opt.key}
                 onClick={() => setView(opt.key)}
-                className={`relative flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                className={`relative flex-1 md:flex-none flex items-center justify-center gap-1.5 text-[11px] md:text-xs font-semibold px-1.5 md:px-3 py-1.5 rounded-lg transition-colors ${
                   view === opt.key ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'
                 }`}
               >
-                <opt.icon size={13} />{opt.label}
+                <opt.icon size={13} className="hidden md:block" />{opt.label}
                 {!!opt.badge && (
                   <span className="text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full" style={{ background: view === opt.key ? 'rgba(255,255,255,0.3)' : 'var(--ds-error-accent)', color: view === opt.key ? '#fff' : '#fff' }}>
                     {opt.badge}

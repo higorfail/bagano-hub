@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { POST_TYPE_LABEL, type SocialFilters, type DateQuickFilter, type SocialSource } from '@/lib/socialItems'
-import { Search, ChevronDown, Check } from 'lucide-react'
+import { Search, ChevronDown, Check, SlidersHorizontal } from 'lucide-react'
 
 type Client = { id: string; name: string; color_hex: string; logo_url?: string | null }
 
@@ -68,14 +68,16 @@ function FilterDropdown({ label, count, showBadge = true, children }: { label: s
 
   return (
     <div ref={ref} className="relative">
+      {/* w-full no celular: dentro do painel de filtros cada um ocupa a
+          própria célula da grade, senão voltam a ter a largura do texto. */}
       <button
         onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${
+        className={`w-full md:w-auto h-8 flex items-center justify-between md:justify-start gap-1.5 text-xs font-medium px-2.5 rounded-lg border transition-colors ${
           count > 0 ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/8' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'
         }`}
       >
-        {label}{count > 0 && showBadge && <span className="text-[10px] font-bold">({count})</span>}
-        <ChevronDown size={12} />
+        <span className="truncate">{label}{count > 0 && showBadge && <span className="text-[10px] font-bold"> ({count})</span>}</span>
+        <ChevronDown size={12} className="flex-shrink-0" />
       </button>
       {open && (
         <div className="absolute top-full left-0 mt-1.5 z-50 w-56 max-h-72 overflow-y-auto bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-xl p-1.5">
@@ -87,6 +89,8 @@ function FilterDropdown({ label, count, showBadge = true, children }: { label: s
 }
 
 export default function SocialFilterBar({ clients, filters, onChange, leading, trailing }: Props) {
+  const [panelOpen, setPanelOpen] = useState(false)
+
   function toggleClient(id: string) {
     const next = new Set(filters.clientIds)
     if (next.has(id)) next.delete(id); else next.add(id)
@@ -105,25 +109,54 @@ export default function SocialFilterBar({ clients, filters, onChange, leading, t
   const currentSource: SocialSource | 'todos' = filters.sources.size === 1 ? [...filters.sources][0] : 'todos'
   const monthLabel = filters.monthFilter ? `${MONTHS_SHORT[filters.monthFilter.month - 1]} ${filters.monthFilter.year}` : 'Mês'
 
+  // Quantos filtros estão pegando agora — vai no botão "Filtros" do celular,
+  // que é o que diz que tem coisa escondida ali dentro.
+  const activeCount =
+    filters.clientIds.size + filters.types.size + filters.sources.size +
+    (filters.dateFilter !== 'todos' ? 1 : 0) + (filters.monthFilter ? 1 : 0) +
+    (filters.missingDateOnly ? 1 : 0) + (filters.overdueOnly ? 1 : 0)
+  const hasAnyFilter = activeCount > 0 || !!filters.search
+
   return (
-    <div className="flex items-center gap-2 px-4 md:px-6 py-2.5 border-b border-[var(--color-border)] flex-wrap">
+    // No celular vira empilhado: título · (busca + Filtros) · seletor de visão.
+    // Antes era tudo numa barra só com flex-wrap, e ela se quebrava sozinha em
+    // 4 fileiras irregulares — o seletor de visão, que é a navegação principal
+    // da social media, sobrava no fim e ainda saía cortado pela borda.
+    <div className="flex flex-col gap-2 px-4 md:px-6 py-2.5 border-b border-[var(--color-border)] md:flex-row md:items-center md:flex-wrap">
       {leading}
-      <div className="relative">
-        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
-        <input
-          value={filters.search}
-          onChange={e => onChange({ ...filters, search: e.target.value })}
-          placeholder="Buscar por título…"
-          className="pl-7 pr-3 py-1.5 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] w-40 focus:outline-none focus:ring-1 focus:ring-[var(--color-brand)]"
-        />
+
+      <div className="flex items-center gap-2 md:contents">
+        <div className="relative flex-1 md:flex-none">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
+          <input
+            value={filters.search}
+            onChange={e => onChange({ ...filters, search: e.target.value })}
+            placeholder="Buscar por título…"
+            className="w-full md:w-40 h-8 pl-7 pr-3 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-brand)]"
+          />
+        </div>
+        <button
+          onClick={() => setPanelOpen(o => !o)}
+          className={`md:hidden h-8 flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 rounded-lg border transition-colors ${
+            activeCount > 0 ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/8' : 'border-[var(--color-border)] text-[var(--color-text-secondary)]'
+          }`}
+        >
+          <SlidersHorizontal size={13} />
+          Filtros{activeCount > 0 && <span className="text-[10px] font-bold">({activeCount})</span>}
+          <ChevronDown size={12} className="transition-transform" style={{ transform: panelOpen ? 'rotate(180deg)' : 'none' }} />
+        </button>
       </div>
 
-      <div className="flex items-center gap-1 bg-[var(--color-bg-subtle)] rounded-lg p-0.5">
+      {/* Painel de filtros — grade de 2 colunas no celular, tudo em linha no
+          iPad/desktop (md:contents faz este wrapper sumir do layout). */}
+      <div className={`${panelOpen ? 'grid' : 'hidden'} grid-cols-2 gap-2 md:contents`}>
+
+      <div className="col-span-2 md:col-auto flex items-center gap-1 bg-[var(--color-bg-subtle)] rounded-lg p-0.5">
         {DATE_OPTIONS.map(opt => (
           <button
             key={opt.key}
             onClick={() => onChange({ ...filters, dateFilter: opt.key })}
-            className={`text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${
+            className={`flex-1 md:flex-none text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${
               filters.dateFilter === opt.key ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'
             }`}
           >
@@ -181,12 +214,12 @@ export default function SocialFilterBar({ clients, filters, onChange, leading, t
         })}
       </FilterDropdown>
 
-      <div className="flex items-center gap-1 bg-[var(--color-bg-subtle)] rounded-lg p-0.5">
+      <div className="col-span-2 md:col-auto flex items-center gap-1 bg-[var(--color-bg-subtle)] rounded-lg p-0.5">
         {SOURCE_OPTIONS.map(opt => (
           <button
             key={opt.key}
             onClick={() => setSource(opt.key)}
-            className={`text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${
+            className={`flex-1 md:flex-none text-[11px] font-medium px-2 py-1 rounded-md transition-colors ${
               currentSource === opt.key ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'
             }`}
           >
@@ -195,16 +228,18 @@ export default function SocialFilterBar({ clients, filters, onChange, leading, t
         ))}
       </div>
 
-      {(filters.clientIds.size > 0 || filters.types.size > 0 || filters.sources.size > 0 || filters.search || filters.dateFilter !== 'todos' || filters.missingDateOnly || filters.overdueOnly || filters.monthFilter) && (
+      {hasAnyFilter && (
         <button
           onClick={() => onChange({ clientIds: new Set(), types: new Set(), sources: new Set(), dateFilter: 'todos', missingDateOnly: false, overdueOnly: false, monthFilter: null, search: '' })}
-          className="text-[11px] text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] px-1"
+          className="col-span-2 md:col-auto text-[11px] text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] px-1 py-1"
         >
           ✕ limpar filtros
         </button>
       )}
 
-      <div className="flex-1" />
+      </div>
+
+      <div className="hidden md:block md:flex-1" />
       {trailing}
     </div>
   )
