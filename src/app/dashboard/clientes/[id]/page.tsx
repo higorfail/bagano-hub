@@ -445,7 +445,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   })
                 }
                 return (
-                  <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-3 px-3 md:mx-0 md:px-0">
+                  <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-3 px-3 md:mx-0 md:px-0 items-stretch min-h-[55svh] md:min-h-0">
+                    {/* min-h no celular: quem rola de lado é ESTE elemento, e a
+                        altura dele vinha do conteúdo — com poucos cards o dedo
+                        só arrastava na faixa de cima. */}
                     {MAT_COLS.map((col, ci) => {
                       const items      = colItems(col.key)
                       const isDragOver = matDragOver === col.key

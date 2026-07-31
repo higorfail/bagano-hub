@@ -343,7 +343,10 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
         </div>
       ) : (
       /* Kanban columns — no mobile rola tipo Trello (1 coluna por vez, com snap) */
-      <div className="flex md:grid md:grid-cols-3 gap-5 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
+      <div className="flex md:grid md:grid-cols-3 gap-5 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0 items-stretch min-h-[60svh] md:min-h-0">
+        {/* min-h no celular: quem rola de lado é ESTE elemento, e a altura dele
+            vinha do conteúdo — com poucos cards o dedo só arrastava na faixa de
+            cima, e no vazio de baixo o toque caía na página. */}
         {COLUMNS.map(col => {
           const colExtras = filtered.filter(e => e.status === col.key)
           const isDragTarget = dragOverCol === col.key && draggingId !== null
@@ -380,7 +383,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
               </div>
 
               {/* Cards */}
-              <div className={`flex flex-col gap-2 min-h-[80px] rounded-xl transition-colors ${isDragTarget ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
+              <div className={`flex flex-col gap-2 flex-1 min-h-[80px] rounded-xl transition-colors ${isDragTarget ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
                 {colExtras.map(extra => {
                   const assignedData = extra.assigned_members
                     ? members.filter(m => extra.assigned_members!.includes(m.id))
