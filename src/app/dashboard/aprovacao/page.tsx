@@ -15,6 +15,12 @@ import { approvalKind, approvalLabel } from '@/lib/approvalKind'
 const isFinalApproved = (p: { status: string; approval_status: string }) =>
   approvalKind(p.status, p.approval_status) === 'final'
 
+// Duas portas levam ao mesmo lugar: o cliente recusou (approval_status) ou o
+// time moveu pra ajuste depois de um pedido por fora (status). As duas pedem
+// a mesma ação, então contam igual em toda a página.
+const needsAdjust = (p: { status: string; approval_status: string }) =>
+  p.status === 'ajuste' || p.approval_status === 'não aprovado'
+
 type Post = {
   id: string
   title: string
@@ -216,7 +222,7 @@ function Lightbox({ post, client, waitDays, onClose, onOpenFull }: {
   onClose: () => void; onOpenFull: () => void
 }) {
   const { thumbUrl, isThumbVideo } = useDriveThumb(post.drive_url, post.drive_folder_url, post.post_type === 'reels')
-  const needsRevision = post.approval_status === 'não aprovado' || post.status === 'ajuste'
+  const needsRevision = needsAdjust(post)
   // Selo mostra o estado ATUAL, não o passado. approval_status continua
   // 'aprovado' depois que o cliente aprovou o cronograma — então um post que
   // sofreu ajuste depois disso aparecia verde "✓ CRONO", dizendo aprovado
@@ -463,7 +469,11 @@ function AprovacaoPageInner() {
   // primeiro), aprovados por último.
   function sortPosts(list: Post[]) {
     return [...list].sort((a, b) => {
-      const rank = (p: Post) => p.approval_status === 'não aprovado' ? 0 : p.approval_status === 'aprovado' ? 2 : 1
+      // Ajuste sempre no topo: é o único estado que exige trabalho agora.
+      // Antes o rank olhava approval_status cru, então um post em ajuste que
+      // teve o CRONO aprovado caía no grupo dos aprovados e ia parar no fim
+      // da lista — o oposto de onde precisava estar.
+      const rank = (p: Post) => needsAdjust(p) ? 0 : isFinalApproved(p) ? 2 : 1
       const ra = rank(a), rb = rank(b)
       if (ra !== rb) return ra - rb
       const wa = waitingSince[a.id] ? daysAgo(waitingSince[a.id]) : -1
@@ -489,8 +499,8 @@ function AprovacaoPageInner() {
     }
     // Revisões primeiro, depois aguardando
     return Object.entries(groups).sort(([, a], [, b]) => {
-      const aRev = a.some(p => p.approval_status === 'não aprovado') ? 0 : 1
-      const bRev = b.some(p => p.approval_status === 'não aprovado') ? 0 : 1
+      const aRev = a.some(needsAdjust) ? 0 : 1
+      const bRev = b.some(needsAdjust) ? 0 : 1
       return aRev - bRev
     })
   }, [filtered, extrasPendingByClient, filter])
@@ -699,7 +709,7 @@ function AprovacaoPageInner() {
           if (!client) return null
           const isOpen    = expanded.has(clientId)
           const pendentes  = clientPosts.filter(p => p.status === 'aguardando_aprovacao' && !isFinalApproved(p)).length
-          const revisoes   = clientPosts.filter(p => p.approval_status === 'não aprovado' || p.status === 'ajuste').length
+          const revisoes   = clientPosts.filter(needsAdjust).length
           // "aprovado" no cabeçalho do cliente = aprovação FINAL, igual à aba.
           // Contando o crono junto, um cliente com tudo em produção aparecia
           // com "N aprovados" como se estivesse resolvido.
@@ -877,8 +887,8 @@ function AprovacaoPageInner() {
                              selo com ícone sobre a própria miniatura, sem legenda comprida. */
                           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 p-4 items-start">
                             {mPosts.map(p => {
-                              const needsRevision = p.approval_status === 'não aprovado'
-                              const hasAdjustment = p.status === 'ajuste' || p.approval_status === 'não aprovado'
+                              const hasAdjustment = needsAdjust(p)
+                              const needsRevision = hasAdjustment
                               // isFinalApproved, não o campo cru: approval_status
                               // continua 'aprovado' desde a aprovação do
                               // CRONOGRAMA. Testando o campo direto, um post que
@@ -928,8 +938,8 @@ function AprovacaoPageInner() {
                         ) : (
                           <div className="divide-y divide-[var(--color-bg-subtle)]">
                             {mPosts.map(p => {
-                              const needsRevision = p.approval_status === 'não aprovado'
-                              const hasAdjustment = p.status === 'ajuste' || p.approval_status === 'não aprovado'
+                              const hasAdjustment = needsAdjust(p)
+                              const needsRevision = hasAdjustment
                               // isFinalApproved, não o campo cru: approval_status
                               // continua 'aprovado' desde a aprovação do
                               // CRONOGRAMA. Testando o campo direto, um post que
