@@ -327,6 +327,11 @@ export default function DashboardPage() {
 
   const [clients,      setClients]      = useState<Client[]>([])
   const [schedules,    setSchedules]    = useState<Schedule[]>([])
+  // Trabalho atribuído a você, SEM prender ao mês corrente. A lista acima é do
+  // mês por bons motivos (métricas, "Clientes do mês", gráfico), mas o "Para
+  // você" não pode herdar esse recorte: em julho a equipe já está montando o
+  // cronograma de agosto, e esse trabalho é tão real quanto o de hoje.
+  const [pendingSchedules, setPendingSchedules] = useState<Schedule[]>([])
   const [specialDates, setSpecialDates] = useState<SpecialDate[]>([])
   const [captacoes,    setCaptacoes]    = useState<Captacao[]>([])
   const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
@@ -349,6 +354,11 @@ export default function DashboardPage() {
   const month    = now.getMonth() + 1
   const year     = now.getFullYear()
   const todayStr = now.toISOString().split('T')[0]
+  // Mês anterior, atual e os três seguintes — vira o filtro do "Para você".
+  const NEARBY_PERIODS = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(year, month - 2 + i, 1)
+    return { month: d.getMonth() + 1, year: d.getFullYear() }
+  })
   const in120Str = new Date(now.getTime() + 120 * 86400000).toISOString().split('T')[0]
 
   useEffect(() => {
@@ -356,7 +366,7 @@ export default function DashboardPage() {
       try {
         const in90Str = new Date(now.getTime() + 90 * 86400000).toISOString().split('T')[0]
         const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
-        const [{ data: cls, error: e1 }, { data: sch }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
+        const [{ data: cls, error: e1 }, { data: sch }, { data: schWide }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
           supabase.from(CFG.t.clients)
             .select('id, name, color_hex, logo_url')
             .eq('status', 'active')
@@ -365,6 +375,12 @@ export default function DashboardPage() {
             .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels')
             .eq('month', month)
             .eq('year', year),
+          // Mês anterior até +3: pega o cronograma que já está sendo montado
+          // pra frente sem arrastar meses velhos abandonados pra dentro do
+          // "Para você".
+          supabase.from(CFG.t.schedules)
+            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels')
+            .or(NEARBY_PERIODS.map(p => `and(month.eq.${p.month},year.eq.${p.year})`).join(',')),
           supabase.from(CFG.t.specialDates)
             .select('id, name, date')
             .gte('date', todayStr)
@@ -382,6 +398,7 @@ export default function DashboardPage() {
         if (e1) { setLoadError(true); setLoading(false); return }
         setClients(cls || [])
         setSchedules(sch || [])
+        setPendingSchedules(schWide || [])
         setSpecialDates(sd || [])
         setCaptacoes(cap || [])
         setClientTeam(ct || [])
@@ -616,12 +633,15 @@ export default function DashboardPage() {
 
   const directAssigned = useMemo(() => {
     if (!currentMember) return []
-    return schedules.filter(s => {
+    // pendingSchedules, não schedules: o cronograma do mês que vem já é
+    // trabalho de agora. Era isso que sumia da Gabi — ela estava marcada em
+    // posts de agosto e o painel só olhava julho.
+    return pendingSchedules.filter(s => {
       if ([CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)) return false
       if (s.status === CFG.S.revisaoInterna) return myStrategistClients.has(s.client_id)
       return (s.assigned_members || []).includes(currentMember.id)
     })
-  }, [schedules, currentMember, myStrategistClients])
+  }, [pendingSchedules, currentMember, myStrategistClients])
 
   // Unifica posts + extras + materiais numa lista só, cada item marcado como
   // "precisa de você" (ação sua) ou "esperando o cliente" (aguardando aprovação) —
