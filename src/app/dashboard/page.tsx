@@ -62,6 +62,7 @@ type Schedule = {
   scheduled_date: string | null; funil: string | null
   month: number; year: number; created_at?: string | null
   assigned_members?: string[] | null
+  legenda?: string | null
 }
 type SpecialDate = { id: string; name: string; date: string }
 type Captacao    = { id: string; client_id: string; scheduled_date: string; status: string; months_covered: number }
@@ -372,14 +373,14 @@ export default function DashboardPage() {
             .eq('status', 'active')
             .order('name'),
           supabase.from(CFG.t.schedules)
-            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels')
+            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels, legenda')
             .eq('month', month)
             .eq('year', year),
           // Mês anterior até +3: pega o cronograma que já está sendo montado
           // pra frente sem arrastar meses velhos abandonados pra dentro do
           // "Para você".
           supabase.from(CFG.t.schedules)
-            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels')
+            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels, legenda')
             .or(NEARBY_PERIODS.map(p => `and(month.eq.${p.month},year.eq.${p.year})`).join(',')),
           supabase.from(CFG.t.specialDates)
             .select('id, name, date')
@@ -664,22 +665,42 @@ export default function DashboardPage() {
     const raw = typeof v === 'string' ? (() => { try { return JSON.parse(v) } catch { return [] } })() : v
     return Array.isArray(raw) ? raw.filter(l => l && typeof l.text === 'string') : []
   }
+  // "Esperando o cliente" e "precisa de você" NÃO são estados exclusivos.
+  //
+  // Um post pode estar em aprovação com o cliente enquanto a equipe ainda deve
+  // a legenda — e é exatamente esse o caso do Mundo Selvagem: 12 posts em
+  // `aguardando_aprovacao` com a etiqueta CRIAR LEGENDA. O código marcava
+  // todos como "esperando o cliente", então o trabalho da Gabi caía na linha
+  // cinza de espera e nunca aparecia como pendência dela.
+  //
+  // A etiqueta é a tarefa (convenção da Bagano: "CRIAR LEGENDA", "Criar o
+  // design", "AGENDAR"). Então: tem etiqueta = tem trabalho aberto,
+  // independente de quem mais esteja olhando o card.
+  // A etiqueta diz QUAL é a tarefa; o campo correspondente diz se ela ainda
+  // está aberta. Etiqueta é marcação manual — quem escreve a legenda muitas
+  // vezes esquece de tirar a etiqueta, e o card ficaria cobrando pra sempre um
+  // trabalho já feito. O conteúdo do campo é o fato.
+  const openLabels = (labels: CardLabel[], legenda?: string | null) =>
+    labels.filter(l => (/legenda/i.test(l.text) ? !(legenda || '').trim() : true))
+
+  const stillOwesWork = (labels: CardLabel[]) => labels.length > 0
+
   const paraVoceItems: ParaVoceItem[] = [
     ...directAssigned.map((s): ParaVoceItem => ({
       id: `post-${s.id}`, kind: 'post', title: s.title, clientId: s.client_id,
       dueDate: s.scheduled_date, ajuste: s.status === CFG.S.ajuste,
-      waitingClient: s.status === CFG.S.aguardandoAprovacao,
+      waitingClient: s.status === CFG.S.aguardandoAprovacao && !stillOwesWork(openLabels(asLabels((s as any).labels), s.legenda)),
       // post/m/y — sem isso o clique só caía na aba de cronograma do cliente,
       // sem abrir o post específico (o CronogramaTab já sabe abrir direto
       // quando recebe esses 3 parâmetros, só não estavam sendo passados).
       href: `/dashboard/clientes/${s.client_id}?tab=cronograma&post=${s.id}&m=${s.month}&y=${s.year}`,
       postType: s.post_type, campaignType: (s as any).campaign_type || null,
-      labels: asLabels((s as any).labels),
+      labels: openLabels(asLabels((s as any).labels), s.legenda),
     })),
     ...myExtras.map((e): ParaVoceItem => ({
       id: `extra-${e.id}`, kind: 'extra', title: e.title, clientId: e.client_id,
       dueDate: e.due_date, ajuste: e.client_approval_status === 'recusado',
-      waitingClient: e.client_approval_status === 'aguardando',
+      waitingClient: e.client_approval_status === 'aguardando' && !stillOwesWork(asLabels(e.labels)),
       href: e.client_id ? `/dashboard/clientes/${e.client_id}?tab=extras` : '/dashboard/kanban',
       postType: e.type, campaignType: e.campaign_type || null,
       labels: asLabels(e.labels),
@@ -687,7 +708,7 @@ export default function DashboardPage() {
     ...myMaterials.map((m): ParaVoceItem => ({
       id: `material-${m.id}`, kind: 'material', title: m.title, clientId: m.client_id,
       dueDate: m.due_date, ajuste: m.status === 'ajuste',
-      waitingClient: m.status === 'aguardando_aprovacao',
+      waitingClient: m.status === 'aguardando_aprovacao' && !stillOwesWork(asLabels(m.labels)),
       href: m.client_id ? `/dashboard/clientes/${m.client_id}?tab=materiais` : '/dashboard/materiais',
       labels: asLabels(m.labels),
     })),
