@@ -16,7 +16,7 @@ import { pushSupported, isSubscribedToPush, subscribeToPush, isIOS, isStandalone
 import { useDrawer, usePullToRefresh } from '@/lib/gestures'
 import { fetchUnreadCount } from '@/lib/notifications'
 import { installTouchDragBridge } from '@/lib/touchDragBridge'
-import { BellRing, RefreshCw } from 'lucide-react'
+import { BellRing, RefreshCw, KeyRound, LogOut } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard',          icon: Home,          label: 'Início' },
@@ -337,6 +337,22 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                   {currentMember?.id === m.id && <Check size={14} className="text-[var(--color-text-primary)]" />}
                 </button>
               ))}
+
+              {/* Trocar senha e sair moram aqui porque não existiam em lugar
+                  nenhum. Com o hub trancado, quem recebe uma senha provisória
+                  precisa de um caminho pra trocá-la, e quem usa um computador
+                  compartilhado precisa conseguir sair. */}
+              <div className="border-t border-[var(--color-border)]">
+                <Link href="/auth/definir-senha" onClick={() => setShowMemberPicker(false)}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-[var(--color-bg-subtle)] transition-colors text-left text-sm text-[var(--color-text-secondary)]">
+                  <KeyRound size={14} className="flex-shrink-0" /> Trocar minha senha
+                </Link>
+                <button
+                  onClick={async () => { await createClient().auth.signOut(); window.location.href = '/' }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-[var(--color-bg-subtle)] transition-colors text-left text-sm text-[var(--color-text-secondary)]">
+                  <LogOut size={14} className="flex-shrink-0" /> Sair
+                </button>
+              </div>
             </div>
           )}
         </div>
