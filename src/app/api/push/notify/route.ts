@@ -21,22 +21,39 @@ const URL_BY_TABLE: Record<string, (recordId: string, clientId?: string | null) 
   personal_tasks: id => `/dashboard/tarefas?task=${id}`,
 }
 
+// Título do card pra notificação — é ele que agrupa a lista do sininho ("POST
+// 11 — REEL" com as três mudanças de data embaixo, em vez de três linhas
+// soltas). Cada tabela guarda o nome numa coluna diferente.
+const TITLE_COLUMN: Record<string, string> = {
+  schedules: 'title',
+  materials: 'title',
+  extras: 'title',
+  personal_tasks: 'title',
+}
+
+async function resolveCardTitle(tableName: string, recordId: string): Promise<string | null> {
+  const col = TITLE_COLUMN[tableName]
+  if (!col) return null
+  const { data } = await supabase.from(tableName).select(col).eq('id', recordId).maybeSingle()
+  return (data as any)?.[col] || null
+}
+
 // Dispara push pros watchers de um card (schedules/materials/extras), sempre que
 // logActivity registra algo — ver src/lib/activity.ts. Roda como role anon (sem
 // sessão de usuário), então push_subscriptions/card_watchers precisam de GRANT
 // pro anon (ver push_subscriptions_setup.sql).
 export async function POST(req: NextRequest) {
-  if (!vapidPublic || !vapidPrivate) {
-    console.error('push/notify: VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY não configuradas no ambiente — nenhum push será enviado.')
-    return NextResponse.json({ skipped: 'no vapid keys' })
-  }
-
   const body = await req.json().catch(() => null)
   if (!body?.tableName || !body?.recordId) return NextResponse.json({ skipped: 'invalid body' })
 
-  const { tableName, recordId, clientId, actorId, actorName, description } = body
+  const { tableName, recordId, clientId, actorId, actorName, description, skipPush, action } = body
   const buildUrl = URL_BY_TABLE[tableName]
   if (!buildUrl) return NextResponse.json({ skipped: 'unsupported table' })
+
+  // A checagem de VAPID desceu pra depois de gravar a notificação: antes ela
+  // saía aqui em cima e, sem as chaves configuradas, NADA era registrado — o
+  // sininho ficava vazio junto com o push.
+  const canPush = !!(vapidPublic && vapidPrivate) && !skipPush
 
   const { data: watchers } = await supabase.from('card_watchers')
     .select('member_id').eq('table_name', tableName).eq('record_id', recordId)
@@ -68,10 +85,6 @@ export async function POST(req: NextRequest) {
 
   if (memberIds.length === 0) return NextResponse.json({ sent: 0 })
 
-  const { data: subs } = await supabase.from('push_subscriptions')
-    .select('id, member_id, endpoint, p256dh, auth').in('member_id', memberIds)
-  if (!subs || subs.length === 0) return NextResponse.json({ sent: 0 })
-
   // Com vários clientes, "Gee moveu de X pra Y" sozinho não diz de qual —
   // antepõe o nome do cliente no título quando o card pertence a um.
   let clientName: string | null = null
@@ -82,6 +95,32 @@ export async function POST(req: NextRequest) {
 
   let url = buildUrl(recordId, clientId)
   if (sched?.month && sched?.year) url += `&m=${sched.month}&y=${sched.year}`
+
+  // Grava a notificação ANTES de tentar o push, e independente dele. É isso que
+  // faz o sininho e o push serem a mesma coisa: aprovação do cliente vem com
+  // skipPush (o resumo em lote evita um push por post), e antes disso ela
+  // simplesmente não existia pro sininho.
+  const cardTitle = await resolveCardTitle(tableName, recordId)
+  await supabase.from('notifications').insert(
+    memberIds.map(memberId => ({
+      member_id: memberId,
+      card_table: tableName,
+      card_id: recordId,
+      client_id: clientId || null,
+      kind: action || 'activity',
+      actor_name: actorName || null,
+      actor_id: actorId || null,
+      title: cardTitle,
+      body: description || 'Atualização num card que você acompanha',
+      url,
+    }))
+  )
+
+  if (!canPush) return NextResponse.json({ sent: 0, stored: memberIds.length })
+
+  const { data: subs } = await supabase.from('push_subscriptions')
+    .select('id, member_id, endpoint, p256dh, auth').in('member_id', memberIds)
+  if (!subs || subs.length === 0) return NextResponse.json({ sent: 0, stored: memberIds.length })
 
   const payload = JSON.stringify({
     title: clientName ? `${clientName} · ${actorName || 'Bagano Hub'}` : (actorName || 'Bagano Hub'),

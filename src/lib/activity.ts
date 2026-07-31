@@ -12,8 +12,8 @@ export async function logActivity(params: {
   newValue?: string | null
   description: string
   // Aprovação/rejeição do cliente usa um resumo em lote em vez de um push por
-  // post (ver queueApprovalDigest) — continua indo pro activity_log/sino
-  // normalmente, só não dispara o push individual duplicado.
+  // post (ver queueApprovalDigest) — continua sendo GRAVADA na caixa de
+  // entrada normalmente, só não dispara o push individual duplicado.
   skipPush?: boolean
 }) {
   try {
@@ -32,8 +32,10 @@ export async function logActivity(params: {
   } catch {
     // never block the UI for logging
   }
-  if (params.skipPush) return
-  // Dispara push pros watchers do card, sem bloquear a UI se falhar/demorar
+  // A rota é chamada SEMPRE, inclusive com skipPush: é ela que grava a
+  // notificação na caixa de entrada, e só o envio do push é que fica de fora.
+  // Antes o skipPush saía aqui e a aprovação do cliente nunca chegava ao
+  // sininho — era a maior fonte de "chegou no push mas não ficou salvo".
   fetch('/api/push/notify', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
