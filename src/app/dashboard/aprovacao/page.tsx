@@ -8,6 +8,12 @@ import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight, Chevrons
 import ModalPortal from '@/components/ModalPortal'
 import { approvalKind, approvalLabel } from '@/lib/approvalKind'
 
+// "Aprovado" nesta página significa APROVAÇÃO FINAL do conteúdo. O campo
+// approval_status vale 'aprovado' pros dois tipos (crono e final), então usar
+// ele cru misturava as duas coisas.
+const isFinalApproved = (p: { status: string; approval_status: string }) =>
+  approvalKind(p.status, p.approval_status) === 'final'
+
 type Post = {
   id: string
   title: string
@@ -337,7 +343,16 @@ function AprovacaoPageInner() {
             .eq('client_approval_status', 'aguardando'),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
-        const allPosts = postData || []
+        // Esta página é sobre APROVAÇÃO DO CONTEÚDO. Um post com o cronograma
+        // aprovado seguindo em produção não é assunto daqui: ele aparecia na
+        // aba "Aprovados" e passava a impressão de que a arte estava aprovada
+        // — foi a confusão da HAGO. Fica quem está esperando resposta, quem
+        // pediu ajuste, e quem teve o FINAL aprovado.
+        const allPosts = (postData || []).filter((p: any) =>
+          p.status === 'aguardando_aprovacao' ||
+          p.status === 'ajuste' ||
+          approvalKind(p.status, p.approval_status) === 'final'
+        )
         setPosts(allPosts)
         setClients(clientData || [])
         setExtrasPending(extrasData || [])
@@ -411,10 +426,13 @@ function AprovacaoPageInner() {
 
   const filtered = useMemo(() => {
     let list = searched
-    if (filter === 'aguardando') list = list.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado')
+    // isFinal, não approval_status: um post de crono aprovado que voltou pra
+    // aprovação final estava sumindo de "Aguardando" e sendo arquivado em
+    // "Aprovados" — justamente um que ainda espera o cliente.
+    if (filter === 'aguardando') list = list.filter(p => p.status === 'aguardando_aprovacao' && !isFinalApproved(p))
     else if (filter === 'revisao') list = list.filter(p => p.status === 'ajuste')
-    else if (filter === 'aprovado') list = list.filter(p => p.approval_status === 'aprovado')
-    else list = list.filter(p => p.approval_status !== 'aprovado')
+    else if (filter === 'aprovado') list = list.filter(p => isFinalApproved(p))
+    else list = list.filter(p => !isFinalApproved(p))
     if (monthFilter) list = list.filter(p => monthKeyOf(p) === monthFilter)
     return list
   }, [searched, filter, monthFilter])
@@ -455,14 +473,14 @@ function AprovacaoPageInner() {
     })
   }, [filtered, extrasPendingByClient, filter])
 
-  const aguardandoCount = posts.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado').length
+  const aguardandoCount = posts.filter(p => p.status === 'aguardando_aprovacao' && !isFinalApproved(p)).length
   const revisaoCount    = posts.filter(p => p.status === 'ajuste').length
-  const aprovadoCount   = posts.filter(p => p.approval_status === 'aprovado').length
+  const aprovadoCount   = posts.filter(p => isFinalApproved(p)).length
 
   // Resumo: quantos clientes têm pendência e há quanto tempo a mais antiga espera
   const pendingClientsCount = useMemo(() => {
     const s = new Set<string>()
-    posts.forEach(p => { if (p.approval_status !== 'aprovado') s.add(p.client_id) })
+    posts.forEach(p => { if (!isFinalApproved(p)) s.add(p.client_id) })
     return s.size
   }, [posts])
   const oldestWaitingDays = useMemo(() => {
@@ -640,7 +658,7 @@ function AprovacaoPageInner() {
           const client    = clientMap[clientId]
           if (!client) return null
           const isOpen    = expanded.has(clientId)
-          const pendentes  = clientPosts.filter(p => p.status === 'aguardando_aprovacao' && p.approval_status !== 'aprovado').length
+          const pendentes  = clientPosts.filter(p => p.status === 'aguardando_aprovacao' && !isFinalApproved(p)).length
           const revisoes   = clientPosts.filter(p => p.approval_status === 'não aprovado').length
           const aprovados  = clientPosts.filter(p => p.approval_status === 'aprovado').length
           const extrasPendentes = extrasPendingByClient[clientId] || 0
