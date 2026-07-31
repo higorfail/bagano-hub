@@ -174,6 +174,12 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [showDetails,  setShowDetails]  = useState(false)
   // No mobile as duas colunas (conteúdo/comentários) viram abas — trocar em vez de empilhar (padrão Trello)
   const [mobilePane, setMobilePane] = useState<'details' | 'comments'>('details')
+  // Título na barra fixa só aparece depois que o título grande sai de vista ao
+  // rolar — igual Trello. Mostrar sempre deixava o mesmo texto duas vezes na
+  // tela. Os limites diferentes (72 pra mostrar, 40 pra esconder) evitam o
+  // pisca-pisca quando a rolagem para bem em cima do ponto de corte.
+  const [titleScrolled, setTitleScrolled] = useState(false)
+  const scrollColRef = useRef<HTMLDivElement>(null)
   const [emojiOpen,    setEmojiOpen]    = useState<TextField | null>(null)
   const [clientList,   setClientList]   = useState<{ id: string; name: string; color_hex: string }[]>([])
   const [moveOpen,     setMoveOpen]     = useState(false)
@@ -849,7 +855,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               </div>
             ) : (
               <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}>
-                <Trash2 size={13} /> Excluir post
+                <Trash2 size={15} className="md:hidden" /><Trash2 size={13} className="hidden md:block" /> <span className="hidden md:inline">Excluir post</span>
               </button>
             )
           ) : <div />}
@@ -890,7 +896,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               <div className="relative">
                 <button onClick={() => setMoveOpen(v => !v)}
                   className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
-                  <Move size={13} /> Mover / Duplicar
+                  <Move size={15} className="md:hidden" /><Move size={13} className="hidden md:block" /> <span className="hidden md:inline">Mover / Duplicar</span>
                 </button>
                 {moveOpen && (
                   <>
@@ -924,7 +930,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 )}
               </div>
             )}
-            <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-faint)]">
+            <div className="hidden md:flex items-center gap-2 text-[11px] text-[var(--color-text-faint)]">
               <Check size={12} /> Salvo automaticamente
             </div>
           </div>
@@ -956,7 +962,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             faltando a âncora de "onde estou" e o botão de fechar sempre à
             mão — é o que o Trello mantém preso no topo. */}
         <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
-          <span className="flex-1 min-w-0 truncate text-sm font-semibold text-[var(--color-text-primary)]">
+          <span className={`flex-1 min-w-0 truncate text-sm font-semibold text-[var(--color-text-primary)] transition-opacity duration-150 ${titleScrolled ? 'opacity-100' : 'opacity-0'}`}>
             {form.title || 'Post sem título'}
           </span>
           {currentId && (
@@ -995,7 +1001,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             cabeçalho (título, cliente, tipo/status/data, 11 membros e
             etiquetas) ficava travado ocupando quase metade da tela, deixando
             o conteúdo numa fatia fina. Igual ao Trello: tudo rola junto. */}
-        <div className={`${mobilePane === 'comments' ? 'hidden md:flex' : 'flex'} flex-1 min-w-0 flex-col overflow-y-auto md:overflow-hidden`}>
+        <div ref={scrollColRef}
+          onScroll={e => { const t = e.currentTarget.scrollTop; setTitleScrolled(prev => prev ? t > 40 : t > 72) }}
+          className={`${mobilePane === 'comments' ? 'hidden md:flex' : 'flex'} flex-1 min-w-0 flex-col overflow-y-auto md:overflow-hidden`}>
 
         {/* HEADER — título */}
         <div className="flex items-start justify-between gap-4 px-4 md:px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">

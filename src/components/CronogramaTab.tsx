@@ -640,14 +640,14 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               <ChevronDown size={13} className="transition-transform" style={{ transform: showActions ? 'rotate(180deg)' : 'none' }} />
             </button>
 
-            <div className={`${showActions ? 'flex' : 'hidden'} md:flex w-full md:w-auto md:ml-auto items-center gap-2 flex-wrap`}>
+            <div className={`${showActions ? 'grid' : 'hidden'} grid-cols-2 gap-2 w-full md:flex md:w-auto md:ml-auto md:items-center md:gap-2 md:flex-wrap`}>
               {/* Grupo Crono: finalizar+enviar (sempre) + Pra Criação (se houver pendência) + copiar link (sempre) */}
-              <div className="flex items-center rounded-xl border overflow-hidden" style={{ borderColor: isFinalized ? 'var(--ds-success-border)' : 'var(--ds-purple-border,var(--color-border))' }}>
+              <div className="col-span-2 md:col-auto flex items-center rounded-xl border overflow-hidden" style={{ borderColor: isFinalized ? 'var(--ds-success-border)' : 'var(--ds-purple-border,var(--color-border))' }}>
                 <button onClick={finalizeCrono} disabled={togglingStatus}
                   title={isFinalized
                     ? `Cronograma finalizado${cronoStatus?.finalized_by ? ` por ${cronoStatus.finalized_by}` : ''} — clique pra reabrir e voltar a editar`
                     : `Finalizar cronograma e enviar${estrategiaPosts.length > 0 ? ` ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} em estratégia` : ''} pra aprovação do cliente`}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-all hover:opacity-90 disabled:opacity-50"
+                  className="flex-1 md:flex-none justify-center flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-all hover:opacity-90 disabled:opacity-50"
                   style={isFinalized
                     ? { color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
                     : { color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
@@ -672,7 +672,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 )}
                 <button onClick={() => copyTypeApprovalLink('cronograma')}
                   title="Copiar link de aprovação do cronograma (pauta/estratégia, sem produção)"
-                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border-l transition-all hover:opacity-90"
+                  className="flex-1 md:flex-none justify-center flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border-l transition-all hover:opacity-90"
                   style={copiedLinkType === 'cronograma'
                     ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
                     : { borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)' }}>
@@ -682,18 +682,18 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               </div>
 
               {/* Grupo Aprovação final: ação (se houver pendência) + copiar link (sempre) */}
-              <div className="flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-success-border,var(--color-border))' }}>
+              <div className="col-span-2 md:col-auto flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-success-border,var(--color-border))' }}>
                 {revisaoPosts.length > 0 && (
                   <button onClick={() => openApprovalModal('final')}
                     title={`Enviar ${revisaoPosts.length} post${revisaoPosts.length !== 1 ? 's' : ''} em revisão pra aprovação final do cliente`}
-                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-all hover:opacity-90"
+                    className="flex-1 md:flex-none justify-center flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-all hover:opacity-90"
                     style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
                     <ClipboardCheck size={12} /> Conteúdo entregue · {revisaoPosts.length}
                   </button>
                 )}
                 <button onClick={() => copyTypeApprovalLink('final')}
                   title="Copiar link de aprovação final (conteúdo já produzido)"
-                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 transition-all hover:opacity-90 ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
+                  className={`flex-1 md:flex-none justify-center flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 transition-all hover:opacity-90 ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
                   style={copiedLinkType === 'final'
                     ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
                     : { borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)' }}>
@@ -705,7 +705,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               {/* Checklist de produção — gerado por IA, sob demanda, sem misturar com aprovação */}
               <button onClick={generatePreplist}
                 title="Gerar checklist de produção do mês com IA — pra equipe de captação usar no dia da gravação"
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
+                className="col-span-2 md:col-auto justify-center md:justify-start flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border transition-all hover:opacity-90"
                 style={{ borderColor: '#8b5cf666', color: '#8b5cf6' }}>
                 <ClipboardList size={12} /> Checklist
               </button>
@@ -715,7 +715,10 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             {/* Fora do menu: trocar de visualização e criar post são o que mais
                 se usa, então ficam sempre à mão — no celular dividindo a
                 própria linha, com as abas ocupando o espaço que sobra. */}
-            <div className="flex items-center gap-2 w-full md:w-auto">
+            {/* No celular cada um ocupa a própria linha: lado a lado, as abas
+                largas e o botão estreito ficavam desproporcionais. Criar post
+                é a ação principal — linha inteira, fácil de acertar. */}
+            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 w-full md:w-auto">
               <div className="flex-1 md:flex-none flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
                 <button onClick={() => changeView('list')} className={`flex-1 md:flex-none px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
                 <button onClick={() => changeView('grid')} className={`flex-1 md:flex-none px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
@@ -723,7 +726,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               </div>
 
               <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
-                className="flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-90"
+                className="flex-shrink-0 flex items-center justify-center md:justify-start gap-1.5 text-xs font-semibold px-3 py-2 md:py-1.5 rounded-xl text-white transition-opacity hover:opacity-90"
                 style={{ background: clientColor || 'var(--color-brand)' }}>
                 + Novo post
               </button>
