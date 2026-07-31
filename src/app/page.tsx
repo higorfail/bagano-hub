@@ -14,14 +14,40 @@ export default function Home() {
   const router = useRouter()
   const supabase = createClient()
 
+  // O convite do Supabase pode chegar em TRÊS formatos diferentes, conforme o
+  // fluxo configurado no projeto e a versão do modelo de e-mail:
+  //   ?code=…                          (PKCE)
+  //   ?token_hash=…&type=invite        (link de verificação)
+  //   #access_token=…&refresh_token=…  (fragmento, fluxo implícito)
+  //
+  // Aqui só o primeiro era tratado. Nos outros dois o efeito saía fora logo na
+  // primeira linha e a pessoa convidada ficava olhando o formulário de login
+  // comum, sem senha nenhuma pra usar e sem nada dizendo o que fazer.
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('code')
-    if (!code) return
+    const params = new URLSearchParams(window.location.search)
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+
+    const code = params.get('code')
+    const tokenHash = params.get('token_hash')
+    const accessToken = hash.get('access_token')
+    const refreshToken = hash.get('refresh_token')
+
+    // Erro devolvido pelo próprio Supabase (link expirado, já usado…) chega
+    // como parâmetro. Sem ler isso, um convite vencido virava tela muda.
+    const urlError = params.get('error_description') || hash.get('error_description')
+    if (urlError) { setError(decodeURIComponent(urlError)); return }
+
+    if (!code && !tokenHash && !accessToken) return
+
     setLoading(true)
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+    const done = ({ error }: { error: any }) => {
       if (!error) router.push('/auth/definir-senha')
-      else { setError('Link inválido ou expirado.'); setLoading(false) }
-    })
+      else { setError('Link inválido ou expirado. Peça um convite novo.'); setLoading(false) }
+    }
+
+    if (code) supabase.auth.exchangeCodeForSession(code).then(done)
+    else if (tokenHash) supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'invite' }).then(done)
+    else supabase.auth.setSession({ access_token: accessToken!, refresh_token: refreshToken || '' }).then(done)
   }, [])
 
   async function handleLogin() {
