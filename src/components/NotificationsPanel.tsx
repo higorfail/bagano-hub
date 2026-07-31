@@ -230,15 +230,22 @@ export default function NotificationsPanel({
                 const open = expanded.has(g.key)
                 const shown = open ? g.items : g.items.slice(0, 4)
                 return (
+                  // A caixa inteira abre o card. Não dá pra ser um <button>
+                  // porque o "Ver mais" é um botão dentro dela, e botão dentro
+                  // de botão é HTML inválido — daí role/tabIndex + o
+                  // stopPropagation lá embaixo.
                   <div key={g.key}
-                    className={`flex gap-3 px-4 py-3 border-b border-[var(--color-border)] ${g.unread > 0 ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
+                    role="button" tabIndex={0}
+                    onClick={() => openGroup(g)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGroup(g) } }}
+                    className={`flex gap-3 px-4 py-3 border-b border-[var(--color-border)] text-left hover:bg-[var(--color-bg-subtle)] transition-colors ${g.unread > 0 ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
                     <span className="w-1 rounded-full flex-shrink-0" style={{ background: client?.color_hex || 'var(--color-border-strong)' }} />
                     <div className="flex-1 min-w-0">
                       {/* Cliente acima do card, e maior: o time pensa por
                           cliente primeiro ("o que tem do Mundo Selvagem?") e só
                           depois por card. Antes o título vinha em cima e o
                           cliente virava legenda miúda embaixo, invertendo isso. */}
-                      <button onClick={() => openGroup(g)} className="w-full text-left">
+                      <div>
                         <div className="flex items-center gap-2">
                           <p className="text-[13px] font-bold uppercase tracking-wide truncate"
                             style={{ color: client?.color_hex || 'var(--color-text-primary)' }}>
@@ -260,7 +267,7 @@ export default function NotificationsPanel({
                           )}
                           <span className="text-[12px] text-[var(--color-text-primary)] truncate">{g.title || 'Card'}</span>
                         </div>
-                      </button>
+                      </div>
 
                       {/* Eventos do card. Comentário vira balão com o texto de
                           verdade; o resto fica como linha de log. */}
@@ -286,11 +293,16 @@ export default function NotificationsPanel({
                         })}
                         {g.items.length > 4 && (
                           <button
-                            onClick={() => setExpanded(prev => {
-                              const next = new Set(prev)
-                              if (next.has(g.key)) next.delete(g.key); else next.add(g.key)
-                              return next
-                            })}
+                            // Sem o stopPropagation, "Ver mais" também abriria
+                            // o card, que é o oposto do que ele serve.
+                            onClick={e => {
+                              e.stopPropagation()
+                              setExpanded(prev => {
+                                const next = new Set(prev)
+                                if (next.has(g.key)) next.delete(g.key); else next.add(g.key)
+                                return next
+                              })
+                            }}
                             className="self-start text-[10px] font-semibold text-[var(--color-accent)] hover:underline mt-0.5">
                             {open ? 'Ocultar' : `Ver mais ${g.items.length - 4} neste card`}
                           </button>
