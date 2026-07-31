@@ -325,7 +325,12 @@ function AprovacaoPageInner() {
   const [commentsCount, setCommentsCount] = useState<Record<string, number>>({})
   const [loading,   setLoading]   = useState(true)
   const [loadError, setLoadError] = useState(false)
-  const [filter,    setFilter]    = useState<'todos' | 'aguardando' | 'revisao' | 'aprovado'>('todos')
+  // Aceita ?filter= do link do alerta: mandar pra página e deixar no filtro
+  // padrão faz a pessoa procurar de novo o que o alerta já tinha achado.
+  const [filter,    setFilter]    = useState<'todos' | 'aguardando' | 'revisao' | 'aprovado'>(() => {
+    const f = searchParams.get('filter')
+    return f === 'aguardando' || f === 'revisao' || f === 'aprovado' ? f : 'todos'
+  })
   // Aprovação de CRONO fica numa superfície separada, não misturada nos
   // filtros: são conversas diferentes com o cliente (pauta x arte), e
   // misturar as duas foi o que gerou a confusão da HAGO.

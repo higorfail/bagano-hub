@@ -27,17 +27,17 @@ export async function fetchAgencyAlerts(): Promise<AgencyAlert[]> {
   const today = todayBrasiliaISO()
   const tomorrow = addDaysISO(today, 1)
   const in3Days = addDaysISO(today, 3)
-  const days3Ago = addDaysISO(today, -3)
 
   const [captacoes, parados, urgentes, extrasVencidos] = await Promise.all([
     supabase.from('captacoes')
       .select('id, scheduled_date, clients(name)')
       .gte('scheduled_date', today).lte('scheduled_date', in3Days)
       .eq('status', 'agendada').order('scheduled_date').limit(10),
-    // Aguardando o cliente há 3+ dias — é onde cronograma trava sem ninguém ver.
+    // Aguardando o cliente há 3+ dias — é onde o cronograma trava sem ninguém
+    // ver. Traz os ids; o tempo de espera é medido depois, no activity_log.
     supabase.from('schedules')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'aguardando_aprovacao').lte('scheduled_date', days3Ago),
+      .select('id, title, client_id, month, year')
+      .eq('status', 'aguardando_aprovacao'),
     // Sai hoje ou amanhã e ainda não está pronto.
     supabase.from('schedules')
       .select('id', { count: 'exact', head: true })
@@ -78,12 +78,45 @@ export async function fetchAgencyAlerts(): Promise<AgencyAlert[]> {
     })
   }
 
-  const parado = parados.count || 0
-  if (parado > 0) {
+  // Quanto tempo o post está com o cliente vem do activity_log — o momento em
+  // que ele entrou em "aguardando aprovação".
+  //
+  // Antes isso era medido por `scheduled_date <= 3 dias atrás`, que é a data
+  // de PUBLICAÇÃO e não tem relação com quando foi enviado pra aprovar. O
+  // alerta acabava contando "posts cuja data de publicação já passou", coisa
+  // bem mais rara: dizia 1 com 16 posts aguardando. Post sem data marcada nem
+  // entrava na conta, porque `lte` descarta nulo.
+  const waitingPosts = (parados.data || []) as any[]
+  let stuck: any[] = []
+  if (waitingPosts.length) {
+    const { data: logs } = await supabase.from('activity_log')
+      .select('record_id, created_at')
+      .eq('table_name', 'schedules').eq('action', 'status_changed')
+      .in('record_id', waitingPosts.map(p => p.id))
+      .ilike('description', '%aguardando aprova%')
+      .order('created_at', { ascending: false })
+
+    const sentAt = new Map<string, string>()
+    for (const l of (logs || []) as any[]) if (!sentAt.has(l.record_id)) sentAt.set(l.record_id, l.created_at)
+
+    const cutoff = Date.now() - 3 * 86400000
+    stuck = waitingPosts.filter(p => {
+      const at = sentAt.get(p.id)
+      return at ? new Date(at).getTime() <= cutoff : false
+    })
+  }
+
+  if (stuck.length > 0) {
+    // Com um só, abre o post. Cair na lista inteira pra procurar o único item
+    // que o alerta acabou de nomear é trabalho que o hub podia poupar.
+    const only = stuck.length === 1 ? stuck[0] : null
     out.push({
       id: 'parados', severity: 'media',
-      label: `${parado} ${parado === 1 ? 'post parado' : 'posts parados'} com o cliente há 3+ dias`,
-      href: '/dashboard/aprovacao',
+      label: `${stuck.length} ${stuck.length === 1 ? 'post parado' : 'posts parados'} com o cliente há 3+ dias`,
+      detail: only ? only.title : undefined,
+      href: only
+        ? `/dashboard/aprovacao?client=${only.client_id}&highlight=${only.id}&kind=post`
+        : '/dashboard/aprovacao?filter=aguardando',
     })
   }
 
