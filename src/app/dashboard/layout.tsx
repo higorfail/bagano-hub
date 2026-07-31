@@ -13,7 +13,7 @@ import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
 import { ToastProvider, useToast } from '@/lib/ToastContext'
 import LogoIcon from '@/components/logos/LogoIcon'
 import { pushSupported, isSubscribedToPush, subscribeToPush, isIOS, isStandalonePWA } from '@/lib/push'
-import { useEdgeSwipe, useDragToDismiss, usePullToRefresh } from '@/lib/gestures'
+import { useDrawer, usePullToRefresh } from '@/lib/gestures'
 import { fetchUnreadCount } from '@/lib/notifications'
 import { installTouchDragBridge } from '@/lib/touchDragBridge'
 import { BellRing, RefreshCw } from 'lucide-react'
@@ -79,14 +79,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   // Sidebar vira gaveta (drawer) em telas pequenas — fecha sozinha ao navegar
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
-  // Arrastar da borda esquerda abre a gaveta; arrastar ela pra esquerda fecha.
-  // O botão de menu e o X seguem à mostra — gesto não substitui controle.
-  const edgeDrag = useEdgeSwipe({ onOpen: () => setMobileNavOpen(true), enabled: !mobileNavOpen, width: 256 })
-  const navDrag = useDragToDismiss({
-    axis: 'x', direction: -1, threshold: 70,
-    onDismiss: () => setMobileNavOpen(false),
-    enabled: mobileNavOpen,
-  })
+  // Arrastar da borda abre, arrastar de volta fecha — os dois no mesmo estado.
+  // O botão de menu e o X seguem à mostra: gesto não substitui controle.
+  const drawer = useDrawer({ open: mobileNavOpen, setOpen: setMobileNavOpen, width: 256 })
 
   // Puxar pra atualizar. Recarrega a rota inteira porque cada página busca os
   // próprios dados no cliente — um refresh de rota do Next não re-executaria
@@ -234,29 +229,27 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
       {/* O escurecido acompanha o arrasto: some junto quando a gaveta sai e
           aparece junto quando ela entra. Fundo fixo enquanto o painel se move
           entrega que são duas coisas separadas. */}
-      {(mobileNavOpen || edgeDrag.offset > 0) && (
+      {drawer.progress > 0 && (
         <div className="fixed inset-0 bg-black z-40 md:hidden"
           onClick={() => setMobileNavOpen(false)}
           style={{
-            opacity: 0.4 * (mobileNavOpen ? (256 + navDrag.offset) / 256 : edgeDrag.offset / 256),
-            transition: (navDrag.dragging || edgeDrag.dragging) ? 'none' : 'opacity .2s',
+            opacity: 0.4 * drawer.progress,
+            transition: drawer.dragging ? 'none' : 'opacity .22s ease-out',
             pointerEvents: mobileNavOpen ? 'auto' : 'none',
           }} />
       )}
       {/* Arrastar a gaveta pra esquerda fecha. O X continua ali: gesto é
           invisível, então quem não souber que existe precisa ter o botão. */}
-      <aside {...(mobileNavOpen ? navDrag.handlers : {})}
-        className={`w-64 md:w-[4.5rem] xl:w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 md:px-2 xl:px-4 fixed md:relative inset-y-0 left-0 z-50 md:translate-x-0 ${navDrag.dragging || edgeDrag.dragging ? '' : 'transition-transform duration-200'} touch-pan-y ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      <aside
+        className={`drawer w-64 md:w-[4.5rem] xl:w-56 flex-shrink-0 bg-[var(--color-bg-page)] border-r border-[var(--color-border)] flex flex-col overflow-hidden py-6 px-4 md:px-2 xl:px-4 fixed md:relative inset-y-0 left-0 z-50 md:translate-x-0 ${drawer.dragging ? '' : 'transition-transform duration-200 ease-out'} touch-pan-y md:transform-none`}
         style={{
           paddingTop: 'calc(1.5rem + env(safe-area-inset-top))',
           paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
           // Acompanha o dedo nos dois sentidos: saindo (navDrag) e entrando
           // (edgeDrag). Gesto sem resposta visual parece travado.
-          ...(mobileNavOpen && navDrag.offset
-            ? { transform: `translateX(${navDrag.offset}px)` }
-            : !mobileNavOpen && edgeDrag.offset
-              ? { transform: `translateX(${edgeDrag.offset - 256}px)` }
-              : {}),
+          // Posição e opacidade do fundo saem do MESMO número, então não
+          // existe estado em que um diz "aberta" e o outro diz "fechada".
+          ['--drawer-x' as any]: `${(drawer.progress - 1) * 256}px`,
         }}>
         <div className="flex items-center justify-between mb-8">
           <Link href="/dashboard" className="flex items-center gap-2.5 px-2 md:px-0 md:justify-center xl:px-2 xl:justify-start rounded-xl hover:opacity-80 transition-opacity flex-1 min-w-0" title="Ir para o início">
@@ -442,13 +435,32 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
             dentro deste <main>. */}
         <main {...pull.handlers}
           className="flex-1 overflow-auto page-content relative" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-          <div className="md:hidden absolute inset-x-0 top-0 flex justify-center pointer-events-none z-10 overflow-hidden"
-            style={{ height: pull.pull || (pull.refreshing ? 44 : 0), transition: pull.pull ? 'none' : 'height .2s' }}>
-            <div className="flex items-center gap-1.5 text-[11px] font-medium mt-2"
-              style={{ color: pull.armed || pull.refreshing ? 'var(--color-accent)' : 'var(--color-text-faint)' }}>
-              <RefreshCw size={13} className={pull.refreshing ? 'animate-spin' : ''}
-                style={{ transform: pull.refreshing ? undefined : `rotate(${pull.pull * 4}deg)` }} />
-              {pull.refreshing ? 'Atualizando…' : pull.armed ? 'Solte pra atualizar' : 'Puxe pra atualizar'}
+          {/* O indicador EMPURRA o conteúdo em vez de ser desenhado por cima:
+              sobreposto, ele caía em cima do título da página e ficava
+              ilegível nos dois. Um anel que se completa conforme o puxão, e
+              gira enquanto atualiza — o estado do gesto fica claro sem texto. */}
+          <div className="md:hidden flex items-start justify-center overflow-hidden"
+            style={{
+              height: pull.refreshing ? 48 : pull.pull,
+              transition: pull.pull ? 'none' : 'height .28s cubic-bezier(.22,1,.36,1)',
+            }}>
+            <div className="mt-3 w-7 h-7 rounded-full flex items-center justify-center"
+              style={{
+                background: 'var(--color-bg-card)',
+                boxShadow: '0 2px 8px rgba(0,0,0,.12)',
+                opacity: pull.refreshing ? 1 : Math.min(pull.progress * 1.4, 1),
+                transform: `scale(${pull.refreshing ? 1 : 0.7 + pull.progress * 0.3})`,
+              }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" className={pull.refreshing ? 'animate-spin' : ''}
+                style={{ transform: pull.refreshing ? undefined : `rotate(${pull.progress * 270}deg)` }}>
+                <circle cx="8" cy="8" r="6.5" fill="none" strokeWidth="2"
+                  stroke="var(--color-border)" />
+                <circle cx="8" cy="8" r="6.5" fill="none" strokeWidth="2" strokeLinecap="round"
+                  stroke={pull.armed || pull.refreshing ? 'var(--color-accent)' : 'var(--color-text-muted)'}
+                  strokeDasharray={2 * Math.PI * 6.5}
+                  strokeDashoffset={2 * Math.PI * 6.5 * (1 - (pull.refreshing ? 0.25 : pull.progress))}
+                  transform="rotate(-90 8 8)" />
+              </svg>
             </div>
           </div>
           {children}

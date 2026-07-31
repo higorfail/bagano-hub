@@ -96,6 +96,7 @@ function endDrag(x: number, y: number, drop: boolean) {
   if (!state) return
   const s = state
   state = null
+  detachBlocking()
   if (rafId) { cancelAnimationFrame(rafId); rafId = null }
 
   s.ghost.remove()
@@ -134,6 +135,7 @@ function onTouchStart(e: TouchEvent) {
     el.style.opacity = '0.4'
     document.body.style.userSelect = 'none'
     state = { source: el, dataTransfer, ghost, lastOver: null, offsetX, offsetY }
+    attachBlocking()
     // Sinal tátil de que o card foi "pego" — sem isso o toque longo parece
     // que não fez nada até o dedo se mover.
     ;(navigator as any).vibrate?.(8)
@@ -150,10 +152,8 @@ function onTouchMove(e: TouchEvent) {
   }
   if (!state) return
 
-  // Só a partir daqui o gesto é nosso — antes disso a página tem que rolar
-  // normalmente, por isso o preventDefault não acontece lá em cima.
-  e.preventDefault()
-
+  // Quem segura a rolagem é o listener não-passivo (onTouchMoveBlocking), que
+  // só existe enquanto o arrasto está ativo.
   const x = t.clientX, y = t.clientY
   state.ghost.style.left = `${x - state.offsetX}px`
   state.ghost.style.top = `${y - state.offsetY}px`
@@ -187,6 +187,28 @@ function onTouchCancel(e: TouchEvent) {
 }
 
 let installed = false
+let blockingAttached = false
+
+// O touchmove NÃO-PASSIVO só entra em cena depois que o card já foi pego, e
+// sai assim que o arrasto acaba.
+//
+// Deixá-lo registrado o tempo todo custa caro: um listener não-passivo em
+// touchmove no documento desliga o caminho rápido de rolagem do navegador,
+// e foi isso que deixou o snap dos quadros "frouxo" — a coluna parava fora
+// do lugar em vez de encaixar. O passivo abaixo é suficiente pra detectar.
+function attachBlocking() {
+  if (blockingAttached) return
+  blockingAttached = true
+  document.addEventListener('touchmove', onTouchMoveBlocking, { passive: false })
+}
+function detachBlocking() {
+  if (!blockingAttached) return
+  blockingAttached = false
+  document.removeEventListener('touchmove', onTouchMoveBlocking)
+}
+function onTouchMoveBlocking(e: TouchEvent) {
+  if (state) e.preventDefault()
+}
 
 /** Liga a ponte uma vez, no layout. Não faz nada em aparelho sem toque. */
 export function installTouchDragBridge() {
@@ -194,9 +216,7 @@ export function installTouchDragBridge() {
   if (!('ontouchstart' in window)) return
   installed = true
   document.addEventListener('touchstart', onTouchStart, { passive: true })
-  // Precisa ser não-passivo: é aqui que o preventDefault segura a rolagem
-  // depois que o card já foi pego.
-  document.addEventListener('touchmove', onTouchMove, { passive: false })
+  document.addEventListener('touchmove', onTouchMove, { passive: true })
   document.addEventListener('touchend', onTouchEnd, { passive: true })
   document.addEventListener('touchcancel', onTouchCancel, { passive: true })
 }

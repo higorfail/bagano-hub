@@ -120,6 +120,14 @@ img.h-full { height: 100% !important; }
   cursor: not-allowed;
 }
 
+/* ── Gaveta do menu (celular) ────────────────────────────────────────────────
+   A posição vem de uma variável, e a variável só é usada abaixo de 768px.
+   Aplicar o transform inline direto vazava pro desktop, onde a barra lateral
+   não é gaveta nenhuma — ela ficaria empurrada pra fora da tela. */
+@media (max-width: 767px) {
+  .drawer { transform: translateX(var(--drawer-x, -100%)); }
+}
+
 /* ── Alvos de toque ──────────────────────────────────────────────────────────
    Aumenta a ÁREA de toque sem mexer no tamanho desenhado: o ::after estende
    o alvo pros 44px da referência da Apple por fora do botão, então o layout

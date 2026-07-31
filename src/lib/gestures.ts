@@ -52,60 +52,67 @@ function canScrollFurther(
   return false
 }
 
-type EdgeSwipeOptions = {
-  onOpen: () => void
-  /** Largura da faixa sensível a partir da borda. */
-  zone?: number
-  enabled?: boolean
-}
-
 /**
- * Arrastar da borda esquerda pra abrir o menu.
+ * A gaveta inteira num estado só.
  *
- * No app instalado a borda está livre. No Safari solto ela é o "voltar" do
- * iOS — briga que não se ganha nem se deve ganhar —, então a faixa começa
- * alguns pixels pra dentro e deixa o extremo pro sistema.
+ * Antes eram dois ganchos independentes — um pra abrir arrastando da borda,
+ * outro pra fechar arrastando de volta — e cada um com seu deslocamento. Como
+ * a opacidade do fundo escuro era calculada a partir dos dois, bastava um
+ * ficar dessincronizado do outro pra tela ficar preta com a gaveta fechada, ou
+ * a gaveta não aparecer com o fundo escuro. Não dava pra remendar: eram dois
+ * donos do mesmo pedaço de realidade.
+ *
+ * Agora existe UM número, `progress` (0 = fechada, 1 = aberta). Posição da
+ * gaveta e opacidade do fundo saem os dois dele, então é impossível eles
+ * discordarem.
  */
-export function useEdgeSwipe({ onOpen, zone = 28, enabled = true, width = 256 }: EdgeSwipeOptions & { width?: number }) {
-  const startX = useRef<number | null>(null)
-  const startY = useRef(0)
-  const decided = useRef<'none' | 'yes' | 'no'>('none')
-  // Deslocamento ao vivo pra gaveta acompanhar o dedo em vez de aparecer de
-  // uma vez ao passar de um limite. Abrir "pulando" e fechar acompanhando
-  // seriam dois gestos diferentes pro mesmo movimento.
-  const [offset, setOffset] = useState(0)
-  const [dragging, setDragging] = useState(false)
+export function useDrawer({ open, setOpen, width = 256, zone = 28 }: {
+  open: boolean
+  setOpen: (v: boolean) => void
+  width?: number
+  zone?: number
+}) {
+  const [drag, setDrag] = useState<number | null>(null) // null = ninguém arrastando
+  const openRef = useRef(open); openRef.current = open
+  const dragRef = useRef<number | null>(null); dragRef.current = drag
+  const setOpenRef = useRef(setOpen); setOpenRef.current = setOpen
 
   useEffect(() => {
-    if (!enabled) { setOffset(0); setDragging(false); return }
     const inset = isStandalone() ? 0 : 20
+    let startX: number | null = null
+    let startY = 0
+    let axis: 'none' | 'x' | 'other' = 'none'
 
     function onStart(e: TouchEvent) {
       const t = e.touches[0]
-      decided.current = 'none'
-      startX.current = (t.clientX >= inset && t.clientX <= inset + zone) ? t.clientX : null
-      startY.current = t.clientY
+      axis = 'none'
+      startY = t.clientY
+      // Fechada: só a faixa da borda arma. Aberta: qualquer ponto da gaveta.
+      if (openRef.current) startX = t.clientX <= width ? t.clientX : null
+      else startX = (t.clientX >= inset && t.clientX <= inset + zone) ? t.clientX : null
     }
     function onMove(e: TouchEvent) {
-      if (startX.current === null) return
+      if (startX === null) return
       const t = e.touches[0]
-      const dx = t.clientX - startX.current
-      const dy = t.clientY - startY.current
-      if (decided.current === 'none') {
+      const dx = t.clientX - startX
+      const dy = t.clientY - startY
+      if (axis === 'none') {
         if (Math.abs(dx) < DIRECTION_LOCK && Math.abs(dy) < DIRECTION_LOCK) return
-        decided.current = dx > Math.abs(dy) ? 'yes' : 'no'
-        if (decided.current === 'yes') setDragging(true)
+        // Vertical vence: é rolagem do menu, não gesto de gaveta.
+        axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'other'
+        if (axis !== 'x') { startX = null; return }
       }
-      if (decided.current !== 'yes') return
-      setOffset(Math.max(0, Math.min(dx, width)))
+      const base = openRef.current ? width : 0
+      setDrag(Math.max(0, Math.min(base + dx, width)))
     }
     function onEnd() {
-      const opened = decided.current === 'yes' && offsetRef.current > width * 0.35
-      startX.current = null
-      decided.current = 'none'
-      setDragging(false)
-      setOffset(0)
-      if (opened) onOpen()
+      const d = dragRef.current
+      startX = null
+      axis = 'none'
+      if (d === null) return
+      setDrag(null)
+      // Passou da metade decide; assim abrir e fechar têm o mesmo critério.
+      setOpenRef.current(d > width / 2)
     }
 
     document.addEventListener('touchstart', onStart, { passive: true })
@@ -118,14 +125,14 @@ export function useEdgeSwipe({ onOpen, zone = 28, enabled = true, width = 256 }:
       document.removeEventListener('touchend', onEnd)
       document.removeEventListener('touchcancel', onEnd)
     }
-  }, [onOpen, zone, enabled, width])
+  }, [width, zone])
 
-  // O listener é registrado uma vez e não enxerga o estado novo; a ref é o que
-  // permite ler o deslocamento atual na hora de soltar.
-  const offsetRef = useRef(0)
-  offsetRef.current = offset
+  // Rede de segurança: qualquer mudança de rota ou fechamento por botão zera o
+  // arrasto. Sem isso um gesto interrompido no meio deixava resíduo.
+  useEffect(() => { setDrag(null) }, [open])
 
-  return { offset, dragging }
+  const progress = drag !== null ? drag / width : (open ? 1 : 0)
+  return { progress, dragging: drag !== null, width }
 }
 
 /**
@@ -209,26 +216,49 @@ export function usePullToRefresh(onRefresh: () => Promise<void> | void, enabled 
   const [pull, setPull] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const startY = useRef<number | null>(null)
-  const THRESHOLD = 70
+  const armedAxis = useRef<'none' | 'yes' | 'no'>('none')
+  const startX = useRef(0)
+  const THRESHOLD = 72
+  const MAX = 110
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!enabled || refreshing) return
+    if (!enabled || refreshing) { startY.current = null; return }
+    // Pergunta ao elemento sob o DEDO, não ao <main>.
+    //
+    // Antes olhava o scrollTop do <main>, que num quadro nunca sai de zero
+    // (quem rola é a coluna lá dentro). Resultado: qualquer arrasto pra baixo
+    // em qualquer lugar armava o gesto, e rolar a coluna de volta pro topo
+    // atualizava a página sem querer — foi o "muito sensível" relatado.
+    if (canScrollFurther(e.target, 'y', 1, e.currentTarget as HTMLElement)) { startY.current = null; return }
     const sc = e.currentTarget as HTMLElement
-    startY.current = sc.scrollTop <= 0 ? e.touches[0].clientY : null
+    if (sc.scrollTop > 0) { startY.current = null; return }
+    startY.current = e.touches[0].clientY
+    startX.current = e.touches[0].clientX
+    armedAxis.current = 'none'
   }, [enabled, refreshing])
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     if (startY.current === null) return
     const dy = e.touches[0].clientY - startY.current
+    const dx = e.touches[0].clientX - startX.current
+
+    if (armedAxis.current === 'none') {
+      if (Math.abs(dy) < DIRECTION_LOCK && Math.abs(dx) < DIRECTION_LOCK) return
+      // Movimento mais horizontal = trocar de coluna no quadro, não atualizar.
+      armedAxis.current = dy > Math.abs(dx) ? 'yes' : 'no'
+      if (armedAxis.current === 'no') { startY.current = null; return }
+    }
     if (dy <= 0) { setPull(0); return }
-    // Resistência: o arrasto anda menos que o dedo, pra dar a sensação de
-    // elástico e não de a tela ter descolado.
-    setPull(Math.min(dy * 0.45, THRESHOLD * 1.4))
+    // Elástico: o indicador anda cada vez menos conforme o dedo desce, então
+    // passar do ponto de disparo é sentido pela mão antes de ser lido na tela.
+    const eased = MAX * (1 - Math.exp(-dy / 120))
+    setPull(eased)
   }, [])
 
   const onTouchEnd = useCallback(async () => {
     const shouldRefresh = pull >= THRESHOLD
     startY.current = null
+    armedAxis.current = 'none'
     setPull(0)
     if (!shouldRefresh || refreshing) return
     setRefreshing(true)
@@ -238,6 +268,8 @@ export function usePullToRefresh(onRefresh: () => Promise<void> | void, enabled 
   return {
     pull,
     refreshing,
+    /** 0→1 até o ponto de disparo, pro anel de progresso. */
+    progress: Math.min(pull / THRESHOLD, 1),
     armed: pull >= THRESHOLD,
     handlers: { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel: onTouchEnd },
   }
