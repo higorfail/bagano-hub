@@ -45,6 +45,9 @@ async function resolveCardMeta(tableName: string, recordId: string): Promise<Car
     const { data } = await supabase.from('personal_tasks').select('title, type').eq('id', recordId).maybeSingle()
     return { title: data?.title || null, type: data?.type || 'tarefa', number: null }
   }
+  // Cronograma finalizado não é um card e não tem título — sem isto a lista
+  // mostrava "Card" genérico acima de "finalizou o cronograma de Julho".
+  if (tableName === 'cronograma_status') return { title: 'Cronograma do mês', type: 'cronograma', number: null }
   return empty
 }
 
@@ -121,23 +124,34 @@ export async function POST(req: NextRequest) {
   }
 
   const card = await resolveCardMeta(tableName, recordId)
-  await supabase.from('hub_notifications').insert(
-    memberIds.map(memberId => ({
-      member_id: memberId,
-      card_table: tableName,
-      card_id: recordId,
-      client_id: clientId || null,
-      kind: action || 'activity',
-      actor_name: actorName || null,
-      actor_id: actorId || null,
-      title: card.title,
-      card_type: card.type,
-      card_number: card.number,
-      card_deleted: action === 'deleted',
-      body: description || 'Atualização num card que você acompanha',
-      url,
-    }))
-  )
+  const base = memberIds.map(memberId => ({
+    member_id: memberId,
+    card_table: tableName,
+    card_id: recordId,
+    client_id: clientId || null,
+    kind: action || 'activity',
+    actor_name: actorName || null,
+    actor_id: actorId || null,
+    title: card.title,
+    body: description || 'Atualização num card que você acompanha',
+    url,
+  }))
+  const extras = { card_type: card.type, card_number: card.number, card_deleted: action === 'deleted' }
+
+  // O erro do insert era DESCARTADO, e isso custou caro: quando adicionei
+  // card_type/card_number/card_deleted, uma coluna ainda não criada no banco
+  // fazia o insert inteiro ser recusado — em silêncio. O push saía logo
+  // depois, então a notificação chegava no telefone e não ficava salva em
+  // lugar nenhum, sem nada no log dizendo por quê.
+  //
+  // Agora: tenta com os campos completos e, se falhar, grava sem os opcionais.
+  // Notificação perdida é pior que notificação sem o selo de tipo.
+  let { error: insErr } = await supabase.from('hub_notifications').insert(base.map(b => ({ ...b, ...extras })))
+  if (insErr) {
+    console.error('push/notify: insert completo falhou, tentando sem campos opcionais', insErr)
+    const retry = await supabase.from('hub_notifications').insert(base)
+    if (retry.error) console.error('push/notify: NÃO consegui gravar a notificação', retry.error)
+  }
 
   if (!canPush) return NextResponse.json({ sent: 0, stored: memberIds.length })
 

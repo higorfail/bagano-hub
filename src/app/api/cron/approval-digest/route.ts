@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
+import { storeNotifications } from '@/lib/storeNotifications'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,6 +50,18 @@ export async function GET(req: NextRequest) {
     const memberIds = [...new Set((team || []).map((t: any) => t.member_id))]
 
     if (memberIds.length > 0) {
+      // Grava ANTES de enviar: o push é o aviso, isto é o registro. Sem esta
+      // linha o resumo chegava no telefone e não existia na linha do tempo.
+      await storeNotifications(supabase, {
+        memberIds,
+        clientId: row.client_id,
+        kind: 'approval_digest',
+        title: `Resumo de aprovação · ${clientName}`,
+        body,
+        url: `/dashboard/cronograma?client=${row.client_id}`,
+        actorName: clientName,
+      })
+
       const { data: subs } = await supabase.from('push_subscriptions')
         .select('id, endpoint, p256dh, auth').in('member_id', memberIds)
       const payload = JSON.stringify({ title: '📋 Resumo de aprovação', body, url: `/dashboard/cronograma?client=${row.client_id}` })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
+import { storeNotifications } from '@/lib/storeNotifications'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -152,6 +153,19 @@ export async function GET(req: NextRequest) {
     const { title, body } = MESSAGES[item.stage](item.title, daysLate)
     const clientName = item.clientId ? clientNameById.get(item.clientId) : null
     const payload = JSON.stringify({ title: clientName ? `${clientName} · ${title}` : title, body, url: item.url })
+
+    // Mesmo motivo do resumo de aprovação: a cobrança de atraso é um aviso
+    // que precisa ficar registrado, não só aparecer e sumir.
+    await storeNotifications(supabase, {
+      memberIds,
+      cardTable: item.table,
+      cardId: item.id,
+      clientId: item.clientId || null,
+      kind: 'overdue',
+      title: item.title,
+      body,
+      url: item.url,
+    })
 
     let anySent = false
     await Promise.all(subs.map(async sub => {

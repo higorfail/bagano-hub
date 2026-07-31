@@ -33,6 +33,7 @@ export const TYPE_BADGE: Record<string, { label: string; color: string }> = {
   tarefa:            { label: 'Tarefa',     color: '#6b7280' },
   lembrete:          { label: 'Lembrete',   color: '#f59e0b' },
   nota:              { label: 'Nota',       color: '#8b5cf6' },
+  cronograma:        { label: 'Cronograma', color: '#6366f1' },
 }
 
 /**
@@ -169,6 +170,6 @@ export async function markAllRead(memberId: string) {
 export const KIND_GROUPS: { key: string; label: string; match: (kind: string) => boolean }[] = [
   { key: 'todos',     label: 'Tudo',       match: () => true },
   { key: 'mention',   label: 'Menções',    match: k => k === 'mention' || k === 'commented' },
-  { key: 'approval',  label: 'Aprovações', match: k => k.includes('approv') || k.includes('reject') },
-  { key: 'date',      label: 'Datas',      match: k => k.includes('date') || k === 'status_changed' },
+  { key: 'approval',  label: 'Aprovações', match: k => k.includes('approv') || k.includes('reject') || k === 'approval_digest' },
+  { key: 'date',      label: 'Datas',      match: k => k.includes('date') || k === 'status_changed' || k === 'overdue' },
 ]

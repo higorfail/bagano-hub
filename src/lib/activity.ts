@@ -40,5 +40,10 @@ export async function logActivity(params: {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(params),
+    // keepalive: a requisição sobrevive se a pessoa fechar a aba ou navegar
+    // logo depois da ação. Sem isso o navegador cancela em trânsito e a
+    // notificação nunca chega a ser gravada — mesmo problema que já mordeu o
+    // registro de "cliente pediu ajuste" antes.
+    keepalive: true,
   }).catch(() => {})
 }
