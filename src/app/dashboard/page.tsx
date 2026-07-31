@@ -1140,39 +1140,6 @@ export default function DashboardPage() {
               )}
             </SectionCard>
 
-            {/* Atenção */}
-            <SectionCard title="Atenção" icon={Target} iconTone="red">
-              {alertList.length === 0 ? (
-                <div className="flex items-center gap-2.5 py-2">
-                  <IconBadge icon={CheckCircle2} tone="green" size="sm" />
-                  <p className="text-sm text-[var(--color-text-secondary)]">Tudo em dia por aqui ✨</p>
-                </div>
-              ) : (
-                <div>
-                  <button onClick={() => router.push(alertList[0].href)} className="w-full text-left">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-4xl font-bold" style={{ color: 'var(--color-accent)' }}>{alertList[0].n}</span>
-                      <span className="text-sm font-medium text-[var(--color-text-secondary)]">{alertList[0].label}</span>
-                    </div>
-                    <p className="text-xs text-[var(--color-text-muted)] mt-1">{alertList[0].sub}</p>
-                  </button>
-                  {alertList.length > 1 && (
-                    <div className="mt-4 space-y-2 pt-3 border-t border-[var(--color-border)]">
-                      {alertList.slice(1, 3).map((a, i) => (
-                        <button key={i} onClick={() => router.push(a.href)} className="w-full flex items-center gap-2.5 text-left group">
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: TONE_FG[a.tone] }} />
-                          <span className="text-xs text-[var(--color-text-secondary)] flex-1 truncate"><span className="font-semibold text-[var(--color-text-primary)]">{a.n}</span> {a.label}</span>
-                          <ChevronRight size={12} className="text-[var(--color-text-faint)] flex-shrink-0" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <Button variant="ghost" size="sm" fullWidth className="mt-3 !text-[var(--color-accent)]" onClick={() => router.push(alertList[0].href)}>
-                    {alertList[0].cta} →
-                  </Button>
-                </div>
-              )}
-            </SectionCard>
           </div>
         </div>
 
@@ -1195,23 +1162,27 @@ export default function DashboardPage() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Donut + legenda */}
-            <div className="flex items-center gap-6">
+            {/* No celular o donut vai pra cima e a legenda vira 2 colunas
+                embaixo: lado a lado, os 10 status espremiam a legenda a ponto
+                de "Em produção" e "Revisão interna" quebrarem em duas linhas
+                cada, desalinhando números e porcentagens. */}
+            <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
               <DonutChart segments={donutSegments} size={150} thickness={16}>
                 <span className="text-[10px] text-[var(--color-text-muted)]">Total de posts</span>
                 <span className="text-3xl font-bold text-[var(--color-text-primary)] leading-tight">{ovTotal}</span>
                 <span className="text-[10px] text-[var(--color-text-muted)]">posts</span>
               </DonutChart>
-              <div className="flex-1 space-y-2.5">
+              <div className="w-full sm:flex-1 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-1 sm:gap-y-2.5">
                 {legend.map(l => (
-                  <div key={l.label} className="flex items-center gap-2.5">
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: TONE_FG[l.tone] }} />
-                    <span className="flex-1 text-sm text-[var(--color-text-secondary)]">{l.label}</span>
-                    <span className="text-sm font-semibold text-[var(--color-text-primary)] tabular-nums">{l.value}</span>
-                    <span className="text-xs text-[var(--color-text-muted)] w-9 text-right tabular-nums">{ovTotal > 0 ? Math.round((l.value / ovTotal) * 100) : 0}%</span>
+                  <div key={l.label} className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                    <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full flex-shrink-0" style={{ background: TONE_FG[l.tone] }} />
+                    <span className="flex-1 min-w-0 truncate text-xs sm:text-sm text-[var(--color-text-secondary)]">{l.label}</span>
+                    <span className="text-xs sm:text-sm font-semibold text-[var(--color-text-primary)] tabular-nums">{l.value}</span>
+                    <span className="text-[10px] sm:text-xs text-[var(--color-text-muted)] w-8 sm:w-9 text-right tabular-nums">{ovTotal > 0 ? Math.round((l.value / ovTotal) * 100) : 0}%</span>
                   </div>
                 ))}
                 {ovNotOk > 0 && (
-                  <div className="flex items-center gap-2 pt-2.5 mt-1 border-t border-[var(--color-border)]">
+                  <div className="col-span-2 sm:col-span-1 flex items-center gap-2 pt-2.5 mt-1 border-t border-[var(--color-border)]">
                     <AlertTriangle size={13} style={{ color: 'var(--ds-error-accent)' }} className="flex-shrink-0" />
                     <span className="text-xs font-medium" style={{ color: 'var(--ds-error-text)' }}>
                       {ovNotOk} {pl(ovNotOk, 'post precisa', 'posts precisam')} de ajuste
