@@ -79,7 +79,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
           return (
             <div
               key={col.key}
-              className={`flex flex-col w-[calc(100vw-2rem)] md:w-[380px] lg:w-auto lg:flex-1 lg:min-w-[240px] xl:min-w-[300px] lg:max-w-[460px] flex-shrink-0 snap-center lg:snap-align-none rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
+              className={`flex flex-col w-[calc(100vw-2rem)] md:w-[380px] lg:w-auto lg:flex-1 lg:min-w-[240px] xl:min-w-[300px] lg:max-w-[460px] flex-shrink-0 snap-center snap-always lg:snap-align-none rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
               style={isDragOver ? { outline: `2px solid ${col.color}`, outlineOffset: 1 } : {}}
               onDragEnter={() => {
                 dragCounters.current[col.key] = (dragCounters.current[col.key] || 0) + 1

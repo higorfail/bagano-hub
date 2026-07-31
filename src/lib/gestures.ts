@@ -66,7 +66,7 @@ function canScrollFurther(
  * gaveta e opacidade do fundo saem os dois dele, então é impossível eles
  * discordarem.
  */
-export function useDrawer({ open, setOpen, width = 256, zone = 28 }: {
+export function useDrawer({ open, setOpen, width = 256, zone = 36 }: {
   open: boolean
   setOpen: (v: boolean) => void
   width?: number
@@ -82,13 +82,22 @@ export function useDrawer({ open, setOpen, width = 256, zone = 28 }: {
     let startX: number | null = null
     let startY = 0
     let axis: 'none' | 'x' | 'other' = 'none'
+    // Últimas amostras pra medir velocidade — um lance rápido fecha mesmo sem
+    // chegar na metade, que é como toda gaveta de app se comporta. Só a
+    // distância obriga a arrastar o caminho todo, e é isso que faz parecer
+    // que "às vezes vai, às vezes não".
+    let samples: { t: number; x: number }[] = []
 
     function onStart(e: TouchEvent) {
       const t = e.touches[0]
       axis = 'none'
       startY = t.clientY
-      // Fechada: só a faixa da borda arma. Aberta: qualquer ponto da gaveta.
-      if (openRef.current) startX = t.clientX <= width ? t.clientX : null
+      samples = [{ t: e.timeStamp, x: t.clientX }]
+      // ABERTA: arma em QUALQUER ponto da tela. A gaveta é modal — o resto da
+      // tela está atrás de um véu e não tem nada pra fazer ali, então exigir
+      // que o dedo comece em cima dela é uma restrição sem motivo.
+      // FECHADA: só a faixa da borda, senão roubaria a rolagem da página.
+      if (openRef.current) startX = t.clientX
       else startX = (t.clientX >= inset && t.clientX <= inset + zone) ? t.clientX : null
     }
     function onMove(e: TouchEvent) {
@@ -96,6 +105,8 @@ export function useDrawer({ open, setOpen, width = 256, zone = 28 }: {
       const t = e.touches[0]
       const dx = t.clientX - startX
       const dy = t.clientY - startY
+      samples.push({ t: e.timeStamp, x: t.clientX })
+      if (samples.length > 5) samples.shift()
       if (axis === 'none') {
         if (Math.abs(dx) < DIRECTION_LOCK && Math.abs(dy) < DIRECTION_LOCK) return
         // Vertical vence: é rolagem do menu, não gesto de gaveta.
@@ -107,12 +118,26 @@ export function useDrawer({ open, setOpen, width = 256, zone = 28 }: {
     }
     function onEnd() {
       const d = dragRef.current
+      const wasOpen = openRef.current
+      const first = samples[0]
+      const last = samples[samples.length - 1]
       startX = null
       axis = 'none'
-      if (d === null) return
+      if (d === null) { samples = []; return }
       setDrag(null)
-      // Passou da metade decide; assim abrir e fechar têm o mesmo critério.
-      setOpenRef.current(d > width / 2)
+
+      // px por milissegundo nas últimas amostras.
+      const dt = last && first ? last.t - first.t : 0
+      const v = dt > 0 ? (last.x - first.x) / dt : 0
+      samples = []
+
+      const FLICK = 0.35
+      if (v < -FLICK) { setOpenRef.current(false); return }  // lance pra esquerda fecha
+      if (v > FLICK)  { setOpenRef.current(true);  return }  // lance pra direita abre
+      // Sem lance, decide pela posição — e o ponto de virada é menor pra
+      // fechar (30%) do que pra abrir (50%): fechar é a intenção mais comum
+      // de quem já está com a gaveta aberta.
+      setOpenRef.current(wasOpen ? d > width * 0.3 : d > width * 0.5)
     }
 
     document.addEventListener('touchstart', onStart, { passive: true })

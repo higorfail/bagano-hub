@@ -351,7 +351,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
           const isDragTarget = dragOverCol === col.key && draggingId !== null
 
           return (
-            <div key={col.key} className="flex flex-col gap-2 w-[calc(100vw-2rem)] flex-shrink-0 snap-center md:w-auto md:max-w-none md:flex-shrink md:snap-align-none"
+            <div key={col.key} className="flex flex-col gap-2 w-[calc(100vw-2rem)] flex-shrink-0 snap-center snap-always md:w-auto md:max-w-none md:flex-shrink md:snap-align-none"
               onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null) }}
               onDrop={e => {

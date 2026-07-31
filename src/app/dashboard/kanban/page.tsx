@@ -207,7 +207,7 @@ export default function KanbanPage() {
             return (
               <div
                 key={col.key}
-                className={`flex flex-col w-[calc(100vw-2rem)] md:w-[268px] flex-shrink-0 snap-center md:snap-align-none rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
+                className={`flex flex-col w-[calc(100vw-2rem)] md:w-[268px] flex-shrink-0 snap-center snap-always md:snap-align-none rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
                 style={isDragOver ? { outline: `2px solid ${col.color}`, outlineOffset: 1 } : {}}
                 onDragEnter={() => {
                   dragCounters.current[col.key] = (dragCounters.current[col.key] || 0) + 1

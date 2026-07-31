@@ -455,7 +455,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                       const prevCol    = MAT_COLS[ci - 1]
                       const nextCol    = MAT_COLS[ci + 1]
                       return (
-                        <div key={col.key} className="w-[calc(100vw-1.5rem)] flex-shrink-0 snap-center md:w-auto md:flex-1 md:min-w-[220px] md:snap-align-none flex flex-col"
+                        <div key={col.key} className="w-[calc(100vw-1.5rem)] flex-shrink-0 snap-center snap-always md:w-auto md:flex-1 md:min-w-[220px] md:snap-align-none flex flex-col"
                           onDragOver={e => { e.preventDefault(); setMatDragOver(col.key) }}
                           onDragLeave={() => setMatDragOver(null)}
                           onDrop={e => { e.preventDefault(); if (matDragging) moveMatStatus(matDragging, col.key); setMatDragging(null); setMatDragOver(null) }}>

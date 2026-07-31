@@ -235,7 +235,7 @@ function MateriaisContent() {
           const prevCol    = COLUMNS[colIdx - 1]
           const nextCol    = COLUMNS[colIdx + 1]
           return (
-            <div key={col.key} className="w-[calc(100vw-2rem)] flex-shrink-0 snap-center md:w-auto md:flex-1 md:min-w-[300px] md:snap-align-none flex flex-col"
+            <div key={col.key} className="w-[calc(100vw-2rem)] flex-shrink-0 snap-center snap-always md:w-auto md:flex-1 md:min-w-[300px] md:snap-align-none flex flex-col"
               onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={() => setDragOverCol(null)}
               onDrop={e => {
