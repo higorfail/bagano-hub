@@ -535,7 +535,7 @@ function AprovacaoPageInner() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap mb-2">
           <div>
-            <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Aprovações</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Aprovações</h1>
             <p className="text-sm text-[var(--color-text-muted)] mt-1">
               {aguardandoCount > 0 && <span>{aguardandoCount} aguardando resposta</span>}
               {aguardandoCount > 0 && revisaoCount > 0 && <span className="mx-1.5 text-[var(--color-text-faint)]">·</span>}
@@ -552,17 +552,19 @@ function AprovacaoPageInner() {
               )}
             </p>
           </div>
+          {/* h-9 nos dois: o "mt-1" era um remendo pra compensar alturas
+              diferentes, e no celular deixava os dois desencontrados. */}
           <div className="flex items-center gap-2 flex-shrink-0">
             {byClient.length > 1 && (
               <button
                 onClick={allExpanded ? collapseAll : expandAll}
-                className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors mt-1"
+                className="h-9 px-2 flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
               >
                 <ChevronsUpDown size={13} />
                 {allExpanded ? 'Colapsar todos' : 'Expandir todos'}
               </button>
             )}
-            <div className="flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-0.5">
+            <div className="h-9 flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-0.5">
               <button onClick={() => setViewMode('list')} title="Lista"
                 className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${view === 'list' ? 'bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>
                 <List size={14} />
@@ -575,46 +577,53 @@ function AprovacaoPageInner() {
           </div>
         </div>
 
-        {/* Busca + Filtros */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative flex-shrink-0">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar cliente ou post..."
-              className="pl-8 pr-3 py-1.5 rounded-xl text-sm border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none w-48 focus:w-64 transition-all"
-            />
+        {/* Busca + Filtros — no celular a busca ocupa a linha inteira e os
+            quatro filtros viram 2×2. Em linha corrida eles quebravam em
+            1-2-2 conforme o texto de cada um, que é o que fazia a barra
+            parecer bagunçada. */}
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:flex-wrap">
+          <div className="flex gap-2 md:contents">
+            <div className="relative flex-1 md:flex-none md:flex-shrink-0">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-faint)]" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar cliente ou post..."
+                className="h-9 w-full pl-8 pr-3 rounded-xl text-sm border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none md:w-48 md:focus:w-64 transition-all"
+              />
+            </div>
+            {monthOptions.length > 1 && (
+              <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)}
+                className="h-9 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 text-[var(--color-text-secondary)] outline-none">
+                <option value="">Todos os meses</option>
+                {monthOptions.map(key => {
+                  const [y, m] = key.split('-')
+                  return <option key={key} value={key}>{MONTHS[parseInt(m) - 1]} {y}</option>
+                })}
+              </select>
+            )}
           </div>
-          {monthOptions.length > 1 && (
-            <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)}
-              className="text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
-              <option value="">Todos os meses</option>
-              {monthOptions.map(key => {
-                const [y, m] = key.split('-')
-                return <option key={key} value={key}>{MONTHS[parseInt(m) - 1]} {y}</option>
-              })}
-            </select>
-          )}
-          {[
-            { key: 'todos',      label: 'Pendentes',       count: aguardandoCount + revisaoCount },
-            { key: 'aguardando', label: 'Aguardando',       count: aguardandoCount },
-            { key: 'revisao',    label: 'Ajuste',  count: revisaoCount },
-            { key: 'aprovado',   label: 'Aprovados',        count: aprovadoCount },
-          ].map(f => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key as typeof filter)}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-sm font-medium transition-all ${filter === f.key ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)]' : 'bg-[var(--color-bg-card)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'}`}
-            >
-              {f.label}
-              {f.count > 0 && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${filter === f.key ? 'bg-white/20' : 'bg-[var(--color-bg-subtle)]'}`}>
-                  {f.count}
-                </span>
-              )}
-            </button>
-          ))}
+          <div className="grid grid-cols-2 gap-2 md:contents">
+            {[
+              { key: 'todos',      label: 'Pendentes',       count: aguardandoCount + revisaoCount },
+              { key: 'aguardando', label: 'Aguardando',       count: aguardandoCount },
+              { key: 'revisao',    label: 'Ajuste',  count: revisaoCount },
+              { key: 'aprovado',   label: 'Aprovados',        count: aprovadoCount },
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key as typeof filter)}
+                className={`h-9 flex items-center justify-center gap-2 px-4 rounded-xl text-sm font-medium transition-all ${filter === f.key ? 'bg-[var(--color-brand)] text-[var(--color-brand-fg)]' : 'bg-[var(--color-bg-card)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'}`}
+              >
+                {f.label}
+                {f.count > 0 && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${filter === f.key ? 'bg-white/20' : 'bg-[var(--color-bg-subtle)]'}`}>
+                    {f.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Vazio */}

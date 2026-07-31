@@ -115,13 +115,15 @@ export default function DatasEspeciaisPage() {
 
         {/* Header */}
         <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Datas Especiais</h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Datas Especiais</h1>
             <p className="text-sm text-[var(--color-text-muted)] mt-1">{dates.length} datas cadastradas · calendário do nicho gastronômico</p>
           </div>
+          {/* Largura cheia no celular: solto, o botão caía numa linha própria
+              com a largura do texto, sem alinhar com nada. */}
           <button
             onClick={() => setShowForm(v => !v)}
-            className="flex items-center gap-2 bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-xl px-4 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity"
+            className="w-full md:w-auto h-9 flex items-center justify-center gap-2 bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-xl px-4 text-sm font-semibold hover:opacity-90 transition-opacity"
           >
             <Plus size={14} />
             Nova data
@@ -130,7 +132,7 @@ export default function DatasEspeciaisPage() {
 
         {/* Form nova data */}
         {showForm && (
-          <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6 flex items-end gap-4 shadow-card">
+          <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-4 md:p-6 flex flex-col md:flex-row md:items-end gap-3 md:gap-4 shadow-card">
             <div className="flex-1">
               <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Nome da data</label>
               <input
@@ -143,7 +145,7 @@ export default function DatasEspeciaisPage() {
                 className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]"
               />
             </div>
-            <div className="w-44">
+            <div className="w-full md:w-44">
               <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Data</label>
               <input
                 type="date"
@@ -152,16 +154,18 @@ export default function DatasEspeciaisPage() {
                 className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]"
               />
             </div>
-            <button
-              onClick={save}
-              disabled={saving || !form.name.trim() || !form.date}
-              className="px-5 py-2.5 rounded-xl bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-sm font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
-            >
-              {saving ? 'Salvando...' : 'Salvar'}
-            </button>
-            <button onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-xl text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)] transition-colors">
-              Cancelar
-            </button>
+            <div className="flex gap-2 md:contents">
+              <button
+                onClick={save}
+                disabled={saving || !form.name.trim() || !form.date}
+                className="flex-1 md:flex-none px-5 py-2.5 rounded-xl bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-sm font-semibold disabled:opacity-40 hover:opacity-90 transition-opacity"
+              >
+                {saving ? 'Salvando...' : 'Salvar'}
+              </button>
+              <button onClick={() => setShowForm(false)} className="flex-1 md:flex-none px-4 py-2.5 rounded-xl text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                Cancelar
+              </button>
+            </div>
           </div>
         )}
 
@@ -172,20 +176,23 @@ export default function DatasEspeciaisPage() {
               <Clock size={14} className="text-[var(--color-text-muted)]" />
               <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Radar — próximas datas</p>
             </div>
-            <div className="flex flex-wrap gap-3">
+            {/* No celular cada pílula ocupa a linha inteira com o prazo alinhado
+                à direita: soltas, ficavam empilhadas com uma largura diferente
+                cada (a do nome), sem nenhuma margem em comum pra ler em coluna. */}
+            <div className="grid gap-2 sm:flex sm:flex-wrap sm:gap-3">
               {upcoming.map(d => {
                 const dt   = new Date(d.date + 'T12:00:00')
                 const days = daysBetween(today, dt)
                 const { pill, badge } = urgencyStyle(days)
                 return (
                   <div key={d.id} className={`flex items-center gap-3 rounded-xl px-4 py-2.5 ${pill}`}>
-                    <div className="text-center">
+                    <div className="text-center flex-shrink-0">
                       <p className="text-[10px] text-[var(--color-text-muted)] leading-none">{MONTH_SHORT[dt.getMonth()]}</p>
                       <p className="text-lg font-bold text-[var(--color-text-primary)] leading-tight">{dt.getDate()}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-[var(--color-text-primary)]">{d.name}</p>
-                      <p className={`text-xs ${badge}`}>
+                    <div className="flex-1 min-w-0 flex items-baseline justify-between gap-3 sm:flex-none sm:block">
+                      <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{d.name}</p>
+                      <p className={`text-xs flex-shrink-0 ${badge}`}>
                         {days === 0 ? 'hoje!' : days === 1 ? 'amanhã' : `em ${days} dias`}
                       </p>
                     </div>

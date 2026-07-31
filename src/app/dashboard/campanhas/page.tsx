@@ -210,7 +210,10 @@ export default function CampanhasPage() {
       </div>
 
       {/* Seletor de campanha — ordenado pela data mais próxima primeiro */}
-      <div className="flex gap-2 flex-wrap items-stretch">
+      {/* Grade de 2 colunas no celular: em linha corrida cada chip tinha a
+          largura do próprio nome ("Páscoa" vs "Dia dos Namorados") e a
+          quebra saía irregular, 2 numa linha, 1 na outra. */}
+      <div className="grid grid-cols-2 gap-2 items-stretch md:flex md:flex-wrap">
         {orderedSeasonal.map(s => {
           const d = getDaysUntil(s.month, s.day)
           const isUrgent = d >= 0 && d <= s.leadDays
@@ -240,15 +243,15 @@ export default function CampanhasPage() {
             <button
               key={s.type}
               onClick={() => setSelected(s.type)}
-              className="flex flex-col gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all text-xs min-w-[132px]"
+              className="flex flex-col gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all text-xs md:min-w-[132px]"
               style={selected === s.type
                 ? { background: isDark ? s.theme.darkBg : s.theme.bg, borderColor: isDark ? s.theme.darkBorder : s.theme.border, color: s.theme.accent, fontWeight: 500 }
                 : { background: 'var(--color-bg-card)', borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }
               }
             >
-              <div className="flex items-center gap-1.5">
-                <span>{s.emoji}</span>
-                <span>{s.name}</span>
+              <div className="flex items-center gap-1.5 min-w-0 w-full">
+                <span className="flex-shrink-0">{s.emoji}</span>
+                <span className="truncate text-left">{s.name}</span>
                 {activeCnt > 0 && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: selected === s.type ? s.theme.accent : 'var(--color-bg-subtle)', color: selected === s.type ? 'white' : 'var(--color-text-secondary)' }}>{activeCnt}</span>}
                 {isUrgent && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--ds-error-accent)' }} />}
               </div>
@@ -265,17 +268,23 @@ export default function CampanhasPage() {
       <p className="text-[11px] text-[var(--color-text-faint)] -mt-2">A barra mostra o quanto já está pronto; o traço marca quanto do prazo já passou — se a barra estiver atrás do traço, a campanha tá atrasada.</p>
 
       {/* Banner da campanha selecionada — slim */}
-      <div className="rounded-2xl px-4 py-3 border flex items-center justify-between gap-3" style={{ background: isDark ? seasonal.theme.darkBg : seasonal.theme.bg, borderColor: isDark ? seasonal.theme.darkBorder : seasonal.theme.border }}>
+      {/* No celular empilha em vez de espremer: em linha, o prazo e a contagem
+          de clientes eram flex-shrink-0 e comiam a largura toda, sobrando pro
+          nome da campanha um "Di…" truncado — justamente o dado mais
+          importante da faixa. */}
+      <div className="rounded-2xl px-4 py-3 border flex flex-col gap-1 md:flex-row md:items-center md:justify-between md:gap-3" style={{ background: isDark ? seasonal.theme.darkBg : seasonal.theme.bg, borderColor: isDark ? seasonal.theme.darkBorder : seasonal.theme.border }}>
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-2xl">{seasonal.emoji}</span>
+          <span className="text-2xl flex-shrink-0">{seasonal.emoji}</span>
           <h2 className="text-sm font-semibold truncate" style={{ color: seasonal.theme.accent }}>{seasonal.name}</h2>
-          <span className="text-sm flex-shrink-0" style={{ color: seasonal.theme.accent, opacity: 0.7 }}>
-            · {days < 0 ? 'já passou' : days === 0 ? 'hoje!' : `faltam ${days} dias · ${seasonal.day}/${seasonal.month}`}
-          </span>
         </div>
-        <p className="text-sm font-semibold flex-shrink-0" style={{ color: seasonal.theme.accent }}>
-          {activeClients.length} cliente{activeClients.length !== 1 ? 's' : ''} ativo{activeClients.length !== 1 ? 's' : ''}
-        </p>
+        <div className="flex items-center justify-between gap-3 pl-[2.4rem] md:pl-0 md:flex-shrink-0">
+          <span className="text-sm" style={{ color: seasonal.theme.accent, opacity: 0.7 }}>
+            {days < 0 ? 'já passou' : days === 0 ? 'hoje!' : `faltam ${days} dias · ${seasonal.day}/${seasonal.month}`}
+          </span>
+          <p className="text-sm font-semibold flex-shrink-0" style={{ color: seasonal.theme.accent }}>
+            {activeClients.length} cliente{activeClients.length !== 1 ? 's' : ''} ativo{activeClients.length !== 1 ? 's' : ''}
+          </p>
+        </div>
       </div>
 
       {/* Grid de clientes ativos */}

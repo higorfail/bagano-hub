@@ -67,6 +67,8 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
   const titleOriginal = useRef<string | null>(null)
   const [showDetails, setShowDetails] = useState(false)
   const [mobilePane, setMobilePane] = useState<'details' | 'comments'>('details')
+  const [titleScrolled, setTitleScrolled] = useState(false)
+  const scrollColRef = useRef<HTMLDivElement>(null)
   const [activityKey, setActivityKey] = useState(0)
   const [activities, setActivities] = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
 
@@ -445,6 +447,27 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
           </div>
         )}
 
+        {/* Barra fina fixa no celular: com o cabeçalho rolando junto, sobrou
+            faltando a âncora de "onde estou" e o botão de fechar sempre à
+            mão — é o que o Trello mantém preso no topo. */}
+        <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
+          <span className={`flex-1 min-w-0 truncate text-sm font-semibold text-[var(--color-text-primary)] transition-opacity duration-150 ${titleScrolled ? 'opacity-100' : 'opacity-0'}`}>
+            {title || 'Tarefa sem título'}
+          </span>
+          {id && (
+            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/dashboard/tarefas?task=${id}`); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
+              title="Copiar link do card"
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ color: linkCopied ? 'var(--ds-success-text)' : 'var(--color-text-secondary)' }}>
+              {linkCopied ? <Check size={15} /> : <Link2 size={15} />}
+            </button>
+          )}
+          <button onClick={() => { (document.activeElement as HTMLElement)?.blur(); onClose() }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[var(--color-text-secondary)]">
+            <X size={17} />
+          </button>
+        </div>
+
         <div className="md:hidden flex items-center border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
           <button onClick={() => setMobilePane('details')} className="flex-1 text-center py-2.5 text-sm font-semibold relative"
             style={{ color: mobilePane === 'details' ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
@@ -459,7 +482,12 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
         </div>
 
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden divide-y md:divide-y-0 md:divide-x divide-[var(--color-border)]">
-        <div className={`${mobilePane === 'comments' ? 'hidden md:flex' : 'flex'} flex-1 min-w-0 flex-col overflow-hidden`}>
+        {/* No celular a coluna inteira rola: antes só o miolo rolava, e o
+            cabeçalho ficava travado ocupando quase metade da tela, deixando
+            o conteúdo numa fatia fina. Igual ao Trello: tudo rola junto. */}
+        <div ref={scrollColRef}
+          onScroll={e => { const t = e.currentTarget.scrollTop; setTitleScrolled(prev => prev ? t > 40 : t > 72) }}
+          className={`${mobilePane === 'comments' ? 'hidden md:flex' : 'flex'} flex-1 min-w-0 flex-col overflow-y-auto md:overflow-hidden`}>
 
         {/* HEADER */}
         <div className="flex items-start justify-between gap-4 px-4 md:px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
@@ -483,7 +511,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
               )}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="hidden md:flex items-center gap-2 flex-shrink-0">
             {id && (
               <button onClick={() => {
                 navigator.clipboard.writeText(`${window.location.origin}/dashboard/tarefas?task=${id}`)
@@ -576,7 +604,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
         </div>
 
         {/* CONTEÚDO */}
-        <div className="flex-1 min-w-0 flex flex-col gap-5 overflow-y-auto px-4 md:px-7 py-5">
+        <div className="flex-1 min-w-0 flex flex-col gap-5 md:overflow-y-auto px-4 md:px-7 py-5">
           <EditableField
             label="Nota" hint="· detalhes, contexto, checklist em texto"
             placeholder="Detalhes da tarefa, contexto, o que precisa ser feito…"

@@ -174,7 +174,9 @@ export default function KanbanPage() {
             </div>
           )}
         </div>
-        <div className="relative">
+        {/* Largura cheia no celular: solto ele quebrava pra linha de baixo com
+            a largura do texto do mês, desalinhado de tudo em volta. */}
+        <div className="relative w-full md:w-auto">
           <select
             value={filterPeriod ? `${filterPeriod.month}-${filterPeriod.year}` : 'all'}
             onChange={e => {
@@ -182,7 +184,7 @@ export default function KanbanPage() {
               const [m, y] = e.target.value.split('-').map(Number)
               setFilterPeriod({ month: m, year: y })
             }}
-            className="appearance-none text-sm font-medium rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] pl-3 pr-8 py-1.5 text-[var(--color-text-primary)] outline-none cursor-pointer hover:border-[var(--color-border-hover)]">
+            className="appearance-none w-full md:w-auto h-9 text-sm font-medium rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] pl-3 pr-8 text-[var(--color-text-primary)] outline-none hover:border-[var(--color-border-hover)]">
             <option value="all">Todos os meses</option>
             {periodOptions.map(p => (
               <option key={`${p.month}-${p.year}`} value={`${p.month}-${p.year}`}>{MONTHS_FULL[p.month - 1]} {p.year}</option>

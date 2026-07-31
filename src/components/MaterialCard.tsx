@@ -69,6 +69,8 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
   const typeOriginal = useRef<string | null>(null)
   const [showDetails,  setShowDetails]  = useState(false)
   const [mobilePane, setMobilePane] = useState<'details' | 'comments'>('details')
+  const [titleScrolled, setTitleScrolled] = useState(false)
+  const scrollColRef = useRef<HTMLDivElement>(null)
   const [activityKey,  setActivityKey]  = useState(0)
   const [activities,   setActivities]   = useState<{ id: string; action: string; actor_name: string | null; description: string; created_at: string }[]>([])
 
@@ -558,6 +560,52 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
   const isImportantActivity = (f: FeedItem) => f.id === '__created__' || /criou|ajuste|alterações|aprov/i.test(f.body)
   const visibleFeed = showDetails ? feed : feed.filter(f => f.kind === 'comment' || isImportantActivity(f))
 
+  // No celular o rodapé rola junto com o conteúdo em vez de ficar preso: preso
+  // ele come uma faixa da tela o card inteiro, e o essencial (fechar) já está
+  // na barra fina do topo. Texto vira ícone só no mobile, onde cada botão
+  // escrito por extenso empurrava os outros pra fora do alinhamento.
+  const footerBar = (
+        <div className="px-4 md:px-7 py-3.5 border-t border-[var(--color-border)] flex items-center justify-between gap-3 bg-[var(--color-bg-card)]">
+          {/* Delete */}
+          {materialId && !confirmDelete && (
+            <button onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors"
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')}
+              onMouseLeave={e => (e.currentTarget.style.color = '')}>
+              <Trash2 size={15} className="md:hidden" /><Trash2 size={13} className="hidden md:block" /> <span className="hidden md:inline">Excluir</span>
+            </button>
+          )}
+          {materialId && confirmDelete && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium" style={{ color: 'var(--ds-error-text)' }}>Confirmar exclusão?</span>
+              <button onClick={() => setConfirmDelete(false)} className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
+              <button onClick={async () => {
+                try { await moveToTrash('material', materialId, title || 'Material sem título', currentMember?.name) } catch { /* trash table missing */ }
+                await logActivity({ tableName: 'materials', recordId: materialId, action: 'deleted', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
+                await Promise.all([
+                  supabase.from('material_checklist').delete().eq('material_id', materialId),
+                  supabase.from('material_comments').delete().eq('material_id', materialId),
+                  supabase.from('material_attachments').delete().eq('material_id', materialId),
+                ])
+                await supabase.from('materials').delete().eq('id', materialId)
+                onDeleted?.(materialId)
+                onClose()
+              }} className="text-xs font-semibold px-2.5 py-1 rounded-xl text-white" style={{ background: 'var(--ds-error-accent)' }}>
+                Excluir
+              </button>
+            </div>
+          )}
+          {!materialId && <div />}
+          <button
+            onClick={() => { (document.activeElement as HTMLElement)?.blur(); handleSaveMain(); onClose() }}
+            disabled={saving}
+            className="px-5 py-2 text-sm font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg disabled:opacity-50"
+          >
+            {saving ? 'Salvando…' : 'Salvar e fechar'}
+          </button>
+        </div>
+  )
+
   return (
     <ModalPortal>
     <div
@@ -578,6 +626,27 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
           </div>
         )}
 
+        {/* Barra fina fixa no celular: com o cabeçalho rolando junto, sobrou
+            faltando a âncora de "onde estou" e o botão de fechar sempre à
+            mão — é o que o Trello mantém preso no topo. */}
+        <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
+          <span className={`flex-1 min-w-0 truncate text-sm font-semibold text-[var(--color-text-primary)] transition-opacity duration-150 ${titleScrolled ? 'opacity-100' : 'opacity-0'}`}>
+            {title || 'Material sem título'}
+          </span>
+          {id && (
+            <button onClick={() => { const url = `${window.location.origin}/dashboard/materiais?post=${id}`; navigator.clipboard.writeText(url); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000) }}
+              title="Copiar link do card"
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ color: linkCopied ? 'var(--ds-success-text)' : 'var(--color-text-secondary)' }}>
+              {linkCopied ? <Check size={15} /> : <Link2 size={15} />}
+            </button>
+          )}
+          <button onClick={() => { (document.activeElement as HTMLElement)?.blur(); handleSaveMain(); onClose() }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[var(--color-text-secondary)]">
+            <X size={17} />
+          </button>
+        </div>
+
         {/* Abas Detalhes/Comentários — só no mobile (padrão Trello: alterna em vez de empilhar) */}
         <div className="md:hidden flex items-center border-b border-[var(--color-border)] bg-[var(--color-bg-card)] flex-shrink-0">
           <button onClick={() => setMobilePane('details')}
@@ -596,7 +665,12 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
 
         {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total (abas no mobile, lado a lado no desktop) */}
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden divide-y md:divide-y-0 md:divide-x divide-[var(--color-border)]">
-        <div className={`${mobilePane === 'comments' ? 'hidden md:flex' : 'flex'} flex-1 min-w-0 flex-col overflow-hidden`}>
+        {/* No celular a coluna inteira rola: antes só o miolo rolava, e o
+            cabeçalho ficava travado ocupando quase metade da tela, deixando
+            o conteúdo numa fatia fina. Igual ao Trello: tudo rola junto. */}
+        <div ref={scrollColRef}
+          onScroll={e => { const t = e.currentTarget.scrollTop; setTitleScrolled(prev => prev ? t > 40 : t > 72) }}
+          className={`${mobilePane === 'comments' ? 'hidden md:flex' : 'flex'} flex-1 min-w-0 flex-col overflow-y-auto md:overflow-hidden`}>
 
         {/* HEADER — título (padrão cronograma) */}
         <div className="flex items-start justify-between gap-4 px-4 md:px-7 pt-4 pb-3 bg-[var(--color-bg-card)] border-b border-[var(--color-border)]">
@@ -622,7 +696,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
               <span className="mx-1.5 text-[var(--color-text-faint)]">·</span>{type}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="hidden md:flex items-center gap-2 flex-shrink-0">
             {id && (
               <button
                 onClick={() => {
@@ -774,7 +848,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
         </div>
 
           {/* ESQUERDA — conteúdo livre (estilo Trello, sem caixas) */}
-          <div className="flex-1 min-w-0 flex flex-col gap-5 overflow-y-auto px-4 md:px-7 py-5">
+          <div className="flex-1 min-w-0 flex flex-col gap-5 md:overflow-y-auto px-4 md:px-7 py-5">
 
             {/* DESCRIÇÃO — clique-para-editar (padrão cronograma) */}
             <EditableField
@@ -916,6 +990,8 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
               }}
             />
           </div>
+          {/* Rodapé rola junto no celular (ver footerBar) */}
+          <div className="md:hidden mt-1">{footerBar}</div>
           </div>
 
           {/* DIREITA — comentários + atividade (feed único, tipo Trello) */}
@@ -1014,46 +1090,8 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
           </div>
         </div>
 
-        {/* FOOTER */}
-        <div className="px-4 md:px-7 py-3.5 border-t border-[var(--color-border)] flex items-center justify-between gap-3 bg-[var(--color-bg-card)]">
-          {/* Delete */}
-          {materialId && !confirmDelete && (
-            <button onClick={() => setConfirmDelete(true)}
-              className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors"
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')}
-              onMouseLeave={e => (e.currentTarget.style.color = '')}>
-              <Trash2 size={13} /> Excluir
-            </button>
-          )}
-          {materialId && confirmDelete && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium" style={{ color: 'var(--ds-error-text)' }}>Confirmar exclusão?</span>
-              <button onClick={() => setConfirmDelete(false)} className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
-              <button onClick={async () => {
-                try { await moveToTrash('material', materialId, title || 'Material sem título', currentMember?.name) } catch { /* trash table missing */ }
-                await logActivity({ tableName: 'materials', recordId: materialId, action: 'deleted', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
-                await Promise.all([
-                  supabase.from('material_checklist').delete().eq('material_id', materialId),
-                  supabase.from('material_comments').delete().eq('material_id', materialId),
-                  supabase.from('material_attachments').delete().eq('material_id', materialId),
-                ])
-                await supabase.from('materials').delete().eq('id', materialId)
-                onDeleted?.(materialId)
-                onClose()
-              }} className="text-xs font-semibold px-2.5 py-1 rounded-xl text-white" style={{ background: 'var(--ds-error-accent)' }}>
-                Excluir
-              </button>
-            </div>
-          )}
-          {!materialId && <div />}
-          <button
-            onClick={() => { (document.activeElement as HTMLElement)?.blur(); handleSaveMain(); onClose() }}
-            disabled={saving}
-            className="px-5 py-2 text-sm font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg disabled:opacity-50"
-          >
-            {saving ? 'Salvando…' : 'Salvar e fechar'}
-          </button>
-        </div>
+        {/* FOOTER — no celular vai renderizado dentro da coluna rolável (ver footerBar) */}
+        <div className="hidden md:block">{footerBar}</div>
 
         {/* POPOVER ETIQUETAS */}
         {showLabelPicker && (

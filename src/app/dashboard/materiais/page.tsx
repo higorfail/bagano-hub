@@ -180,14 +180,18 @@ function MateriaisContent() {
           <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Materiais</h1>
           <p className="text-[var(--color-text-muted)] text-sm truncate">{visible.length} materia{visible.length === 1 ? 'l' : 'is'} · menus, cardápios, artes</p>
         </div>
-        <div className="flex items-center gap-2">
-          <select value={filterClient} onChange={e => setFilterClient(e.target.value)} className="border border-[var(--color-border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)]">
+        {/* No celular vira grade de 2 colunas: em linha, cada controle tinha a
+            largura do próprio texto e o "+ Novo material" era empurrado pra
+            fora da tela. Todos com h-9 — as alturas diferentes (py-1.5 vs h-9)
+            eram o que fazia a barra parecer desalinhada. */}
+        <div className="grid grid-cols-2 gap-2 w-full md:flex md:w-auto md:items-center">
+          <select value={filterClient} onChange={e => setFilterClient(e.target.value)} className="col-span-2 md:col-auto h-9 border border-[var(--color-border)] rounded-xl px-3 text-sm bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)]">
             <option value="">Todos os clientes</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <button
             onClick={() => setShowArchived(s => !s)}
-            className="flex items-center gap-1.5 text-sm font-medium px-2.5 py-1.5 rounded-lg border transition-colors"
+            className="h-9 flex items-center justify-center gap-1.5 text-sm font-medium px-3 rounded-xl border transition-colors"
             style={showArchived
               ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }
               : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
