@@ -333,6 +333,14 @@ export default function DashboardPage() {
   // você" não pode herdar esse recorte: em julho a equipe já está montando o
   // cronograma de agosto, e esse trabalho é tão real quanto o de hoje.
   const [pendingSchedules, setPendingSchedules] = useState<Schedule[]>([])
+  // Esperando resposta do cliente — SEM mês nenhum, nem janela.
+  //
+  // Um cronograma entregue dia 30 de julho e não respondido continua esperando
+  // no dia 2 de agosto. Mas este painel lia `schedules`, que é o mês corrente:
+  // na virada do mês a cobrança que mais importa simplesmente sumia da tela, e
+  // o cliente que não respondeu virava o único que a gente não estava vendo.
+  // Espera não tem calendário — ela acaba quando o cliente responde.
+  const [waitingSchedules, setWaitingSchedules] = useState<Schedule[]>([])
   const [specialDates, setSpecialDates] = useState<SpecialDate[]>([])
   const [captacoes,    setCaptacoes]    = useState<Captacao[]>([])
   const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
@@ -367,7 +375,7 @@ export default function DashboardPage() {
       try {
         const in90Str = new Date(now.getTime() + 90 * 86400000).toISOString().split('T')[0]
         const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
-        const [{ data: cls, error: e1 }, { data: sch }, { data: schWide }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
+        const [{ data: cls, error: e1 }, { data: sch }, { data: schWide }, { data: schWaiting }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
           supabase.from(CFG.t.clients)
             .select('id, name, color_hex, logo_url')
             .eq('status', 'active')
@@ -382,6 +390,11 @@ export default function DashboardPage() {
           supabase.from(CFG.t.schedules)
             .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels, legenda')
             .or(NEARBY_PERIODS.map(p => `and(month.eq.${p.month},year.eq.${p.year})`).join(',')),
+          // Consulta por ESTADO, não por período: quem está esperando resposta
+          // do cliente, de qualquer mês. É o que sobrevive à virada do mês.
+          supabase.from(CFG.t.schedules)
+            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year')
+            .in('status', [CFG.S.aguardandoAprovacao, CFG.S.ajuste]),
           supabase.from(CFG.t.specialDates)
             .select('id, name, date')
             .gte('date', todayStr)
@@ -400,6 +413,7 @@ export default function DashboardPage() {
         setClients(cls || [])
         setSchedules(sch || [])
         setPendingSchedules(schWide || [])
+        setWaitingSchedules((schWaiting || []) as Schedule[])
         setSpecialDates(sd || [])
         setCaptacoes(cap || [])
         setClientTeam(ct || [])
@@ -483,18 +497,34 @@ export default function DashboardPage() {
   [schedules])
 
 
-  // Pendências de aprovação por cliente — mês inteiro (não só o que publica essa
-  // semana), pra responder "quanto cada cliente tem esperando resposta AGORA".
+  // Pendências de aprovação por cliente E MÊS.
+  //
+  // O agrupamento é por mês de propósito: "o Satō tem 6 esperando" esconde que
+  // 4 são de julho e 2 de agosto — e são cobranças diferentes, com urgências
+  // diferentes. Cada linha é um cronograma esperando resposta.
   const pendingApprovalByClient = useMemo(() => {
-    const byClient = schedules.reduce((acc, s) => {
-      (acc[s.client_id] ||= { cid: s.client_id, posts: [] as Schedule[] }).posts.push(s)
-      return acc
-    }, {} as Record<string, { cid: string; posts: Schedule[] }>)
-    return Object.values(byClient)
-      .map(g => ({ ...g, pendingCount: g.posts.filter(s => [CFG.S.aguardandoAprovacao, CFG.S.ajuste].includes(s.status)).length }))
-      .filter(g => g.pendingCount > 0)
-      .sort((a, b) => b.pendingCount - a.pendingCount)
-  }, [schedules])
+    const activeIds = new Set(clients.map(c => c.id))
+    const groups = new Map<string, { cid: string; month: number; year: number; pending: Schedule[] }>()
+    for (const s of waitingSchedules) {
+      if (!activeIds.has(s.client_id)) continue
+      const key = `${s.client_id}:${s.month}:${s.year}`
+      let g = groups.get(key)
+      if (!g) { g = { cid: s.client_id, month: s.month, year: s.year, pending: [] }; groups.set(key, g) }
+      g.pending.push(s)
+    }
+    return [...groups.values()]
+      .map(g => ({
+        ...g,
+        pendingCount: g.pending.length,
+        // Barra de progresso do mês: só quando esse período já veio na janela
+        // que o painel carrega. Não vale uma consulta a mais só pra desenhar
+        // uma barra — sem ela a linha continua dizendo o que importa.
+        monthPosts: pendingSchedules.filter(p => p.client_id === g.cid && p.month === g.month && p.year === g.year),
+      }))
+      // Mês mais velho primeiro. Depois da virada, é o mês que ficou pra trás
+      // que ninguém está mais olhando — e é exatamente o que precisa cobrança.
+      .sort((a, b) => (a.year - b.year) || (a.month - b.month) || (b.pendingCount - a.pendingCount))
+  }, [waitingSchedules, pendingSchedules, clients])
 
   const pendingApproval = useMemo(() =>
     schedules.filter(s => s.status === CFG.S.aguardandoAprovacao),
@@ -522,7 +552,12 @@ export default function DashboardPage() {
   ]
 
   // Atalhos rápidos
-  const approvalsBadge = rejected.length + pendingApproval.length
+  //
+  // O selo do atalho "Aprovações" precisa bater com o que a página de
+  // Aprovações mostra — e ela não filtra por mês. Contado sobre o mês corrente,
+  // o selo dizia 0 no dia 1º com o cronograma do mês anterior inteiro parado
+  // com o cliente.
+  const approvalsBadge = waitingSchedules.length
   // Mesmos ícones da barra lateral de propósito: atalho e menu apontam pro
   // mesmo lugar, então ícone diferente pro mesmo destino faria parecer que são
   // telas diferentes.
@@ -1178,40 +1213,61 @@ export default function DashboardPage() {
                 <p className="text-sm text-[var(--color-text-muted)] py-6 text-center">Nada esperando o cliente 🎉</p>
               ) : (
                 <>
-                  {pendingApprovalByClient.slice(0, 4).map(({ cid, posts, pendingCount }) => {
+                  {pendingApprovalByClient.slice(0, 4).map(({ cid, month: gm, year: gy, pending, pendingCount, monthPosts }) => {
                     const client = clientMap[cid]
-                    const pronto     = posts.filter(s => [CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)).length
-                    const comCliente = posts.filter(s => s.status === CFG.S.aguardandoAprovacao).length
-                    const ajuste     = posts.filter(s => s.status === CFG.S.ajuste).length
-                    const producao   = posts.length - pronto - comCliente - ajuste
+                    const pronto     = monthPosts.filter(s => [CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)).length
+                    const comCliente = monthPosts.filter(s => s.status === CFG.S.aguardandoAprovacao).length
+                    const ajuste     = monthPosts.filter(s => s.status === CFG.S.ajuste).length
+                    const producao   = monthPosts.length - pronto - comCliente - ajuste
                     const segs = [
                       { n: pronto,     color: 'var(--ds-success-accent)', label: pl(pronto, 'aprovado', 'aprovados') },
                       { n: comCliente, color: 'var(--ds-info-accent)',    label: 'com cliente' },
                       { n: producao,   color: 'var(--ds-warn-accent)',    label: 'em produção' },
                       { n: ajuste,     color: 'var(--color-accent)',      label: pl(ajuste, 'ajuste', 'ajustes') },
                     ].filter(s => s.n > 0)
+                    // Mês que já passou fica marcado: é a informação que o
+                    // painel escondia antes, e a que muda a decisão de cobrar.
+                    const atrasado = gy < year || (gy === year && gm < month)
+                    const soAjuste = pending.every(s => s.status === CFG.S.ajuste)
                     return (
-                      <button key={cid} onClick={() => router.push(`/dashboard/clientes/${cid}`)}
+                      <button key={`${cid}:${gm}:${gy}`}
+                        onClick={() => router.push(`/dashboard/clientes/${cid}?tab=cronograma&m=${gm}&y=${gy}`)}
                         className="w-full text-left rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4 hover:border-[var(--color-border-hover)] hover:shadow-card transition-all">
                         <div className="flex items-center gap-3">
                           <ClientAvatar clientId={cid} size={40} />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{client?.name}</p>
-                            <p className="text-xs text-[var(--color-text-muted)] truncate">{pendingCount} {pl(pendingCount, 'post esperando', 'posts esperando')} resposta</p>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{client?.name}</p>
+                              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0"
+                                style={atrasado
+                                  ? { background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }
+                                  : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
+                                {MONTHS[gm - 1].slice(0, 3)}{gy !== year ? `/${String(gy).slice(2)}` : ''}
+                              </span>
+                            </div>
+                            <p className="text-xs text-[var(--color-text-muted)] truncate">
+                              {pendingCount} {soAjuste
+                                ? pl(pendingCount, 'post em ajuste', 'posts em ajuste')
+                                : `${pl(pendingCount, 'post esperando', 'posts esperando')} resposta`}
+                            </p>
                           </div>
                           <ChevronRight size={15} className="text-[var(--color-text-faint)] flex-shrink-0" />
                         </div>
-                        <div className="flex h-1.5 rounded-full bg-[var(--color-bg-subtle)] mt-3 overflow-hidden">
-                          {segs.map((s, i) => <div key={i} style={{ width: `${(s.n / posts.length) * 100}%`, background: s.color }} />)}
-                        </div>
-                        <div className="flex items-center gap-x-3 gap-y-1 mt-2 flex-wrap">
-                          {segs.map((s, i) => (
-                            <span key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]">
-                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
-                              {s.n} {s.label}
-                            </span>
-                          ))}
-                        </div>
+                        {monthPosts.length > 0 && (
+                          <>
+                            <div className="flex h-1.5 rounded-full bg-[var(--color-bg-subtle)] mt-3 overflow-hidden">
+                              {segs.map((s, i) => <div key={i} style={{ width: `${(s.n / monthPosts.length) * 100}%`, background: s.color }} />)}
+                            </div>
+                            <div className="flex items-center gap-x-3 gap-y-1 mt-2 flex-wrap">
+                              {segs.map((s, i) => (
+                                <span key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]">
+                                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                                  {s.n} {s.label}
+                                </span>
+                              ))}
+                            </div>
+                          </>
+                        )}
                       </button>
                     )
                   })}
