@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
+import { getOrCreateExtrasApprovalToken } from '@/lib/approvalLinks'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
 import { autoGrow } from '@/lib/autoGrow'
@@ -405,14 +406,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     const cid = fixedClientId || clientId
     if (!cid) return
     const ok = await copyTextAsync(async () => {
-      const now = new Date()
-      const month = now.getMonth() + 1
-      const year = now.getFullYear()
-      const { data: existing } = await supabase.from('approval_tokens').select('token')
-        .eq('client_id', cid).eq('month', month).eq('year', year).eq('type', 'extras').maybeSingle()
-      const token = existing?.token || (
-        await supabase.from('approval_tokens').insert({ client_id: cid, month, year, type: 'extras' }).select('token').single()
-      ).data?.token
+      const token = await getOrCreateExtrasApprovalToken(cid)
       if (!token) throw new Error('sem token')
       return `${window.location.origin}/aprovar/${token}`
     })

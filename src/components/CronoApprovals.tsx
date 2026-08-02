@@ -48,12 +48,22 @@ function daysSince(iso: string | null) {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
 }
 
+// Quantos meses atrás um cronograma ainda conta como cobrança viva. Depois
+// disso ele continua na tela, mas recolhido.
+const OLD_AFTER_MONTHS = 3
+
+function monthsAgo(month: number, year: number) {
+  const now = new Date()
+  return (now.getFullYear() - year) * 12 + (now.getMonth() + 1 - month)
+}
+
 export default function CronoApprovals({ clients }: { clients: Client[] }) {
   const { toast } = useToast()
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState<string | null>(null)
+  const [showOld, setShowOld] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -97,6 +107,10 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
       list.sort((a, b) => (daysSince(b.finalizedAt) ?? -1) - (daysSince(a.finalizedAt) ?? -1))
       setRows(list)
       setLoading(false)
+      // Cronograma de meses muito atrás quase sempre é mês que a equipe
+      // abandonou, não cobrança viva. Ele não some da tela — some da PRIMEIRA
+      // tela, atrás de um "mostrar antigos", pra não afogar o que é de agora.
+      // Sumir de vez seria o erro oposto ao que estamos consertando.
     }
     load()
   }, [])
@@ -132,9 +146,13 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
     </div>
   )
 
+  const recentes = rows.filter(r => monthsAgo(r.month, r.year) <= OLD_AFTER_MONTHS)
+  const antigos  = rows.filter(r => monthsAgo(r.month, r.year) >  OLD_AFTER_MONTHS)
+  const visible  = showOld ? [...recentes, ...antigos] : recentes
+
   return (
     <div className="flex flex-col gap-2">
-      {rows.map(r => {
+      {visible.map(r => {
         const client = clients.find(c => c.id === r.clientId)
         const key = `${r.clientId}:${r.month}:${r.year}`
         const isOpen = open.has(key)
@@ -222,6 +240,15 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
           </div>
         )
       })}
+
+      {antigos.length > 0 && (
+        <button onClick={() => setShowOld(v => !v)}
+          className="self-center text-xs font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] py-2 transition-colors">
+          {showOld
+            ? 'Ocultar cronogramas antigos'
+            : `Ver ${antigos.length} cronograma${antigos.length !== 1 ? 's' : ''} de mais de ${OLD_AFTER_MONTHS} meses atrás`}
+        </button>
+      )}
     </div>
   )
 }

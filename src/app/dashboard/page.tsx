@@ -193,8 +193,13 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
             {l.text}
           </span>
         ))}
+        {/* Quanto tempo faz, não só "atrasado". Sem recorte de mês nenhum, a
+            lista pode trazer coisa de meses atrás — e "atrasado 43d" se
+            denuncia sozinho, enquanto "atrasado" seco parece de ontem. */}
         {overdue && (
-          <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>atrasado</span>
+          <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
+            atrasado {Math.round((new Date(todayStr + 'T12:00:00').getTime() - new Date(it.dueDate! + 'T12:00:00').getTime()) / 86400000)}d
+          </span>
         )}
         {showAge && (
           <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-warn-text)', background: 'var(--ds-warn-bg)' }}>
@@ -327,20 +332,20 @@ export default function DashboardPage() {
   const { currentMember } = useUser()
 
   const [clients,      setClients]      = useState<Client[]>([])
-  const [schedules,    setSchedules]    = useState<Schedule[]>([])
-  // Trabalho atribuído a você, SEM prender ao mês corrente. A lista acima é do
-  // mês por bons motivos (métricas, "Clientes do mês", gráfico), mas o "Para
-  // você" não pode herdar esse recorte: em julho a equipe já está montando o
-  // cronograma de agosto, e esse trabalho é tão real quanto o de hoje.
-  const [pendingSchedules, setPendingSchedules] = useState<Schedule[]>([])
-  // Esperando resposta do cliente — SEM mês nenhum, nem janela.
+  // TODOS os posts, sem recorte de mês nenhum — e é de propósito.
   //
-  // Um cronograma entregue dia 30 de julho e não respondido continua esperando
-  // no dia 2 de agosto. Mas este painel lia `schedules`, que é o mês corrente:
-  // na virada do mês a cobrança que mais importa simplesmente sumia da tela, e
-  // o cliente que não respondeu virava o único que a gente não estava vendo.
-  // Espera não tem calendário — ela acaba quando o cliente responde.
-  const [waitingSchedules, setWaitingSchedules] = useState<Schedule[]>([])
+  // Mês é etiqueta de arquivo, não prazo. O post pertence a agosto; a espera
+  // pela resposta do cliente, o post que passou da data, o card atribuído a
+  // você e ainda não feito — nada disso pertence a mês nenhum. Some quando
+  // resolve, não quando o calendário vira.
+  //
+  // Este painel já teve três recortes diferentes (mês corrente, janela de
+  // mês-1 a mês+3) e cada um escondeu um trabalho real: o cronograma de agosto
+  // da Gabi, o cronograma de julho parado com o cliente no dia 1º de agosto,
+  // os 12 posts vencidos que o alerta contava como zero. Um recorte a menos é
+  // uma classe de bug a menos. As visões que SÃO de um mês (Visão geral,
+  // métricas, gráfico) derivam daqui logo abaixo.
+  const [allSchedules, setAllSchedules] = useState<Schedule[]>([])
   const [specialDates, setSpecialDates] = useState<SpecialDate[]>([])
   const [captacoes,    setCaptacoes]    = useState<Captacao[]>([])
   const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
@@ -363,38 +368,36 @@ export default function DashboardPage() {
   const month    = now.getMonth() + 1
   const year     = now.getFullYear()
   const todayStr = now.toISOString().split('T')[0]
-  // Mês anterior, atual e os três seguintes — vira o filtro do "Para você".
-  const NEARBY_PERIODS = Array.from({ length: 5 }, (_, i) => {
-    const d = new Date(year, month - 2 + i, 1)
-    return { month: d.getMonth() + 1, year: d.getFullYear() }
-  })
   const in120Str = new Date(now.getTime() + 120 * 86400000).toISOString().split('T')[0]
+
+  // O recorte mensal vive aqui, num lugar só, e serve às visões que de fato
+  // são de um mês: Visão geral, métricas e o gráfico de evolução. Fora daqui,
+  // nada no painel enxerga mês.
+  const schedules = useMemo(
+    () => allSchedules.filter(s => s.month === month && s.year === year),
+    [allSchedules, month, year])
+  // "Em aberto" = não fechado. Agendado e publicado saíram da mesa; aprovado
+  // ainda não, porque post aprovado que passou da data e não foi publicado é
+  // exatamente o tipo de coisa que precisa aparecer.
+  const openSchedules = useMemo(
+    () => allSchedules.filter(s => ![CFG.S.agendado, CFG.S.publicado].includes(s.status)),
+    [allSchedules])
 
   useEffect(() => {
     async function load() {
       try {
         const in90Str = new Date(now.getTime() + 90 * 86400000).toISOString().split('T')[0]
         const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
-        const [{ data: cls, error: e1 }, { data: sch }, { data: schWide }, { data: schWaiting }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
+        const [{ data: cls, error: e1 }, { data: sch }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
           supabase.from(CFG.t.clients)
             .select('id, name, color_hex, logo_url')
             .eq('status', 'active')
             .order('name'),
+          // Uma consulta só, sem where de período. São colunas leves e o
+          // Kanban já carrega a tabela inteira do mesmo jeito — o custo é
+          // menor que o de mais um recorte pra esquecer de manter.
           supabase.from(CFG.t.schedules)
-            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels, legenda')
-            .eq('month', month)
-            .eq('year', year),
-          // Mês anterior até +3: pega o cronograma que já está sendo montado
-          // pra frente sem arrastar meses velhos abandonados pra dentro do
-          // "Para você".
-          supabase.from(CFG.t.schedules)
-            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels, legenda')
-            .or(NEARBY_PERIODS.map(p => `and(month.eq.${p.month},year.eq.${p.year})`).join(',')),
-          // Consulta por ESTADO, não por período: quem está esperando resposta
-          // do cliente, de qualquer mês. É o que sobrevive à virada do mês.
-          supabase.from(CFG.t.schedules)
-            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year')
-            .in('status', [CFG.S.aguardandoAprovacao, CFG.S.ajuste]),
+            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels, legenda'),
           supabase.from(CFG.t.specialDates)
             .select('id, name, date')
             .gte('date', todayStr)
@@ -411,9 +414,7 @@ export default function DashboardPage() {
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
         setClients(cls || [])
-        setSchedules(sch || [])
-        setPendingSchedules(schWide || [])
-        setWaitingSchedules((schWaiting || []) as Schedule[])
+        setAllSchedules(sch || [])
         setSpecialDates(sd || [])
         setCaptacoes(cap || [])
         setClientTeam(ct || [])
@@ -486,15 +487,18 @@ export default function DashboardPage() {
     return m
   }, [clients])
 
+  // Post vencido é o caso mais gritante do recorte mensal: no dia 2 de agosto
+  // este alerta dizia ZERO com 12 posts de julho passados da data e não
+  // publicados. Data que passou não desmarca no dia 1º — ela piora.
   const delayed = useMemo(() =>
-    schedules.filter(s =>
-      s.scheduled_date && s.scheduled_date < todayStr &&
-      ![CFG.S.publicado, CFG.S.agendado].includes(s.status)
-    ), [schedules, todayStr])
+    openSchedules.filter(s => s.scheduled_date && s.scheduled_date < todayStr),
+  [openSchedules, todayStr])
 
+  // Cliente que pediu alteração dia 30 de julho sumia do alerta dia 1º de
+  // agosto, com o pedido dele em aberto.
   const rejected = useMemo(() =>
-    schedules.filter(s => s.approval_status === CFG.A.naoAprovado && ![CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)),
-  [schedules])
+    openSchedules.filter(s => s.approval_status === CFG.A.naoAprovado && s.status !== CFG.S.aprovado),
+  [openSchedules])
 
 
   // Pendências de aprovação por cliente E MÊS.
@@ -505,8 +509,9 @@ export default function DashboardPage() {
   const pendingApprovalByClient = useMemo(() => {
     const activeIds = new Set(clients.map(c => c.id))
     const groups = new Map<string, { cid: string; month: number; year: number; pending: Schedule[] }>()
-    for (const s of waitingSchedules) {
+    for (const s of allSchedules) {
       if (!activeIds.has(s.client_id)) continue
+      if (![CFG.S.aguardandoAprovacao, CFG.S.ajuste].includes(s.status)) continue
       const key = `${s.client_id}:${s.month}:${s.year}`
       let g = groups.get(key)
       if (!g) { g = { cid: s.client_id, month: s.month, year: s.year, pending: [] }; groups.set(key, g) }
@@ -516,15 +521,15 @@ export default function DashboardPage() {
       .map(g => ({
         ...g,
         pendingCount: g.pending.length,
-        // Barra de progresso do mês: só quando esse período já veio na janela
-        // que o painel carrega. Não vale uma consulta a mais só pra desenhar
-        // uma barra — sem ela a linha continua dizendo o que importa.
-        monthPosts: pendingSchedules.filter(p => p.client_id === g.cid && p.month === g.month && p.year === g.year),
+        // Barra de progresso: o mês inteiro daquele cliente, inclusive o que
+        // já está pronto — é o que responde "quanto falta pra fechar esse
+        // cronograma", e não só "quanto está parado".
+        monthPosts: allSchedules.filter(p => p.client_id === g.cid && p.month === g.month && p.year === g.year),
       }))
       // Mês mais velho primeiro. Depois da virada, é o mês que ficou pra trás
       // que ninguém está mais olhando — e é exatamente o que precisa cobrança.
       .sort((a, b) => (a.year - b.year) || (a.month - b.month) || (b.pendingCount - a.pendingCount))
-  }, [waitingSchedules, pendingSchedules, clients])
+  }, [allSchedules, clients])
 
   const pendingApproval = useMemo(() =>
     schedules.filter(s => s.status === CFG.S.aguardandoAprovacao),
@@ -557,7 +562,7 @@ export default function DashboardPage() {
   // Aprovações mostra — e ela não filtra por mês. Contado sobre o mês corrente,
   // o selo dizia 0 no dia 1º com o cronograma do mês anterior inteiro parado
   // com o cliente.
-  const approvalsBadge = waitingSchedules.length
+  const approvalsBadge = pendingApprovalByClient.reduce((n, g) => n + g.pendingCount, 0)
   // Mesmos ícones da barra lateral de propósito: atalho e menu apontam pro
   // mesmo lugar, então ícone diferente pro mesmo destino faria parecer que são
   // telas diferentes.
@@ -669,10 +674,12 @@ export default function DashboardPage() {
 
   const directAssigned = useMemo(() => {
     if (!currentMember) return []
-    // pendingSchedules, não schedules: o cronograma do mês que vem já é
-    // trabalho de agora. Era isso que sumia da Gabi — ela estava marcada em
-    // posts de agosto e o painel só olhava julho.
-    return pendingSchedules.filter(s => {
+    // Sem recorte de período nenhum. Já foi o mês corrente (e sumia o
+    // cronograma de agosto da Gabi, montado em julho) e já foi uma janela de
+    // mês-1 a mês+3, que só empurrava o mesmo problema pra trás: post de junho
+    // ainda não feito e atribuído a você caía fora da SUA lista. Se está
+    // atribuído a você e não está fechado, é seu — em qualquer mês.
+    return allSchedules.filter(s => {
       if ([CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)) return false
       // Em "Revisão interna" a estrategista do cliente vê o card MESMO sem
       // estar marcada nele — é etapa dela. Mas isso é um acréscimo, não uma
@@ -684,7 +691,7 @@ export default function DashboardPage() {
       if (s.status === CFG.S.revisaoInterna) return assignedToMe || myStrategistClients.has(s.client_id)
       return assignedToMe
     })
-  }, [pendingSchedules, currentMember, myStrategistClients])
+  }, [allSchedules, currentMember, myStrategistClients])
 
   // Unifica posts + extras + materiais numa lista só, cada item marcado como
   // "precisa de você" (ação sua) ou "esperando o cliente" (aguardando aprovação) —

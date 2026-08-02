@@ -13,6 +13,7 @@ import { dbError } from '@/lib/dbError'
 import { getOrCreateGeneralApprovalToken } from '@/lib/approvalLinks'
 import { copyTextAsync } from '@/lib/clipboard'
 import { readLastPeriod, saveLastPeriod } from '@/lib/lastPeriod'
+import { usePendingMonths, oldestOtherPending, periodKey } from '@/lib/pendingMonths'
 import CampaignsTab from '@/components/CampaignsTab'
 import CronogramaTab, { CRONO_MONTHS } from '@/components/CronogramaTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
@@ -72,6 +73,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
     return readLastPeriod()?.y ?? new Date().getFullYear()
   })
   const [showMonthPicker, setShowMonthPicker] = useState(false)
+  const pendingMonths = usePendingMonths(id as string)
+  const otherPending = oldestOtherPending(pendingMonths, selectedMonth, selectedYear)
   const [loading, setLoading] = useState(true)
   const [team, setTeam] = useState<any[]>([])
   const [allMembers, setAllMembers] = useState<any[]>([])
@@ -338,7 +341,22 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             <div className="flex flex-col gap-4">
               {/* Month/year nav */}
               <div className="flex items-center justify-between">
-                <p className="text-sm text-[var(--color-text-secondary)]">{CRONO_MONTHS[selectedMonth-1]} {selectedYear}</p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-sm text-[var(--color-text-secondary)]">{CRONO_MONTHS[selectedMonth-1]} {selectedYear}</p>
+                  {/* Mesmo atalho da página de Cronograma: no dia 1º a aba
+                      abre no mês novo e o mês anterior parado com o cliente
+                      desaparecia da vista de quem está trabalhando. */}
+                  {otherPending && (
+                    <button
+                      onClick={() => { setSelectedMonth(otherPending.month); setSelectedYear(otherPending.year) }}
+                      title={`${otherPending.count} post${otherPending.count !== 1 ? 's' : ''} esperando resposta em ${CRONO_MONTHS[otherPending.month - 1]}`}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold flex-shrink-0 transition-opacity hover:opacity-80"
+                      style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--ds-warn-accent)' }} />
+                      {CRONO_MONTHS[otherPending.month - 1].slice(0, 3)} · {otherPending.count}
+                    </button>
+                  )}
+                </div>
                 <div className="relative flex items-center gap-1">
                   <button onClick={() => setSelectedMonth(m => { const prev = m===1?12:m-1; if (prev===12) setSelectedYear(y=>y-1); return prev })} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
                   <button onClick={() => setShowMonthPicker(p => !p)} className="text-sm font-medium text-[var(--color-text-primary)] px-2 py-1 rounded-lg hover:bg-[var(--color-bg-subtle)] min-w-[120px] text-center">
@@ -353,12 +371,19 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                         <button onClick={() => setSelectedYear(y => y + 1)} className="w-7 h-7 rounded-lg hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] flex items-center justify-center">›</button>
                       </div>
                       <div className="grid grid-cols-3 gap-1">
-                        {CRONO_MONTHS.map((mo, i) => (
-                          <button key={i} onClick={() => { setSelectedMonth(i + 1); setShowMonthPicker(false) }}
-                            className={`text-xs py-1.5 rounded-lg font-medium transition-all ${selectedMonth===i+1 ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]' : 'hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
-                            {mo.slice(0, 3)}
-                          </button>
-                        ))}
+                        {CRONO_MONTHS.map((mo, i) => {
+                          const pend = pendingMonths[periodKey(i + 1, selectedYear)] || 0
+                          return (
+                            <button key={i} onClick={() => { setSelectedMonth(i + 1); setShowMonthPicker(false) }}
+                              title={pend ? `${pend} esperando resposta` : undefined}
+                              className={`relative text-xs py-1.5 rounded-lg font-medium transition-all ${selectedMonth===i+1 ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]' : 'hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
+                              {mo.slice(0, 3)}
+                              {pend > 0 && (
+                                <span className="absolute top-0.5 right-1 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--ds-warn-accent)' }} />
+                              )}
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
                   )}

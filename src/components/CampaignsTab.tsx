@@ -7,6 +7,7 @@ import { useDarkMode } from '@/lib/useDarkMode'
 import PostCard from '@/components/PostCard'
 import ExtraCard from '@/components/ExtraCard'
 import MaterialCard from '@/components/MaterialCard'
+import { campaignDaysUntil, campaignPeriod } from '@/lib/campaignPeriod'
 
 const SEASONAL = [
   { type: 'natal',     name: 'Natal & Réveillon', emoji: '🎄', month: 12, day: 25, leadDays: 60,
@@ -23,16 +24,11 @@ const SEASONAL = [
     theme: { bg: '#EFF6FF', border: '#BFDBFE', accent: '#0369A1', darkBg: '#172554', darkBorder: '#1e3a5f' } },
 ]
 
-function getDaysUntil(month: number, day: number) {
-  const now = new Date()
-  const year = (now.getMonth() + 1 > month || (now.getMonth() + 1 === month && now.getDate() > day))
-    ? now.getFullYear() + 1 : now.getFullYear()
-  const target = new Date(year, month - 1, day)
-  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-}
-
+// `days` negativo = data passou, campanha ainda em encerramento (ver
+// campaignPeriod.ts). Antes isso era impossível e o ramo abaixo dizia
+// "Concluída" — que seria mentira: quem terminou foi a data, não o trabalho.
 function getStatus(days: number, leadDays: number, dark: boolean) {
-  if (days < 0)         return { label: 'Concluída',         color: dark ? '#4ade80' : '#059669', bg: dark ? '#052e16' : '#D1FAE5' }
+  if (days < 0)         return { label: `passou há ${-days}d`, color: dark ? '#f87171' : '#DC2626', bg: dark ? '#450a0a' : '#FEE2E2' }
   if (days <= 14)       return { label: `${days}d · urgente`,color: dark ? '#f87171' : '#DC2626', bg: dark ? '#450a0a' : '#FEE2E2' }
   if (days <= leadDays) return { label: `${days} dias`,      color: dark ? '#fbbf24' : '#D97706', bg: dark ? '#431407' : '#FEF3C7' }
   return                       { label: `${days} dias`,      color: dark ? '#9B9891' : '#6B7280', bg: dark ? 'var(--color-bg-subtle)' : '#F3F4F6' }
@@ -74,11 +70,18 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
   const [creatingExtra, setCreatingExtra]       = useState<string | null>(null)
   const [creatingMaterial, setCreatingMaterial] = useState<string | null>(null)
   const [createPostNumber, setCreatePostNumber] = useState(1)
-  const now = new Date()
+  // Período do cronograma em que o post vai nascer. Vem da CAMPANHA, não do
+  // relógio: post de Natal criado em novembro pertence a dezembro. Com o mês
+  // de hoje, ele caía no cronograma errado e ainda ganhava um post_number
+  // contado sobre outro mês — número repetido lá na frente.
+  const [createPeriod, setCreatePeriod] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() })
 
   async function openCreatePost(campType: string) {
+    const s = SEASONAL.find(x => x.type === campType)
+    const period = s ? campaignPeriod(s.month, s.day) : { month: new Date().getMonth() + 1, year: new Date().getFullYear() }
     const { count } = await supabase.from('schedules').select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId).eq('month', now.getMonth() + 1).eq('year', now.getFullYear())
+      .eq('client_id', clientId).eq('month', period.month).eq('year', period.year)
+    setCreatePeriod(period)
     setCreatePostNumber((count || 0) + 1)
     setCreatingPost(campType)
   }
@@ -200,7 +203,7 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
   if (loading) return <div className="p-4 text-sm text-[var(--color-text-muted)]">Carregando campanhas...</div>
 
   const customCampaigns = campaigns.filter(c => c.type === 'custom')
-  const orderedSeasonal = [...SEASONAL].sort((a, b) => getDaysUntil(a.month, a.day) - getDaysUntil(b.month, b.day))
+  const orderedSeasonal = [...SEASONAL].sort((a, b) => campaignDaysUntil(a.month, a.day) - campaignDaysUntil(b.month, b.day))
 
   return (
     <div className="flex flex-col gap-3">
@@ -229,7 +232,7 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
         const camp = campaigns.find(c => c.type === s.type)
         const isActive = camp?.active === true
         const isExpanded = expanded === (camp?.id || s.type)
-        const days = getDaysUntil(s.month, s.day)
+        const days = campaignDaysUntil(s.month, s.day)
         const status = getStatus(days, s.leadDays, isDark)
         const campPosts = posts.filter(p => p.campaign_type === s.type)
         const availablePosts = posts.filter(p => !p.campaign_type)
@@ -490,8 +493,8 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
         <PostCard
           clientId={clientId}
           clientColor={clientColor}
-          month={now.getMonth() + 1}
-          year={now.getFullYear()}
+          month={createPeriod.month}
+          year={createPeriod.year}
           postNumber={createPostNumber}
           initialCampaignType={creatingPost}
           onClose={() => setCreatingPost(null)}

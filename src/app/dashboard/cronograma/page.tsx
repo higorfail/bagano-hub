@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button'
 import { Check } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 import { readLastPeriod, saveLastPeriod } from '@/lib/lastPeriod'
+import { usePendingMonths, oldestOtherPending, periodKey } from '@/lib/pendingMonths'
 
 type Client = { id: string; name: string; color_hex: string; logo_url?: string | null }
 
@@ -40,6 +41,10 @@ function CronogramaPageInner() {
   })
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [postCount, setPostCount] = useState(0)
+  // Em que meses desse cliente ainda tem post esperando resposta — pra tela
+  // não abrir muda em cima de um mês vazio enquanto o anterior está parado.
+  const pendingMonths = usePendingMonths(selectedClient)
+  const otherPending = oldestOtherPending(pendingMonths, selectedMonth, selectedYear)
 
   useEffect(() => {
     const cl = clients.find(c => c.id === selectedClient)
@@ -133,6 +138,19 @@ function CronogramaPageInner() {
             className="border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)] bg-[var(--color-bg-card)] outline-none">
             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          {/* Atalho pro mês pendente mais antigo. Sem isso, no dia 1º a tela
+              abre no mês novo e o cronograma anterior parado com o cliente
+              simplesmente não existe pra quem está olhando. */}
+          {otherPending && (
+            <button
+              onClick={() => { setSelectedMonth(otherPending.month); setSelectedYear(otherPending.year) }}
+              title={`${otherPending.count} post${otherPending.count !== 1 ? 's' : ''} esperando resposta em ${CRONO_MONTHS[otherPending.month - 1]}`}
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80"
+              style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--ds-warn-accent)' }} />
+              {CRONO_MONTHS[otherPending.month - 1].slice(0, 3)} · {otherPending.count}
+            </button>
+          )}
           {/* Month/year picker */}
           <div className="relative">
             <button onClick={() => setShowMonthPicker(v => !v)}
@@ -150,12 +168,20 @@ function CronogramaPageInner() {
                     <button onClick={() => setSelectedYear(y => y + 1)} className="w-7 h-7 rounded-xl hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-secondary)]">›</button>
                   </div>
                   <div className="grid grid-cols-3 gap-1.5">
-                    {CRONO_MONTHS.map((m, i) => (
-                      <button key={m} onClick={() => { setSelectedMonth(i + 1); setShowMonthPicker(false) }}
-                        className={`py-2 rounded-xl text-xs font-medium transition-colors ${selectedMonth === i + 1 ? 'bg-[var(--color-text-primary)] text-white' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>
-                        {m.slice(0, 3)}
-                      </button>
-                    ))}
+                    {CRONO_MONTHS.map((m, i) => {
+                      const pend = pendingMonths[periodKey(i + 1, selectedYear)] || 0
+                      return (
+                        <button key={m} onClick={() => { setSelectedMonth(i + 1); setShowMonthPicker(false) }}
+                          title={pend ? `${pend} esperando resposta` : undefined}
+                          className={`relative py-2 rounded-xl text-xs font-medium transition-colors ${selectedMonth === i + 1 ? 'bg-[var(--color-text-primary)] text-white' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>
+                          {m.slice(0, 3)}
+                          {/* Ponto = tem post esperando resposta nesse mês. */}
+                          {pend > 0 && (
+                            <span className="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--ds-warn-accent)' }} />
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               </>

@@ -7,6 +7,7 @@ import { useDarkMode } from '@/lib/useDarkMode'
 import PostCard from '@/components/PostCard'
 import ExtraCard from '@/components/ExtraCard'
 import MaterialCard from '@/components/MaterialCard'
+import { campaignDaysUntil, campaignPeriod } from '@/lib/campaignPeriod'
 
 const SEASONAL = [
   { type: 'natal',     name: 'Natal & Réveillon', emoji: '🎄', color: '#DC2626', month: 12, day: 25, leadDays: 60,
@@ -23,13 +24,8 @@ const SEASONAL = [
     theme: { bg: '#EFF6FF', border: '#BFDBFE', accent: '#0369A1', darkBg: '#172554', darkBorder: '#1e3a5f' } },
 ]
 
-function getDaysUntil(month: number, day: number) {
-  const now = new Date()
-  const year = now.getMonth() + 1 > month || (now.getMonth() + 1 === month && now.getDate() > day)
-    ? now.getFullYear() + 1 : now.getFullYear()
-  const target = new Date(year, month - 1, day)
-  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-}
+// Ver src/lib/campaignPeriod.ts: a campanha só vira de ano depois da janela de
+// encerramento, então `days` pode vir negativo enquanto ainda há trabalho.
 
 const TYPE_LABEL: Record<string, string> = { reels: 'Reel', carrossel: 'Carrossel', post: 'Post', story: 'Story', carrossel_stories: 'C+S' }
 const TYPE_BG_L: Record<string, string>  = { reels: '#FEE2E2', carrossel: '#DBEAFE', post: '#FEF3C7', story: '#EDE9FE', carrossel_stories: '#E0E7FF' }
@@ -71,6 +67,7 @@ export default function CampanhasPage() {
   const [creatingExtra, setCreatingExtra] = useState<{ clientId: string; campType: string } | null>(null)
   const [creatingMaterial, setCreatingMaterial] = useState<{ clientId: string; campType: string } | null>(null)
   const [createPostNumber, setCreatePostNumber] = useState(1)
+  const [createPeriod, setCreatePeriod] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() })
   const [availablePostsByClient, setAvailablePostsByClient] = useState<Record<string, any[]>>({})
   const [availableKanbanExtrasByClient, setAvailableKanbanExtrasByClient] = useState<Record<string, any[]>>({})
   const [availableMaterialsByClient, setAvailableMaterialsByClient] = useState<Record<string, any[]>>({})
@@ -130,10 +127,16 @@ export default function CampanhasPage() {
     await load()
   }
 
+  // O post nasce no mês da CAMPANHA, não no mês do relógio — e o post_number é
+  // contado sobre esse mesmo mês. Criar um post de Natal em novembro jogava
+  // ele no cronograma de novembro com um número tirado da contagem de
+  // novembro, que depois repetia em dezembro.
   async function openCreatePost(clientId: string, campType: string) {
-    const now = new Date()
+    const s = SEASONAL.find(x => x.type === campType)
+    const period = s ? campaignPeriod(s.month, s.day) : { month: new Date().getMonth() + 1, year: new Date().getFullYear() }
     const { count } = await supabase.from('schedules').select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId).eq('month', now.getMonth() + 1).eq('year', now.getFullYear())
+      .eq('client_id', clientId).eq('month', period.month).eq('year', period.year)
+    setCreatePeriod(period)
     setCreatePostNumber((count || 0) + 1)
     setCreatingPost({ clientId, campType })
   }
@@ -177,9 +180,9 @@ export default function CampanhasPage() {
     setCampaigns(c => c.map(x => x.id === campId ? { ...x, briefing } : x))
   }
 
-  const orderedSeasonal = [...SEASONAL].sort((a, b) => getDaysUntil(a.month, a.day) - getDaysUntil(b.month, b.day))
+  const orderedSeasonal = [...SEASONAL].sort((a, b) => campaignDaysUntil(a.month, a.day) - campaignDaysUntil(b.month, b.day))
   const seasonal = SEASONAL.find(s => s.type === selected)!
-  const days = getDaysUntil(seasonal.month, seasonal.day)
+  const days = campaignDaysUntil(seasonal.month, seasonal.day)
 
   // Clientes com esta campanha ativa
   const activeCamps = campaigns.filter(c => c.type === selected)
@@ -215,8 +218,10 @@ export default function CampanhasPage() {
           quebra saía irregular, 2 numa linha, 1 na outra. */}
       <div className="grid grid-cols-2 gap-2 items-stretch md:flex md:flex-wrap">
         {orderedSeasonal.map(s => {
-          const d = getDaysUntil(s.month, s.day)
-          const isUrgent = d >= 0 && d <= s.leadDays
+          const d = campaignDaysUntil(s.month, s.day)
+          // Dia negativo é a janela de encerramento: a data passou e ainda há
+          // o que fechar. É o momento mais urgente da campanha, não o menos.
+          const isUrgent = d <= s.leadDays
           const campsOfType = campaigns.filter(c => c.type === s.type)
           const activeCnt = campsOfType.length
           const campIds = campsOfType.map(c => c.id)
@@ -279,7 +284,7 @@ export default function CampanhasPage() {
         </div>
         <div className="flex items-center justify-between gap-3 pl-[2.4rem] md:pl-0 md:flex-shrink-0">
           <span className="text-sm" style={{ color: seasonal.theme.accent, opacity: 0.7 }}>
-            {days < 0 ? 'já passou' : days === 0 ? 'hoje!' : `faltam ${days} dias · ${seasonal.day}/${seasonal.month}`}
+            {days < 0 ? `passou há ${-days} ${-days === 1 ? 'dia' : 'dias'} · ${seasonal.day}/${seasonal.month}` : days === 0 ? 'hoje!' : `faltam ${days} dias · ${seasonal.day}/${seasonal.month}`}
           </span>
           <p className="text-sm font-semibold flex-shrink-0" style={{ color: seasonal.theme.accent }}>
             {activeClients.length} cliente{activeClients.length !== 1 ? 's' : ''} ativo{activeClients.length !== 1 ? 's' : ''}
@@ -491,8 +496,8 @@ export default function CampanhasPage() {
       {creatingPost && (
         <PostCard
           clientId={creatingPost.clientId}
-          month={new Date().getMonth() + 1}
-          year={new Date().getFullYear()}
+          month={createPeriod.month}
+          year={createPeriod.year}
           postNumber={createPostNumber}
           initialCampaignType={creatingPost.campType}
           onClose={() => setCreatingPost(null)}
