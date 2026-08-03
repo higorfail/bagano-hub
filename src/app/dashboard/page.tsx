@@ -775,6 +775,17 @@ export default function DashboardPage() {
     id: string; kind: 'post' | 'extra' | 'material' | 'task'; title: string
     clientId: string; dueDate: string | null; ajuste: boolean; waitingClient: boolean; href: string
     postType?: string | null; campaignType?: string | null; labels?: CardLabel[] | null
+    /**
+     * Você já entregou: o card está em revisão interna e a bola é de quem
+     * revisa. Sai da cobrança, mas NÃO some — vira uma linha discreta, igual
+     * "esperando o cliente".
+     *
+     * Sumir de vez seria pior: só 9 dos 19 clientes têm alguém com
+     * funcao='estrategia' no time. Nos outros 10 o card não cairia na lista de
+     * ninguém — sumiria da sua e não apareceria na de outro. Deixando visível
+     * pra quem produziu, revisão parada continua tendo um par de olhos.
+     */
+    delivered: boolean
   }
   // Etiqueta às vezes vem como texto JSON do banco, não como lista — normaliza
   // pra nunca quebrar a exibição nem o resumo da IA.
@@ -807,6 +818,12 @@ export default function DashboardPage() {
       id: `post-${s.id}`, kind: 'post', title: s.title, clientId: s.client_id,
       dueDate: s.scheduled_date, ajuste: s.status === CFG.S.ajuste,
       waitingClient: s.status === CFG.S.aguardandoAprovacao && !stillOwesWork(openLabels(asLabels((s as any).labels), s.legenda)),
+      // Entregue = está em revisão interna, a etiqueta não cobra mais nada, e
+      // quem revisa não é você. Sendo você a estrategista do cliente, a
+      // revisão É o seu trabalho e o card continua na lista.
+      delivered: s.status === CFG.S.revisaoInterna
+        && !myStrategistClients.has(s.client_id)
+        && !stillOwesWork(openLabels(asLabels((s as any).labels), s.legenda)),
       // post/m/y — sem isso o clique só caía na aba de cronograma do cliente,
       // sem abrir o post específico (o CronogramaTab já sabe abrir direto
       // quando recebe esses 3 parâmetros, só não estavam sendo passados).
@@ -817,6 +834,7 @@ export default function DashboardPage() {
     ...myExtras.map((e): ParaVoceItem => ({
       id: `extra-${e.id}`, kind: 'extra', title: e.title, clientId: e.client_id,
       dueDate: e.due_date, ajuste: e.client_approval_status === 'recusado',
+      delivered: false,
       waitingClient: e.client_approval_status === 'aguardando' && !stillOwesWork(asLabels(e.labels)),
       href: e.client_id ? `/dashboard/clientes/${e.client_id}?tab=extras` : '/dashboard/kanban',
       postType: e.type, campaignType: e.campaign_type || null,
@@ -825,19 +843,25 @@ export default function DashboardPage() {
     ...myMaterials.map((m): ParaVoceItem => ({
       id: `material-${m.id}`, kind: 'material', title: m.title, clientId: m.client_id,
       dueDate: m.due_date, ajuste: m.status === 'ajuste',
+      delivered: false,
       waitingClient: m.status === 'aguardando_aprovacao' && !stillOwesWork(asLabels(m.labels)),
       href: m.client_id ? `/dashboard/clientes/${m.client_id}?tab=materiais` : '/dashboard/materiais',
       labels: asLabels(m.labels),
     })),
     ...myTasks.map((t): ParaVoceItem => ({
       id: `task-${t.id}`, kind: 'task', title: t.title, clientId: t.client_id,
-      dueDate: t.due_date, ajuste: false, waitingClient: false,
+      dueDate: t.due_date, ajuste: false, waitingClient: false, delivered: false,
       href: `/dashboard/tarefas?task=${t.id}`,
       labels: asLabels(t.labels),
     })),
   ]
-  const needsYou = paraVoceItems.filter(i => !i.waitingClient)
+  // Três destinos, não dois: o que precisa de você, o que está com o cliente,
+  // e o que você já entregou pra revisão. Antes o terceiro caía no primeiro —
+  // um terço da lista de quem produz era trabalho que já tinha saído da mão
+  // dele, e uma lista que cobra o que já foi feito ensina a ser ignorada.
+  const needsYou = paraVoceItems.filter(i => !i.waitingClient && !i.delivered)
   const waitingOnClient = paraVoceItems.filter(i => i.waitingClient)
+  const delivered = paraVoceItems.filter(i => i.delivered)
 
   function itemSort(a: ParaVoceItem, b: ParaVoceItem) {
     if (a.ajuste !== b.ajuste) return a.ajuste ? -1 : 1
@@ -851,6 +875,7 @@ export default function DashboardPage() {
   }
   needsYou.sort(itemSort)
   waitingOnClient.sort(itemSort)
+  delivered.sort(itemSort)
 
   // Destino do clique em "N itens esperando o cliente": foca o cliente certo
   // (e se for 1 item só, já abre o preview dele) em vez de sempre cair na
@@ -869,6 +894,24 @@ export default function DashboardPage() {
     if (clientIds.size === 1) return `/dashboard/aprovacao?client=${[...clientIds][0]}`
     return '/dashboard/aprovacao'
   }
+
+  // Um item só abre o card; vários do mesmo cliente abrem o cronograma dele;
+  // misturados caem no Kanban, que é onde a coluna "Revisão interna" existe.
+  function deliveredHref(): string {
+    if (delivered.length === 1) return delivered[0].href
+    const clientIds = new Set(delivered.map(i => i.clientId))
+    if (clientIds.size === 1) return `/dashboard/clientes/${[...clientIds][0]}?tab=cronograma`
+    return '/dashboard/kanban'
+  }
+
+  // Há quanto tempo o item mais antigo está parado na revisão. É o que
+  // transforma a linha de "já entreguei" em "a revisão travou" — sem isso, o
+  // card sai da cobrança e ninguém nunca mais olha pra ele.
+  const deliveredStuckDays = delivered.reduce((max, i) => {
+    const at = agingMap[i.id]
+    if (!at) return max
+    return Math.max(max, Math.floor((Date.now() - new Date(at).getTime()) / 86400000))
+  }, 0)
 
   // Ajuste pedido pelo cliente é sempre o grupo de maior prioridade, com ou sem prazo —
   // o resto vira uma lista só ("Pendências"), já ordenada por urgência (itemSort).
@@ -1172,6 +1215,11 @@ export default function DashboardPage() {
                 )}
                 {needsYouRest.length > 0 && (
                   <ParaVoceGroup label="Pendências" items={needsYouRest} clientMap={clientMap} router={router} todayStr={todayStr} cap={5} agingMap={agingMap} campaignNameMap={campaignNameMap} />
+                )}
+                {delivered.length > 0 && (
+                  <ParaVoceSummaryRow icon="✅"
+                    label={`${delivered.length} ${pl(delivered.length, 'entregue', 'entregues')}, aguardando revisão${deliveredStuckDays >= 3 ? ` · mais antigo há ${deliveredStuckDays} d` : ''}`}
+                    onClick={() => router.push(deliveredHref())} muted />
                 )}
                 {waitingOnClient.length > 0 && (
                   <ParaVoceSummaryRow icon="⏳" label={`${waitingOnClient.length} ${pl(waitingOnClient.length, 'item esperando', 'itens esperando')} o cliente`} onClick={() => router.push(waitingOnClientHref())} muted />
