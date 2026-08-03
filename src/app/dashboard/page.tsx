@@ -968,17 +968,32 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!currentMember || loading) return
     const period = getDayPeriod()
-    const cacheKey = `bagano_greeting_v1_${currentMember.id}_${todayStr}_${period}`
-    try {
-      const cached = localStorage.getItem(cacheKey)
-      if (cached) { setGreetingLine(cached); return }
-    } catch {}
 
     const overdueCount = needsYou.filter(i => i.dueDate && i.dueDate < todayStr).length
     const dueTodayCount = needsYou.filter(i => i.dueDate === todayStr).length
+    const clientsWithWork = [...new Set(needsYou.map(i => clientMap[i.clientId]?.name).filter(Boolean))]
     const nextDate = specialDates[0]
       ? `${specialDates[0].name} em ${daysBetween(now, new Date(specialDates[0].date + 'T12:00:00'))} dias`
       : null
+
+    // A chave carrega os NÚMEROS que a frase cita. Sem isso ela ficava presa
+    // por período inteiro (até 6 h, e 6 h+ à noite): a saudação dizia "19
+    // pendências" enquanto o painel logo abaixo mostrava 11, porque o efeito
+    // até rodava de novo quando a lista mudava, mas o cache respondia antes.
+    // Mesma proteção que o resumo diário já tinha e esta não.
+    const countsKey = [
+      needsYou.length, overdueCount, dueTodayCount,
+      waitingOnClient.length, needsYouAjusteItems.length,
+      clientsWithWork.join('|'),
+    ].join(':')
+    const cacheKey = `bagano_greeting_v2_${currentMember.id}_${todayStr}_${period}`
+    try {
+      const cached = localStorage.getItem(cacheKey)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed.countsKey === countsKey) { setGreetingLine(parsed.text); return }
+      }
+    } catch {}
 
     fetch('/api/ai-greeting', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -993,7 +1008,7 @@ export default function DashboardPage() {
         dueToday: dueTodayCount,
         waitingClient: waitingOnClient.length,
         ajustes: needsYouAjusteItems.length,
-        clientsWithWork: [...new Set(needsYou.map(i => clientMap[i.clientId]?.name).filter(Boolean))],
+        clientsWithWork,
         nextSpecialDate: nextDate,
         publishedThisMonth: published,
         totalThisMonth: total,
@@ -1003,7 +1018,7 @@ export default function DashboardPage() {
       .then(data => {
         if (!data.greeting) return
         setGreetingLine(data.greeting)
-        try { localStorage.setItem(cacheKey, data.greeting) } catch {}
+        try { localStorage.setItem(cacheKey, JSON.stringify({ countsKey, text: data.greeting })) } catch {}
       })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
