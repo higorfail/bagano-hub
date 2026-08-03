@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
 import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
@@ -263,7 +264,12 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
       drive_url: driveUrl,
       campaign_type: campaignType || null,
     }
-    const { data } = await supabase.from('materials').insert(payload).select().single()
+    // Sem checar `error`, o insert falhava calado: o card seguia sem id, cada
+    // campo tentava criar o material de novo, e nada nunca era gravado. Foi
+    // assim que uma coluna faltando no banco virou "abre o card e não salva
+    // nada", sem uma linha de aviso em lugar nenhum.
+    const { data, error } = await supabase.from('materials').insert(payload).select().single()
+    if (dbError(error, toast, 'criar material')) return undefined
     if (data) {
       setId(data.id)
       originalStatusRef.current = status
@@ -331,7 +337,10 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
       campaign_type: campaignType || null,
     }
     if (!id) {
-      const { data } = await supabase.from('materials').insert(payload).select().single()
+      const { data, error } = await supabase.from('materials').insert(payload).select().single()
+      // Avisar e parar. Antes seguia até o "Material salvo!" lá embaixo mesmo
+      // com o insert recusado — a mensagem mais enganosa possível.
+      if (dbError(error, toast, 'salvar material')) { setSaving(false); return }
       if (data) {
         setId(data.id)
         originalStatusRef.current = status

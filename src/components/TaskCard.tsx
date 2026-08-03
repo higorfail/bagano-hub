@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
@@ -189,7 +190,10 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
       due_date: dueDate || null,
       labels,
     }
-    const { data } = await supabase.from('personal_tasks').insert(payload).select().single()
+    // Mesmo motivo do MaterialCard: insert recusado em silêncio deixa o card
+    // sem id e nada é gravado, sem nenhum aviso na tela.
+    const { data, error } = await supabase.from('personal_tasks').insert(payload).select().single()
+    if (dbError(error, toast, 'criar tarefa')) return undefined
     if (data) {
       setId(data.id)
       await ensureWatching('personal_tasks', data.id, [currentMember?.id, assignedTo])
