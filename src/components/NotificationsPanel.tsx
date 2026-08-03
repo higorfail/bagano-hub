@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, BellRing, Check, X, AtSign, Loader2 } from 'lucide-react'
 import {
-  fetchNotifications, groupByCard, markRead, markAllRead,
+  fetchNotifications, groupNotifications, markRead, markAllRead,
   bucketOf, bucketLabel, KIND_GROUPS, TYPE_BADGE, splitComment,
+  approvalWaveLabel, REJECT_KINDS,
   type NotificationRow, type NotificationGroup, type NotifBucket,
 } from '@/lib/notifications'
 import { fetchAgencyAlerts, type AgencyAlert } from '@/lib/agencyAlerts'
@@ -63,7 +64,7 @@ export default function NotificationsPanel({
     const matcher = KIND_GROUPS.find(k => k.key === kind) || KIND_GROUPS[0]
     let filtered = rows.filter(r => matcher.match(r.kind))
     if (onlyUnread) filtered = filtered.filter(r => !r.read_at)
-    return groupByCard(filtered)
+    return groupNotifications(filtered)
   }, [rows, kind, onlyUnread])
 
   // Cabeçalhos de tempo (Hoje / Ontem / Esta semana) sobre os grupos já
@@ -104,6 +105,15 @@ export default function NotificationsPanel({
     if (g.deleted) return
     closePanel()
     if (g.url) router.push(g.url)
+  }
+
+  // Um post dentro da caixa de aprovação em lote. Sem isso a caixa responderia
+  // "quais posts o cliente aprovou" mas não deixaria ir em nenhum deles.
+  function openItem(item: NotificationRow) {
+    if (!item.read_at) applyRead([item.id])
+    if (item.card_deleted) return
+    closePanel()
+    if (item.url) router.push(item.url)
   }
 
   return (
@@ -271,6 +281,15 @@ export default function NotificationsPanel({
                             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--ds-info-accent)' }} />
                           )}
                         </div>
+                        {/* Numa rodada de aprovação não existe "o card" — o
+                            assunto é a decisão do cliente, e o que vai embaixo
+                            é a lista dos posts. */}
+                        {g.approvalWave ? (
+                          <p className="text-[12px] mt-1 text-[var(--color-text-primary)] font-medium">
+                            {approvalWaveLabel(g.approvalWave)}
+                            <span className="font-normal text-[var(--color-text-faint)]" title={new Date(g.latestAt).toLocaleString('pt-BR')}> · {relTime(g.latestAt)}</span>
+                          </p>
+                        ) : (
                         <div className="flex items-center gap-1.5 mt-1 min-w-0">
                           {g.cardNumber != null && (
                             <span className="text-[11px] font-bold text-[var(--color-text-faint)] flex-shrink-0">#{g.cardNumber}</span>
@@ -291,12 +310,41 @@ export default function NotificationsPanel({
                             </span>
                           )}
                         </div>
+                        )}
                       </div>
 
                       {/* Eventos do card. Comentário vira balão com o texto de
                           verdade; o resto fica como linha de log. */}
                       <div className="mt-1.5 flex flex-col gap-1">
-                        {shown.map(item => {
+                        {g.approvalWave ? shown.map(item => {
+                          const b = item.card_type ? TYPE_BADGE[item.card_type] : null
+                          const rejeitado = REJECT_KINDS.includes(item.kind)
+                          return (
+                            <button key={item.id}
+                              onClick={e => { e.stopPropagation(); openItem(item) }}
+                              className="flex items-center gap-1.5 text-left -mx-1 px-1 py-0.5 rounded-md hover:bg-[var(--color-bg-subtle)] transition-colors min-w-0">
+                              {item.card_number != null && (
+                                <span className="text-[10px] font-bold text-[var(--color-text-faint)] flex-shrink-0">#{item.card_number}</span>
+                              )}
+                              {b && (
+                                <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-px rounded flex-shrink-0"
+                                  style={{ background: b.color + '22', color: b.color }}>
+                                  {b.label}
+                                </span>
+                              )}
+                              <span className="text-[11px] text-[var(--color-text-primary)] truncate">{item.title || 'Card'}</span>
+                              {/* Só o que destoa ganha selo. Se todos foram
+                                  aprovados, repetir "aprovado" em cada linha
+                                  seria o mesmo ruído que a gente veio tirar. */}
+                              {rejeitado && (
+                                <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-px rounded flex-shrink-0"
+                                  style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+                                  ajuste
+                                </span>
+                              )}
+                            </button>
+                          )
+                        }) : shown.map(item => {
                           const comment = splitComment(item.body)
                           return comment ? (
                             <div key={item.id} className="flex flex-col gap-0.5">
@@ -328,7 +376,7 @@ export default function NotificationsPanel({
                               })
                             }}
                             className="self-start text-[10px] font-semibold text-[var(--color-accent)] hover:underline mt-0.5">
-                            {open ? 'Ocultar' : `Ver mais ${g.items.length - 4} neste card`}
+                            {open ? 'Ocultar' : `Ver mais ${g.items.length - 4}${g.approvalWave ? '' : ' neste card'}`}
                           </button>
                         )}
                       </div>

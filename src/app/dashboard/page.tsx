@@ -501,6 +501,48 @@ export default function DashboardPage() {
   [openSchedules])
 
 
+  // Situação de cada cliente — pelo CICLO ATIVO dele, não pelo mês do relógio.
+  //
+  // Preso ao mês corrente, este bloco mentia duas vezes no dia 3 de agosto:
+  // treze clientes com 109 posts de julho em aberto apareciam como "0 posts ·
+  // sem posts", e os dois clientes de agosto — todos os 12 posts em produção,
+  // ou seja, no ritmo certo — apareciam como "0/12 publicados" com a barra
+  // vazia, que lê como fracasso.
+  //
+  // A Bagano entrega adiantado e cada cliente anda no ritmo dele. Então o card
+  // mostra o mês mais antigo que ainda tem trabalho aberto, com o selo do mês:
+  // é o que precisa de cobrança. Sem nada aberto, mostra o último fechado.
+  //
+  // "Pronto" aqui é APROVADO, não publicado. `publicado` é uma caixinha que
+  // alguém precisaria voltar pra marcar depois de postar no Instagram, e em
+  // julho só 33 de 142 posts chegaram lá — a barra media o esquecimento do
+  // time, não o trabalho. Aprovado é o marco real da agência; publicado
+  // continua existindo, como o último pedaço da barra.
+  const DONE_STAGES = [CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado]
+  const clientCycles = useMemo(() => {
+    const byClient = new Map<string, Map<string, Schedule[]>>()
+    for (const s of allSchedules) {
+      let per = byClient.get(s.client_id)
+      if (!per) { per = new Map(); byClient.set(s.client_id, per) }
+      const k = `${s.year}-${String(s.month).padStart(2, '0')}`
+      const arr = per.get(k)
+      if (arr) arr.push(s); else per.set(k, [s])
+    }
+    const rows = clients.map(c => {
+      const per = byClient.get(c.id)
+      const keys = per ? [...per.keys()].sort() : []
+      if (!keys.length) return { client: c, state: 'nunca' as const, key: '', posts: [] as Schedule[] }
+      const openKey = keys.find(k => per!.get(k)!.some(s => !DONE_STAGES.includes(s.status)))
+      const key = openKey || keys[keys.length - 1]
+      return { client: c, state: (openKey ? 'ativo' : 'entregue') as 'ativo' | 'entregue', key, posts: per!.get(key)! }
+    })
+    // Quem tem trabalho em aberto primeiro; quem está em dia depois; quem nem
+    // cronograma tem, no fim. O bloco é sobre situação, então a ordem é a
+    // própria informação.
+    const rank = { ativo: 0, entregue: 1, nunca: 2 }
+    return rows.sort((a, b) => rank[a.state] - rank[b.state] || a.client.name.localeCompare(b.client.name))
+  }, [allSchedules, clients])
+
   // Pendências de aprovação por cliente E MÊS.
   //
   // O agrupamento é por mês de propósito: "o Satō tem 6 esperando" esconde que
@@ -1104,10 +1146,11 @@ export default function DashboardPage() {
               </SectionCard>
             )}
 
-            {/* Clientes do mês */}
+            {/* Situação dos clientes — o título mudou junto com a lógica: "do
+                mês" era a origem conceitual do problema. */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-[var(--color-text-primary)] tracking-tight">Clientes do mês</h2>
+                <h2 className="text-lg font-bold text-[var(--color-text-primary)] tracking-tight">Situação dos clientes</h2>
                 <button onClick={() => router.push('/dashboard/clientes')} className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-accent)] hover:underline">
                   Ver todos <ArrowRight size={13} />
                 </button>
@@ -1116,36 +1159,67 @@ export default function DashboardPage() {
                   virava uma rolagem interminável. O card encolhe junto (avatar,
                   fontes e espaçamentos) pra caber nos ~170px de cada coluna. */}
               <div className="grid grid-cols-2 xl:grid-cols-3 gap-2.5 md:gap-4">
-                {clients.map(client => {
-                  const cp        = schedules.filter(s => s.client_id === client.id)
-                  const cpTotal   = cp.length
-                  const cpPub     = cp.filter(s => s.status === CFG.S.publicado).length
-                  const cpRej     = cp.filter(s => s.approval_status === CFG.A.naoAprovado).length
-                  const cpDelayed = cp.filter(s => s.scheduled_date && s.scheduled_date < todayStr && ![CFG.S.publicado, CFG.S.agendado].includes(s.status)).length
-                  const progress  = cpTotal > 0 ? (cpPub / cpTotal) * 100 : 0
-                  const allDone   = cpTotal > 0 && cpPub === cpTotal
-                  const hasIssue  = cpRej > 0 || cpDelayed > 0
+                {clientCycles.map(({ client, state, key, posts }) => {
+                  const [cy, cm] = key ? key.split('-').map(Number) : [0, 0]
+                  const mesLabel = key ? `${MONTHS[cm - 1].slice(0, 3)}${cy !== year ? `/${String(cy).slice(2)}` : ''}` : null
+                  const total      = posts.length
+                  const entregue   = posts.filter(s => DONE_STAGES.includes(s.status)).length
+                  const comCliente = posts.filter(s => s.status === CFG.S.aguardandoAprovacao).length
+                  const ajuste     = posts.filter(s => s.status === CFG.S.ajuste).length
+                  const producao   = total - entregue - comCliente - ajuste
+                  const atrasados  = posts.filter(s => s.scheduled_date && s.scheduled_date < todayStr && !DONE_STAGES.includes(s.status)).length
+                  // Mesma paleta e mesma ordem da barra de "Aguardando
+                  // aprovação": duas leituras do mesmo dado no mesmo painel
+                  // precisam parecer a mesma coisa.
+                  const segs = [
+                    { n: entregue,   color: 'var(--ds-success-accent)' },
+                    { n: comCliente, color: 'var(--ds-info-accent)'    },
+                    { n: producao,   color: 'var(--ds-warn-accent)'    },
+                    { n: ajuste,     color: 'var(--color-accent)'      },
+                  ].filter(s => s.n > 0)
+                  // Três situações, três leituras. Antes eram todas "0 posts",
+                  // e cliente novo sem cronograma parecia igual a cliente com
+                  // o mês inteiro parado.
+                  const sub = state === 'nunca' ? 'sem cronograma'
+                    : state === 'entregue' ? `${MONTHS[cm - 1]} entregue`
+                    : `${total} ${pl(total, 'post', 'posts')} · ${entregue} ${pl(entregue, 'entregue', 'entregues')}`
                   return (
-                    <Card key={client.id} hover padded className="cursor-pointer" onClick={() => router.push(`/dashboard/clientes/${client.id}`)}>
+                    <Card key={client.id} hover padded
+                      className={`cursor-pointer${state === 'nunca' ? ' opacity-60' : ''}`}
+                      onClick={() => router.push(key
+                        ? `/dashboard/clientes/${client.id}?tab=cronograma&m=${cm}&y=${cy}`
+                        : `/dashboard/clientes/${client.id}`)}>
                       <div className="flex items-center gap-2 md:gap-3 mb-2.5 md:mb-3">
                         {client.logo_url
                           ? <img src={client.logo_url} alt={client.name} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
                           : <div className="w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white text-[11px] md:text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
                         }
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-[var(--color-text-primary)] truncate text-xs md:text-sm">{client.name}</p>
-                          <p className="text-[10px] md:text-xs text-[var(--color-text-muted)] truncate">{cpTotal} {pl(cpTotal, 'post', 'posts')} · {allDone ? 'concluído' : cpTotal === 0 ? 'sem posts' : 'em andamento'}</p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p className="font-semibold text-[var(--color-text-primary)] truncate text-xs md:text-sm">{client.name}</p>
+                            {/* Selo do mês: sem ele, cards de julho e de agosto
+                                lado a lado seriam indistinguíveis. */}
+                            {mesLabel && state === 'ativo' && (
+                              <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-px rounded flex-shrink-0"
+                                style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
+                                {mesLabel}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] md:text-xs text-[var(--color-text-muted)] truncate">{sub}</p>
                         </div>
                       </div>
-                      <div className="h-1.5 bg-[var(--color-bg-subtle)] rounded-full mb-2.5 overflow-hidden">
-                        <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: client.color_hex }} />
+                      <div className="flex h-1.5 bg-[var(--color-bg-subtle)] rounded-full mb-2.5 overflow-hidden">
+                        {segs.map((s, i) => <div key={i} className="h-full transition-all" style={{ width: `${(s.n / total) * 100}%`, background: s.color }} />)}
                       </div>
                       <div className="flex items-center justify-between gap-1 flex-wrap">
-                        <span className="text-[10px] md:text-xs text-[var(--color-text-muted)]">{cpPub}/{cpTotal} publicados</span>
+                        <span className="text-[10px] md:text-xs text-[var(--color-text-muted)]">
+                          {state === 'nunca' ? 'nenhum post' : `${entregue}/${total} entregues`}
+                        </span>
                         <div className="flex items-center gap-1 flex-wrap">
-                          {cpDelayed > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>{cpDelayed} atrasado{cpDelayed !== 1 ? 's' : ''}</span>}
-                          {cpRej > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>{cpRej} ajuste{cpRej !== 1 ? 's' : ''}</span>}
-                          {!hasIssue && allDone && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ ok</span>}
+                          {atrasados > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>{atrasados} atrasado{atrasados !== 1 ? 's' : ''}</span>}
+                          {ajuste > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>{ajuste} ajuste{ajuste !== 1 ? 's' : ''}</span>}
+                          {state === 'entregue' && atrasados === 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ em dia</span>}
                         </div>
                       </div>
                     </Card>
