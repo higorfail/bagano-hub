@@ -531,10 +531,30 @@ export default function DashboardPage() {
     const rows = clients.map(c => {
       const per = byClient.get(c.id)
       const keys = per ? [...per.keys()].sort() : []
-      if (!keys.length) return { client: c, state: 'nunca' as const, key: '', posts: [] as Schedule[] }
+      // Fôlego: até quando ainda tem post marcado pra ir ao ar.
+      //
+      // Responde "quando o conteúdo desse cliente acaba", que é outra
+      // pergunta que "quanto já foi aprovado" — e é a que decide quando
+      // montar o próximo cronograma e quando marcar captação.
+      //
+      // Conta TODOS os posts do cliente, não só o ciclo ativo: o cronograma de
+      // julho do Terras Altas tem post indo ao ar dia 1º de setembro. Mês é o
+      // ciclo de PRODUÇÃO; scheduled_date é quando vai PRO AR. São coisas
+      // diferentes, e quem responde sobre falta de conteúdo é a segunda.
+      const todas = per ? [...per.values()].flat() : []
+      const datas = todas.map(s => s.scheduled_date).filter(Boolean).sort() as string[]
+      const restantes = datas.filter(d => d >= todayStr).length
+      const ultima = datas.length ? datas[datas.length - 1] : null
+      // Sem data marcada não é "acabou" — é "ainda não foi programado". Tratar
+      // os dois igual mandaria a equipe correr atrás do cronograma errado.
+      const runway: 'sem-data' | 'fim' | 'ok' = !datas.length ? 'sem-data' : restantes === 0 ? 'fim' : 'ok'
+      const diasAte = ultima ? Math.round((new Date(ultima + 'T12:00:00').getTime() - new Date(todayStr + 'T12:00:00').getTime()) / 86400000) : 0
+      const runwayCurto = runway === 'ok' && (restantes <= 2 || diasAte <= 7)
+      const base = { client: c, restantes, ultima, runway, runwayCurto }
+      if (!keys.length) return { ...base, state: 'nunca' as const, key: '', posts: [] as Schedule[] }
       const openKey = keys.find(k => per!.get(k)!.some(s => !DONE_STAGES.includes(s.status)))
       const key = openKey || keys[keys.length - 1]
-      return { client: c, state: (openKey ? 'ativo' : 'entregue') as 'ativo' | 'entregue', key, posts: per!.get(key)! }
+      return { ...base, state: (openKey ? 'ativo' : 'entregue') as 'ativo' | 'entregue', key, posts: per!.get(key)! }
     })
     // Quem tem trabalho em aberto primeiro; quem está em dia depois; quem nem
     // cronograma tem, no fim. O bloco é sobre situação, então a ordem é a
@@ -633,11 +653,24 @@ export default function DashboardPage() {
       const hasRecent = clientsWithRecent.has(cl.id)
       if (!hasFuture) semAgendada.push(cl)
       if (!hasFuture && !hasRecent) vencida.push(cl)
-      const clientPosts = schedules.filter(s => s.client_id === cl.id && !['publicado', 'agendado'].includes(s.status))
-      if (clientPosts.length < 3 && schedules.some(s => s.client_id === cl.id)) postsAcabando.push(cl)
     })
+
+    // "Conteúdo acabando" = pouco post AINDA POR IR AO AR.
+    //
+    // A conta antiga era o contrário disso: contava os posts do mês corrente
+    // que ainda NÃO estavam prontos. Um cliente com o mês inteiro aprovado
+    // dava 0 e era acusado de estar acabando, enquanto um com 12 posts
+    // travados em produção passava batido. E, presa ao mês corrente, no dia 3
+    // de agosto ela acusaria todo mundo de uma vez.
+    //
+    // Cliente sem data marcada fica de fora: não é falta de conteúdo, é falta
+    // de programação — outro problema, outra conversa.
+    for (const c of clientCycles) {
+      if (c.state === 'nunca' || c.runway === 'sem-data') continue
+      if (c.runway === 'fim' || c.restantes < 3) postsAcabando.push(c.client)
+    }
     return { semAgendada, vencida, postsAcabando }
-  }, [clients, captacoes, schedules, todayStr])
+  }, [clients, captacoes, clientCycles, todayStr])
 
   const semAgendadaOnly = captacaoAlerts.semAgendada.filter(cl => !captacaoAlerts.vencida.some(v => v.id === cl.id))
 
@@ -648,7 +681,7 @@ export default function DashboardPage() {
     captacaoAlerts.vencida.length > 0 && { n: captacaoAlerts.vencida.length, label: 'clientes sem captação', sub: 'Resolver essa semana', icon: Camera, tone: 'red' as BadgeTone, href: '/dashboard/agenda', cta: 'Ver clientes' },
     rejected.length > 0 && { n: rejected.length, label: `${pl(rejected.length,'alteração solicitada','alterações solicitadas')}`, sub: 'Cliente pediu revisão', icon: AlertTriangle, tone: 'orange' as BadgeTone, href: '/dashboard/aprovacao', cta: 'Ver aprovações' },
     semAgendadaOnly.length > 0 && { n: semAgendadaOnly.length, label: 'sem captação futura', sub: 'Nenhuma captação agendada', icon: Camera, tone: 'purple' as BadgeTone, href: '/dashboard/agenda', cta: 'Ver agenda' },
-    captacaoAlerts.postsAcabando.length > 0 && { n: captacaoAlerts.postsAcabando.length, label: 'com poucos posts', sub: 'Menos de 3 em produção', icon: Zap, tone: 'amber' as BadgeTone, href: '/dashboard/cronograma', cta: 'Ver cronograma' },
+    captacaoAlerts.postsAcabando.length > 0 && { n: captacaoAlerts.postsAcabando.length, label: 'com conteúdo acabando', sub: 'Menos de 3 posts pra ir ao ar', icon: Zap, tone: 'amber' as BadgeTone, href: '/dashboard/cronograma', cta: 'Ver cronograma' },
   ].filter(Boolean) as Alert[]
 
   // ── Visão geral do mês ──────────────────────────────────────────────────
@@ -1159,10 +1192,11 @@ export default function DashboardPage() {
                   virava uma rolagem interminável. O card encolhe junto (avatar,
                   fontes e espaçamentos) pra caber nos ~170px de cada coluna. */}
               <div className="grid grid-cols-2 xl:grid-cols-3 gap-2.5 md:gap-4">
-                {clientCycles.map(({ client, state, key, posts }) => {
+                {clientCycles.map(({ client, state, key, posts, restantes, ultima, runway, runwayCurto }) => {
                   const [cy, cm] = key ? key.split('-').map(Number) : [0, 0]
                   const mesLabel = key ? `${MONTHS[cm - 1].slice(0, 3)}${cy !== year ? `/${String(cy).slice(2)}` : ''}` : null
                   const total      = posts.length
+                  const publicado  = posts.filter(s => s.status === CFG.S.publicado).length
                   const entregue   = posts.filter(s => DONE_STAGES.includes(s.status)).length
                   const comCliente = posts.filter(s => s.status === CFG.S.aguardandoAprovacao).length
                   const ajuste     = posts.filter(s => s.status === CFG.S.ajuste).length
@@ -1170,19 +1204,32 @@ export default function DashboardPage() {
                   const atrasados  = posts.filter(s => s.scheduled_date && s.scheduled_date < todayStr && !DONE_STAGES.includes(s.status)).length
                   // Mesma paleta e mesma ordem da barra de "Aguardando
                   // aprovação": duas leituras do mesmo dado no mesmo painel
-                  // precisam parecer a mesma coisa.
+                  // precisam parecer a mesma coisa. A diferença é que "pronto"
+                  // se parte em dois — o que JÁ FOI AO AR em verde cheio e o
+                  // que está pronto esperando a data em verde apagado —, que é
+                  // como o publicado fica visível sem virar mais uma linha.
                   const segs = [
-                    { n: entregue,   color: 'var(--ds-success-accent)' },
-                    { n: comCliente, color: 'var(--ds-info-accent)'    },
-                    { n: producao,   color: 'var(--ds-warn-accent)'    },
-                    { n: ajuste,     color: 'var(--color-accent)'      },
+                    { n: publicado,            color: 'var(--ds-success-accent)', op: 1,    label: pl(publicado, 'publicado', 'publicados') },
+                    { n: entregue - publicado, color: 'var(--ds-success-accent)', op: 0.45, label: 'pronto, aguardando a data' },
+                    { n: comCliente,           color: 'var(--ds-info-accent)',    op: 1,    label: 'com o cliente' },
+                    { n: producao,             color: 'var(--ds-warn-accent)',    op: 1,    label: 'em produção' },
+                    { n: ajuste,               color: 'var(--color-accent)',      op: 1,    label: pl(ajuste, 'ajuste', 'ajustes') },
                   ].filter(s => s.n > 0)
-                  // Três situações, três leituras. Antes eram todas "0 posts",
-                  // e cliente novo sem cronograma parecia igual a cliente com
-                  // o mês inteiro parado.
+                  const fmtDia = (iso: string) => {
+                    const d = new Date(iso + 'T12:00:00')
+                    return `${String(d.getDate()).padStart(2, '0')}/${MONTHS[d.getMonth()].slice(0, 3).toLowerCase()}`
+                  }
+                  // A linha de baixo do nome responde "quando o conteúdo dele
+                  // acaba" — antes repetia os entregues, que já estão no
+                  // rodapé do card.
                   const sub = state === 'nunca' ? 'sem cronograma'
-                    : state === 'entregue' ? `${MONTHS[cm - 1]} entregue`
-                    : `${total} ${pl(total, 'post', 'posts')} · ${entregue} ${pl(entregue, 'entregue', 'entregues')}`
+                    : runway === 'sem-data' ? 'sem datas marcadas'
+                    : runway === 'fim' ? 'sem post futuro'
+                    : `${restantes} a publicar · até ${fmtDia(ultima!)}`
+                  const subTone = state === 'nunca' ? 'var(--color-text-muted)'
+                    : runway === 'fim' ? 'var(--ds-error-text)'
+                    : runwayCurto ? 'var(--ds-warn-text)'
+                    : 'var(--color-text-muted)'
                   return (
                     <Card key={client.id} hover padded
                       className={`cursor-pointer${state === 'nunca' ? ' opacity-60' : ''}`}
@@ -1199,22 +1246,25 @@ export default function DashboardPage() {
                             <p className="font-semibold text-[var(--color-text-primary)] truncate text-xs md:text-sm">{client.name}</p>
                             {/* Selo do mês: sem ele, cards de julho e de agosto
                                 lado a lado seriam indistinguíveis. */}
-                            {mesLabel && state === 'ativo' && (
+                            {mesLabel && (
                               <span className="text-[9px] font-bold uppercase tracking-wide px-1 py-px rounded flex-shrink-0"
                                 style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
                                 {mesLabel}
                               </span>
                             )}
                           </div>
-                          <p className="text-[10px] md:text-xs text-[var(--color-text-muted)] truncate">{sub}</p>
+                          <p className="text-[10px] md:text-xs truncate" style={{ color: subTone }}>{sub}</p>
                         </div>
                       </div>
-                      <div className="flex h-1.5 bg-[var(--color-bg-subtle)] rounded-full mb-2.5 overflow-hidden">
-                        {segs.map((s, i) => <div key={i} className="h-full transition-all" style={{ width: `${(s.n / total) * 100}%`, background: s.color }} />)}
+                      <div className="flex h-1.5 bg-[var(--color-bg-subtle)] rounded-full mb-2.5 overflow-hidden"
+                        title={segs.map(s => `${s.n} ${s.label}`).join(' · ')}>
+                        {segs.map((s, i) => <div key={i} className="h-full transition-all" style={{ width: `${(s.n / total) * 100}%`, background: s.color, opacity: s.op }} />)}
                       </div>
                       <div className="flex items-center justify-between gap-1 flex-wrap">
                         <span className="text-[10px] md:text-xs text-[var(--color-text-muted)]">
-                          {state === 'nunca' ? 'nenhum post' : `${entregue}/${total} entregues`}
+                          {state === 'nunca' ? 'nenhum post'
+                            : publicado > 0 ? `${publicado} no ar · ${entregue}/${total} prontos`
+                            : `${entregue}/${total} prontos`}
                         </span>
                         <div className="flex items-center gap-1 flex-wrap">
                           {atrasados > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>{atrasados} atrasado{atrasados !== 1 ? 's' : ''}</span>}
