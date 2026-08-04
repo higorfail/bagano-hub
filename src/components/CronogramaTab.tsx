@@ -72,12 +72,15 @@ type Post = MiniPost & {
   month?: number
   year?: number
   briefing?: string | null
+  legenda?: string | null
+  reference_notes?: string | null
+  attachments_count?: number
 }
 
 // `briefing` entra por causa da view Lista: é a coluna "Descrição" da planilha
 // que a estrategista usa pra montar o cronograma, e sem ela a lista não
 // conseguia mostrar do que o post trata.
-const SCHEDULE_COLS = 'id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, briefing, assigned_members, ai_summary, labels, month, year'
+const SCHEDULE_COLS = 'id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, briefing, legenda, reference_notes, assigned_members, ai_summary, labels, month, year'
 
 // ─── Calendar chip (view Calendário) ───────────────────────────────────────────
 // Mesma lógica de thumbnail do PostMiniCard (capa da pasta/arquivo do Drive),
@@ -377,10 +380,20 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     ])
     let loaded = postsData || []
     if (loaded.length > 0) {
-      const { data: cms } = await supabase.from('schedule_comments').select('schedule_id').in('schedule_id', loaded.map((p: any) => p.id))
+      const ids = loaded.map((p: any) => p.id)
+      // Anexos vêm de duas tabelas — link colado e arquivo enviado — e na
+      // coluna "Refs" da lista os dois contam como a mesma coisa: existe
+      // material de apoio nesse post, ou não existe.
+      const [{ data: cms }, { data: atts }, { data: ups }] = await Promise.all([
+        supabase.from('schedule_comments').select('schedule_id').in('schedule_id', ids),
+        supabase.from('schedule_attachments').select('schedule_id').in('schedule_id', ids),
+        supabase.from('schedule_uploads').select('schedule_id').in('schedule_id', ids),
+      ])
       const cmc: Record<string, number> = {}
       ;(cms || []).forEach((x: any) => { cmc[x.schedule_id] = (cmc[x.schedule_id] || 0) + 1 })
-      loaded = loaded.map((p: any) => ({ ...p, comments_count: cmc[p.id] || 0 }))
+      const att: Record<string, number> = {}
+      ;[...(atts || []), ...(ups || [])].forEach((x: any) => { att[x.schedule_id] = (att[x.schedule_id] || 0) + 1 })
+      loaded = loaded.map((p: any) => ({ ...p, comments_count: cmc[p.id] || 0, attachments_count: att[p.id] || 0 }))
     }
     setPosts(loaded)
     setCronoStatus(statusData || null)
@@ -764,6 +777,8 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 const campaign = campaigns.find(c => c.type === post.campaign_type)
                 const labels: { text: string; color: string }[] = Array.isArray(post.labels) ? post.labels : []
                 const pediuAjuste = post.status === 'ajuste' || post.approval_status === 'não aprovado'
+                const temRefs = !!(post.drive_folder_url || post.drive_url || (post.attachments_count || 0) > 0 || (post.reference_notes || '').trim())
+                const temConteudo = !!((post.briefing || '').trim() || (post.copy || '').trim() || (post.legenda || '').trim() || temRefs)
                 const isDragging = dragId === post.id
                 const isOver = dragOverId === post.id && dragId !== post.id
                 return (
@@ -786,24 +801,31 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                       ${isOver ? 'border-[var(--color-brand)]' : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'}`}
                     style={{ borderLeftWidth: 3, borderLeftColor: clientColor || 'var(--color-brand)' }}>
 
-                    {/* Linha principal — sempre alinhada nas mesmas colunas,
-                        pro olho conseguir descer a lista sem tropeçar. */}
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      <span className="text-xs font-bold text-[var(--color-text-muted)] w-7 flex-shrink-0 tabular-nums">#{post.post_number}</span>
-                      <span className="text-[15px] font-semibold text-[var(--color-text-primary)] flex-1 min-w-0 truncate">
-                        {post.title || <span className="font-normal text-[var(--color-text-faint)] italic">Sem título</span>}
-                      </span>
-                      {campaign && <span className="hidden lg:inline text-[10px] font-semibold px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
-                      {post.comments_count > 0 && (
-                        <span className="hidden sm:inline text-[11px] text-[var(--color-text-muted)] flex-shrink-0" title={`${post.comments_count} comentário${post.comments_count !== 1 ? 's' : ''}`}>💬 {post.comments_count}</span>
-                      )}
-                      <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0 tabular-nums w-14 text-right">
+                    {/* Cabeçalho da linha. O tipo desce pra baixo do título:
+                        em cima ele disputava espaço com o nome do post, que é
+                        o que a estrategista lê primeiro. Data e status seguem
+                        à direita, alinhados entre si, pra dar pra descer a
+                        lista lendo só aquela coluna. */}
+                    <div className="flex items-start gap-2 sm:gap-3">
+                      <span className="text-xs font-bold text-[var(--color-text-muted)] w-7 flex-shrink-0 tabular-nums mt-0.5">#{post.post_number}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[15px] font-semibold text-[var(--color-text-primary)] truncate">
+                          {post.title || <span className="font-normal text-[var(--color-text-faint)] italic">Sem título</span>}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${typeColor[post.post_type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
+                            {TYPE_LABEL[post.post_type] || post.post_type || '—'}
+                          </span>
+                          {campaign && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
+                          {post.comments_count > 0 && (
+                            <span className="text-[11px] text-[var(--color-text-muted)]" title={`${post.comments_count} comentário${post.comments_count !== 1 ? 's' : ''}`}>💬 {post.comments_count}</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0 tabular-nums w-14 text-right mt-0.5">
                         {post.scheduled_date ? new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : '—'}
                       </span>
-                      <span className={`hidden sm:block text-xs font-semibold px-2.5 py-1 rounded-full w-32 text-center flex-shrink-0 ${typeColor[post.post_type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
-                        {TYPE_LABEL[post.post_type] || post.post_type || '—'}
-                      </span>
-                      <div className="flex items-center gap-1 flex-shrink-0">
+                      <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
                         {approvalShort(post.status, post.approval_status) && (
                           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
                             ✓ {approvalShort(post.status, post.approval_status)}
@@ -815,13 +837,48 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                       </div>
                     </div>
 
-                    {/* Descrição — o "do que é esse post". Duas linhas no
-                        máximo: passar disso vira card, e a lista deixa de ser
-                        lista. Sem briefing, nada aparece e a linha fica curta. */}
-                    {(post.briefing || '').trim() && (
-                      <p className="mt-1.5 sm:pl-9 text-[13px] leading-snug text-[var(--color-text-secondary)] line-clamp-2">
-                        {post.briefing}
-                      </p>
+                    {/* Briefing, Copy, Legenda e Refs lado a lado, como as
+                        colunas da planilha. Os quatro rótulos aparecem juntos
+                        ou nenhum aparece: com rótulo fixo por linha a lista
+                        fica alinhada de cima a baixo, e o campo vazio vira um
+                        buraco visível — que é como a planilha denuncia o que
+                        falta. Mas o post que não tem NADA (56 dos 175) não
+                        ganha bloco nenhum e continua curto, senão a lista
+                        engordava por igual sem dizer mais nada.
+
+                        Texto cortado em 2 linhas: aqui é pra bater o olho, ler
+                        inteiro é dentro do card. */}
+                    {temConteudo && (
+                      <div className="mt-2.5 sm:pl-9 grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-2">
+                        {([
+                          ['Briefing', (post.briefing || '').trim()],
+                          ['Copy',     (post.copy || '').trim()],
+                          ['Legenda',  (post.legenda || '').trim()],
+                        ] as const).map(([rotulo, texto]) => (
+                          <div key={rotulo} className="min-w-0">
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">{rotulo}</p>
+                            {texto
+                              ? <p className="text-[12px] leading-snug text-[var(--color-text-secondary)] line-clamp-2">{texto}</p>
+                              : <p className="text-[12px] text-[var(--color-text-faint)]">—</p>}
+                          </div>
+                        ))}
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Refs</p>
+                          {temRefs ? (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {(post.drive_folder_url || post.drive_url) && (
+                                <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>📁 Drive</span>
+                              )}
+                              {(post.attachments_count || 0) > 0 && (
+                                <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>📎 {post.attachments_count}</span>
+                              )}
+                              {(post.reference_notes || '').trim() && (
+                                <span className="text-[12px] text-[var(--color-text-secondary)] line-clamp-1">{post.reference_notes}</span>
+                              )}
+                            </div>
+                          ) : <p className="text-[12px] text-[var(--color-text-faint)]">—</p>}
+                        </div>
+                      </div>
                     )}
 
                     {labels.length > 0 && (
