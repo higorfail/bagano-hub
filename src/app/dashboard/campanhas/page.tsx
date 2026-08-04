@@ -8,7 +8,7 @@ import PostCard from '@/components/PostCard'
 import ExtraCard from '@/components/ExtraCard'
 import MaterialCard from '@/components/MaterialCard'
 import { campaignDaysUntil, campaignPeriod } from '@/lib/campaignPeriod'
-import { isPostDone } from '@/lib/postStages'
+import { campaignProgress } from '@/lib/postStages'
 
 const SEASONAL = [
   { type: 'natal',     name: 'Natal & Réveillon', emoji: '🎄', color: '#DC2626', month: 12, day: 25, leadDays: 60,
@@ -244,12 +244,8 @@ export default function CampanhasPage() {
           const camChecklist = campsOfType.flatMap(c => c.campaign_extras || [])
           const camKanban = kanbanExtras.filter(e => clientIds.includes(e.client_id) && e.campaign_type === s.type)
           const camMaterials = materials.filter(m => clientIds.includes(m.client_id) && m.campaign_type === s.type)
-          const totalItems = camPosts.length + camChecklist.length + camKanban.length + camMaterials.length
-          const doneItems = camPosts.filter(p => isPostDone(p.status)).length
-            + camChecklist.filter((e: any) => e.done).length
-            + camKanban.filter(e => e.status === 'done').length
-            + camMaterials.filter(m => m.status === 'finalizado').length
-          const workPct = totalItems > 0 ? (doneItems / totalItems) * 100 : 0
+          const { total: totalItems, pct: workPct } =
+            campaignProgress({ posts: camPosts, extras: camKanban, materials: camMaterials, checklist: camChecklist })
           const timePct = getTimeProgress(d, s.leadDays)
           const behind = totalItems > 0 && workPct < timePct - 10
           const barColor = totalItems === 0 ? 'var(--color-text-faint)' : behind ? 'var(--ds-error-accent)' : s.theme.accent
@@ -314,7 +310,10 @@ export default function CampanhasPage() {
               const campMaterials = materials.filter(m => m.client_id === client.id && m.campaign_type === selected)
               const extras = camp.campaign_extras || []
               const doneExtras = extras.filter((e: any) => e.done).length
-              const donePosts = campPosts.filter(p => isPostDone(p.status)).length
+              // Mesma conta da barra do topo — posts, extras, materiais e
+              // checklist juntos. Só com posts, o Unizushi (0 posts, 1 extra
+              // aprovado) ficava sem barra e sem número nenhum.
+              const prog = campaignProgress({ posts: campPosts, extras: campKanbanExtras, materials: campMaterials, checklist: extras })
               const isExp = expanded.has(camp.id)
 
               return (
@@ -331,12 +330,12 @@ export default function CampanhasPage() {
                     </div>
                     {/* Progress */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {campPosts.length > 0 && (
+                      {prog.total > 0 && (
                         <div className="flex items-center gap-1.5">
                           <div className="w-16 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all" style={{ width: `${(donePosts / campPosts.length) * 100}%`, background: seasonal.theme.accent }} />
+                            <div className="h-full rounded-full transition-all" style={{ width: `${prog.pct}%`, background: seasonal.theme.accent }} />
                           </div>
-                          <span className="text-[10px] text-[var(--color-text-muted)]">{donePosts}/{campPosts.length}</span>
+                          <span className="text-[10px] text-[var(--color-text-muted)]">{prog.done}/{prog.total}</span>
                         </div>
                       )}
                       {isExp ? <ChevronUp size={14} className="text-[var(--color-text-muted)]" /> : <ChevronDown size={14} className="text-[var(--color-text-muted)]" />}
