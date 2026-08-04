@@ -8,6 +8,7 @@ import PostCard from '@/components/PostCard'
 import ExtraCard from '@/components/ExtraCard'
 import MaterialCard from '@/components/MaterialCard'
 import { campaignDaysUntil, campaignPeriod } from '@/lib/campaignPeriod'
+import { isPostDone } from '@/lib/postStages'
 
 const SEASONAL = [
   { type: 'natal',     name: 'Natal & Réveillon', emoji: '🎄', color: '#DC2626', month: 12, day: 25, leadDays: 60,
@@ -66,6 +67,15 @@ export default function CampanhasPage() {
   const [creatingPost, setCreatingPost] = useState<{ clientId: string; campType: string } | null>(null)
   const [creatingExtra, setCreatingExtra] = useState<{ clientId: string; campType: string } | null>(null)
   const [creatingMaterial, setCreatingMaterial] = useState<{ clientId: string; campType: string } | null>(null)
+  // Abrir o card do item ALI MESMO, em vez de navegar pra outra tela. A
+  // campanha é uma visão de conferência ("o que falta pro Dia dos Pais?"):
+  // sair dela pra ver um post e ter que voltar quebra a conferência no meio.
+  // O post era um link pra aba do cliente; extra e material não abriam nada.
+  // PostCard exige cliente/mês/ano mesmo abrindo um post que já existe, então
+  // guarda o contexto junto e não só o id.
+  const [openPost, setOpenPost] = useState<{ id: string; clientId: string; month: number; year: number } | null>(null)
+  const [openExtraId, setOpenExtraId] = useState<string | null>(null)
+  const [openMaterialId, setOpenMaterialId] = useState<string | null>(null)
   const [createPostNumber, setCreatePostNumber] = useState(1)
   const [createPeriod, setCreatePeriod] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() })
   const [availablePostsByClient, setAvailablePostsByClient] = useState<Record<string, any[]>>({})
@@ -235,7 +245,7 @@ export default function CampanhasPage() {
           const camKanban = kanbanExtras.filter(e => clientIds.includes(e.client_id) && e.campaign_type === s.type)
           const camMaterials = materials.filter(m => clientIds.includes(m.client_id) && m.campaign_type === s.type)
           const totalItems = camPosts.length + camChecklist.length + camKanban.length + camMaterials.length
-          const doneItems = camPosts.filter(p => ['aprovado', 'publicado'].includes(p.status)).length
+          const doneItems = camPosts.filter(p => isPostDone(p.status)).length
             + camChecklist.filter((e: any) => e.done).length
             + camKanban.filter(e => e.status === 'done').length
             + camMaterials.filter(m => m.status === 'finalizado').length
@@ -304,7 +314,7 @@ export default function CampanhasPage() {
               const campMaterials = materials.filter(m => m.client_id === client.id && m.campaign_type === selected)
               const extras = camp.campaign_extras || []
               const doneExtras = extras.filter((e: any) => e.done).length
-              const donePosts = campPosts.filter(p => ['aprovado', 'publicado'].includes(p.status)).length
+              const donePosts = campPosts.filter(p => isPostDone(p.status)).length
               const isExp = expanded.has(camp.id)
 
               return (
@@ -349,13 +359,13 @@ export default function CampanhasPage() {
                         {campPosts.length > 0 && (
                           <div className="flex flex-col gap-1.5 mb-2">
                             {campPosts.map(p => (
-                              <a key={p.id} href={`/dashboard/clientes/${client.id}?tab=cronograma&m=${p.month}&y=${p.year}&post=${p.id}`}
-                                className="flex items-center gap-2 text-xs -mx-1.5 px-1.5 py-0.5 rounded-lg hover:bg-[var(--color-bg-alt)] transition-colors">
+                              <button key={p.id} onClick={() => setOpenPost({ id: p.id, clientId: client.id, month: p.month, year: p.year })}
+                                className="flex items-center gap-2 text-xs -mx-1.5 px-1.5 py-0.5 rounded-lg hover:bg-[var(--color-bg-alt)] transition-colors text-left w-full">
                                 <span className="font-bold text-[var(--color-text-muted)] w-5">#{p.post_number}</span>
                                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: (isDark ? TYPE_BG_D : TYPE_BG_L)[p.post_type] || 'var(--color-bg-subtle)', color: (isDark ? TYPE_TX_D : TYPE_TX_L)[p.post_type] || 'var(--color-text-secondary)' }}>{TYPE_LABEL[p.post_type] || p.post_type}</span>
                                 <span className="flex-1 text-[var(--color-text-primary)] truncate">{p.title}</span>
                                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: (isDark ? STATUS_BG_D : STATUS_BG_L)[p.status] || 'var(--color-bg-subtle)', color: (isDark ? STATUS_TX_D : STATUS_TX_L)[p.status] || 'var(--color-text-secondary)' }}>{STATUS_LABEL[p.status] || p.status}</span>
-                              </a>
+                              </button>
                             ))}
                           </div>
                         )}
@@ -374,10 +384,11 @@ export default function CampanhasPage() {
                           {campKanbanExtras.length > 0 && (
                             <div className="flex flex-col gap-1.5 mb-2">
                               {campKanbanExtras.map(e => (
-                                <div key={e.id} className="flex items-center gap-2 text-xs">
+                                <button key={e.id} onClick={() => setOpenExtraId(e.id)}
+                                  className="flex items-center gap-2 text-xs -mx-1.5 px-1.5 py-0.5 rounded-lg hover:bg-[var(--color-bg-alt)] transition-colors text-left w-full">
                                   <span className="flex-1 text-[var(--color-text-primary)] truncate">{e.title || 'Sem título'}</span>
                                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={e.status === 'done' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{e.status === 'done' ? 'Feito' : 'Pendente'}</span>
-                                </div>
+                                </button>
                               ))}
                             </div>
                           )}
@@ -393,10 +404,11 @@ export default function CampanhasPage() {
                           {campMaterials.length > 0 && (
                             <div className="flex flex-col gap-1.5 mb-2">
                               {campMaterials.map(m => (
-                                <div key={m.id} className="flex items-center gap-2 text-xs">
+                                <button key={m.id} onClick={() => setOpenMaterialId(m.id)}
+                                  className="flex items-center gap-2 text-xs -mx-1.5 px-1.5 py-0.5 rounded-lg hover:bg-[var(--color-bg-alt)] transition-colors text-left w-full">
                                   <span className="flex-1 text-[var(--color-text-primary)] truncate">{m.title || 'Sem título'}</span>
                                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={m.status === 'finalizado' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{m.status === 'finalizado' ? 'Feito' : 'Pendente'}</span>
-                                </div>
+                                </button>
                               ))}
                             </div>
                           )}
@@ -518,6 +530,37 @@ export default function CampanhasPage() {
           initialCampaignType={creatingMaterial.campType}
           onClose={() => setCreatingMaterial(null)}
           onSaved={() => { setCreatingMaterial(null); load() }}
+        />
+      )}
+
+      {/* Itens existentes abertos aqui dentro. `load()` ao fechar porque o
+          status pode ter mudado — a barra da campanha tem que refletir na hora,
+          senão você aprova um post e a conferência continua mostrando o número
+          velho. */}
+      {openPost && (
+        <PostCard
+          postId={openPost.id}
+          clientId={openPost.clientId}
+          clientName={clients.find(c => c.id === openPost.clientId)?.name}
+          clientColor={clients.find(c => c.id === openPost.clientId)?.color_hex}
+          month={openPost.month}
+          year={openPost.year}
+          onClose={() => setOpenPost(null)}
+          onSaved={() => { setOpenPost(null); load() }}
+        />
+      )}
+      {openExtraId && (
+        <ExtraCard
+          extraId={openExtraId}
+          onClose={() => setOpenExtraId(null)}
+          onSaved={() => { setOpenExtraId(null); load() }}
+        />
+      )}
+      {openMaterialId && (
+        <MaterialCard
+          materialId={openMaterialId}
+          onClose={() => setOpenMaterialId(null)}
+          onSaved={() => { setOpenMaterialId(null); load() }}
         />
       )}
     </div>

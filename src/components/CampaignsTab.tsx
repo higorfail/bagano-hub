@@ -69,6 +69,12 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
   const [creatingPost, setCreatingPost]         = useState<string | null>(null)
   const [creatingExtra, setCreatingExtra]       = useState<string | null>(null)
   const [creatingMaterial, setCreatingMaterial] = useState<string | null>(null)
+  // Abrir o card do item sem sair da aba — mesma coisa da página de Campanhas.
+  // A linha não vira <button> porque já tem o botão de desvincular dentro
+  // dela, e botão dentro de botão é HTML inválido; daí role/tabIndex.
+  const [openPost, setOpenPost] = useState<{ id: string; month: number; year: number } | null>(null)
+  const [openExtraId, setOpenExtraId] = useState<string | null>(null)
+  const [openMaterialId, setOpenMaterialId] = useState<string | null>(null)
   const [createPostNumber, setCreatePostNumber] = useState(1)
   // Período do cronograma em que o post vai nascer. Vem da CAMPANHA, não do
   // relógio: post de Natal criado em novembro pertence a dezembro. Com o mês
@@ -97,7 +103,9 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
   async function load() {
     const [{ data: camps }, { data: ps }, { data: ke }, { data: mats }] = await Promise.all([
       supabase.from('campaigns').select('*, campaign_extras(*)').eq('client_id', clientId),
-      supabase.from('schedules').select('id, post_number, title, post_type, status, approval_status, drive_url, campaign_type').eq('client_id', clientId).order('post_number'),
+      // month/year entram porque o PostCard exige o período pra abrir, mesmo
+      // pra um post que já existe.
+      supabase.from('schedules').select('id, post_number, title, post_type, status, approval_status, drive_url, campaign_type, month, year').eq('client_id', clientId).order('post_number'),
       supabase.from('extras').select('id, title, status, type, campaign_type').eq('client_id', clientId).is('archived_at', null),
       supabase.from('materials').select('id, title, status, type, campaign_type').eq('client_id', clientId).is('archived_at', null),
     ])
@@ -306,12 +314,15 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
                   {campPosts.length > 0 && (
                     <div className="flex flex-col gap-1.5 mb-2">
                       {campPosts.map(p => (
-                        <div key={p.id} className="group flex items-center gap-2 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                        <div key={p.id} role="button" tabIndex={0}
+                          onClick={() => setOpenPost({ id: p.id, month: p.month, year: p.year })}
+                          onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setOpenPost({ id: p.id, month: p.month, year: p.year }) } }}
+                          className="group flex items-center gap-2 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 cursor-pointer hover:border-[var(--color-border-hover)] transition-colors">
                           <span className="text-xs font-bold text-[var(--color-text-muted)] w-6 flex-shrink-0">#{p.post_number}</span>
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: (isDark ? TYPE_BG_D : TYPE_BG_L)[p.post_type]||'var(--color-bg-subtle)', color: (isDark ? TYPE_TX_D : TYPE_TX_L)[p.post_type]||'var(--color-text-secondary)' }}>{TYPE_LABEL[p.post_type]||p.post_type}</span>
                           <span className="text-xs text-[var(--color-text-primary)] flex-1 truncate">{p.title}</span>
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: (isDark ? STATUS_BG_D : STATUS_BG_L)[p.status]||'var(--color-bg-subtle)', color: (isDark ? STATUS_TX_D : STATUS_TX_L)[p.status]||'var(--color-text-secondary)' }}>{STATUS_LB[p.status]||p.status}</span>
-                          <button onClick={() => unlinkPost(p.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-all flex-shrink-0" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}><Trash2 size={11} /></button>
+                          <button onClick={ev => { ev.stopPropagation(); unlinkPost(p.id) }} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-all flex-shrink-0" onMouseEnter={e => (e.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={e => (e.currentTarget.style.color = '')}><Trash2 size={11} /></button>
                         </div>
                       ))}
                     </div>
@@ -337,10 +348,13 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
                   {campKanbanExtras.length > 0 && (
                     <div className="flex flex-col gap-1.5 mb-2">
                       {campKanbanExtras.map(e => (
-                        <div key={e.id} className="group flex items-center gap-2 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                        <div key={e.id} role="button" tabIndex={0}
+                          onClick={() => setOpenExtraId(e.id)}
+                          onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setOpenExtraId(e.id) } }}
+                          className="group flex items-center gap-2 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 cursor-pointer hover:border-[var(--color-border-hover)] transition-colors">
                           <span className="text-xs text-[var(--color-text-primary)] flex-1 truncate">{e.title || 'Sem título'}</span>
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={e.status === 'done' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{e.status === 'done' ? 'Finalizado' : e.status === 'aguardando_aprovacao' ? 'Aguardando' : 'Backlog'}</span>
-                          <button onClick={() => unlinkKanbanExtra(e.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-all flex-shrink-0" onMouseEnter={ev => (ev.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={ev => (ev.currentTarget.style.color = '')}><Trash2 size={11} /></button>
+                          <button onClick={ev => { ev.stopPropagation(); unlinkKanbanExtra(e.id) }} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-all flex-shrink-0" onMouseEnter={ev => (ev.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={ev => (ev.currentTarget.style.color = '')}><Trash2 size={11} /></button>
                         </div>
                       ))}
                     </div>
@@ -366,10 +380,13 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
                   {campMaterials.length > 0 && (
                     <div className="flex flex-col gap-1.5 mb-2">
                       {campMaterials.map(m => (
-                        <div key={m.id} className="group flex items-center gap-2 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
+                        <div key={m.id} role="button" tabIndex={0}
+                          onClick={() => setOpenMaterialId(m.id)}
+                          onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setOpenMaterialId(m.id) } }}
+                          className="group flex items-center gap-2 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2 cursor-pointer hover:border-[var(--color-border-hover)] transition-colors">
                           <span className="text-xs text-[var(--color-text-primary)] flex-1 truncate">{m.title || 'Sem título'}</span>
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={m.status === 'finalizado' ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' } : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>{m.status === 'finalizado' ? 'Finalizado' : m.status === 'aguardando_aprovacao' ? 'Aguardando' : 'Produção'}</span>
-                          <button onClick={() => unlinkMaterial(m.id)} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-all flex-shrink-0" onMouseEnter={ev => (ev.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={ev => (ev.currentTarget.style.color = '')}><Trash2 size={11} /></button>
+                          <button onClick={ev => { ev.stopPropagation(); unlinkMaterial(m.id) }} className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] transition-all flex-shrink-0" onMouseEnter={ev => (ev.currentTarget.style.color = 'var(--ds-error-text)')} onMouseLeave={ev => (ev.currentTarget.style.color = '')}><Trash2 size={11} /></button>
                         </div>
                       ))}
                     </div>
@@ -516,6 +533,37 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
           initialCampaignType={creatingMaterial}
           onClose={() => setCreatingMaterial(null)}
           onSaved={() => { setCreatingMaterial(null); load() }}
+        />
+      )}
+
+      {/* Itens já vinculados, abertos aqui mesmo. `load()` ao fechar pro
+          status na lista refletir o que acabou de mudar dentro do card. */}
+      {openPost && (
+        <PostCard
+          postId={openPost.id}
+          clientId={clientId}
+          clientColor={clientColor}
+          month={openPost.month}
+          year={openPost.year}
+          onClose={() => setOpenPost(null)}
+          onSaved={() => { setOpenPost(null); load() }}
+        />
+      )}
+      {openExtraId && (
+        <ExtraCard
+          extraId={openExtraId}
+          fixedClientId={clientId}
+          members={members}
+          onClose={() => setOpenExtraId(null)}
+          onSaved={() => { setOpenExtraId(null); load() }}
+        />
+      )}
+      {openMaterialId && (
+        <MaterialCard
+          materialId={openMaterialId}
+          fixedClientId={clientId}
+          onClose={() => setOpenMaterialId(null)}
+          onSaved={() => { setOpenMaterialId(null); load() }}
         />
       )}
     </div>

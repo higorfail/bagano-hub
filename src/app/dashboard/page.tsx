@@ -16,6 +16,7 @@ import IconBadge, { type BadgeTone } from '@/components/ui/IconBadge'
 import DonutChart from '@/components/ui/DonutChart'
 import LineChart from '@/components/ui/LineChart'
 import { brasiliaISOFromDate } from '@/lib/timezone'
+import { POST_DONE_STAGES } from '@/lib/postStages'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
 const CFG = {
@@ -518,7 +519,7 @@ export default function DashboardPage() {
   // julho só 33 de 142 posts chegaram lá — a barra media o esquecimento do
   // time, não o trabalho. Aprovado é o marco real da agência; publicado
   // continua existindo, como o último pedaço da barra.
-  const DONE_STAGES = [CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado]
+  const DONE_STAGES = POST_DONE_STAGES
   const clientCycles = useMemo(() => {
     const byClient = new Map<string, Map<string, Schedule[]>>()
     for (const s of allSchedules) {
