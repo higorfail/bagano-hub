@@ -71,9 +71,13 @@ type Post = MiniPost & {
   campaign_type?: string | null
   month?: number
   year?: number
+  briefing?: string | null
 }
 
-const SCHEDULE_COLS = 'id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, assigned_members, ai_summary, labels, month, year'
+// `briefing` entra por causa da view Lista: é a coluna "Descrição" da planilha
+// que a estrategista usa pra montar o cronograma, e sem ela a lista não
+// conseguia mostrar do que o post trata.
+const SCHEDULE_COLS = 'id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, briefing, assigned_members, ai_summary, labels, month, year'
 
 // ─── Calendar chip (view Calendário) ───────────────────────────────────────────
 // Mesma lógica de thumbnail do PostMiniCard (capa da pasta/arquivo do Drive),
@@ -746,34 +750,99 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               <p className="text-[var(--color-text-muted)] text-sm">Tente ajustar os filtros.</p>
             </div>
           ) : viewMode === 'list' ? (
+            // A Lista é a view de quem MONTA o cronograma — a estrategista.
+            // Por isso ela imita a planilha que esse trabalho sempre usou:
+            // Nº, título, descrição, data e tipo. Responsável não entra aqui de
+            // propósito: importa na produção, não na hora de montar a pauta.
+            //
+            // A altura é ditada pelo conteúdo: post sem descrição fica numa
+            // linha só. Isso mantém a lista enxuta E devolve uma coisa que a
+            // planilha tinha e o hub tinha perdido — o que FALTA aparece como
+            // espaço vazio, sem precisar de selo nenhum pra denunciar.
             <div className="flex flex-col gap-2">
               {visiblePosts.map(post => {
                 const campaign = campaigns.find(c => c.type === post.campaign_type)
+                const labels: { text: string; color: string }[] = Array.isArray(post.labels) ? post.labels : []
+                const pediuAjuste = post.status === 'ajuste' || post.approval_status === 'não aprovado'
+                const isDragging = dragId === post.id
+                const isOver = dragOverId === post.id && dragId !== post.id
                 return (
-                  <button key={post.id} onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
-                    className="w-full text-left bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl px-4 py-3 flex items-center gap-4 hover:border-[var(--color-border-hover)] transition-all"
+                  <div key={post.id}
+                    role="button" tabIndex={0}
+                    onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingPostId(post.id); setShowPostCard(true) } }}
+                    // Reordenar arrastando, igual à view de Cards. Só sem
+                    // filtro ativo: numa lista filtrada o vizinho na tela não é
+                    // o vizinho de verdade, e a renumeração sairia errada.
+                    // O toque no iPad funciona pelo installTouchDragBridge, que
+                    // o layout já instala pro app inteiro.
+                    draggable={!hasFilter}
+                    onDragStart={() => setDragId(post.id)}
+                    onDragEnd={() => { setDragId(null); setDragOverId(null) }}
+                    onDragOver={e => { e.preventDefault(); if (dragOverId !== post.id) setDragOverId(post.id) }}
+                    onDrop={() => reorderPosts(post.id)}
+                    className={`w-full text-left bg-[var(--color-bg-card)] border rounded-xl px-4 py-3 transition-all cursor-pointer
+                      ${isDragging ? 'opacity-40' : ''}
+                      ${isOver ? 'border-[var(--color-brand)]' : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'}`}
                     style={{ borderLeftWidth: 3, borderLeftColor: clientColor || 'var(--color-brand)' }}>
-                    <span className="text-xs font-bold text-[var(--color-text-muted)] w-8">#{post.post_number}</span>
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full w-28 text-center flex-shrink-0 ${typeColor[post.post_type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
-                      {TYPE_LABEL[post.post_type] || post.post_type || '—'}
-                    </span>
-                    <span className="text-sm font-medium text-[var(--color-text-primary)] flex-1 truncate">{post.title}</span>
-                    {campaign && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
-                    <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0">
-                      {post.scheduled_date ? new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : '—'}
-                    </span>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {post.approval_status === 'não aprovado' && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>✗</span>}
-                      {approvalShort(post.status, post.approval_status) && (
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
-                          ✓ {approvalShort(post.status, post.approval_status)}
-                        </span>
-                      )}
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
-                        {STATUS_LABEL[post.status] || post.status}
+
+                    {/* Linha principal — sempre alinhada nas mesmas colunas,
+                        pro olho conseguir descer a lista sem tropeçar. */}
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <span className="text-xs font-bold text-[var(--color-text-muted)] w-7 flex-shrink-0 tabular-nums">#{post.post_number}</span>
+                      <span className="text-[15px] font-semibold text-[var(--color-text-primary)] flex-1 min-w-0 truncate">
+                        {post.title || <span className="font-normal text-[var(--color-text-faint)] italic">Sem título</span>}
                       </span>
+                      {campaign && <span className="hidden lg:inline text-[10px] font-semibold px-2 py-0.5 rounded-md flex-shrink-0" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
+                      {post.comments_count > 0 && (
+                        <span className="hidden sm:inline text-[11px] text-[var(--color-text-muted)] flex-shrink-0" title={`${post.comments_count} comentário${post.comments_count !== 1 ? 's' : ''}`}>💬 {post.comments_count}</span>
+                      )}
+                      <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0 tabular-nums w-14 text-right">
+                        {post.scheduled_date ? new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : '—'}
+                      </span>
+                      <span className={`hidden sm:block text-xs font-semibold px-2.5 py-1 rounded-full w-32 text-center flex-shrink-0 ${typeColor[post.post_type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
+                        {TYPE_LABEL[post.post_type] || post.post_type || '—'}
+                      </span>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {approvalShort(post.status, post.approval_status) && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
+                            ✓ {approvalShort(post.status, post.approval_status)}
+                          </span>
+                        )}
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
+                          {STATUS_LABEL[post.status] || post.status}
+                        </span>
+                      </div>
                     </div>
-                  </button>
+
+                    {/* Descrição — o "do que é esse post". Duas linhas no
+                        máximo: passar disso vira card, e a lista deixa de ser
+                        lista. Sem briefing, nada aparece e a linha fica curta. */}
+                    {(post.briefing || '').trim() && (
+                      <p className="mt-1.5 sm:pl-9 text-[13px] leading-snug text-[var(--color-text-secondary)] line-clamp-2">
+                        {post.briefing}
+                      </p>
+                    )}
+
+                    {labels.length > 0 && (
+                      <div className="mt-1.5 sm:pl-9 flex items-center gap-1 flex-wrap">
+                        {labels.slice(0, 4).map((l, i) => (
+                          <span key={i} className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: l.color }}>{l.text}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* O pedido do cliente, por extenso. Antes era um "✗" mudo:
+                        pra saber o que ele queria, tinha que abrir o card. */}
+                    {pediuAjuste && (
+                      <div className="mt-2 sm:ml-9 rounded-lg px-2.5 py-1.5 text-[12px] leading-snug line-clamp-2"
+                        style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+                        {(post.approval_comment || '').trim()
+                          ? <><span className="font-semibold">Cliente pediu ajuste:</span> “{post.approval_comment}”</>
+                          : <span className="font-semibold">Ajuste solicitado — sem motivo registrado</span>}
+                      </div>
+                    )}
+                  </div>
                 )
               })}
             </div>
