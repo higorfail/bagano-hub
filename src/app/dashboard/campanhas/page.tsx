@@ -511,31 +511,31 @@ export default function CampanhasPage() {
           year={createPeriod.year}
           postNumber={createPostNumber}
           initialCampaignType={creatingPost.campType}
-          onClose={() => setCreatingPost(null)}
-          onSaved={() => { setCreatingPost(null); load() }}
+          onClose={() => { setCreatingPost(null); load() }}
+          onSaved={load}
         />
       )}
       {creatingExtra && (
         <ExtraCard
           fixedClientId={creatingExtra.clientId}
           initialCampaignType={creatingExtra.campType}
-          onClose={() => setCreatingExtra(null)}
-          onSaved={() => { setCreatingExtra(null); load() }}
+          onClose={() => { setCreatingExtra(null); load() }}
+          onSaved={load}
         />
       )}
       {creatingMaterial && (
         <MaterialCard
           fixedClientId={creatingMaterial.clientId}
           initialCampaignType={creatingMaterial.campType}
-          onClose={() => setCreatingMaterial(null)}
-          onSaved={() => { setCreatingMaterial(null); load() }}
+          onClose={() => { setCreatingMaterial(null); load() }}
+          onSaved={load}
         />
       )}
 
-      {/* Itens existentes abertos aqui dentro. `load()` ao fechar porque o
-          status pode ter mudado — a barra da campanha tem que refletir na hora,
-          senão você aprova um post e a conferência continua mostrando o número
-          velho. */}
+      {/* `onSaved` NÃO fecha o card — ele dispara a cada campo salvo, não no
+          fim da edição. Fechando ali, o card sumia a cada alteração. Quem
+          fecha é o `onClose`, e é lá que a lista recarrega pra barra refletir
+          o que mudou. Mesma convenção do Kanban e da página de Materiais. */}
       {openPost && (
         <PostCard
           postId={openPost.id}
@@ -544,22 +544,22 @@ export default function CampanhasPage() {
           clientColor={clients.find(c => c.id === openPost.clientId)?.color_hex}
           month={openPost.month}
           year={openPost.year}
-          onClose={() => setOpenPost(null)}
-          onSaved={() => { setOpenPost(null); load() }}
+          onClose={() => { setOpenPost(null); load() }}
+          onSaved={load}
         />
       )}
       {openExtraId && (
         <ExtraCard
           extraId={openExtraId}
-          onClose={() => setOpenExtraId(null)}
-          onSaved={() => { setOpenExtraId(null); load() }}
+          onClose={() => { setOpenExtraId(null); load() }}
+          onSaved={load}
         />
       )}
       {openMaterialId && (
         <MaterialCard
           materialId={openMaterialId}
-          onClose={() => setOpenMaterialId(null)}
-          onSaved={() => { setOpenMaterialId(null); load() }}
+          onClose={() => { setOpenMaterialId(null); load() }}
+          onSaved={load}
         />
       )}
     </div>

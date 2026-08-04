@@ -514,8 +514,8 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
           year={createPeriod.year}
           postNumber={createPostNumber}
           initialCampaignType={creatingPost}
-          onClose={() => setCreatingPost(null)}
-          onSaved={() => { setCreatingPost(null); load() }}
+          onClose={() => { setCreatingPost(null); load() }}
+          onSaved={load}
         />
       )}
       {creatingExtra && (
@@ -523,21 +523,22 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
           fixedClientId={clientId}
           members={members}
           initialCampaignType={creatingExtra}
-          onClose={() => setCreatingExtra(null)}
-          onSaved={() => { setCreatingExtra(null); load() }}
+          onClose={() => { setCreatingExtra(null); load() }}
+          onSaved={load}
         />
       )}
       {creatingMaterial && (
         <MaterialCard
           fixedClientId={clientId}
           initialCampaignType={creatingMaterial}
-          onClose={() => setCreatingMaterial(null)}
-          onSaved={() => { setCreatingMaterial(null); load() }}
+          onClose={() => { setCreatingMaterial(null); load() }}
+          onSaved={load}
         />
       )}
 
-      {/* Itens já vinculados, abertos aqui mesmo. `load()` ao fechar pro
-          status na lista refletir o que acabou de mudar dentro do card. */}
+      {/* `onSaved` NÃO fecha o card — ele dispara a cada campo salvo, não no
+          fim da edição. Fechando ali, o card sumia a cada alteração. Quem
+          fecha é o `onClose`, e é lá que a lista recarrega. */}
       {openPost && (
         <PostCard
           postId={openPost.id}
@@ -545,8 +546,8 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
           clientColor={clientColor}
           month={openPost.month}
           year={openPost.year}
-          onClose={() => setOpenPost(null)}
-          onSaved={() => { setOpenPost(null); load() }}
+          onClose={() => { setOpenPost(null); load() }}
+          onSaved={load}
         />
       )}
       {openExtraId && (
@@ -554,16 +555,16 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
           extraId={openExtraId}
           fixedClientId={clientId}
           members={members}
-          onClose={() => setOpenExtraId(null)}
-          onSaved={() => { setOpenExtraId(null); load() }}
+          onClose={() => { setOpenExtraId(null); load() }}
+          onSaved={load}
         />
       )}
       {openMaterialId && (
         <MaterialCard
           materialId={openMaterialId}
           fixedClientId={clientId}
-          onClose={() => setOpenMaterialId(null)}
-          onSaved={() => { setOpenMaterialId(null); load() }}
+          onClose={() => { setOpenMaterialId(null); load() }}
+          onSaved={load}
         />
       )}
     </div>
