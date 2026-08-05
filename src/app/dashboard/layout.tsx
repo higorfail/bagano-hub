@@ -21,26 +21,35 @@ import { BellRing, RefreshCw, KeyRound, LogOut } from 'lucide-react'
 const navItems = [
   { href: '/dashboard',          icon: Home,          label: 'Início' },
   { href: '/dashboard/clientes', icon: Users,         label: 'Clientes' },
+  // Feed Visual é como o perfil do cliente está ficando — leitura sobre o
+  // cliente, não etapa de produção.
+  { href: '/dashboard/feed',     icon: Smartphone,    label: 'Feed Visual' },
   { href: '/dashboard/equipe',   icon: UserCircle2,   label: 'Equipe' },
+  // Agenda sai da Produção: ela é sobre quem está onde e quando (captação,
+  // semana da equipe), não sobre o conteúdo andando pelo fluxo.
+  { href: '/dashboard/agenda',   icon: CalendarDays,  label: 'Agenda' },
   { href: '/dashboard/tarefas',  icon: ListTodo,      label: 'Quadro pessoal' },
 ]
 const productionItems = [
-  // Ordem do fluxo da agência, do começo ao fim: monta o cronograma, cria,
-  // manda aprovar, entrega material e extra, publica. Esses seis são o que se
-  // abre a cada hora — vêm primeiro. O resto é consulta e apoio, e estava
-  // espalhado no meio deles.
+  // Só o fluxo, na ordem em que ele acontece: monta o cronograma, cria, manda
+  // aprovar, entrega material e extra, acompanha no quadro, publica. O que era
+  // consulta ou apoio saiu daqui — Agenda e Feed Visual foram pro Geral,
+  // Campanhas pro Conteúdo — porque estavam partindo a leitura no meio.
   { href: '/dashboard/cronograma', icon: Calendar,       label: 'Cronograma' },
   { href: '/dashboard/criacao',    icon: Zap,            label: 'Criação' },
   { href: '/dashboard/aprovacao',  icon: ClipboardCheck, label: 'Aprovações' },
   { href: '/dashboard/materiais',  icon: Package,        label: 'Materiais' },
   { href: '/dashboard/extras',     icon: LayoutList,     label: 'Extras' },
-  { href: '/dashboard/social',     icon: Share2,         label: 'Publicações' },
-  { href: '/dashboard/agenda',     icon: CalendarDays,   label: 'Agenda' },
+  // Kanban antes de Publicações: é a visão de tudo que ainda está andando na
+  // produção, e o que sai dele é justamente o que vai pro ar.
   { href: '/dashboard/kanban',     icon: Kanban,         label: 'Kanban' },
-  { href: '/dashboard/feed',       icon: Smartphone,     label: 'Feed Visual' },
-  { href: '/dashboard/campanhas',  icon: Megaphone,      label: 'Campanhas' },
+  { href: '/dashboard/social',     icon: Share2,         label: 'Publicações' },
 ]
 const contentItems = [
+  // Campanha é planejamento do que vai ser feito (Dia dos Pais, Natal), não
+  // produção do dia — mora junto com calendário e datas especiais, que
+  // respondem a mesma pergunta: o que vem por aí.
+  { href: '/dashboard/campanhas',                  icon: Megaphone,     label: 'Campanhas' },
   { href: '/dashboard/calendario',                 icon: Calendar,      label: 'Calendário' },
   { href: 'https://sous-chef-bagano.netlify.app/', icon: BookOpen,      label: 'Manuais', external: true },
   { href: '/dashboard/datas-especiais',            icon: CalendarHeart, label: 'Datas especiais' },
