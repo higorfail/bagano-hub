@@ -28,7 +28,9 @@ function ExtrasContent() {
       setStats({
         total:   data.length,
         done:    data.filter(e => e.status === 'done').length,
-        overdue: data.filter(e => e.due_date && new Date(e.due_date + 'T23:59:59') < now && e.status !== 'done').length,
+        // 'feito' não conta como atraso: a arte está pronta, o prazo de
+        // produção foi cumprido. Mesma regra do selo no card.
+        overdue: data.filter(e => e.due_date && new Date(e.due_date + 'T23:59:59') < now && !['done', 'feito'].includes(e.status)).length,
       })
     }
     load()

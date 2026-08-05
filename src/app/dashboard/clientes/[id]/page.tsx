@@ -188,7 +188,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 
 
   async function moveMatStatus(matId: string, newStatus: string) {
-    const labels: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', ajuste: 'Ajuste', finalizado: 'Finalizado' }
+    const labels: Record<string,string> = { producao: 'A fazer', feito: 'Feito', aguardando_aprovacao: 'Com o cliente', ajuste: 'Ajuste', finalizado: 'Finalizado' }
     const mat = materials.find(m => m.id === matId)
     const oldLabel = labels[mat?.status || 'producao'] || mat?.status || ''
     const newLabel = labels[newStatus] || newStatus
@@ -446,17 +446,21 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">Materiais extras</p>
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Menus, cardápios, artes avulsas, logos.</p>
                 </div>
-                <button onClick={openNewMaterial} className="bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-xl px-3 py-1.5 text-sm font-medium">+ Novo material</button>
+
               </div>
 
               {/* Kanban 3 colunas */}
               {(() => {
+                // Mesmas colunas do quadro geral de Materiais — este aqui é
+                // uma terceira cópia do mesmo board e vivia divergindo.
                 const MAT_COLS = [
-                  { key: 'producao',             label: 'A fazer',          color: '#F59E0B' },
-                  { key: 'aguardando_aprovacao',  label: 'Em aprovação',    color: '#EC4899' },
-                  { key: 'ajuste',               label: 'Ajuste', color: '#EF4444' },
-                  { key: 'finalizado',            label: 'Finalizado',       color: '#22C55E' },
+                  { key: 'producao',             label: 'A fazer',       color: '#F59E0B' },
+                  { key: 'feito',                label: 'Feito',         color: '#0EA5E9' },
+                  { key: 'aguardando_aprovacao', label: 'Com o cliente', color: '#EC4899' },
+                  { key: 'ajuste',               label: 'Ajuste',        color: '#EF4444' },
+                  { key: 'finalizado',           label: 'Finalizado',    color: '#22C55E' },
                 ]
+                const MAT_KNOWN = MAT_COLS.map(c => c.key)
                 const matVisible = materials.filter(m => {
                   if (!showOnlyMine || !currentMember) return true
                   const assigned = m.assigned_members?.length ? m.assigned_members : m.assigned_to ? [m.assigned_to] : []
@@ -465,7 +469,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 function colItems(colKey: string) {
                   return matVisible.filter(m => {
                     const s = m.status || 'producao'
-                    if (colKey === 'producao') return s === 'producao' || (!['aguardando_aprovacao','ajuste','finalizado'].includes(s))
+                    if (colKey === 'producao') return s === 'producao' || !MAT_KNOWN.includes(s)
                     return s === colKey
                   })
                 }
@@ -484,10 +488,16 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                           onDragOver={e => { e.preventDefault(); setMatDragOver(col.key) }}
                           onDragLeave={() => setMatDragOver(null)}
                           onDrop={e => { e.preventDefault(); if (matDragging) moveMatStatus(matDragging, col.key); setMatDragging(null); setMatDragOver(null) }}>
-                          <div className="flex items-center gap-2 mb-2 px-1">
-                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
-                            <span className="text-xs font-semibold text-[var(--color-text-primary)]">{col.label}</span>
-                            <span className="text-xs text-[var(--color-text-muted)]">{items.length}</span>
+                          <div className="flex items-center justify-between mb-2 px-1">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
+                              <span className="text-xs font-semibold text-[var(--color-text-primary)] truncate">{col.label}</span>
+                              <span className="text-[10px] font-bold text-[var(--color-text-muted)] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">{items.length}</span>
+                            </div>
+                            <button onClick={() => setCardOpen(`new:${col.key}`)} title="Adicionar"
+                              className="w-6 h-6 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0">
+                              <Plus size={13} />
+                            </button>
                           </div>
                           <div className={`flex flex-col gap-2 flex-1 rounded-xl transition-colors p-1 ${isDragOver ? 'ring-2 ring-dashed ring-[var(--color-brand)] bg-[var(--color-bg-subtle)]' : ''}`}>
                             {items.map(m => {
@@ -529,7 +539,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 
               {cardOpen && (
                 <MaterialCard
-                  materialId={cardOpen === 'new' ? undefined : cardOpen}
+                  materialId={cardOpen.startsWith('new') ? undefined : cardOpen}
+                  initialStatus={cardOpen.startsWith('new:') ? cardOpen.slice(4) : undefined}
                   fixedClientId={id as string}
                   clients={[client].filter(Boolean)}
                   onClose={() => setCardOpen(null)}

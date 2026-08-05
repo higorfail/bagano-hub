@@ -18,7 +18,8 @@ const LABEL_PRESETS = [
 ]
 const STATUS_OPTIONS = [
   { value: 'producao', label: 'A fazer' },
-  { value: 'aguardando_aprovacao', label: 'Em aprovação' },
+  { value: 'feito', label: 'Feito' },
+  { value: 'aguardando_aprovacao', label: 'Com o cliente' },
   { value: 'finalizado', label: 'Finalizado' },
 ]
 

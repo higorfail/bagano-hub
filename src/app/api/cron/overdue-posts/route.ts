@@ -51,11 +51,13 @@ export async function GET(req: NextRequest) {
       .not('scheduled_date', 'is', null)
       .lte('scheduled_date', in2DaysISO),
     supabase.from('extras').select('id, title, client_id, due_date, status, assigned_members, assigned_member_id')
-      .neq('status', 'done')
+      // 'feito' fora da cobrança: a arte está pronta, o prazo de produção foi
+      // cumprido. Cobrar atraso de trabalho entregue ensina a ignorar aviso.
+      .not('status', 'in', '(done,feito)')
       .not('due_date', 'is', null)
       .lte('due_date', in2DaysISO),
     supabase.from('materials').select('id, title, client_id, due_date, status, assigned_members, assigned_to')
-      .neq('status', 'finalizado')
+      .not('status', 'in', '(finalizado,feito)')
       .is('archived_at', null)
       .not('due_date', 'is', null)
       .lte('due_date', in2DaysISO),

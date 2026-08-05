@@ -6,9 +6,8 @@ import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import MaterialCard from '@/components/MaterialCard'
 import MaterialCardMini from '@/components/MaterialCardMini'
-import Button from '@/components/ui/Button'
 import { logActivity } from '@/lib/activity'
-import { Archive, ArchiveRestore } from 'lucide-react'
+import { Archive, ArchiveRestore, Plus } from 'lucide-react'
 
 type Material = {
   id: string
@@ -30,11 +29,19 @@ type Material = {
   position?: number
 }
 
+// Mesmas quatro colunas do quadro de Extras. "Feito" é onde o designer diz que
+// terminou sem que nada seja enviado; "Com o cliente" diz onde a bola está.
+// Material não vai pro cliente pelo hub (não existe link público de material),
+// então aqui "Com o cliente" é marcação manual de envio por fora.
 const COLUMNS = [
-  { key: 'producao', label: 'A fazer', color: '#F59E0B' },
-  { key: 'aguardando_aprovacao', label: 'Em aprovação', color: '#EC4899' },
-  { key: 'finalizado', label: 'Finalizados', color: '#22C55E' },
+  { key: 'producao',             label: 'A fazer',       color: '#F59E0B' },
+  { key: 'feito',                label: 'Feito',         color: '#0EA5E9' },
+  { key: 'aguardando_aprovacao', label: 'Com o cliente', color: '#EC4899' },
+  { key: 'finalizado',           label: 'Finalizados',   color: '#22C55E' },
 ]
+// Status conhecidos: o que não for nenhum deles cai em "A fazer". Sem esta
+// lista, 'feito' caía no balaio do fallback e aparecia em duas colunas.
+const KNOWN_STATUS = COLUMNS.map(c => c.key)
 
 function MateriaisContent() {
   useEffect(() => { document.title = 'Materiais · Bagano Hub' }, [])
@@ -95,10 +102,22 @@ function MateriaisContent() {
     return true
   })
 
+  // Números do cabeçalho — sobre os materiais ativos, não sobre o que o filtro
+  // de cliente está mostrando: é o estado da agência, não da tela.
+  const stats = (() => {
+    const ativos = materials.filter(m => !m.archived_at)
+    const now = new Date()
+    return {
+      total:   ativos.length,
+      done:    ativos.filter(m => m.status === 'finalizado').length,
+      overdue: ativos.filter(m => m.due_date && new Date(m.due_date + 'T23:59:59') < now && !['finalizado', 'feito'].includes(m.status || '')).length,
+    }
+  })()
+
   function colMaterials(colKey: string) {
     return visible.filter(m => {
       const s = m.status || 'producao'
-      if (colKey === 'producao') return s === 'producao' || (!['aguardando_aprovacao', 'finalizado'].includes(s))
+      if (colKey === 'producao') return s === 'producao' || !KNOWN_STATUS.includes(s)
       return s === colKey
     })
   }
@@ -110,7 +129,7 @@ function MateriaisContent() {
   }
 
   async function moveStatus(id: string, newStatus: string) {
-    const labels: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', finalizado: 'Finalizado' }
+    const labels: Record<string,string> = { producao: 'A fazer', feito: 'Feito', aguardando_aprovacao: 'Com o cliente', finalizado: 'Finalizado' }
     const mat = materials.find(m => m.id === id)
     const oldLabel = labels[mat?.status || 'producao'] || mat?.status || ''
     const newLabel = labels[newStatus] || newStatus
@@ -132,7 +151,7 @@ function MateriaisContent() {
     const already = materials.filter(m => {
       if (m.id === draggedId || m.archived_at) return false
       const s = m.status || 'producao'
-      return colKey === 'producao' ? (s === 'producao' || !['aguardando_aprovacao', 'finalizado'].includes(s)) : s === colKey
+      return colKey === 'producao' ? (s === 'producao' || !KNOWN_STATUS.includes(s)) : s === colKey
     })
     const dragged = materials.find(m => m.id === draggedId)
     if (!dragged) return
@@ -178,7 +197,12 @@ function MateriaisContent() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-2.5 min-w-0">
           <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Materiais</h1>
-          <p className="text-[var(--color-text-muted)] text-sm truncate">{visible.length} materia{visible.length === 1 ? 'l' : 'is'} · menus, cardápios, artes</p>
+          {/* Mesmo formato do Extras: contagem + o que precisa de atenção.
+              "menus, cardápios, artes" descrevia o que a equipe já sabe. */}
+          <p className="text-[var(--color-text-muted)] text-sm truncate">
+            {stats.total} materia{stats.total === 1 ? 'l' : 'is'} · {stats.done} finalizado{stats.done === 1 ? '' : 's'}
+            {stats.overdue > 0 && <span style={{ color: '#ef4444' }}> · {stats.overdue} em atraso</span>}
+          </p>
         </div>
         {/* Os três numa linha só: o filtro estica pra ocupar a sobra e os dois
             botões ficam no tamanho do próprio texto. "Novo material" encurta
@@ -200,9 +224,6 @@ function MateriaisContent() {
             {showArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
             {showArchived ? 'Ver board' : `Arquivo${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
           </button>
-          <Button variant="dark" className="flex-shrink-0" onClick={() => setCardOpen('new')}>
-            + Novo<span className="hidden sm:inline"> material</span>
-          </Button>
         </div>
       </div>
 
@@ -228,7 +249,8 @@ function MateriaisContent() {
           ))}
         </div>
       ) : (
-      <div className="flex gap-5 md:flex-1 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0 items-stretch">
+      <div className="flex-1 min-h-[60svh] md:min-h-0 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory md:snap-none">
+        <div className="flex gap-3 h-full md:min-w-max">
         {/* Classes idênticas às do Extras, que encaixa certo. A única diferença
             que este quadro tinha era o `flex-1` no elemento que rola — ele
             existe pra altura no desktop, mas no celular ficava no próprio
@@ -241,7 +263,7 @@ function MateriaisContent() {
           const prevCol    = COLUMNS[colIdx - 1]
           const nextCol    = COLUMNS[colIdx + 1]
           return (
-            <div key={col.key} className="w-[calc(100vw-2rem)] flex-shrink-0 snap-center snap-always md:w-auto md:flex-1 md:min-w-[300px] md:snap-align-none flex flex-col"
+            <div key={col.key} className="flex flex-col w-[calc(100vw-2rem)] md:w-[268px] flex-shrink-0 snap-center snap-always md:snap-align-none overflow-hidden"
               onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={() => setDragOverCol(null)}
               onDrop={e => {
@@ -249,12 +271,23 @@ function MateriaisContent() {
                 if (draggingId) reorderColumn(col.key, draggingId, dragOverMaterialId)
                 setDraggingId(null); setDragOverCol(null); setDragOverMaterialId(null)
               }}>
-              <div className="flex items-center gap-2 mb-3 px-1">
-                <span className="w-2 h-2 rounded-full" style={{ background: col.color }} />
-                <span className="text-sm font-semibold text-[var(--color-text-primary)]">{col.label}</span>
-                <span className="text-xs text-[var(--color-text-muted)]">{items.length}</span>
+              {/* Cabeçalho idêntico ao do quadro de Extras — parado, não rola
+                  com os cards, e com o "+" que só existia lá. */}
+              <div className="flex items-center justify-between py-1 px-1 flex-shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
+                  <span className="text-xs font-semibold text-[var(--color-text-primary)] truncate">{col.label}</span>
+                  <span className="text-[10px] font-bold text-[var(--color-text-muted)] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">{items.length}</span>
+                </div>
+                <button
+                  onClick={() => setCardOpen(`new:${col.key}`)}
+                  className="w-6 h-6 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
+                  title="Adicionar"
+                >
+                  <Plus size={13} />
+                </button>
               </div>
-              <div className={`flex flex-col gap-2.5 flex-1 rounded-xl transition-colors ${isDragOver ? 'bg-[var(--color-brand)]10 ring-2 ring-[var(--color-brand)] ring-dashed' : ''}`}>
+              <div className={`flex flex-col gap-2.5 flex-1 min-h-[80px] overflow-y-auto px-1 pb-1 rounded-xl transition-colors ${isDragOver ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
                 {items.map(m => {
                   const ct = counts[m.id] || { checklist: 0, checkDone: 0, comments: 0, attachments: 0, preview: null }
                   return (
@@ -275,30 +308,34 @@ function MateriaisContent() {
                   )
                 })}
                 {items.length === 0 && (
-                  isDragOver ? (
-                    <div className="rounded-xl border-2 border-dashed border-[var(--color-brand)] py-10 text-center text-sm text-[var(--color-brand)] font-medium bg-[var(--color-bg-subtle)]">
-                      Soltar aqui
-                    </div>
-                  ) : (
-                    <button onClick={() => setCardOpen('new')}
-                      className="group w-full rounded-xl border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-brand)] py-10 flex flex-col items-center gap-2.5 transition-all hover:bg-[var(--color-bg-subtle)]">
-                      <div className="w-9 h-9 rounded-full border-2 border-dashed border-[var(--color-border)] group-hover:border-[var(--color-brand)] group-hover:bg-[var(--color-brand)] flex items-center justify-center transition-all">
-                        <span className="text-lg text-[var(--color-text-muted)] group-hover:text-white leading-none">+</span>
-                      </div>
-                      <span className="text-xs text-[var(--color-text-muted)] group-hover:text-[var(--color-brand)] transition-colors font-medium">Adicionar material</span>
-                    </button>
-                  )
+                  <div className={`flex items-center justify-center h-20 border-2 border-dashed rounded-xl transition-colors ${isDragOver ? 'border-[var(--color-brand)]' : 'border-[var(--color-border)]'}`}>
+                    <p className={`text-[10px] font-medium ${isDragOver ? 'text-[var(--color-brand)]' : 'text-[var(--color-text-faint)]'}`}>
+                      {isDragOver ? 'Solte aqui' : '—'}
+                    </p>
+                  </div>
                 )}
               </div>
+
+              {/* Adicionar no rodapé, sempre visível — antes, coluna com card
+                  não tinha nenhum jeito de criar dentro dela: só o botão do
+                  topo, que sempre jogava em "A fazer". */}
+              <button
+                onClick={() => setCardOpen(`new:${col.key}`)}
+                className="flex-shrink-0 mt-1 mx-1 flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] rounded-lg px-2 py-2 transition-colors">
+                <Plus size={13} /> Adicionar
+              </button>
             </div>
           )
         })}
+        </div>
       </div>
       )}
 
       {cardOpen && (
         <MaterialCard
-          materialId={cardOpen === 'new' ? undefined : cardOpen}
+          // "new:<coluna>" = criando naquela coluna; qualquer outra coisa é id.
+          materialId={cardOpen.startsWith('new') ? undefined : cardOpen}
+          initialStatus={cardOpen.startsWith('new:') ? cardOpen.slice(4) : undefined}
           clients={clients}
           onClose={() => { setCardOpen(null); window.history.replaceState(null, '', window.location.pathname) }}
           onSaved={reload}

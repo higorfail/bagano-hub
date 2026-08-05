@@ -7,10 +7,14 @@ import { Plus, Link2, Check, Camera, Images, Video, Image as ImageIcon, Archive,
 import ExtraCard from './ExtraCard'
 import ExtraMiniCard from './ExtraMiniCard'
 import { copyTextAsync } from '@/lib/clipboard'
-import { getOrCreateExtrasApprovalToken } from '@/lib/approvalLinks'
+import { getOrCreateExtrasApprovalToken, sendFeitoExtrasToClient } from '@/lib/approvalLinks'
 
 type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post'
-type ExtraStatus   = 'backlog' | 'aguardando_aprovacao' | 'done'
+// 'feito' entrou entre "a fazer" e "com o cliente": o designer termina a arte
+// e precisa de um lugar pra dizer isso SEM disparar o envio pro cliente. Antes
+// as duas únicas saídas eram deixar em "a fazer" (parece que não fez) ou mover
+// pra aprovação — que manda pro cliente na hora.
+type ExtraStatus   = 'backlog' | 'feito' | 'aguardando_aprovacao' | 'done'
 type ExtraPriority = 'low' | 'normal' | 'high'
 
 interface Extra {
@@ -39,10 +43,14 @@ interface Extra {
 interface Member { id: string; name: string; role: string }
 interface Client { id: string; name: string; color_hex: string }
 
+// "Com o cliente" no lugar de "Em aprovação": diz onde a bola está, que é a
+// informação que faltava. Em sentence case porque MAIÚSCULA COM ESPAÇAMENTO
+// custa largura de verdade, e com 4 colunas cada pixel conta.
 const COLUMNS: { key: ExtraStatus; label: string; color: string }[] = [
-  { key: 'backlog',              label: 'A fazer',      color: '#F59E0B' },
-  { key: 'aguardando_aprovacao', label: 'Em aprovação', color: '#EC4899' },
-  { key: 'done',                 label: 'Finalizados',  color: '#22C55E' },
+  { key: 'backlog',              label: 'A fazer',       color: '#F59E0B' },
+  { key: 'feito',                label: 'Feito',         color: '#0EA5E9' },
+  { key: 'aguardando_aprovacao', label: 'Com o cliente', color: '#EC4899' },
+  { key: 'done',                 label: 'Finalizados',   color: '#22C55E' },
 ]
 
 const TYPE_CONFIG: Record<ExtraType, { icon: React.ElementType; color: string }> = {
@@ -82,7 +90,10 @@ function formatDue(d: string) {
 }
 
 function isOverdue(due_date?: string | null, status?: ExtraStatus) {
-  if (!due_date || status === 'done') return false
+  // 'feito' não conta como atraso: a arte está pronta, o prazo de PRODUÇÃO foi
+  // cumprido. Cobrar atraso de trabalho entregue é o tipo de aviso que ensina
+  // a equipe a ignorar aviso.
+  if (!due_date || status === 'done' || status === 'feito') return false
   return new Date(due_date + 'T23:59:59') < new Date()
 }
 
@@ -126,12 +137,21 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
 
   async function copyExtrasApprovalLink() {
     if (!clientId) return
+    // Copiar o link É o envio: o que está em "Feito" passa pra "Com o cliente"
+    // junto. Sem isso o cliente abriria uma página vazia, porque a tela de
+    // aprovação só lista extra com client_approval_status = 'aguardando'.
+    let enviados = 0
     const ok = await copyTextAsync(async () => {
+      enviados = await sendFeitoExtrasToClient(clientId)
       const token = await getOrCreateExtrasApprovalToken(clientId)
       if (!token) throw new Error('sem token')
       return `${window.location.origin}/aprovar/${token}`
     })
     if (!ok) return
+    if (enviados > 0) {
+      setExtras(prev => prev.map(e => e.status === 'feito' && !e.archived_at
+        ? { ...e, status: 'aguardando_aprovacao' as ExtraStatus, client_approval_status: 'aguardando' } : e))
+    }
     setCopiedLink(true)
     setTimeout(() => setCopiedLink(false), 2000)
   }
@@ -200,13 +220,14 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
     const completedPatch = colKey === 'done' && prevStatus !== 'done' ? { completed_at: new Date().toISOString() } : (colKey !== 'done' ? { completed_at: null } : {})
 
     // Mesma sincronização do ExtraCard (changeStatus) — arrastar o card no
-    // Kanban é OUTRO jeito de mudar o status, além do seletor dentro do
-    // card, e sem isso não herdava a regra: mover pra "Em aprovação" manda
-    // pro cliente sozinho, "Finalizado" já conta como aprovado, "A fazer"
-    // limpa a aprovação.
+    // Kanban é OUTRO jeito de mudar o status, além do seletor dentro do card.
+    // "Feito" é o único que não mexe na aprovação: terminou, nada foi enviado.
+    // Arrastar pra "Com o cliente" continua mandando na hora, mesmo com o
+    // envio automático pelo link — quem mandou por WhatsApp marca aqui.
     let approvalPatch: string | null | undefined
     if (prevStatus !== colKey) {
-      if (colKey === 'aguardando_aprovacao') approvalPatch = dragged.client_approval_status === 'aguardando' ? undefined : 'aguardando'
+      if (colKey === 'feito') approvalPatch = undefined
+      else if (colKey === 'aguardando_aprovacao') approvalPatch = dragged.client_approval_status === 'aguardando' ? undefined : 'aguardando'
       else if (colKey === 'done') approvalPatch = dragged.client_approval_status === 'aprovado' ? undefined : 'aprovado'
       else if (colKey === 'backlog') approvalPatch = dragged.client_approval_status ? null : undefined
     }
@@ -335,17 +356,23 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
           ))}
         </div>
       ) : (
-      /* Kanban columns — no mobile rola tipo Trello (1 coluna por vez, com snap) */
-      <div className="flex md:grid md:grid-cols-3 gap-5 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0 items-stretch min-h-[60svh] md:min-h-0">
-        {/* min-h no celular: quem rola de lado é ESTE elemento, e a altura dele
-            vinha do conteúdo — com poucos cards o dedo só arrastava na faixa de
-            cima, e no vazio de baixo o toque caía na página. */}
+      /* Estrutura copiada do Kanban de posts, que é o único quadro do hub onde
+         a rolagem por coluna já funciona nos três tamanhos de tela: o trilho
+         rola na horizontal com encaixe, cada coluna tem largura fixa de 268px
+         (a medida de lista do Trello) e SÓ a área de cards rola na vertical.
+         Cabeçalho e botão de adicionar ficam parados.
+
+         Largura fixa em vez de dividir a tela: com 4 colunas, dividir daria
+         164px por coluna no iPad em retrato — uma tira onde não cabe título e
+         etiqueta na mesma linha. Fixo, o quadro rola quando não couber. */
+      <div className="flex-1 min-h-[60svh] md:min-h-0 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory md:snap-none">
+        <div className="flex gap-3 h-full md:min-w-max">
         {COLUMNS.map(col => {
           const colExtras = filtered.filter(e => e.status === col.key)
           const isDragTarget = dragOverCol === col.key && draggingId !== null
 
           return (
-            <div key={col.key} className="flex flex-col gap-2 w-[calc(100vw-2rem)] flex-shrink-0 snap-center snap-always md:w-auto md:max-w-none md:flex-shrink md:snap-align-none"
+            <div key={col.key} className="flex flex-col w-[calc(100vw-2rem)] md:w-[268px] flex-shrink-0 snap-center snap-always md:snap-align-none overflow-hidden"
               onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null) }}
               onDrop={e => {
@@ -357,26 +384,25 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                 setDragOverExtraId(null)
               }}
             >
-              {/* Column header */}
-              <div className="flex items-center justify-between py-1">
-                <div className="flex items-center gap-2">
+              {/* Cabeçalho — parado, não rola com os cards. Contador aparece
+                  mesmo em zero: num quadro, coluna vazia é informação. */}
+              <div className="flex items-center justify-between py-1 px-1 flex-shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
-                  <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">{col.label}</span>
-                  {colExtras.length > 0 && (
-                    <span className="text-[10px] font-medium text-[var(--color-text-faint)] bg-[var(--color-bg-subtle)] px-1.5 py-0.5 rounded-full">{colExtras.length}</span>
-                  )}
+                  <span className="text-xs font-semibold text-[var(--color-text-primary)] truncate">{col.label}</span>
+                  <span className="text-[10px] font-bold text-[var(--color-text-muted)] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">{colExtras.length}</span>
                 </div>
                 <button
                   onClick={() => setNewStatus(col.key)}
-                  className="w-6 h-6 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+                  className="w-6 h-6 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
                   title="Adicionar"
                 >
                   <Plus size={13} />
                 </button>
               </div>
 
-              {/* Cards */}
-              <div className={`flex flex-col gap-2 flex-1 min-h-[80px] rounded-xl transition-colors ${isDragTarget ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
+              {/* Só esta área rola. */}
+              <div className={`flex flex-col gap-2 flex-1 min-h-[80px] overflow-y-auto px-1 pb-1 rounded-xl transition-colors ${isDragTarget ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
                 {colExtras.map(extra => {
                   const assignedData = extra.assigned_members
                     ? members.filter(m => extra.assigned_members!.includes(m.id))
@@ -409,19 +435,29 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                   )
                 })}
 
-                {/* Empty state per column */}
-                {colExtras.length === 0 && !isDragTarget && (
-                  <button
-                    onClick={() => setNewStatus(col.key)}
-                    className="flex items-center justify-center gap-1.5 text-xs text-[var(--color-text-faint)] hover:text-[var(--color-text-muted)] py-6 border border-dashed border-[var(--color-border)] rounded-xl hover:border-[var(--color-border-hover)] transition-colors w-full"
-                  >
-                    <Plus size={13} /> Adicionar
-                  </button>
+                {/* Coluna vazia: alvo de soltar, e não um botão — o de criar
+                    mora no rodapé agora, e vale cheia ou vazia. */}
+                {colExtras.length === 0 && (
+                  <div className={`flex items-center justify-center h-20 border-2 border-dashed rounded-xl transition-colors ${isDragTarget ? 'border-[var(--color-brand)]' : 'border-[var(--color-border)]'}`}>
+                    <p className={`text-[10px] font-medium ${isDragTarget ? 'text-[var(--color-brand)]' : 'text-[var(--color-text-faint)]'}`}>
+                      {isDragTarget ? 'Solte aqui' : '—'}
+                    </p>
+                  </div>
                 )}
               </div>
+
+              {/* Adicionar no rodapé, sempre visível — é o padrão do Trello e o
+                  que faltava: no quadro de Materiais, coluna com card não tinha
+                  nenhum jeito de criar dentro dela. */}
+              <button
+                onClick={() => setNewStatus(col.key)}
+                className="flex-shrink-0 mt-1 mx-1 flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] rounded-lg px-2 py-2 transition-colors">
+                <Plus size={13} /> Adicionar
+              </button>
             </div>
           )
         })}
+        </div>
       </div>
       )}
 

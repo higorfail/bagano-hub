@@ -28,6 +28,28 @@ export async function getOrCreateGeneralApprovalToken(clientId: string): Promise
 // mas todo mês nascia um token novo pro mesmo cliente, e você deixava de saber
 // qual link o cliente tem na mão — impossível revogar o certo. Aqui a chave é
 // só o cliente; o mês vai no insert por completude do schema e ninguém lê.
+/**
+ * Manda pro cliente os extras que estão em "Feito".
+ *
+ * Mesma ideia do cronograma, onde gerar o link é o que move os posts pra
+ * aprovação: a coluna "Com o cliente" passa a refletir um FATO — o link saiu —
+ * em vez de depender de alguém lembrar de arrastar. Arrastar continua
+ * funcionando pra quem mandou por fora e quer marcar na mão.
+ *
+ * Devolve quantos foram, ou lança se o banco recusar — quem chama precisa
+ * saber, porque um link enviado com o extra parado em "Feito" abre uma página
+ * vazia pro cliente.
+ */
+export async function sendFeitoExtrasToClient(clientId: string): Promise<number> {
+  const supabase = createClient()
+  const { data, error } = await supabase.from('extras')
+    .update({ status: 'aguardando_aprovacao', client_approval_status: 'aguardando', client_approval_comment: null, completed_at: null })
+    .eq('client_id', clientId).eq('status', 'feito').is('archived_at', null)
+    .select('id')
+  if (error) throw new Error(error.message)
+  return (data || []).length
+}
+
 export async function getOrCreateExtrasApprovalToken(clientId: string): Promise<string | null> {
   const supabase = createClient()
   // order + limit em vez de maybeSingle: já podem existir tokens antigos, um

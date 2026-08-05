@@ -31,7 +31,8 @@ import {
 const TYPE_OPTIONS = ['Menu', 'Cardápio', 'Arte avulsa', 'Logo', 'Manual', 'Placa', 'Cartão', 'Sacola', 'Sousplat', 'Story', 'Capas destaque', 'Fundos', 'Outro']
 const STATUS_OPTIONS = [
   { value: 'producao',            label: 'A fazer',          color: '#F59E0B' },
-  { value: 'aguardando_aprovacao', label: 'Em aprovação',    color: '#EC4899' },
+  { value: 'feito',               label: 'Feito',            color: '#0EA5E9' },
+  { value: 'aguardando_aprovacao', label: 'Com o cliente',   color: '#EC4899' },
   { value: 'ajuste',              label: 'Ajuste solicitado', color: '#EF4444' },
   { value: 'finalizado',          label: 'Finalizado',       color: '#22C55E' },
 ]
@@ -54,13 +55,16 @@ type Props = {
   materialId?: string
   fixedClientId?: string
   initialCampaignType?: string
+  /** Coluna em que o card está nascendo — sem isso, criar pelo "+" de
+   *  qualquer coluna jogava tudo em "A fazer". */
+  initialStatus?: string
   clients?: any[]
   onClose: () => void
   onSaved: () => void
   onDeleted?: (id: string) => void
 }
 
-export default function MaterialCard({ materialId, fixedClientId, initialCampaignType, clients = [], onClose, onSaved, onDeleted }: Props) {
+export default function MaterialCard({ materialId, fixedClientId, initialCampaignType, initialStatus, clients = [], onClose, onSaved, onDeleted }: Props) {
   const { members, currentMember } = useUser()
   const who = currentMember?.name || 'Alguém'
   const { toast } = useToast()
@@ -91,7 +95,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
   const [title,       setTitle]       = useState('')
   const [type,        setType]        = useState('Arte avulsa')
   const [typeManual,  setTypeManual]  = useState(false)
-  const [status,      setStatus]      = useState('producao')
+  const [status,      setStatus]      = useState(initialStatus || 'producao')
   const [clientId,    setClientId]    = useState(fixedClientId || '')
   const [clientManual,setClientManual]= useState(false)
   const [extraClient, setExtraClient] = useState('')
@@ -304,7 +308,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
     setActivityKey(k => k + 1)
   }
 
-  const STATUS_LABEL: Record<string,string> = { producao: 'A fazer', aguardando_aprovacao: 'Em aprovação', ajuste: 'Ajuste solicitado', finalizado: 'Finalizado' }
+  const STATUS_LABEL: Record<string,string> = { producao: 'A fazer', feito: 'Feito', aguardando_aprovacao: 'Com o cliente', ajuste: 'Ajuste solicitado', finalizado: 'Finalizado' }
   function changeStatus(v: string) {
     const old = STATUS_LABEL[status] || status
     setStatus(v)

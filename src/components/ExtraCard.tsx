@@ -6,7 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
-import { getOrCreateExtrasApprovalToken } from '@/lib/approvalLinks'
+import { getOrCreateExtrasApprovalToken, sendFeitoExtrasToClient } from '@/lib/approvalLinks'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
 import { autoGrow } from '@/lib/autoGrow'
@@ -31,7 +31,7 @@ import {
 , Reply} from 'lucide-react'
 
 type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post'
-type ExtraStatus   = 'backlog' | 'aguardando_aprovacao' | 'done'
+type ExtraStatus   = 'backlog' | 'feito' | 'aguardando_aprovacao' | 'done'
 type ExtraPriority = 'low' | 'normal' | 'high'
 
 const TYPE_OPTIONS: { value: ExtraType; label: string; icon: React.ElementType; color: string }[] = [
@@ -42,7 +42,8 @@ const TYPE_OPTIONS: { value: ExtraType; label: string; icon: React.ElementType; 
 ]
 const STATUS_OPTIONS: { value: ExtraStatus; label: string; color: string }[] = [
   { value: 'backlog',              label: 'A fazer',       color: '#F59E0B' },
-  { value: 'aguardando_aprovacao', label: 'Em aprovação',  color: '#EC4899' },
+  { value: 'feito',                label: 'Feito',         color: '#0EA5E9' },
+  { value: 'aguardando_aprovacao', label: 'Com o cliente', color: '#EC4899' },
   { value: 'done',                 label: 'Finalizado',    color: '#22C55E' },
 ]
 // "Ajuste" não é um status próprio na tabela — é a combinação "A fazer" +
@@ -343,7 +344,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     setActivityKey(k => k + 1)
   }
 
-  const STATUS_LABEL: Record<ExtraStatus,string> = { backlog: 'A fazer', aguardando_aprovacao: 'Em aprovação', done: 'Finalizado' }
+  const STATUS_LABEL: Record<ExtraStatus,string> = { backlog: 'A fazer', feito: 'Feito', aguardando_aprovacao: 'Com o cliente', done: 'Finalizado' }
   function changeStatus(v: ExtraStatus) {
     const old = STATUS_LABEL[status]
     setStatus(v)
@@ -352,12 +353,14 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
 
     // Igual ao Cronograma: o status interno é a fonte da verdade pro que o
     // cliente vê, sem precisar de um botão manual separado pra "enviar".
-    // Mover pra "Em aprovação" manda pro cliente sozinho; marcar
-    // "Finalizado" já conta como aprovado (ex: cliente aprovou por fora, no
-    // WhatsApp); voltar pra "A fazer" limpa a aprovação — é o mesmo lugar
-    // onde o card cai quando o cliente pede ajuste (ver rejectExtra).
+    // "Feito" é o único que NÃO mexe na aprovação — é justamente o ponto dele:
+    // o designer terminou e nada foi mandado pro cliente. Mover pra "Com o
+    // cliente" manda; marcar "Finalizado" já conta como aprovado (ex: cliente
+    // aprovou por fora, no WhatsApp); voltar pra "A fazer" limpa a aprovação —
+    // é o mesmo lugar onde o card cai quando o cliente pede ajuste.
     let approvalPatch: string | null | undefined
-    if (v === 'aguardando_aprovacao') approvalPatch = clientApprovalStatus === 'aguardando' ? undefined : 'aguardando'
+    if (v === 'feito') approvalPatch = undefined
+    else if (v === 'aguardando_aprovacao') approvalPatch = clientApprovalStatus === 'aguardando' ? undefined : 'aguardando'
     else if (v === 'done') approvalPatch = clientApprovalStatus === 'aprovado' ? undefined : 'aprovado'
     else if (v === 'backlog') approvalPatch = clientApprovalStatus ? null : undefined
 
@@ -412,6 +415,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     const cid = fixedClientId || clientId
     if (!cid) return
     const ok = await copyTextAsync(async () => {
+      // Igual ao quadro: copiar o link manda o que está em "Feito".
+      await sendFeitoExtrasToClient(cid)
       const token = await getOrCreateExtrasApprovalToken(cid)
       if (!token) throw new Error('sem token')
       return `${window.location.origin}/aprovar/${token}`
