@@ -330,7 +330,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           </div>
 
           <div className="flex items-center gap-1 mt-3 md:mt-5 overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
-            {[{key:'cronograma',label:'Cronograma'},{key:'feed',label:'Feed'},{key:'materiais',label:'Materiais'},{key:'campanhas',label:'Campanhas'},{key:'time',label:'Time'},{key:'extras',label:'Extras'},{key:'tarefas',label:'Tarefas'},{key:'onboarding',label:'Onboarding'},{key:'drive',label:'Drive'},{key:'historico',label:'Histórico'},{key:'manual',label:'Manual'}].map(t => (
+            {/* Ordem do fluxo, não alfabética nem histórica: o que se abre todo dia vem
+                primeiro e o que é consulta fica no fim. "Time" não estava na lista
+                pedida — ficou no fim pra não sumir. */}
+            {[{key:'cronograma',label:'Cronograma'},{key:'extras',label:'Extras'},{key:'materiais',label:'Materiais'},{key:'tarefas',label:'Tarefas'},{key:'campanhas',label:'Campanhas'},{key:'feed',label:'Feed'},{key:'drive',label:'Drive'},{key:'onboarding',label:'Onboarding'},{key:'manual',label:'Manual'},{key:'historico',label:'Histórico'},{key:'time',label:'Time'}].map(t => (
               <button key={t.key} onClick={() => setTab(t.key)} className={`flex-shrink-0 px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all whitespace-nowrap ${tab===t.key?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
             ))}
           </div>

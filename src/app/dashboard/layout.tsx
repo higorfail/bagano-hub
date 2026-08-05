@@ -25,16 +25,20 @@ const navItems = [
   { href: '/dashboard/tarefas',  icon: ListTodo,      label: 'Quadro pessoal' },
 ]
 const productionItems = [
-  { href: '/dashboard/agenda',     icon: CalendarDays,   label: 'Agenda' },
+  // Ordem do fluxo da agência, do começo ao fim: monta o cronograma, cria,
+  // manda aprovar, entrega material e extra, publica. Esses seis são o que se
+  // abre a cada hora — vêm primeiro. O resto é consulta e apoio, e estava
+  // espalhado no meio deles.
   { href: '/dashboard/cronograma', icon: Calendar,       label: 'Cronograma' },
   { href: '/dashboard/criacao',    icon: Zap,            label: 'Criação' },
-  { href: '/dashboard/kanban',     icon: Kanban,         label: 'Kanban' },
   { href: '/dashboard/aprovacao',  icon: ClipboardCheck, label: 'Aprovações' },
-  { href: '/dashboard/feed',       icon: Smartphone,     label: 'Feed Visual' },
   { href: '/dashboard/materiais',  icon: Package,        label: 'Materiais' },
-  { href: '/dashboard/campanhas',  icon: Megaphone,      label: 'Campanhas' },
   { href: '/dashboard/extras',     icon: LayoutList,     label: 'Extras' },
   { href: '/dashboard/social',     icon: Share2,         label: 'Publicações' },
+  { href: '/dashboard/agenda',     icon: CalendarDays,   label: 'Agenda' },
+  { href: '/dashboard/kanban',     icon: Kanban,         label: 'Kanban' },
+  { href: '/dashboard/feed',       icon: Smartphone,     label: 'Feed Visual' },
+  { href: '/dashboard/campanhas',  icon: Megaphone,      label: 'Campanhas' },
 ]
 const contentItems = [
   { href: '/dashboard/calendario',                 icon: Calendar,      label: 'Calendário' },
