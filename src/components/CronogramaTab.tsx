@@ -81,8 +81,33 @@ type Post = MiniPost & {
 
 // Grade da tabela da Lista. O cabeçalho e as linhas usam a MESMA definição —
 // duas listas de larguras separadas seriam duas listas pra desalinhar.
-const LIST_COLS    = 'grid-cols-[56px_minmax(190px,1.1fr)_minmax(150px,1.3fr)_minmax(150px,1.3fr)_minmax(150px,1.3fr)_100px_64px_112px]'
-const LIST_COLS_SM = 'sm:grid-cols-[56px_minmax(190px,1.1fr)_minmax(150px,1.3fr)_minmax(150px,1.3fr)_minmax(150px,1.3fr)_100px_64px_112px]'
+//
+// As proporções vêm da planilha que a estrategista usa: Descrição é a coluna
+// mais larga de todas, Copy vem depois, e o resto é estreito. Dar largura
+// igual pra todo mundo foi o que espremeu justamente o texto que ela precisa
+// ler. Os números do banco confirmam: briefing tem 104 caracteres de mediana
+// (2 linhas numa coluna larga, 3 numa estreita) e copy tem 65.
+// A legenda é opcional e sai por padrão. É o campo MAIS longo do hub — 354
+// caracteres de mediana, o triplo do briefing — e não existe na planilha do
+// cronograma: ela é escrita na produção, depois. Ligada, custa a largura das
+// duas colunas que a estrategista realmente lê.
+//
+// Vai por `style` e não por classe do Tailwind de propósito: classe montada em
+// template string não é gerada no build. E de quebra resolve o celular — sem
+// o estilo aplicado, vale o `grid-cols-1` da classe, e a tabela vira lista.
+function listGrid(comLegenda: boolean) {
+  return [
+    '56px',                    // alça + nº
+    'minmax(180px,0.9fr)',     // post (título, tipo, campanha)
+    'minmax(200px,1.4fr)',     // copy
+    'minmax(260px,2fr)',       // descrição — a mais larga, como na planilha
+    ...(comLegenda ? ['minmax(200px,1.3fr)'] : []),
+    '96px',                    // refs
+    '60px',                    // data
+    '108px',                   // status
+  ].join(' ')
+}
+const LIST_MIN_W = (comLegenda: boolean) => (comLegenda ? 1240 : 1000)
 
 // `05/ago`. O formato curto do pt-BR devolve "05 de ago.", que é largo demais
 // pra coluna e quebrava a data em duas linhas.
@@ -217,6 +242,13 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   // Edição em linha só onde a tabela cabe. No celular a célula fica estreita
   // demais e o toque continua abrindo o card, que é onde se edita direito.
   const wide = useIsWideScreen()
+  const [showLegenda, setShowLegenda] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('crono_list_legenda') === '1'
+  })
+  function toggleLegenda() {
+    setShowLegenda(v => { try { localStorage.setItem('crono_list_legenda', v ? '0' : '1') } catch {} ; return !v })
+  }
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'calendar'>(() => {
     if (typeof window === 'undefined') return 'grid'
     const saved = localStorage.getItem('crono_view')
@@ -788,6 +820,19 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 <button onClick={() => changeView('calendar')} className={`flex-1 md:flex-none px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='calendar'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Calendário</button>
               </div>
 
+              {/* A legenda fica fora da tabela por padrão porque é o campo mais
+                  longo e o menos usado na hora de montar a pauta — mas está a
+                  um clique, pra quem estiver conferindo legenda. */}
+              {viewMode === 'list' && (
+                <button onClick={toggleLegenda}
+                  className="hidden sm:block px-2.5 py-1 rounded-lg border text-xs font-medium transition-all"
+                  style={showLegenda
+                    ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent-bg)' }
+                    : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                  Legenda
+                </button>
+              )}
+
               <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
                 className="flex-shrink-0 flex items-center justify-center md:justify-start gap-1.5 text-xs font-semibold px-3 py-2 md:py-1.5 rounded-xl text-white transition-opacity hover:opacity-90"
                 style={{ background: clientColor || 'var(--color-brand)' }}>
@@ -813,14 +858,15 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             // tela de telefone é ilegível. A edição em linha também só vale
             // daí pra cima; no celular o toque continua abrindo o card.
             <div className="overflow-x-auto -mx-1 px-1">
-              <div className="sm:min-w-[1040px]">
+              <div style={wide ? { minWidth: LIST_MIN_W(showLegenda) } : undefined}>
 
-                <div className={`hidden sm:grid ${LIST_COLS} gap-x-3 px-4 pb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)]`}>
+                <div className="hidden sm:grid gap-x-3 px-4 pb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)]"
+                  style={{ gridTemplateColumns: listGrid(showLegenda) }}>
                   <span>Nº</span>
                   <span>Post</span>
-                  <span>Briefing</span>
                   <span>Copy</span>
-                  <span>Legenda</span>
+                  <span>Descrição</span>
+                  {showLegenda && <span>Legenda</span>}
                   <span>Refs</span>
                   <span className="text-right">Data</span>
                   <span>Status</span>
@@ -831,7 +877,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                     const campaign = campaigns.find(c => c.type === post.campaign_type)
                     const labels: { text: string; color: string }[] = Array.isArray(post.labels) ? post.labels : []
                     const pediuAjuste = post.status === 'ajuste' || post.approval_status === 'não aprovado'
-                    const temRefs = !!(post.drive_folder_url || post.drive_url || (post.attachments_count || 0) > 0 || (post.reference_notes || '').trim())
+                    const temRefs = !!(post.drive_folder_url || post.drive_url || (post.attachments_count || 0) > 0 || (post.reference_notes || '').trim() || (!showLegenda && (post.legenda || '').trim()))
                     const isDragging = dragId === post.id
                     const isOver = dragOverId === post.id && dragId !== post.id
                     const abrirCard = () => { setEditingPostId(post.id); setShowPostCard(true) }
@@ -843,10 +889,13 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                         // e agora, com célula editável, seria pior ainda.
                         onDragOver={e => { e.preventDefault(); if (dragOverId !== post.id) setDragOverId(post.id) }}
                         onDrop={() => reorderPosts(post.id)}
-                        className={`grid grid-cols-1 ${LIST_COLS_SM} gap-x-3 gap-y-2 bg-[var(--color-bg-card)] border rounded-xl px-4 py-3 transition-all
+                        className={`grid grid-cols-1 gap-x-3 gap-y-2 bg-[var(--color-bg-card)] border rounded-xl px-4 py-3 transition-all
                           ${isDragging ? 'opacity-40' : ''}
                           ${isOver ? 'border-[var(--color-brand)]' : 'border-[var(--color-border)]'}`}
-                        style={{ borderLeftWidth: 3, borderLeftColor: clientColor || 'var(--color-brand)' }}>
+                        style={{
+                          borderLeftWidth: 3, borderLeftColor: clientColor || 'var(--color-brand)',
+                          ...(wide ? { gridTemplateColumns: listGrid(showLegenda) } : {}),
+                        }}>
 
                         <div className="flex items-center gap-1">
                           {!hasFilter && (
@@ -884,17 +933,19 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                         </div>
 
                         <div className="min-w-0">
-                          <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Briefing</p>
-                          <ListCell value={post.briefing || ''} editable={wide} onCommit={v => saveField(post.id, 'briefing', v)} />
-                        </div>
-                        <div className="min-w-0">
                           <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Copy</p>
-                          <ListCell value={post.copy || ''} editable={wide} onCommit={v => saveField(post.id, 'copy', v)} />
+                          <ListCell value={post.copy || ''} editable={wide} clampLines={wide ? 5 : 0} onCommit={v => saveField(post.id, 'copy', v)} />
                         </div>
                         <div className="min-w-0">
-                          <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Legenda</p>
-                          <ListCell value={post.legenda || ''} editable={wide} onCommit={v => saveField(post.id, 'legenda', v)} />
+                          <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Descrição</p>
+                          <ListCell value={post.briefing || ''} editable={wide} clampLines={wide ? 5 : 0} onCommit={v => saveField(post.id, 'briefing', v)} />
                         </div>
+                        {showLegenda && (
+                          <div className="min-w-0">
+                            <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Legenda</p>
+                            <ListCell value={post.legenda || ''} editable={wide} clampLines={wide ? 5 : 0} onCommit={v => saveField(post.id, 'legenda', v)} />
+                          </div>
+                        )}
 
                         <div className="min-w-0">
                           <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Refs</p>
@@ -908,6 +959,12 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                               )}
                               {(post.reference_notes || '').trim() && (
                                 <span className="text-[11px] text-[var(--color-text-muted)] truncate">{post.reference_notes}</span>
+                              )}
+                              {/* Com a coluna Legenda escondida, ainda dá pra
+                                  saber que ela já foi escrita — sem gastar
+                                  largura mostrando 354 caracteres. */}
+                              {!showLegenda && (post.legenda || '').trim() && (
+                                <span className="text-[11px] px-1.5 py-0.5 rounded" title="Legenda escrita" style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>✍</span>
                               )}
                             </div>
                           ) : <span className="text-[12px] text-[var(--color-text-faint)]">—</span>}
@@ -934,7 +991,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                         {/* Pedido do cliente atravessa a linha inteira: é o que
                             muda a próxima ação, não cabe espremido numa célula. */}
                         {pediuAjuste && (
-                          <div className="sm:col-span-8 rounded-lg px-2.5 py-1.5 text-[12px] leading-snug"
+                          <div className="sm:col-span-full rounded-lg px-2.5 py-1.5 text-[12px] leading-snug"
                             style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
                             {(post.approval_comment || '').trim()
                               ? <><span className="font-semibold">Cliente pediu ajuste:</span> “{post.approval_comment}”</>

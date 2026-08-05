@@ -20,10 +20,11 @@ type Props = {
   onCommit: (value: string) => void
   /** Falso no celular: lá o toque abre o card, editar em célula estreita é pior. */
   editable?: boolean
+  /** 0 = sem corte. No celular a célula ocupa a linha inteira e o texto sai completo. */
   clampLines?: number
 }
 
-export default function ListCell({ value, placeholder = '—', onCommit, editable = true, clampLines = 2 }: Props) {
+export default function ListCell({ value, placeholder = '—', onCommit, editable = true, clampLines = 5 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const discardRef = useRef(false)
@@ -68,10 +69,12 @@ export default function ListCell({ value, placeholder = '—', onCommit, editabl
   return (
     <div
       onClick={start}
-      className={`text-[12px] leading-snug rounded-md -mx-1 px-1 py-0.5 transition-colors
+      className={`text-[12px] leading-snug rounded-md -mx-1 px-1 py-0.5 transition-colors whitespace-pre-wrap break-words
         ${editable ? 'cursor-text hover:bg-[var(--color-bg-subtle)]' : ''}
         ${value ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-faint)]'}`}
-      style={value ? { display: '-webkit-box', WebkitLineClamp: clampLines, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : undefined}
+      style={value && clampLines > 0
+        ? { display: '-webkit-box', WebkitLineClamp: clampLines, WebkitBoxOrient: 'vertical', overflow: 'hidden' }
+        : undefined}
     >
       {value || placeholder}
     </div>
