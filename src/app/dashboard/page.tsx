@@ -350,6 +350,12 @@ export default function DashboardPage() {
   const [specialDates, setSpecialDates] = useState<SpecialDate[]>([])
   const [captacoes,    setCaptacoes]    = useState<Captacao[]>([])
   const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
+  // Extras e materiais de TODOS os clientes (colunas mínimas) — o bloco
+  // "Situação dos clientes" contava só posts, então cliente cujo trabalho é
+  // extra aparecia como "sem cronograma · nenhum post". O Unizushi tem dois
+  // extras e era mostrado como cliente parado.
+  const [allExtras,    setAllExtras]    = useState<{ client_id: string | null; status: string }[]>([])
+  const [allMaterials, setAllMaterials] = useState<{ client_id: string | null; status: string }[]>([])
   const [myExtras,     setMyExtras]     = useState<any[]>([])
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
   const [myTasks,      setMyTasks]      = useState<any[]>([])
@@ -389,7 +395,7 @@ export default function DashboardPage() {
       try {
         const in90Str = new Date(now.getTime() + 90 * 86400000).toISOString().split('T')[0]
         const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
-        const [{ data: cls, error: e1 }, { data: sch }, { data: sd }, { data: cap }, { data: ct }] = await Promise.all([
+        const [{ data: cls, error: e1 }, { data: sch }, { data: sd }, { data: cap }, { data: ct }, { data: ex }, { data: mt }] = await Promise.all([
           supabase.from(CFG.t.clients)
             .select('id, name, color_hex, logo_url')
             .eq('status', 'active')
@@ -412,6 +418,8 @@ export default function DashboardPage() {
           supabase.from('client_team')
             .select('client_id, member_id, funcao')
             .eq('funcao', 'estrategia'),
+          supabase.from('extras').select('client_id, status').is('archived_at', null),
+          supabase.from('materials').select('client_id, status').is('archived_at', null),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
         setClients(cls || [])
@@ -419,6 +427,8 @@ export default function DashboardPage() {
         setSpecialDates(sd || [])
         setCaptacoes(cap || [])
         setClientTeam(ct || [])
+        setAllExtras((ex || []) as any)
+        setAllMaterials((mt || []) as any)
       } catch {
         setLoadError(true)
       }
@@ -529,7 +539,17 @@ export default function DashboardPage() {
       const arr = per.get(k)
       if (arr) arr.push(s); else per.set(k, [s])
     }
+    // Extras e materiais entram na conta do cliente. Não entram na BARRA nem
+    // no fôlego — barra é o ciclo do cronograma e fôlego é o que vai ao ar, e
+    // extra/material não têm data de publicação. Mas precisam aparecer, senão
+    // o card afirma que o cliente não tem nada quando ele tem.
+    const abertoEx = (st: string) => st !== 'done'
+    const abertoMt = (st: string) => st !== 'finalizado'
     const rows = clients.map(c => {
+      const exs = allExtras.filter(x => x.client_id === c.id)
+      const mts = allMaterials.filter(x => x.client_id === c.id)
+      const outros = { exTotal: exs.length, mtTotal: mts.length,
+                       abertos: exs.filter(x => abertoEx(x.status)).length + mts.filter(x => abertoMt(x.status)).length }
       const per = byClient.get(c.id)
       const keys = per ? [...per.keys()].sort() : []
       // Fôlego: até quando ainda tem post marcado pra ir ao ar.
@@ -551,7 +571,7 @@ export default function DashboardPage() {
       const runway: 'sem-data' | 'fim' | 'ok' = !datas.length ? 'sem-data' : restantes === 0 ? 'fim' : 'ok'
       const diasAte = ultima ? Math.round((new Date(ultima + 'T12:00:00').getTime() - new Date(todayStr + 'T12:00:00').getTime()) / 86400000) : 0
       const runwayCurto = runway === 'ok' && (restantes <= 2 || diasAte <= 7)
-      const base = { client: c, restantes, ultima, runway, runwayCurto }
+      const base = { client: c, restantes, ultima, runway, runwayCurto, outros }
       if (!keys.length) return { ...base, state: 'nunca' as const, key: '', posts: [] as Schedule[] }
       const openKey = keys.find(k => per!.get(k)!.some(s => !DONE_STAGES.includes(s.status)))
       const key = openKey || keys[keys.length - 1]
@@ -560,9 +580,12 @@ export default function DashboardPage() {
     // Quem tem trabalho em aberto primeiro; quem está em dia depois; quem nem
     // cronograma tem, no fim. O bloco é sobre situação, então a ordem é a
     // própria informação.
-    const rank = { ativo: 0, entregue: 1, nunca: 2 }
-    return rows.sort((a, b) => rank[a.state] - rank[b.state] || a.client.name.localeCompare(b.client.name))
-  }, [allSchedules, clients])
+    // Cliente sem cronograma MAS com extra/material não é cliente parado —
+    // fica antes de quem não tem nada.
+    const rank = (r: typeof rows[number]) =>
+      r.state === 'ativo' ? 0 : r.state === 'entregue' ? 1 : (r.outros.exTotal + r.outros.mtTotal > 0 ? 2 : 3)
+    return rows.sort((a, b) => rank(a) - rank(b) || a.client.name.localeCompare(b.client.name))
+  }, [allSchedules, clients, allExtras, allMaterials])
 
   // Pendências de aprovação por cliente E MÊS.
   //
@@ -592,7 +615,7 @@ export default function DashboardPage() {
       // Mês mais velho primeiro. Depois da virada, é o mês que ficou pra trás
       // que ninguém está mais olhando — e é exatamente o que precisa cobrança.
       .sort((a, b) => (a.year - b.year) || (a.month - b.month) || (b.pendingCount - a.pendingCount))
-  }, [allSchedules, clients])
+  }, [allSchedules, clients, allExtras, allMaterials])
 
   const pendingApproval = useMemo(() =>
     schedules.filter(s => s.status === CFG.S.aguardandoAprovacao),
@@ -1208,7 +1231,7 @@ export default function DashboardPage() {
                   virava uma rolagem interminável. O card encolhe junto (avatar,
                   fontes e espaçamentos) pra caber nos ~170px de cada coluna. */}
               <div className="grid grid-cols-2 xl:grid-cols-3 gap-2.5 md:gap-4">
-                {clientCycles.map(({ client, state, key, posts, restantes, ultima, runway, runwayCurto }) => {
+                {clientCycles.map(({ client, state, key, posts, restantes, ultima, runway, runwayCurto, outros }) => {
                   const [cy, cm] = key ? key.split('-').map(Number) : [0, 0]
                   const mesLabel = key ? `${MONTHS[cm - 1].slice(0, 3)}${cy !== year ? `/${String(cy).slice(2)}` : ''}` : null
                   const total      = posts.length
@@ -1238,7 +1261,15 @@ export default function DashboardPage() {
                   // A linha de baixo do nome responde "quando o conteúdo dele
                   // acaba" — antes repetia os entregues, que já estão no
                   // rodapé do card.
-                  const sub = state === 'nunca' ? 'sem cronograma'
+                  // Sem cronograma NÃO quer dizer sem trabalho: o Unizushi tem
+                  // dois extras e aparecia como "sem cronograma · nenhum post",
+                  // que lê como cliente parado.
+                  const outrosTxt = [
+                    outros.exTotal > 0 ? `${outros.exTotal} ${pl(outros.exTotal, 'extra', 'extras')}` : '',
+                    outros.mtTotal > 0 ? `${outros.mtTotal} ${pl(outros.mtTotal, 'material', 'materiais')}` : '',
+                  ].filter(Boolean).join(' · ')
+                  const sub = state === 'nunca'
+                      ? (outrosTxt ? `sem cronograma · ${outrosTxt}` : 'sem cronograma')
                     : runway === 'sem-data' ? 'sem datas marcadas'
                     : runway === 'fim' ? 'sem post futuro'
                     : `${restantes} a publicar · até ${fmtDia(ultima!)}`
@@ -1248,7 +1279,7 @@ export default function DashboardPage() {
                     : 'var(--color-text-muted)'
                   return (
                     <Card key={client.id} hover padded
-                      className={`cursor-pointer${state === 'nunca' ? ' opacity-60' : ''}`}
+                      className={`cursor-pointer${state === 'nunca' && !outrosTxt ? ' opacity-60' : ''}`}
                       onClick={() => router.push(key
                         ? `/dashboard/clientes/${client.id}?tab=cronograma&m=${cm}&y=${cy}`
                         : `/dashboard/clientes/${client.id}`)}>
@@ -1278,14 +1309,22 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center justify-between gap-1 flex-wrap">
                         <span className="text-[10px] md:text-xs text-[var(--color-text-muted)]">
-                          {state === 'nunca' ? 'nenhum post'
-                            : publicado > 0 ? `${publicado} no ar · ${entregue}/${total} prontos`
-                            : `${entregue}/${total} prontos`}
+                          {state === 'nunca'
+                            ? (outrosTxt || 'nenhum post')
+                            : <>
+                                {publicado > 0 ? `${publicado} no ar · ${entregue}/${total} prontos` : `${entregue}/${total} prontos`}
+                                {outros.abertos > 0 && <span className="text-[var(--color-text-faint)]"> · +{outros.abertos} fora do crono</span>}
+                              </>}
                         </span>
                         <div className="flex items-center gap-1 flex-wrap">
                           {atrasados > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>{atrasados} atrasado{atrasados !== 1 ? 's' : ''}</span>}
                           {ajuste > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>{ajuste} ajuste{ajuste !== 1 ? 's' : ''}</span>}
-                          {state === 'entregue' && atrasados === 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ em dia</span>}
+                          {/* "✓ em dia" só quando o fôlego também está bem. O
+                              D'Mori mostrava "sem post futuro" em vermelho e
+                              "em dia" em verde no mesmo card — as duas coisas
+                              eram verdade e liam como opostos. Quando o
+                              conteúdo acabou, é isso que importa. */}
+                          {state === 'entregue' && atrasados === 0 && runway === 'ok' && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ em dia</span>}
                         </div>
                       </div>
                     </Card>

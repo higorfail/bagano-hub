@@ -171,7 +171,10 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   }
 
   async function load() {
+    // Mesmo motivo do quadro de Materiais: sem `finally`, uma falha no meio
+    // prendia o quadro no estado de carregando pra sempre.
     setLoading(true)
+    try {
     let q = supabase
       .from('extras')
       .select('*')
@@ -214,8 +217,9 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
     const atc: Record<string, number> = {}
     ;[...(attsR.data || []), ...(upsR.data || [])].forEach((x: any) => { atc[x.extra_id] = (atc[x.extra_id] || 0) + 1 })
     setAttachCounts(atc)
-
-    setLoading(false)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [clientId])

@@ -67,6 +67,10 @@ function MateriaisContent() {
 
   useEffect(() => {
     async function load() {
+      // try/finally: `setLoading(false)` era a última linha, então qualquer
+      // falha no meio deixava a tela girando pra sempre — sem erro na tela e
+      // sem saída. Agora sai do loading aconteça o que acontecer.
+      try {
       const supabase = createClient()
       const [{ data: mats }, { data: cls }] = await Promise.all([
         supabase.from('materials').select('id, client_id, title, type, status, description, ai_summary, due_date, drive_url, assigned_to, assigned_members, labels, created_at, completed_at, archived_at, position').order('position', { ascending: true }).order('created_at', { ascending: false }),
@@ -87,7 +91,9 @@ function MateriaisContent() {
       ;(atts || []).forEach((x: any) => { if (c[x.material_id]) c[x.material_id].attachments++ })
       ;(ups || []).forEach((x: any) => { if (c[x.material_id] && !c[x.material_id].preview && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(x.file_url || '')) c[x.material_id].preview = x.file_url })
       setCounts(c)
-      setLoading(false)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])
