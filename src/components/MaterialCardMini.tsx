@@ -131,7 +131,9 @@ export default function MaterialCardMini({ material: m, members, clientBadge, on
       {/* Cliente + etiquetas na primeira linha, igual ao card de Extra. O
           cliente NUNCA aparecia aqui: na página geral, com "Todos os clientes"
           ligado, não dava pra saber de quem era o material. */}
-      <div className="flex flex-wrap items-center gap-1">
+      {/* Altura fixa: card com um selo e card com dois punham o título em
+          alturas diferentes, e era isso que desalinhava as linhas. */}
+      <div className="flex items-center gap-1 h-[18px] overflow-hidden flex-shrink-0">
           {clientBadge && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white max-w-[130px] truncate flex-shrink-0"
               style={{ background: clientBadge.color }}>{clientBadge.name}</span>
@@ -163,9 +165,9 @@ export default function MaterialCardMini({ material: m, members, clientBadge, on
           errado era a altura: o card reservava três linhas e desbotava o fim,
           então um resumo curto virava parágrafo. Depois de feito, com a arte na
           prévia, quem olha já sabe do que se trata e a linha vira ruído. */}
-      {(m.status === 'producao' || !m.status) && (m.ai_summary || m.description) && (
-        <p className="text-[11px] text-[var(--color-text-muted)] leading-snug truncate flex-shrink-0">
-          {m.ai_summary || m.description}
+      {(m.status === 'producao' || !m.status) && (
+        <p className="text-[11px] text-[var(--color-text-muted)] leading-snug truncate flex-shrink-0 min-h-[15px]">
+          {m.ai_summary || m.description || ''}
         </p>
       )}
 
@@ -177,6 +179,12 @@ export default function MaterialCardMini({ material: m, members, clientBadge, on
             provou. */}
         {delivered && !previewUrl && (
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]">✓ Entregue</span>
+        )}
+        {/* Material em ajuste cai na coluna "A fazer" (ajuste é retorno, não
+            etapa) — sem este selo, nada ali diria que o pedido veio do cliente.
+            Mesmo papel do "⚠ Ajuste pedido" no card de Extra. */}
+        {m.status === 'ajuste' && (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>⚠ Ajuste pedido</span>
         )}
       </div>
 

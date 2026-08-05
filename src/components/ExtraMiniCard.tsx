@@ -135,13 +135,16 @@ export default function ExtraMiniCard({
       )}
 
       <div className="flex-1 min-w-0 min-h-0 p-3 flex flex-col overflow-hidden">
-        {/* Cliente + etiquetas na mesma primeira linha. O cliente era o último
-            item de um rodapé que embrulhava — por isso era sempre ele que
-            sobrava e saía cortado. No modo "todos os clientes" ele é o que
-            agrupa a leitura: vem primeiro. Etiqueta cortada em 120px pra uma
-            etiqueta comprida não empurrar o resto pra fora do card. */}
-        {(clientBadge || showGlobalBadge || (extra.labels && extra.labels.length > 0)) && (
-          <div className="flex flex-wrap items-center gap-1 mb-1.5">
+        {/* Cliente e etiquetas na primeira linha: no modo "todos os clientes"
+            o cliente é o que agrupa a leitura, então vem primeiro — antes ele
+            era o último item de um rodapé que embrulhava, e por isso era sempre
+            ele que sobrava e saía cortado.
+
+            Sempre renderizada e com altura fixa. Card com um selo e card com
+            dois faziam o título começar em alturas diferentes — é isso que
+            desalinhava as linhas entre cards vizinhos. `overflow-hidden`
+            garante que um terceiro selo não empurre nada pra baixo. */}
+        <div className="flex items-center gap-1 mb-1.5 h-[18px] overflow-hidden flex-shrink-0">
             {clientBadge && (
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white max-w-[130px] truncate flex-shrink-0"
                 style={{ background: clientBadge.color }}>{clientBadge.name}</span>
@@ -149,13 +152,12 @@ export default function ExtraMiniCard({
             {showGlobalBadge && (
               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)] flex-shrink-0">Global</span>
             )}
-            {extra.labels?.map((l, i) => (
-              <span key={i} className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full text-white max-w-[120px] truncate flex-shrink-0" style={{ background: l.color }}>
-                {l.text}
-              </span>
-            ))}
-          </div>
-        )}
+          {extra.labels?.map((l, i) => (
+            <span key={i} className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full text-white max-w-[120px] truncate flex-shrink-0" style={{ background: l.color }}>
+              {l.text}
+            </span>
+          ))}
+        </div>
 
         {/* Type icon + title */}
         <div className="flex items-start gap-2 flex-shrink-0">
@@ -184,9 +186,9 @@ export default function ExtraMiniCard({
 
             E some depois de feito: com a arte na prévia, quem olha o card já
             sabe do que se trata — ali a linha só disputa espaço. */}
-        {extra.status === 'backlog' && (extra.ai_summary || extra.briefing || extra.description) && (
-          <p className="text-[11px] text-[var(--color-text-muted)] mt-1 ml-5 leading-snug truncate flex-shrink-0">
-            {extra.ai_summary || extra.briefing || extra.description}
+        {extra.status === 'backlog' && (
+          <p className="text-[11px] text-[var(--color-text-muted)] mt-1 ml-5 leading-snug truncate flex-shrink-0 min-h-[15px]">
+            {extra.ai_summary || extra.briefing || extra.description || ''}
           </p>
         )}
 

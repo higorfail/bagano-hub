@@ -57,6 +57,8 @@ function MateriaisContent() {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [dragOverMaterialId, setDragOverMaterialId] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
+  // Soltar em cima do Arquivo arquiva — mesmo gesto do quadro de Extras.
+  const [archiveDragOver, setArchiveDragOver] = useState(false)
 
   useEffect(() => {
     const p = searchParams.get('post')
@@ -216,8 +218,19 @@ function MateriaisContent() {
           </select>
           <button
             onClick={() => setShowArchived(s => !s)}
+            onDragOver={e => { if (draggingId) { e.preventDefault(); setArchiveDragOver(true) } }}
+            onDragLeave={() => setArchiveDragOver(false)}
+            onDrop={e => {
+              e.preventDefault()
+              setArchiveDragOver(false)
+              if (draggingId) archiveMaterial(draggingId)
+              setDraggingId(null); setDragOverCol(null); setDragOverMaterialId(null)
+            }}
+            title={draggingId ? 'Solte aqui pra arquivar' : undefined}
             className="h-9 flex-shrink-0 flex items-center justify-center gap-1.5 text-sm font-medium px-3 rounded-xl border transition-colors"
-            style={showArchived
+            style={archiveDragOver
+              ? { borderColor: 'var(--color-brand)', color: 'var(--color-brand)', background: 'var(--color-bg-subtle)', borderStyle: 'dashed' }
+              : showArchived
               ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }
               : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
           >

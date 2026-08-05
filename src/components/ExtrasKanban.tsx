@@ -133,6 +133,9 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
   const [attachCounts, setAttachCounts] = useState<Record<string, number>>({})
   const [copiedLink, setCopiedLink] = useState(false)
+  // Soltar um card em cima do botão Arquivo arquiva — o caminho que existia
+  // era abrir o card ou achar o ícone que só aparece no hover da coluna final.
+  const [archiveDragOver, setArchiveDragOver] = useState(false)
   const [internalShowArchived, setInternalShowArchived] = useState(false)
   const showArchived = showArchivedProp !== undefined ? showArchivedProp : internalShowArchived
   const setShowArchived = onShowArchivedChange || setInternalShowArchived
@@ -345,8 +348,20 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
             {!hideArchiveToggleUI && (
               <button
                 onClick={() => setShowArchived(!showArchived)}
+                onDragOver={e => { if (draggingId) { e.preventDefault(); setArchiveDragOver(true) } }}
+                onDragLeave={() => setArchiveDragOver(false)}
+                onDrop={e => {
+                  e.preventDefault()
+                  setArchiveDragOver(false)
+                  const id = e.dataTransfer.getData('extraId') || draggingId
+                  if (id) archiveExtra(id)
+                  setDraggingId(null); setDragOverCol(null); setDragOverExtraId(null)
+                }}
+                title={draggingId ? 'Solte aqui pra arquivar' : undefined}
                 className="h-8 flex items-center gap-1.5 text-xs font-medium px-2.5 rounded-lg border transition-colors flex-shrink-0"
-                style={showArchived
+                style={archiveDragOver
+                  ? { borderColor: 'var(--color-brand)', color: 'var(--color-brand)', background: 'var(--color-bg-subtle)', borderStyle: 'dashed' }
+                  : showArchived
                   ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent)/8' }
                   : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
               >

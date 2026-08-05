@@ -11,7 +11,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ summary: '' })
   }
 
-  const prompt = `Resuma o texto abaixo em 1 frase bem curta e direta (máximo 70 caracteres, sem exceção), em português, com a informação mais importante para quem vai bater o olho num card de trabalho. Não use aspas, listas, tags nem introduções como "este texto fala sobre" ou "resumo:". Responda apenas com a frase pura, sem ponto final.
+  // 50 caracteres, não 70: o resumo vive em UMA linha dentro do card, e a
+  // largura útil ali é a coluna menos a prévia menos o respiro — na coluna
+  // estreita sobra pouco. Com 70 a frase quase sempre terminava em reticências;
+  // com 50 ela cabe inteira na maioria dos casos, e o corte vira exceção.
+  const prompt = `Resuma o texto abaixo em 1 frase bem curta e direta, em português, com no MÁXIMO 50 caracteres — conte os caracteres e reescreva se passar. Ela precisa caber inteira numa única linha estreita de um card, então prefira sempre a versão mais curta. Diga a ação ou o objeto principal, nada de contexto. Não use aspas, listas, tags nem introduções como "este texto fala sobre" ou "resumo:". Responda apenas com a frase pura, sem ponto final.
 
 Título: ${title || 'sem título'}
 Texto: ${text}`
