@@ -1615,6 +1615,13 @@ export default function ApprovalPage({ token }: { token: string }) {
               clientName={client?.name}
               clientColor={cc}
               clientInitials={initials(client?.name || '')}
+              // A logo do cliente já vinha do banco aqui e não era repassada,
+              // então o feed do APROVA caía na sigla — ou, pior, ia buscar o
+              // avatar no unavatar.io pelo @ do Instagram: serviço de terceiro,
+              // na tela que o cliente abre, pra mostrar uma imagem que a gente
+              // já tem. As telas internas (Feed Visual e aba do cliente) sempre
+              // passaram; só esta ficou de fora.
+              logoUrl={client?.logo_url}
               instagramUrl={client?.instagram_url}
               readonly={true}
               approvalMode={true}
