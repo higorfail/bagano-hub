@@ -50,22 +50,44 @@ export default function NotificationsPanel({
   // Quais cards estão com a lista completa aberta ("ver mais").
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
+  // O que estava por ler NO MOMENTO EM QUE VOCÊ ABRIU. É só isso que pinta o
+  // destaque azul — o banco já foi marcado como lido logo abaixo.
+  const [novasAoAbrir, setNovasAoAbrir] = useState<Set<string>>(new Set())
+
+  // Abrir o painel JÁ CONTA COMO LER.
+  //
+  // Antes a marcação só acontecia ao fechar, e sem `await`: o contador do
+  // sininho é relido a cada 30 segundos, então a leitura do banco chegava
+  // antes do UPDATE gravar e o número voltava sozinho. Na prática o aviso só
+  // sumia de vez quando a pessoa entrava no card notificado — que é
+  // exatamente o que ninguém quer ter de fazer.
+  //
+  // Aqui o banco é acertado na abertura e o destaque vira estado local. Não
+  // dá pra o contador "ressuscitar": ele lê a mesma verdade que acabou de ser
+  // gravada. E o azul continua fazendo o trabalho dele durante a olhada.
   useEffect(() => {
     let alive = true
-    fetchNotifications(memberId).then(r => { if (alive) { setRows(r); setLoading(false) } })
+    fetchNotifications(memberId).then(async r => {
+      if (!alive) return
+      setRows(r)
+      setLoading(false)
+      const naoLidas = r.filter(x => !x.read_at).map(x => x.id)
+      if (naoLidas.length === 0) return
+      setNovasAoAbrir(new Set(naoLidas))
+      await markAllRead(memberId)
+      if (alive) onUnreadChange?.(0)
+    })
     fetchAgencyAlerts().then(a => { if (alive) setAlerts(a) })
     return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberId])
-
-  const unreadTotal = rows.filter(r => !r.read_at).length
-  useEffect(() => { onUnreadChange?.(unreadTotal) }, [unreadTotal, onUnreadChange])
 
   const groups = useMemo(() => {
     const matcher = KIND_GROUPS.find(k => k.key === kind) || KIND_GROUPS[0]
     let filtered = rows.filter(r => matcher.match(r.kind))
-    if (onlyUnread) filtered = filtered.filter(r => !r.read_at)
+    if (onlyUnread) filtered = filtered.filter(r => novasAoAbrir.has(r.id))
     return groupNotifications(filtered)
-  }, [rows, kind, onlyUnread])
+  }, [rows, kind, onlyUnread, novasAoAbrir])
 
   // Cabeçalhos de tempo (Hoje / Ontem / Esta semana) sobre os grupos já
   // ordenados — sem eles a lista vira um bloco só e não dá pra saber se
@@ -87,14 +109,7 @@ export default function NotificationsPanel({
     markRead(ids)
   }
 
-  // Marca como lido AO FECHAR, não ao abrir: assim o destaque azul ainda
-  // cumpre a função dele — dizer o que é novo — durante a olhada, e some
-  // sozinho depois. Marcar ao abrir apagaria antes de você ver; não marcar
-  // nunca deixava tudo aceso pra sempre, que foi o que aconteceu.
-  function closePanel() {
-    if (unreadTotal > 0) { markAllRead(memberId); onUnreadChange?.(0) }
-    onClose()
-  }
+  function closePanel() { onClose() }
 
   function openGroup(g: NotificationGroup) {
     const unreadIds = g.items.filter(i => !i.read_at).map(i => i.id)
@@ -135,9 +150,11 @@ export default function NotificationsPanel({
         {/* Cabeçalho */}
         <div className="px-4 py-3 border-b border-[var(--color-border)] flex items-center gap-2 flex-shrink-0">
           <p className="text-base md:text-sm font-bold text-[var(--color-text-primary)]">Notificações</p>
-          {unreadTotal > 0 && (
+          {/* Quantas eram novas quando você abriu. Some ao reabrir, que é o
+              esperado — já foram lidas. */}
+          {novasAoAbrir.size > 0 && (
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white" style={{ background: 'var(--ds-error-accent)' }}>
-              {unreadTotal}
+              {novasAoAbrir.size}
             </span>
           )}
           <div className="ml-auto flex items-center gap-1">

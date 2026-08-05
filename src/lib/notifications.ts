@@ -122,9 +122,10 @@ export async function fetchNotifications(memberId: string, limit = 120): Promise
 }
 
 /**
- * Contador do sininho. Fica simples de novo porque o painel marca tudo como
- * lido AO FECHAR: o número some sozinho depois da olhada, sem precisar de um
- * estado separado de "visto" que nunca se limpava.
+ * Contador do sininho. É relido a cada 30 segundos pelo layout — por isso a
+ * marcação de lida precisa ser AGUARDADA antes de zerar o número na tela.
+ * Sem isso, a releitura chegava antes do UPDATE gravar e o aviso voltava
+ * sozinho, dando a impressão de que só entrar no card notificado resolvia.
  */
 export async function fetchUnreadCount(memberId: string): Promise<number> {
   const supabase = createClient()
@@ -258,15 +259,20 @@ export function groupNotifications(rows: NotificationRow[]): NotificationGroup[]
 export async function markRead(ids: string[]) {
   if (!ids.length) return
   const supabase = createClient()
-  await supabase.from('hub_notifications').update({ read_at: new Date().toISOString() }).in('id', ids)
+  const { error } = await supabase.from('hub_notifications').update({ read_at: new Date().toISOString() }).in('id', ids)
+  if (error) console.error('[notificações] não consegui marcar como lida:', error)
 }
 
+// Falhar aqui em silêncio é o pior caso: o contador volta sozinho na próxima
+// leitura e a pessoa acha que o hub está ignorando ela.
 export async function markAllRead(memberId: string) {
+  if (!memberId) return
   const supabase = createClient()
-  await supabase.from('hub_notifications')
+  const { error } = await supabase.from('hub_notifications')
     .update({ read_at: new Date().toISOString() })
     .eq('member_id', memberId)
     .is('read_at', null)
+  if (error) console.error('[notificações] não consegui marcar tudo como lido:', error)
 }
 
 /** Rótulos curtos por tipo de evento, pro filtro do topo. */
