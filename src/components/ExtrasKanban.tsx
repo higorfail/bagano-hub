@@ -76,6 +76,10 @@ interface ExtrasKanbanProps {
   hideClientFilterUI?: boolean
   showArchived?: boolean
   onShowArchivedChange?: (v: boolean) => void
+  /** Criar novo: controlado pelo pai quando o botão mora no header da página.
+   *  Mesmo padrão já usado aqui pro filtro de cliente e pro Arquivo. */
+  newStatus?: string | null
+  onNewStatusChange?: (v: string | null) => void
   hideArchiveToggleUI?: boolean
   onArchivedCountChange?: (n: number) => void
 }
@@ -97,7 +101,7 @@ function isOverdue(due_date?: string | null, status?: ExtraStatus) {
   return new Date(due_date + 'T23:59:59') < new Date()
 }
 
-export default function ExtrasKanban({ clientId, globalMode = false, members = [], initialOpenId, filterClient: filterClientProp, onFilterClientChange, hideClientFilterUI = false, showArchived: showArchivedProp, onShowArchivedChange, hideArchiveToggleUI = false, onArchivedCountChange }: ExtrasKanbanProps) {
+export default function ExtrasKanban({ clientId, globalMode = false, members = [], initialOpenId, filterClient: filterClientProp, onFilterClientChange, hideClientFilterUI = false, showArchived: showArchivedProp, onShowArchivedChange, hideArchiveToggleUI = false, onArchivedCountChange, newStatus: newStatusProp, onNewStatusChange }: ExtrasKanbanProps) {
   const supabase = createClient()
   const { currentMember, showOnlyMine } = useUser()
   const [extras,  setExtras]  = useState<Extra[]>([])
@@ -108,7 +112,9 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   const [openExtraId,     setOpenExtraId]     = useState<string | null>(initialOpenId || null)
 
   useEffect(() => { if (initialOpenId) setOpenExtraId(initialOpenId) }, [initialOpenId])
-  const [newStatus,       setNewStatus]       = useState<ExtraStatus | null>(null)
+  const [internalNewStatus, setInternalNewStatus] = useState<ExtraStatus | null>(null)
+  const newStatus    = (newStatusProp !== undefined ? newStatusProp : internalNewStatus) as ExtraStatus | null
+  const setNewStatus = (onNewStatusChange || setInternalNewStatus) as (v: ExtraStatus | null) => void
 
   // Client filter (global mode) — controlado pelo pai (header da página) quando as props vêm preenchidas
   const [internalFilterClient, setInternalFilterClient] = useState<string>('all')
@@ -284,7 +290,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   )
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 h-full min-h-0">
 
       {/* Uma barra só: antes o link de aprovação e o Arquivo eram dois blocos
           justify-end separados, cada um numa linha própria e com a largura do
@@ -330,6 +336,14 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                 {showArchived ? 'Ver board' : `Arquivo${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
               </button>
             )}
+            {/* Só quando o pai não controla a criação — na página de Extras o
+                botão mora no header dela, e dois botões iguais seria ruído. */}
+            {onNewStatusChange === undefined && (
+              <button onClick={() => setNewStatus('backlog')}
+                className="h-8 flex-shrink-0 bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-lg px-3 text-xs font-medium">
+                + Novo extra
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -366,13 +380,16 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
          164px por coluna no iPad em retrato — uma tira onde não cabe título e
          etiqueta na mesma linha. Fixo, o quadro rola quando não couber. */
       <div className="flex-1 min-h-[60svh] md:min-h-0 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory md:snap-none">
-        <div className="flex gap-3 h-full md:min-w-max">
+        {/* Sem min-w-max: as colunas ESTICAM pra ocupar a largura disponível
+            (flex-1) e só param de encolher no piso de 268px — aí o trilho
+            passa da largura do pai e a rolagem horizontal entra. */}
+        <div className="flex gap-3 h-full md:w-full">
         {COLUMNS.map(col => {
           const colExtras = filtered.filter(e => e.status === col.key)
           const isDragTarget = dragOverCol === col.key && draggingId !== null
 
           return (
-            <div key={col.key} className="flex flex-col w-[calc(100vw-2rem)] md:w-[268px] flex-shrink-0 snap-center snap-always md:snap-align-none overflow-hidden"
+            <div key={col.key} className="flex flex-col w-[calc(100vw-2rem)] flex-shrink-0 md:w-auto md:flex-1 md:min-w-[268px] md:flex-shrink snap-center snap-always md:snap-align-none overflow-hidden"
               onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null) }}
               onDrop={e => {
@@ -392,13 +409,6 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                   <span className="text-xs font-semibold text-[var(--color-text-primary)] truncate">{col.label}</span>
                   <span className="text-[10px] font-bold text-[var(--color-text-muted)] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">{colExtras.length}</span>
                 </div>
-                <button
-                  onClick={() => setNewStatus(col.key)}
-                  className="w-6 h-6 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
-                  title="Adicionar"
-                >
-                  <Plus size={13} />
-                </button>
               </div>
 
               {/* Só esta área rola. */}
@@ -446,14 +456,6 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                 )}
               </div>
 
-              {/* Adicionar no rodapé, sempre visível — é o padrão do Trello e o
-                  que faltava: no quadro de Materiais, coluna com card não tinha
-                  nenhum jeito de criar dentro dela. */}
-              <button
-                onClick={() => setNewStatus(col.key)}
-                className="flex-shrink-0 mt-1 mx-1 flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] rounded-lg px-2 py-2 transition-colors">
-                <Plus size={13} /> Adicionar
-              </button>
             </div>
           )
         })}

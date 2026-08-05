@@ -16,6 +16,10 @@ function ExtrasContent() {
   const [clients, setClients] = useState<{ id: string; name: string; color_hex: string }[]>([])
   const [filterClient, setFilterClient] = useState('all')
   const [showArchived, setShowArchived] = useState(false)
+  // Criar mora aqui em cima e nasce sempre na primeira coluna. Criar dentro de
+  // "Feito" ou "Finalizados" não é uma ação que exista: as colunas aqui são
+  // etapas de um fluxo, não gavetas livres como as listas do Trello.
+  const [newStatus, setNewStatus] = useState<string | null>(null)
   const [archivedCount, setArchivedCount] = useState(0)
 
   useEffect(() => { document.title = 'Extras · Bagano Hub' }, [])
@@ -43,7 +47,7 @@ function ExtrasContent() {
   }, [])
 
   return (
-    <div className="px-4 md:px-6 py-4 flex flex-col gap-4">
+    <div className="px-4 md:px-6 py-4 flex flex-col gap-4 h-full">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-2.5 min-w-0">
           <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Extras</h1>
@@ -69,10 +73,16 @@ function ExtrasContent() {
             {showArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
             {showArchived ? 'Ver board' : `Arquivo${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
           </button>
+          <button onClick={() => setNewStatus('backlog')}
+            className="flex-shrink-0 bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-lg px-3 py-1.5 text-sm font-medium">
+            + Novo<span className="hidden sm:inline"> extra</span>
+          </button>
         </div>
       </div>
 
       <ExtrasKanban
+        newStatus={newStatus}
+        onNewStatusChange={setNewStatus}
         globalMode={true}
         members={members}
         initialOpenId={postParam}

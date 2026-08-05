@@ -440,12 +440,16 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           )}
 
           {tab === 'materiais' && (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 h-full min-h-0">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">Materiais extras</p>
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Menus, cardápios, artes avulsas, logos.</p>
                 </div>
+                <button onClick={() => setCardOpen('new')}
+                  className="flex-shrink-0 bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-xl px-3 py-1.5 text-sm font-medium">
+                  + Novo material
+                </button>
 
               </div>
 
@@ -474,32 +478,28 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   })
                 }
                 return (
-                  <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory md:snap-none -mx-3 px-3 md:mx-0 md:px-0 items-stretch min-h-[55svh] md:min-h-0">
-                    {/* min-h no celular: quem rola de lado é ESTE elemento, e a
-                        altura dele vinha do conteúdo — com poucos cards o dedo
-                        só arrastava na faixa de cima. */}
+                  <div className="flex-1 min-h-[55svh] md:min-h-0 overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0 snap-x snap-mandatory md:snap-none">
+                    {/* Mesma estrutura das páginas de Extras e Materiais: só a
+                        área de cards de cada coluna rola na vertical. */}
+                    <div className="flex gap-3 h-full md:w-full">
                     {MAT_COLS.map((col, ci) => {
                       const items      = colItems(col.key)
                       const isDragOver = matDragOver === col.key
                       const prevCol    = MAT_COLS[ci - 1]
                       const nextCol    = MAT_COLS[ci + 1]
                       return (
-                        <div key={col.key} className="w-[calc(100vw-1.5rem)] flex-shrink-0 snap-center snap-always md:w-auto md:flex-1 md:min-w-[220px] md:snap-align-none flex flex-col"
+                        <div key={col.key} className="flex flex-col w-[calc(100vw-1.5rem)] flex-shrink-0 md:w-auto md:flex-1 md:min-w-[268px] md:flex-shrink snap-center snap-always md:snap-align-none overflow-hidden"
                           onDragOver={e => { e.preventDefault(); setMatDragOver(col.key) }}
                           onDragLeave={() => setMatDragOver(null)}
                           onDrop={e => { e.preventDefault(); if (matDragging) moveMatStatus(matDragging, col.key); setMatDragging(null); setMatDragOver(null) }}>
-                          <div className="flex items-center justify-between mb-2 px-1">
+                          <div className="flex items-center justify-between mb-2 px-1 flex-shrink-0">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
                               <span className="text-xs font-semibold text-[var(--color-text-primary)] truncate">{col.label}</span>
                               <span className="text-[10px] font-bold text-[var(--color-text-muted)] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">{items.length}</span>
                             </div>
-                            <button onClick={() => setCardOpen(`new:${col.key}`)} title="Adicionar"
-                              className="w-6 h-6 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0">
-                              <Plus size={13} />
-                            </button>
                           </div>
-                          <div className={`flex flex-col gap-2 flex-1 rounded-xl transition-colors p-1 ${isDragOver ? 'ring-2 ring-dashed ring-[var(--color-brand)] bg-[var(--color-bg-subtle)]' : ''}`}>
+                          <div className={`flex flex-col gap-2 flex-1 min-h-[80px] overflow-y-auto rounded-xl transition-colors p-1 ${isDragOver ? 'ring-2 ring-dashed ring-[var(--color-brand)] bg-[var(--color-bg-subtle)]' : ''}`}>
                             {items.map(m => {
                               const ct = matCounts[m.id] || {}
                               return (
@@ -515,24 +515,17 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                               )
                             })}
                             {items.length === 0 && (
-                              isDragOver ? (
-                                <div className="rounded-xl border-2 border-dashed border-[var(--color-brand)] py-8 text-center text-sm text-[var(--color-brand)] font-medium bg-[var(--color-bg-subtle)]">
-                                  Soltar aqui
-                                </div>
-                              ) : (
-                                <button onClick={() => setCardOpen('new')}
-                                  className="group w-full rounded-xl border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-brand)] py-8 flex flex-col items-center gap-2 transition-all hover:bg-[var(--color-bg-subtle)]">
-                                  <div className="w-8 h-8 rounded-full border-2 border-dashed border-[var(--color-border)] group-hover:border-[var(--color-brand)] group-hover:bg-[var(--color-brand)] flex items-center justify-center transition-all">
-                                    <span className="text-base text-[var(--color-text-muted)] group-hover:text-white leading-none">+</span>
-                                  </div>
-                                  <span className="text-xs text-[var(--color-text-muted)] group-hover:text-[var(--color-brand)] transition-colors font-medium">Adicionar</span>
-                                </button>
-                              )
+                              <div className={`flex items-center justify-center h-20 border-2 border-dashed rounded-xl transition-colors ${isDragOver ? 'border-[var(--color-brand)]' : 'border-[var(--color-border)]'}`}>
+                                <p className={`text-[10px] font-medium ${isDragOver ? 'text-[var(--color-brand)]' : 'text-[var(--color-text-faint)]'}`}>
+                                  {isDragOver ? 'Solte aqui' : '—'}
+                                </p>
+                              </div>
                             )}
                           </div>
                         </div>
                       )
                     })}
+                    </div>
                   </div>
                 )
               })()}
@@ -626,7 +619,11 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           )}
 
           {tab === 'extras' && (
-            <div className="flex flex-col gap-4">
+            // h-full/min-h-0: o quadro precisa de altura definida pra cada
+            // coluna rolar por dentro. A área da aba já é um flex-1 com
+            // rolagem, então 100% dela resolve — sem isso o Extras ficava
+            // sendo o único quadro do hub sem rolagem por coluna.
+            <div className="flex flex-col gap-4 h-full min-h-0">
               <div>
                 <p className="text-sm font-medium text-[var(--color-text-primary)]">Extras de {client.name}</p>
                 <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Tarefas, notas e lembretes específicos deste cliente</p>

@@ -224,6 +224,13 @@ function MateriaisContent() {
             {showArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
             {showArchived ? 'Ver board' : `Arquivo${archivedCount > 0 ? ` (${archivedCount})` : ''}`}
           </button>
+          {/* Criar mora aqui e nasce na primeira coluna. As colunas são etapas
+              de um fluxo, não gavetas livres: criar em "Feito" ou
+              "Finalizados" não é uma ação que exista. */}
+          <button onClick={() => setCardOpen('new')}
+            className="h-9 flex-shrink-0 bg-[var(--color-text-primary)] text-[var(--color-bg-page)] rounded-xl px-3 text-sm font-medium">
+            + Novo<span className="hidden sm:inline"> material</span>
+          </button>
         </div>
       </div>
 
@@ -250,7 +257,10 @@ function MateriaisContent() {
         </div>
       ) : (
       <div className="flex-1 min-h-[60svh] md:min-h-0 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory md:snap-none">
-        <div className="flex gap-3 h-full md:min-w-max">
+        {/* Sem min-w-max: as colunas esticam (flex-1) e só param de encolher
+            no piso de 268px — aí o trilho passa da largura do pai e a rolagem
+            horizontal entra. */}
+        <div className="flex gap-3 h-full md:w-full">
         {/* Classes idênticas às do Extras, que encaixa certo. A única diferença
             que este quadro tinha era o `flex-1` no elemento que rola — ele
             existe pra altura no desktop, mas no celular ficava no próprio
@@ -263,7 +273,7 @@ function MateriaisContent() {
           const prevCol    = COLUMNS[colIdx - 1]
           const nextCol    = COLUMNS[colIdx + 1]
           return (
-            <div key={col.key} className="flex flex-col w-[calc(100vw-2rem)] md:w-[268px] flex-shrink-0 snap-center snap-always md:snap-align-none overflow-hidden"
+            <div key={col.key} className="flex flex-col w-[calc(100vw-2rem)] flex-shrink-0 md:w-auto md:flex-1 md:min-w-[268px] md:flex-shrink snap-center snap-always md:snap-align-none overflow-hidden"
               onDragOver={e => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={() => setDragOverCol(null)}
               onDrop={e => {
@@ -279,13 +289,6 @@ function MateriaisContent() {
                   <span className="text-xs font-semibold text-[var(--color-text-primary)] truncate">{col.label}</span>
                   <span className="text-[10px] font-bold text-[var(--color-text-muted)] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">{items.length}</span>
                 </div>
-                <button
-                  onClick={() => setCardOpen(`new:${col.key}`)}
-                  className="w-6 h-6 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
-                  title="Adicionar"
-                >
-                  <Plus size={13} />
-                </button>
               </div>
               <div className={`flex flex-col gap-2.5 flex-1 min-h-[80px] overflow-y-auto px-1 pb-1 rounded-xl transition-colors ${isDragOver ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
                 {items.map(m => {
@@ -316,14 +319,6 @@ function MateriaisContent() {
                 )}
               </div>
 
-              {/* Adicionar no rodapé, sempre visível — antes, coluna com card
-                  não tinha nenhum jeito de criar dentro dela: só o botão do
-                  topo, que sempre jogava em "A fazer". */}
-              <button
-                onClick={() => setCardOpen(`new:${col.key}`)}
-                className="flex-shrink-0 mt-1 mx-1 flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] rounded-lg px-2 py-2 transition-colors">
-                <Plus size={13} /> Adicionar
-              </button>
             </div>
           )
         })}
