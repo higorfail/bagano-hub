@@ -42,8 +42,19 @@ export async function moveToTrash(
 export async function restoreFromTrash(item: TrashItem): Promise<void> {
   const supabase = createClient()
   const table = ITEM_TABLES[item.item_type]
-  await supabase.from(table).upsert(item.item_data)
-  await supabase.from('trash').delete().eq('id', item.id)
+  // A ordem aqui é a diferença entre restaurar e PERDER.
+  //
+  // Antes, o upsert ia sem checagem e a linha da lixeira era apagada logo
+  // depois, desse ou não certo. Falhando o upsert — permissão, chave
+  // estrangeira apontando pra cliente já removido, coluna que mudou de nome —
+  // o item sumia da lixeira sem ter voltado pra lugar nenhum, e não havia mais
+  // de onde tirar: a lixeira ERA a última cópia.
+  const { error } = await supabase.from(table).upsert(item.item_data)
+  if (error) throw new Error(`Não consegui restaurar: ${error.message}`)
+  const { error: delErr } = await supabase.from('trash').delete().eq('id', item.id)
+  // Restaurou mas não limpou a lixeira: o item existe duas vezes, o que é
+  // chato e reversível. Melhor que o contrário.
+  if (delErr) console.error('[lixeira] item restaurado, mas a linha da lixeira ficou:', delErr)
 }
 
 export async function deleteFromTrash(trashId: string): Promise<void> {

@@ -628,18 +628,19 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     const typeLabel = type === 'cronograma' ? 'cronograma' : 'conteúdo final'
     const monthLabel = CRONO_MONTHS[month - 1]
 
-    if (type === 'cronograma') {
-      const targets = posts.filter(p => p.status === 'estrategia')
-      if (targets.length > 0) {
-        await Promise.all(targets.map(p => supabase.from('schedules').update({ status: 'aguardando_aprovacao_crono', approval_status: null, approval_comment: null }).eq('id', p.id)))
-        setPosts(prev => prev.map(p => targets.find(t => t.id === p.id) ? { ...p, status: 'aguardando_aprovacao_crono', approval_status: null, approval_comment: null } : p))
-      }
-    } else {
-      const targets = posts.filter(p => p.status === 'revisao_interna')
-      if (targets.length > 0) {
-        await Promise.all(targets.map(p => supabase.from('schedules').update({ status: 'aguardando_aprovacao', approval_status: null, approval_comment: null }).eq('id', p.id)))
-        setPosts(prev => prev.map(p => targets.find(t => t.id === p.id) ? { ...p, status: 'aguardando_aprovacao', approval_status: null, approval_comment: null } : p))
-      }
+    // Gerar o link move os posts pra "aguardando aprovação" em lote. Se esse
+    // UPDATE falhar sem ninguém olhar, o link é copiado e mandado do mesmo
+    // jeito — e o cliente abre uma página vazia, porque a tela de aprovação
+    // filtra justamente por esse status. Pior: internamente parece enviado.
+    const novoStatus = type === 'cronograma' ? 'aguardando_aprovacao_crono' : 'aguardando_aprovacao'
+    const deStatus   = type === 'cronograma' ? 'estrategia' : 'revisao_interna'
+    const targets = posts.filter(p => p.status === deStatus)
+    if (targets.length > 0) {
+      const res = await Promise.all(targets.map(p =>
+        supabase.from('schedules').update({ status: novoStatus, approval_status: null, approval_comment: null }).eq('id', p.id)))
+      const err = res.find(r => r.error)?.error
+      if (err) { dbError(err, toast, 'enviar os posts pra aprovação'); setGeneratingLink(false); return }
+      setPosts(prev => prev.map(p => targets.find(t => t.id === p.id) ? { ...p, status: novoStatus, approval_status: null, approval_comment: null } : p))
     }
 
     const { data: existing } = await supabase.from('approval_tokens').select('token')
@@ -755,9 +756,13 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                   <>
                     <button onClick={async () => {
                       setSaving(true)
-                      await Promise.all(estrategiaPosts.map(p => supabase.from('schedules').update({ status: 'producao' }).eq('id', p.id)))
-                      setPosts(prev => prev.map(p => estrategiaPosts.find(ep => ep.id === p.id) ? { ...p, status: 'producao' } : p))
+                      const res = await Promise.all(estrategiaPosts.map(p => supabase.from('schedules').update({ status: 'producao' }).eq('id', p.id)))
+                      const err = res.find(r => r.error)?.error
                       setSaving(false)
+                      // Sem esta checagem o aviso dizia "N posts enviados!"
+                      // mesmo quando nenhum tinha saído do lugar.
+                      if (err) { dbError(err, toast, 'enviar pra Criação'); return }
+                      setPosts(prev => prev.map(p => estrategiaPosts.find(ep => ep.id === p.id) ? { ...p, status: 'producao' } : p))
                       toast(`${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} enviado${estrategiaPosts.length !== 1 ? 's' : ''} para Criação!`)
                     }} disabled={saving}
                       title={`Pular aprovação e mandar ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} direto pra Criação`}

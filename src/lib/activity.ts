@@ -18,7 +18,7 @@ export async function logActivity(params: {
 }) {
   try {
     const supabase = createClient()
-    await supabase.from('activity_log').insert({
+    const { error } = await supabase.from('activity_log').insert({
       table_name: params.tableName,
       record_id: params.recordId,
       client_id: params.clientId || null,
@@ -29,8 +29,11 @@ export async function logActivity(params: {
       new_value: params.newValue || null,
       description: params.description,
     })
-  } catch {
-    // never block the UI for logging
+    // Registrar nunca pode travar a tela — mas silêncio total foi o que fez
+    // buracos no histórico demorarem a aparecer. Avisa e segue.
+    if (error) console.error('[historico] não gravou:', error)
+  } catch (e) {
+    console.error('[historico] não gravou:', e)
   }
   // A rota é chamada SEMPRE, inclusive com skipPush: é ela que grava a
   // notificação na caixa de entrada, e só o envio do push é que fica de fora.

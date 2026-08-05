@@ -171,6 +171,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   const mentions = useMentions(newComment, setNewComment, members)
   const [attachments,    setAttachments]    = useState<any[]>([])
   const [attachmentsLoaded, setAttachmentsLoaded] = useState(false)
+  const [attachError, setAttachError] = useState(false)
   const backfilledRef = useRef(false)
   const [uploads,        setUploads]        = useState<any[]>([])
   const [uploading,      setUploading]      = useState(false)
@@ -195,16 +196,21 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   })
 
   const loadSub = useCallback(async (eid: string) => {
-    const [{ data: chk }, { data: cms }, { data: atts }, { data: ups }] = await Promise.all([
+    const [chkR, cmsR, attsR, upsR] = await Promise.all([
       supabase.from('extra_checklist').select('*').eq('extra_id', eid).order('position', { ascending: true }),
       supabase.from('extra_comments').select('*').eq('extra_id', eid).order('created_at', { ascending: true }),
       supabase.from('extra_attachments').select('*').eq('extra_id', eid).order('created_at', { ascending: true }),
       supabase.from('extra_uploads').select('*').eq('extra_id', eid).order('created_at', { ascending: true }),
     ])
-    setChecklist(chk || [])
-    setComments(cms || [])
-    setAttachments(atts || [])
-    setUploads(ups || [])
+    // Mesmo cuidado do PostCard: lista vazia por falha de leitura é
+    // indistinguível de "esse extra não tem anexo". Erro vira aviso na tela.
+    const anexoErr = attsR.error || upsR.error
+    if (anexoErr) console.error('[anexos] falha ao ler anexos do extra:', anexoErr)
+    setAttachError(!!anexoErr)
+    setChecklist(chkR.data || [])
+    setComments(cmsR.data || [])
+    setAttachments(attsR.data || [])
+    setUploads(upsR.data || [])
     setAttachmentsLoaded(true)
   }, [])
 
@@ -1093,6 +1099,12 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
                 <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Anexos & Arquivos</span>
                 <span className="text-[10px] text-[var(--color-text-faint)]">· uploads e links</span>
               </div>
+
+              {attachError && (
+                <p className="mb-2 text-[11px] rounded-lg px-2.5 py-1.5" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+                  Não consegui carregar os anexos deste extra. Eles continuam salvos — é permissão de leitura no banco.
+                </p>
+              )}
 
               <AttachmentsGrid
                 uploads={uploads}
