@@ -80,6 +80,10 @@ interface ExtrasKanbanProps {
    *  Mesmo padrão já usado aqui pro filtro de cliente e pro Arquivo. */
   newStatus?: string | null
   onNewStatusChange?: (v: string | null) => void
+  /** Título da seção, renderizado À ESQUERDA da própria barra de ações. Sem
+   *  isso o pai põe o título acima e as ações caem numa fileira própria
+   *  embaixo — duas faixas onde cabia uma. */
+  heading?: React.ReactNode
   hideArchiveToggleUI?: boolean
   onArchivedCountChange?: (n: number) => void
 }
@@ -101,7 +105,7 @@ function isOverdue(due_date?: string | null, status?: ExtraStatus) {
   return new Date(due_date + 'T23:59:59') < new Date()
 }
 
-export default function ExtrasKanban({ clientId, globalMode = false, members = [], initialOpenId, filterClient: filterClientProp, onFilterClientChange, hideClientFilterUI = false, showArchived: showArchivedProp, onShowArchivedChange, hideArchiveToggleUI = false, onArchivedCountChange, newStatus: newStatusProp, onNewStatusChange }: ExtrasKanbanProps) {
+export default function ExtrasKanban({ clientId, globalMode = false, members = [], initialOpenId, filterClient: filterClientProp, onFilterClientChange, hideClientFilterUI = false, showArchived: showArchivedProp, onShowArchivedChange, hideArchiveToggleUI = false, onArchivedCountChange, newStatus: newStatusProp, onNewStatusChange, heading }: ExtrasKanbanProps) {
   const supabase = createClient()
   const { currentMember, showOnlyMine } = useUser()
   const [extras,  setExtras]  = useState<Extra[]>([])
@@ -309,8 +313,9 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
           justify-end separados, cada um numa linha própria e com a largura do
           próprio texto — duas faixas gastas e nenhuma margem em comum. Todos
           em h-8 e alinhados à direita a partir do mesmo ponto. */}
-      {(clientId || (globalMode && !hideClientFilterUI) || !hideArchiveToggleUI) && (
+      {(heading || clientId || (globalMode && !hideClientFilterUI) || !hideArchiveToggleUI) && (
         <div className="flex items-center gap-2 flex-wrap">
+          {heading && <div className="min-w-0 mr-auto">{heading}</div>}
           {globalMode && !hideClientFilterUI && (
             <>
               <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
@@ -425,7 +430,8 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
               </div>
 
               {/* Só esta área rola. */}
-              <div className={`flex flex-col gap-2 flex-1 min-h-[80px] overflow-y-auto px-1 pb-1 rounded-xl transition-colors ${isDragTarget ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
+              <div className={`flex flex-col gap-2 flex-1 min-h-[80px] overflow-y-auto px-1 pb-1 rounded-xl transition-colors ${isDragTarget ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}
+                style={{ scrollbarGutter: 'stable' }}>
                 {colExtras.map(extra => {
                   const assignedData = extra.assigned_members
                     ? members.filter(m => extra.assigned_members!.includes(m.id))

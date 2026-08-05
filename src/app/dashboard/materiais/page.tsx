@@ -290,7 +290,8 @@ function MateriaisContent() {
                   <span className="text-[10px] font-bold text-[var(--color-text-muted)] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">{items.length}</span>
                 </div>
               </div>
-              <div className={`flex flex-col gap-2.5 flex-1 min-h-[80px] overflow-y-auto px-1 pb-1 rounded-xl transition-colors ${isDragOver ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}>
+              <div className={`flex flex-col gap-2.5 flex-1 min-h-[80px] overflow-y-auto px-1 pb-1 rounded-xl transition-colors ${isDragOver ? 'bg-[var(--color-bg-subtle)] ring-2 ring-[var(--color-brand)]/30' : ''}`}
+                style={{ scrollbarGutter: 'stable' }}>
                 {items.map(m => {
                   const ct = counts[m.id] || { checklist: 0, checkDone: 0, comments: 0, attachments: 0, preview: null }
                   return (

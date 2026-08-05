@@ -238,7 +238,7 @@ export default function KanbanPage() {
                 </div>
 
                 {/* Cards area */}
-                <div className="flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-1.5">
+                <div className="flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-1.5" style={{ scrollbarGutter: 'stable' }}>
                   {colPosts.length === 0 && (
                     <div className={`flex items-center justify-center h-20 border-2 border-dashed rounded-xl mx-1 transition-colors ${isDragOver ? 'border-[var(--color-brand)] bg-[var(--color-brand)]/5' : 'border-[var(--color-border)]'}`}>
                       <p className={`text-[10px] font-medium ${isDragOver ? 'text-[var(--color-brand)]' : 'text-[var(--color-text-faint)]'}`}>

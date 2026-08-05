@@ -115,10 +115,10 @@ export default function MaterialCardMini({ material: m, members, clientBadge, on
           )}
         </div>
       )}
-      {/* Preview do arquivo/entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16).
-          Imagem 4:5 como piso (min-height no card), não teto — cresce junto com o texto se precisar. */}
+      {/* Preview — SEMPRE 4:5, o formato combinado. Esticada até a altura do
+          card, a proporção mudava de um card pro outro. 112×140 é 4:5 exato. */}
       {previewUrl && (
-        <div className="relative w-28 self-stretch flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 aspect-[4/5] self-start flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a
               dependência circular (img 100% ← container ← card ← tamanho natural da img) */}
           <img src={previewUrl} alt={m.title}
@@ -131,12 +131,17 @@ export default function MaterialCardMini({ material: m, members, clientBadge, on
       {/* Cliente + etiquetas na primeira linha, igual ao card de Extra. O
           cliente NUNCA aparecia aqui: na página geral, com "Todos os clientes"
           ligado, não dava pra saber de quem era o material. */}
-      {(clientBadge || labels.length > 0) && (
-        <div className="flex flex-wrap items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
           {clientBadge && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white max-w-[130px] truncate flex-shrink-0"
               style={{ background: clientBadge.color }}>{clientBadge.name}</span>
           )}
+          {/* O tipo fica junto do cliente: os dois respondem "o que é isso, e
+              de quem", que é a leitura de cima. Solto no meio do card ele
+              ficava órfão numa fileira de badges com mais nada. */}
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${MAT_TYPE_COLOR[m.type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
+            {MAT_TYPE_LABEL[m.type] || m.type}
+          </span>
           {labels.map((l, i) => (
             <span key={i}
               className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full text-white flex-shrink-0 max-w-[120px] truncate"
@@ -144,28 +149,28 @@ export default function MaterialCardMini({ material: m, members, clientBadge, on
               {l.text}
             </span>
           ))}
-        </div>
-      )}
+      </div>
 
       {/* Título — riscado quando finalizado, como no card de Extra. */}
-      <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-shrink-0"
+      <p title={m.title}
+        className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-shrink-0 truncate"
         style={m.status === 'finalizado' ? { textDecoration: 'line-through', opacity: 0.5 } : undefined}>
         {m.title}
       </p>
 
-      {/* Briefing snippet — preenche o espaço que sobrar (a imagem cresce junto se precisar) */}
-      {(m.ai_summary || m.description) && (
-        <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed flex-1 min-h-0 overflow-hidden"
-          style={{ maxHeight: '3.2em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
+      {/* Resumo em UMA linha, e só em "A fazer" — mesma regra do card de Extra.
+          Continua vindo da IA, que é quem condensa briefing longo. O que estava
+          errado era a altura: o card reservava três linhas e desbotava o fim,
+          então um resumo curto virava parágrafo. Depois de feito, com a arte na
+          prévia, quem olha já sabe do que se trata e a linha vira ruído. */}
+      {(m.status === 'producao' || !m.status) && (m.ai_summary || m.description) && (
+        <p className="text-[11px] text-[var(--color-text-muted)] leading-snug truncate flex-shrink-0">
           {m.ai_summary || m.description}
         </p>
       )}
 
       {/* Badges: tipo + status */}
-      <div className="flex items-center gap-1.5 flex-wrap flex-shrink-0">
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${MAT_TYPE_COLOR[m.type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
-          {MAT_TYPE_LABEL[m.type] || m.type}
-        </span>
+      <div className="flex items-center gap-1.5 flex-wrap flex-shrink-0 empty:hidden">
         {/* Sem chip de status: ele repetia o cabeçalho da coluna onde o card
             está. E "Entregue" só sem prévia — os dois saem do mesmo drive_url,
             então com a arte na tela o chip diz em palavras o que a imagem já

@@ -12,6 +12,7 @@ interface ExtraLite {
   due_date?: string | null
   drive_url?: string | null
   description?: string | null
+  briefing?: string | null
   ai_summary?: string | null
   labels?: { text: string; color: string }[] | null
   client_id?: string | null
@@ -85,8 +86,8 @@ export default function ExtraMiniCard({
       onClick={onClick}
       className="group border rounded-xl flex cursor-grab active:cursor-grabbing shadow-card hover:shadow-pop hover:-translate-y-0.5 transition-all duration-150 relative overflow-hidden"
       style={{
-        borderLeft: `3px solid ${isAjuste ? '#ef4444' : priorityColor}`,
         borderTopColor: isAjuste ? '#f59e0b66' : 'var(--color-border)',
+        borderLeftColor: isAjuste ? '#f59e0b66' : 'var(--color-border)',
         borderRightColor: isAjuste ? '#f59e0b66' : 'var(--color-border)',
         borderBottomColor: isAjuste ? '#f59e0b66' : 'var(--color-border)',
         background: isAjuste ? '#f59e0b14' : 'var(--color-bg-card)',
@@ -94,11 +95,6 @@ export default function ExtraMiniCard({
         minHeight: 140,
       }}
     >
-      {/* Preview da entrega — vertical na lateral esquerda (evita cortar arte
-          4:5 e 9:16). 140px é PISO, não teto: travado, o card cortava o que não
-          coubesse, e o último da fila era sempre o nome do cliente — saía
-          fatiado ao meio. Borda desalinhada entre cards incomoda menos que
-          informação decepada. */}
       {(onMovePrev || onMoveNext || onArchive) && (
         <div className="absolute top-1.5 right-1.5 z-10 hidden group-hover:flex items-center gap-1" onClick={e => e.stopPropagation()}>
           {onMovePrev && (
@@ -118,8 +114,12 @@ export default function ExtraMiniCard({
         </div>
       )}
 
+      {/* Preview da entrega — SEMPRE 4:5, o formato combinado. Antes ela
+          esticava até a altura do card (`self-stretch`), então card mais alto
+          dava prévia mais comprida e a proporção mudava de um card pro outro.
+          112×140 é exatamente 4:5 e casa com a altura mínima do card. */}
       {thumbUrl && (
-        <div className="relative w-28 self-stretch flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
+        <div className="relative w-28 aspect-[4/5] self-start flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a
               dependência circular (img 100% ← container ← card ← tamanho natural da img) */}
           <img src={thumbUrl} alt={extra.title} className="absolute inset-0 w-full h-full object-cover"
@@ -161,7 +161,12 @@ export default function ExtraMiniCard({
         <div className="flex items-start gap-2 flex-shrink-0">
           <TypeIcon size={13} strokeWidth={1.75}
             style={{ color: typeColor, flexShrink: 0, marginTop: 1.5 }} />
-          <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-1 min-w-0 break-words"
+          {/* Uma linha, com reticências. Título comprido quebrando em duas
+              linhas era o que fazia um card ficar mais alto que o vizinho —
+              e altura desigual entre cards da mesma coluna é justamente o que
+              a gente veio tirar. O nome inteiro fica no title do hover. */}
+          <p title={extra.title}
+            className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-1 min-w-0 truncate"
             style={{
               textDecoration: extra.status === 'done' ? 'line-through' : 'none',
               opacity:        extra.status === 'done' ? 0.5 : 1,
@@ -170,11 +175,18 @@ export default function ExtraMiniCard({
           </p>
         </div>
 
-        {/* Description snippet — preenche o espaço que sobrar (a imagem cresce junto se precisar) */}
-        {(extra.ai_summary || extra.description) && (
-          <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 ml-5 leading-relaxed flex-1 min-h-0 overflow-hidden"
-            style={{ maxHeight: '3.2em', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }}>
-            {extra.ai_summary || extra.description}
+        {/* Resumo em UMA linha, e só em "A fazer".
+
+            A linha continua vindo da IA — é ela que condensa um briefing longo
+            em algo que cabe num card. O que estava errado era a altura: o card
+            reservava três linhas e desbotava o fim, então um resumo curto virava
+            parágrafo. Agora é uma linha, cortada no fim.
+
+            E some depois de feito: com a arte na prévia, quem olha o card já
+            sabe do que se trata — ali a linha só disputa espaço. */}
+        {extra.status === 'backlog' && (extra.ai_summary || extra.briefing || extra.description) && (
+          <p className="text-[11px] text-[var(--color-text-muted)] mt-1 ml-5 leading-snug truncate flex-shrink-0">
+            {extra.ai_summary || extra.briefing || extra.description}
           </p>
         )}
 

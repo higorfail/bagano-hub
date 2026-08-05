@@ -441,8 +441,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 
           {tab === 'materiais' && (
             <div className="flex flex-col gap-4 h-full min-h-0">
-              <div className="flex items-center justify-between">
-                <div>
+              {/* Título e ação na MESMA linha — o botão caía numa fileira
+                  própria embaixo da explicação e gastava uma faixa inteira. */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">Materiais extras</p>
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Menus, cardápios, artes avulsas, logos.</p>
                 </div>
@@ -457,12 +459,15 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
               {(() => {
                 // Mesmas colunas do quadro geral de Materiais — este aqui é
                 // uma terceira cópia do mesmo board e vivia divergindo.
+                // As MESMAS quatro colunas da página de Materiais. "Ajuste"
+                // era uma quinta coluna só aqui: ajuste não é etapa do fluxo,
+                // é retorno — o card volta pra "A fazer", e é lá que ele cai
+                // pelo fallback de status desconhecido.
                 const MAT_COLS = [
                   { key: 'producao',             label: 'A fazer',       color: '#F59E0B' },
                   { key: 'feito',                label: 'Feito',         color: '#0EA5E9' },
                   { key: 'aguardando_aprovacao', label: 'Com o cliente', color: '#EC4899' },
-                  { key: 'ajuste',               label: 'Ajuste',        color: '#EF4444' },
-                  { key: 'finalizado',           label: 'Finalizado',    color: '#22C55E' },
+                  { key: 'finalizado',           label: 'Finalizados',   color: '#22C55E' },
                 ]
                 const MAT_KNOWN = MAT_COLS.map(c => c.key)
                 const matVisible = materials.filter(m => {
@@ -499,7 +504,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                               <span className="text-[10px] font-bold text-[var(--color-text-muted)] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">{items.length}</span>
                             </div>
                           </div>
-                          <div className={`flex flex-col gap-2 flex-1 min-h-[80px] overflow-y-auto rounded-xl transition-colors p-1 ${isDragOver ? 'ring-2 ring-dashed ring-[var(--color-brand)] bg-[var(--color-bg-subtle)]' : ''}`}>
+                          <div className={`flex flex-col gap-2 flex-1 min-h-[80px] overflow-y-auto rounded-xl transition-colors p-1 ${isDragOver ? 'ring-2 ring-dashed ring-[var(--color-brand)] bg-[var(--color-bg-subtle)]' : ''}`}
+                            style={{ scrollbarGutter: 'stable' }}>
                             {items.map(m => {
                               const ct = matCounts[m.id] || {}
                               return (
@@ -624,11 +630,13 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             // rolagem, então 100% dela resolve — sem isso o Extras ficava
             // sendo o único quadro do hub sem rolagem por coluna.
             <div className="flex flex-col gap-4 h-full min-h-0">
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text-primary)]">Extras de {client.name}</p>
-                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Tarefas, notas e lembretes específicos deste cliente</p>
-              </div>
-              <ExtrasKanban clientId={client.id} members={allMembers} />
+              {/* Título vai DENTRO da barra do quadro: solto acima, as ações
+                  caíam numa fileira própria embaixo da explicação. */}
+              <ExtrasKanban clientId={client.id} members={allMembers}
+                heading={<>
+                  <p className="text-sm font-medium text-[var(--color-text-primary)]">Extras de {client.name}</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Tarefas, notas e lembretes específicos deste cliente</p>
+                </>} />
             </div>
           )}
 
