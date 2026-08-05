@@ -547,8 +547,12 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   async function addComment() {
     const body = newComment.trim(); if (!body) return
+    // Mesma regra dos outros três cards: comentário anônimo não se conserta
+    // depois, porque ninguém mais sabe de quem era. Aqui salvava `null` — não
+    // mentia como o 'Você' dos outros, mas perdia o autor do mesmo jeito.
+    if (!currentMember?.name) { toast('Diga quem é você no menu do seu nome antes de comentar.'); return }
     const pid = await ensurePostId(); if (!pid) { toast('Adicione um título primeiro'); return }
-    const { data, error } = await supabase.from('schedule_comments').insert({ schedule_id: pid, author_name: currentMember?.name || null, body }).select().single()
+    const { data, error } = await supabase.from('schedule_comments').insert({ schedule_id: pid, author_name: currentMember.name, body }).select().single()
     if (dbError(error, toast, 'comentar')) return
     if (data) setComments(c => [...c, data])
     setNewComment('')
