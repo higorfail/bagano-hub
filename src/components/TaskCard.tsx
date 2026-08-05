@@ -390,7 +390,8 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
     if (!newComment.trim()) return
     const tid = await ensureId()
     if (!tid) return
-    const author = currentMember?.name || 'Você'
+    if (!currentMember?.name) { toast('Diga quem é você no menu do seu nome antes de comentar.'); return }
+    const author = currentMember.name
     const { data } = await supabase.from('personal_task_comments').insert({ task_id: tid, body: newComment, author_name: author }).select().single()
     if (data) setComments(c => [...c, data])
     const body = newComment

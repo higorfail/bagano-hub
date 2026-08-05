@@ -299,7 +299,18 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
                 <ChevronDown size={13} className="text-[var(--color-text-faint)] group-hover:text-[var(--color-text-muted)] flex-shrink-0 transition-colors md:hidden xl:block" />
               </>
             ) : (
-              <span className="text-sm text-[var(--color-text-muted)] px-1">Quem é você?</span>
+              // Sem identidade, TODA ação some do histórico: comentário sai
+              // sem autor e mudança de status vira "Alguém". "Quem é você?"
+              // parecia um convite opcional — vira aviso, com a consequência
+              // escrita. Foi assim que um comentário ficou gravado como
+              // "Você" pra todo mundo ler.
+              <span className="flex items-center gap-2 px-1 text-sm font-medium" style={{ color: 'var(--ds-warn-text)' }}>
+                <span className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-[15px]" style={{ background: 'var(--ds-warn-bg)' }}>!</span>
+                <span className="md:hidden xl:block leading-tight">
+                  Quem é você?
+                  <span className="block text-[10px] font-normal opacity-80">Sem isso, o que você faz não fica no seu nome</span>
+                </span>
+              </span>
             )}
           </button>
 

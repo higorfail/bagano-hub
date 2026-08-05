@@ -407,7 +407,8 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
     if (!newComment.trim()) return
     const mid = await ensureId()
     if (!mid) return
-    const author = currentMember?.name || 'Você'
+    if (!currentMember?.name) { toast('Diga quem é você no menu do seu nome antes de comentar.'); return }
+    const author = currentMember.name
     const { data } = await supabase.from('material_comments').insert({
       material_id: mid, body: newComment, author_name: author,
     }).select().single()

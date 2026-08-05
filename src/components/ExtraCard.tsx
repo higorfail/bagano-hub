@@ -512,7 +512,11 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   async function addComment() {
     if (!newComment.trim()) return
     const eid = await ensureId(); if (!eid) return
-    const authorName = currentMember?.name || 'Você'
+    // Sem identidade não comenta. Gravar 'Você' como nome fazia TODO MUNDO
+    // ler "Você comentou" naquele card pra sempre — e o texto fica no banco,
+    // então não dá pra desfazer depois descobrindo quem era.
+    if (!currentMember?.name) { toast('Diga quem é você no menu do seu nome antes de comentar.'); return }
+    const authorName = currentMember.name
     const body = newComment
     const { data } = await supabase.from('extra_comments').insert({ extra_id: eid, body, author_name: authorName }).select().single()
     if (data) setComments(c => [...c, data])
