@@ -10,11 +10,13 @@ import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
 import { approvalShort } from '@/lib/approvalKind'
 import { dbError } from '@/lib/dbError'
-import { Check, Copy, Search, X, Zap, ClipboardCheck, Link2, Sparkles, ClipboardList, ChevronDown } from 'lucide-react'
+import { Check, Copy, Search, X, Zap, ClipboardCheck, Link2, Sparkles, ClipboardList, ChevronDown, GripVertical } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { ensureWatching } from '@/lib/watch'
 import ModalPortal from '@/components/ModalPortal'
+import ListCell from '@/components/ListCell'
+import { useIsWideScreen } from '@/lib/useMediaQuery'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -75,6 +77,19 @@ type Post = MiniPost & {
   legenda?: string | null
   reference_notes?: string | null
   attachments_count?: number
+}
+
+// Grade da tabela da Lista. O cabeçalho e as linhas usam a MESMA definição —
+// duas listas de larguras separadas seriam duas listas pra desalinhar.
+const LIST_COLS    = 'grid-cols-[56px_minmax(190px,1.1fr)_minmax(150px,1.3fr)_minmax(150px,1.3fr)_minmax(150px,1.3fr)_100px_64px_112px]'
+const LIST_COLS_SM = 'sm:grid-cols-[56px_minmax(190px,1.1fr)_minmax(150px,1.3fr)_minmax(150px,1.3fr)_minmax(150px,1.3fr)_100px_64px_112px]'
+
+// `05/ago`. O formato curto do pt-BR devolve "05 de ago.", que é largo demais
+// pra coluna e quebrava a data em duas linhas.
+const MES_ABREV = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']
+function fmtDiaMes(iso: string) {
+  const d = new Date(iso + 'T12:00:00')
+  return `${String(d.getDate()).padStart(2, '0')}/${MES_ABREV[d.getMonth()]}`
 }
 
 // `briefing` entra por causa da view Lista: é a coluna "Descrição" da planilha
@@ -199,6 +214,9 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [filterType, setFilterType] = useState('')
 
   // Ações do crono recolhidas no celular (ver toolbar); no desktop ficam sempre visíveis.
+  // Edição em linha só onde a tabela cabe. No celular a célula fica estreita
+  // demais e o toque continua abrindo o card, que é onde se edita direito.
+  const wide = useIsWideScreen()
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'calendar'>(() => {
     if (typeof window === 'undefined') return 'grid'
     const saved = localStorage.getItem('crono_view')
@@ -534,6 +552,27 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     })
   }
 
+  // Salva um campo editado direto na tabela da Lista.
+  //
+  // Registra no histórico exatamente como o card registra: edição feita por
+  // aqui não pode ficar invisível na linha do tempo do post só porque foi
+  // feita numa tela diferente.
+  const FIELD_LABEL: Record<string, string> = { title: 'o título', briefing: 'o briefing', copy: 'a copy', legenda: 'a legenda' }
+  async function saveField(postId: string, field: 'title' | 'briefing' | 'copy' | 'legenda', value: string) {
+    const post = posts.find(p => p.id === postId)
+    if (!post || ((post as any)[field] || '') === value) return
+    const prev = posts
+    setPosts(ps => ps.map(p => p.id === postId ? { ...p, [field]: value } : p))
+    const { error } = await supabase.from('schedules').update({ [field]: value }).eq('id', postId)
+    if (error) { setPosts(prev); dbError(error, toast, 'salvar'); return }
+    const who = currentMember?.name || 'Alguém'
+    logActivity({
+      tableName: 'schedules', recordId: postId, clientId, action: 'updated',
+      actorName: currentMember?.name, actorId: currentMember?.id,
+      description: `${who} editou ${FIELD_LABEL[field]}`,
+    })
+  }
+
   async function reorderPosts(targetId: string) {
     const from = posts.findIndex(p => p.id === dragId)
     const to   = posts.findIndex(p => p.id === targetId)
@@ -763,145 +802,150 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               <p className="text-[var(--color-text-muted)] text-sm">Tente ajustar os filtros.</p>
             </div>
           ) : viewMode === 'list' ? (
-            // A Lista é a view de quem MONTA o cronograma — a estrategista.
-            // Por isso ela imita a planilha que esse trabalho sempre usou:
-            // Nº, título, descrição, data e tipo. Responsável não entra aqui de
-            // propósito: importa na produção, não na hora de montar a pauta.
+            // A Lista é a view de quem MONTA o cronograma — a estrategista —,
+            // e o formato desse trabalho sempre foi planilha. Então ela é uma
+            // TABELA de verdade: cabeçalho em cima, colunas alinhadas, uma
+            // linha por post. Responsável fica de fora de propósito: importa
+            // na produção, não na hora de montar a pauta.
             //
-            // A altura é ditada pelo conteúdo: post sem descrição fica numa
-            // linha só. Isso mantém a lista enxuta E devolve uma coisa que a
-            // planilha tinha e o hub tinha perdido — o que FALTA aparece como
-            // espaço vazio, sem precisar de selo nenhum pra denunciar.
-            <div className="flex flex-col gap-2">
-              {visiblePosts.map(post => {
-                const campaign = campaigns.find(c => c.type === post.campaign_type)
-                const labels: { text: string; color: string }[] = Array.isArray(post.labels) ? post.labels : []
-                const pediuAjuste = post.status === 'ajuste' || post.approval_status === 'não aprovado'
-                const temRefs = !!(post.drive_folder_url || post.drive_url || (post.attachments_count || 0) > 0 || (post.reference_notes || '').trim())
-                const temConteudo = !!((post.briefing || '').trim() || (post.copy || '').trim() || (post.legenda || '').trim() || temRefs)
-                const isDragging = dragId === post.id
-                const isOver = dragOverId === post.id && dragId !== post.id
-                return (
-                  <div key={post.id}
-                    role="button" tabIndex={0}
-                    onClick={() => { setEditingPostId(post.id); setShowPostCard(true) }}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingPostId(post.id); setShowPostCard(true) } }}
-                    // Reordenar arrastando, igual à view de Cards. Só sem
-                    // filtro ativo: numa lista filtrada o vizinho na tela não é
-                    // o vizinho de verdade, e a renumeração sairia errada.
-                    // O toque no iPad funciona pelo installTouchDragBridge, que
-                    // o layout já instala pro app inteiro.
-                    draggable={!hasFilter}
-                    onDragStart={() => setDragId(post.id)}
-                    onDragEnd={() => { setDragId(null); setDragOverId(null) }}
-                    onDragOver={e => { e.preventDefault(); if (dragOverId !== post.id) setDragOverId(post.id) }}
-                    onDrop={() => reorderPosts(post.id)}
-                    className={`w-full text-left bg-[var(--color-bg-card)] border rounded-xl px-4 py-3 transition-all cursor-pointer
-                      ${isDragging ? 'opacity-40' : ''}
-                      ${isOver ? 'border-[var(--color-brand)]' : 'border-[var(--color-border)] hover:border-[var(--color-border-hover)]'}`}
-                    style={{ borderLeftWidth: 3, borderLeftColor: clientColor || 'var(--color-brand)' }}>
+            // Abaixo de 640px a grade vira uma coluna só e cada célula mostra
+            // o próprio rótulo (o cabeçalho some) — tabela de 8 colunas em
+            // tela de telefone é ilegível. A edição em linha também só vale
+            // daí pra cima; no celular o toque continua abrindo o card.
+            <div className="overflow-x-auto -mx-1 px-1">
+              <div className="sm:min-w-[1040px]">
 
-                    {/* Cabeçalho da linha. O tipo desce pra baixo do título:
-                        em cima ele disputava espaço com o nome do post, que é
-                        o que a estrategista lê primeiro. Data e status seguem
-                        à direita, alinhados entre si, pra dar pra descer a
-                        lista lendo só aquela coluna. */}
-                    <div className="flex items-start gap-2 sm:gap-3">
-                      <span className="text-xs font-bold text-[var(--color-text-muted)] w-7 flex-shrink-0 tabular-nums mt-0.5">#{post.post_number}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[15px] font-semibold text-[var(--color-text-primary)] truncate">
-                          {post.title || <span className="font-normal text-[var(--color-text-faint)] italic">Sem título</span>}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${typeColor[post.post_type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
-                            {TYPE_LABEL[post.post_type] || post.post_type || '—'}
-                          </span>
-                          {campaign && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
-                          {post.comments_count > 0 && (
-                            <span className="text-[11px] text-[var(--color-text-muted)]" title={`${post.comments_count} comentário${post.comments_count !== 1 ? 's' : ''}`}>💬 {post.comments_count}</span>
+                <div className={`hidden sm:grid ${LIST_COLS} gap-x-3 px-4 pb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)]`}>
+                  <span>Nº</span>
+                  <span>Post</span>
+                  <span>Briefing</span>
+                  <span>Copy</span>
+                  <span>Legenda</span>
+                  <span>Refs</span>
+                  <span className="text-right">Data</span>
+                  <span>Status</span>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {visiblePosts.map(post => {
+                    const campaign = campaigns.find(c => c.type === post.campaign_type)
+                    const labels: { text: string; color: string }[] = Array.isArray(post.labels) ? post.labels : []
+                    const pediuAjuste = post.status === 'ajuste' || post.approval_status === 'não aprovado'
+                    const temRefs = !!(post.drive_folder_url || post.drive_url || (post.attachments_count || 0) > 0 || (post.reference_notes || '').trim())
+                    const isDragging = dragId === post.id
+                    const isOver = dragOverId === post.id && dragId !== post.id
+                    const abrirCard = () => { setEditingPostId(post.id); setShowPostCard(true) }
+                    return (
+                      <div key={post.id}
+                        // Arrastar sai da linha inteira e vira a alça ao lado
+                        // do número: com a linha toda arrastável, tentar
+                        // selecionar um trecho de texto disparava o arrasto —
+                        // e agora, com célula editável, seria pior ainda.
+                        onDragOver={e => { e.preventDefault(); if (dragOverId !== post.id) setDragOverId(post.id) }}
+                        onDrop={() => reorderPosts(post.id)}
+                        className={`grid grid-cols-1 ${LIST_COLS_SM} gap-x-3 gap-y-2 bg-[var(--color-bg-card)] border rounded-xl px-4 py-3 transition-all
+                          ${isDragging ? 'opacity-40' : ''}
+                          ${isOver ? 'border-[var(--color-brand)]' : 'border-[var(--color-border)]'}`}
+                        style={{ borderLeftWidth: 3, borderLeftColor: clientColor || 'var(--color-brand)' }}>
+
+                        <div className="flex items-center gap-1">
+                          {!hasFilter && (
+                            <span
+                              draggable
+                              onDragStart={e => { e.stopPropagation(); setDragId(post.id) }}
+                              onDragEnd={() => { setDragId(null); setDragOverId(null) }}
+                              title="Arraste pra reordenar"
+                              className="cursor-grab active:cursor-grabbing text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] select-none leading-none">
+                              <GripVertical size={13} />
+                            </span>
                           )}
+                          <span className="text-xs font-bold text-[var(--color-text-muted)] tabular-nums">#{post.post_number}</span>
                         </div>
-                      </div>
-                      <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0 tabular-nums w-14 text-right mt-0.5">
-                        {post.scheduled_date ? new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : '—'}
-                      </span>
-                      <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
-                        {approvalShort(post.status, post.approval_status) && (
-                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
-                            ✓ {approvalShort(post.status, post.approval_status)}
-                          </span>
-                        )}
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
-                          {STATUS_LABEL[post.status] || post.status}
-                        </span>
-                      </div>
-                    </div>
 
-                    {/* Briefing, Copy, Legenda e Refs lado a lado, como as
-                        colunas da planilha. Os quatro rótulos aparecem juntos
-                        ou nenhum aparece: com rótulo fixo por linha a lista
-                        fica alinhada de cima a baixo, e o campo vazio vira um
-                        buraco visível — que é como a planilha denuncia o que
-                        falta. Mas o post que não tem NADA (56 dos 175) não
-                        ganha bloco nenhum e continua curto, senão a lista
-                        engordava por igual sem dizer mais nada.
-
-                        Texto cortado em 2 linhas: aqui é pra bater o olho, ler
-                        inteiro é dentro do card. */}
-                    {temConteudo && (
-                      <div className="mt-2.5 sm:pl-9 grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-2">
-                        {([
-                          ['Briefing', (post.briefing || '').trim()],
-                          ['Copy',     (post.copy || '').trim()],
-                          ['Legenda',  (post.legenda || '').trim()],
-                        ] as const).map(([rotulo, texto]) => (
-                          <div key={rotulo} className="min-w-0">
-                            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">{rotulo}</p>
-                            {texto
-                              ? <p className="text-[12px] leading-snug text-[var(--color-text-secondary)] line-clamp-2">{texto}</p>
-                              : <p className="text-[12px] text-[var(--color-text-faint)]">—</p>}
-                          </div>
-                        ))}
                         <div className="min-w-0">
-                          <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Refs</p>
+                          {/* O título é o que abre o card. A linha inteira não
+                              abre mais: ela agora tem células que editam. */}
+                          <button onClick={abrirCard}
+                            className="text-left text-[14px] font-semibold text-[var(--color-text-primary)] hover:underline truncate w-full">
+                            {post.title || <span className="font-normal text-[var(--color-text-faint)] italic">Sem título</span>}
+                          </button>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${typeColor[post.post_type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
+                              {TYPE_LABEL[post.post_type] || post.post_type || '—'}
+                            </span>
+                            {campaign && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
+                            {post.comments_count > 0 && (
+                              <span className="text-[11px] text-[var(--color-text-muted)]" title={`${post.comments_count} comentário${post.comments_count !== 1 ? 's' : ''}`}>💬 {post.comments_count}</span>
+                            )}
+                            {labels.slice(0, 2).map((l, i) => (
+                              <span key={i} className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: l.color }}>{l.text}</span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Briefing</p>
+                          <ListCell value={post.briefing || ''} editable={wide} onCommit={v => saveField(post.id, 'briefing', v)} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Copy</p>
+                          <ListCell value={post.copy || ''} editable={wide} onCommit={v => saveField(post.id, 'copy', v)} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Legenda</p>
+                          <ListCell value={post.legenda || ''} editable={wide} onCommit={v => saveField(post.id, 'legenda', v)} />
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Refs</p>
                           {temRefs ? (
-                            <div className="flex items-center gap-1.5 flex-wrap">
+                            <div className="flex items-center gap-1 flex-wrap">
                               {(post.drive_folder_url || post.drive_url) && (
-                                <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>📁 Drive</span>
+                                <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>📁</span>
                               )}
                               {(post.attachments_count || 0) > 0 && (
                                 <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>📎 {post.attachments_count}</span>
                               )}
                               {(post.reference_notes || '').trim() && (
-                                <span className="text-[12px] text-[var(--color-text-secondary)] line-clamp-1">{post.reference_notes}</span>
+                                <span className="text-[11px] text-[var(--color-text-muted)] truncate">{post.reference_notes}</span>
                               )}
                             </div>
-                          ) : <p className="text-[12px] text-[var(--color-text-faint)]">—</p>}
+                          ) : <span className="text-[12px] text-[var(--color-text-faint)]">—</span>}
                         </div>
-                      </div>
-                    )}
 
-                    {labels.length > 0 && (
-                      <div className="mt-1.5 sm:pl-9 flex items-center gap-1 flex-wrap">
-                        {labels.slice(0, 4).map((l, i) => (
-                          <span key={i} className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: l.color }}>{l.text}</span>
-                        ))}
-                      </div>
-                    )}
+                        <div className="text-xs text-[var(--color-text-muted)] tabular-nums sm:text-right">
+                          <span className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mr-1">Data</span>
+                          {/* dd/mmm curtinho: o formato do pt-BR devolve
+                              "05 de ago." e quebrava a coluna em duas linhas. */}
+                          {post.scheduled_date ? fmtDiaMes(post.scheduled_date) : '—'}
+                        </div>
 
-                    {/* O pedido do cliente, por extenso. Antes era um "✗" mudo:
-                        pra saber o que ele queria, tinha que abrir o card. */}
-                    {pediuAjuste && (
-                      <div className="mt-2 sm:ml-9 rounded-lg px-2.5 py-1.5 text-[12px] leading-snug line-clamp-2"
-                        style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
-                        {(post.approval_comment || '').trim()
-                          ? <><span className="font-semibold">Cliente pediu ajuste:</span> “{post.approval_comment}”</>
-                          : <span className="font-semibold">Ajuste solicitado — sem motivo registrado</span>}
+                        <div className="flex items-start gap-1 flex-wrap">
+                          {approvalShort(post.status, post.approval_status) && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
+                              ✓ {approvalShort(post.status, post.approval_status)}
+                            </span>
+                          )}
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
+                            {STATUS_LABEL[post.status] || post.status}
+                          </span>
+                        </div>
+
+                        {/* Pedido do cliente atravessa a linha inteira: é o que
+                            muda a próxima ação, não cabe espremido numa célula. */}
+                        {pediuAjuste && (
+                          <div className="sm:col-span-8 rounded-lg px-2.5 py-1.5 text-[12px] leading-snug"
+                            style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+                            {(post.approval_comment || '').trim()
+                              ? <><span className="font-semibold">Cliente pediu ajuste:</span> “{post.approval_comment}”</>
+                              : <span className="font-semibold">Ajuste solicitado — sem motivo registrado</span>}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )
-              })}
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
