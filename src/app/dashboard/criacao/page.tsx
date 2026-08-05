@@ -693,27 +693,6 @@ export default function CriacaoPage() {
                                     </span>
                                   )}
                                   {post.funil && <span className="text-[10px] text-[var(--color-text-muted)]">{post.funil}</span>}
-                                  {/* O QUE FALTA neste post. A página listava o
-                                      item sem dizer o que fazer nele — quem
-                                      abria não sabia se faltava arte, legenda
-                                      ou copy, e nenhum dos 23 posts em produção
-                                      usa etiqueta, então a convenção de
-                                      "CRIAR LEGENDA" não ajuda aqui. Aceso =
-                                      pronto, apagado = falta. */}
-                                  {([
-                                    ['Arte',    !!(post.drive_url || post.drive_folder_url)],
-                                    ['Copy',    !!(post.copy || '').trim()],
-                                    ['Legenda', !!(post.legenda || '').trim()],
-                                  ] as const).map(([nome, ok]) => (
-                                    <span key={nome}
-                                      title={ok ? `${nome} pronta` : `Falta ${nome.toLowerCase()}`}
-                                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
-                                      style={ok
-                                        ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }
-                                        : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-faint)' }}>
-                                      {ok ? '✓' : '○'} {nome}
-                                    </span>
-                                  ))}
                                   {post.scheduled_date
                                     ? <span className="text-[10px] text-[var(--color-text-muted)]">📅 {formatDate(post.scheduled_date)}</span>
                                     // Sem data é o maior buraco da Criação — 13
