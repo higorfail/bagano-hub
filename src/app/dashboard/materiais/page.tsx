@@ -299,6 +299,7 @@ function MateriaisContent() {
                       <MaterialCardMini
                         material={{ ...m, _checkTotal: ct.checklist, _checkDone: ct.checkDone, _comments: ct.comments, _attachments: ct.attachments, _preview: ct.preview }}
                         members={members}
+                        clientBadge={(() => { const c = clients.find(c => c.id === m.client_id); return c ? { name: c.name, color: c.color_hex } : null })()}
                         onClick={() => { setCardOpen(m.id); window.history.replaceState(null, '', `?post=${m.id}`) }}
                         draggable={true}
                         onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingId(m.id) }}

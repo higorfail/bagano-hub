@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, CheckSquare, AlertCircle, MessageSquare, Play, Archive } from 'lucide-react'
+import { Calendar, CheckSquare, AlertCircle, MessageSquare, Paperclip, Play, Archive } from 'lucide-react'
+import { cardDue } from '@/lib/cardDue'
 
 interface ExtraLite {
   id: string
@@ -23,23 +24,25 @@ type Props = {
   TypeIcon: React.ElementType
   typeColor: string
   priorityColor: string
-  overdue: boolean
   assignedData: { id: string; name: string; color?: string }[]
   chk?: { done: number; total: number }
   commentCount: number
+  attachCount?: number
   clientBadge?: { name: string; color: string } | null
   showGlobalBadge?: boolean
-  formatDue: (d: string) => string
   dragging: boolean
   onClick: () => void
   onDragStart: (e: React.DragEvent) => void
   onDragEnd: () => void
   onArchive?: () => void
+  onMovePrev?: () => void
+  onMoveNext?: () => void
 }
 
 export default function ExtraMiniCard({
-  extra, TypeIcon, typeColor, priorityColor, overdue, assignedData, chk, commentCount,
-  clientBadge, showGlobalBadge, formatDue, dragging, onClick, onDragStart, onDragEnd, onArchive,
+  extra, TypeIcon, typeColor, priorityColor, assignedData, chk, commentCount, attachCount = 0,
+  clientBadge, showGlobalBadge, dragging, onClick, onDragStart, onDragEnd, onArchive,
+  onMovePrev, onMoveNext,
 }: Props) {
   // Preview da entrega — resolve arquivo direto ou capa/vídeo de uma pasta do Drive
   const [thumbUrl, setThumbUrl] = useState<string | null>(() => {
@@ -72,6 +75,7 @@ export default function ExtraMiniCard({
   // aos olhos no meio dos outros cards da coluna, não só um selinho pequeno
   // no rodapé (fácil de não notar entre vários cards).
   const isAjuste = extra.client_approval_status === 'recusado'
+  const due = cardDue(extra.due_date)
 
   return (
     <div
@@ -87,20 +91,31 @@ export default function ExtraMiniCard({
         borderBottomColor: isAjuste ? '#f59e0b66' : 'var(--color-border)',
         background: isAjuste ? '#f59e0b14' : 'var(--color-bg-card)',
         opacity: dragging ? 0.4 : 1,
-        height: 140,
+        minHeight: 140,
       }}
     >
-      {/* Preview da entrega — vertical na lateral esquerda (evita cortar conteúdo 4:5/9:16).
-          Altura travada em 140 (não mínima) com overflow-hidden no card inteiro — nada
-          consegue estourar além disso, custe o que custar em conteúdo cortado. */}
-      {onArchive && (
-        <button
-          onClick={e => { e.stopPropagation(); onArchive() }}
-          title="Arquivar"
-          className="absolute top-1.5 right-1.5 z-10 w-6 h-6 rounded-lg bg-[var(--color-bg-card)]/90 border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-faint)] opacity-0 group-hover:opacity-100 hover:text-[var(--color-text-primary)] transition-opacity"
-        >
-          <Archive size={12} />
-        </button>
+      {/* Preview da entrega — vertical na lateral esquerda (evita cortar arte
+          4:5 e 9:16). 140px é PISO, não teto: travado, o card cortava o que não
+          coubesse, e o último da fila era sempre o nome do cliente — saía
+          fatiado ao meio. Borda desalinhada entre cards incomoda menos que
+          informação decepada. */}
+      {(onMovePrev || onMoveNext || onArchive) && (
+        <div className="absolute top-1.5 right-1.5 z-10 hidden group-hover:flex items-center gap-1" onClick={e => e.stopPropagation()}>
+          {onMovePrev && (
+            <button onClick={onMovePrev} title="Coluna anterior"
+              className="w-5 h-5 rounded bg-[var(--color-bg-subtle)] hover:bg-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-[10px] transition-colors">←</button>
+          )}
+          {onMoveNext && (
+            <button onClick={onMoveNext} title="Próxima coluna"
+              className="w-5 h-5 rounded bg-[var(--color-bg-subtle)] hover:bg-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] text-[10px] transition-colors">→</button>
+          )}
+          {onArchive && (
+            <button onClick={onArchive} title="Arquivar"
+              className="w-5 h-5 rounded bg-[var(--color-bg-subtle)] hover:bg-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] transition-colors">
+              <Archive size={11} />
+            </button>
+          )}
+        </div>
       )}
 
       {thumbUrl && (
@@ -120,11 +135,22 @@ export default function ExtraMiniCard({
       )}
 
       <div className="flex-1 min-w-0 min-h-0 p-3 flex flex-col overflow-hidden">
-        {/* Labels strip */}
-        {extra.labels && extra.labels.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {extra.labels.map((l, i) => (
-              <span key={i} className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: l.color }}>
+        {/* Cliente + etiquetas na mesma primeira linha. O cliente era o último
+            item de um rodapé que embrulhava — por isso era sempre ele que
+            sobrava e saía cortado. No modo "todos os clientes" ele é o que
+            agrupa a leitura: vem primeiro. Etiqueta cortada em 120px pra uma
+            etiqueta comprida não empurrar o resto pra fora do card. */}
+        {(clientBadge || showGlobalBadge || (extra.labels && extra.labels.length > 0)) && (
+          <div className="flex flex-wrap items-center gap-1 mb-1.5">
+            {clientBadge && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white max-w-[130px] truncate flex-shrink-0"
+                style={{ background: clientBadge.color }}>{clientBadge.name}</span>
+            )}
+            {showGlobalBadge && (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)] flex-shrink-0">Global</span>
+            )}
+            {extra.labels?.map((l, i) => (
+              <span key={i} className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full text-white max-w-[120px] truncate flex-shrink-0" style={{ background: l.color }}>
                 {l.text}
               </span>
             ))}
@@ -152,62 +178,70 @@ export default function ExtraMiniCard({
           </p>
         )}
 
-        {/* Meta row — fica colado no fim do card */}
-        <div className="flex flex-wrap items-center gap-2 mt-auto pt-2 ml-5">
-          {extra.due_date && (
-            <span className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${overdue ? '' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`} style={overdue ? { background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' } : {}}>
-              {overdue && <AlertCircle size={9} />}
-              <Calendar size={9} />
-              {formatDue(extra.due_date)}
-            </span>
-          )}
-          {chk && chk.total > 0 && (
-            <span className="flex items-center gap-1 text-[10px] font-medium" style={chk.done === chk.total ? { color: 'var(--ds-success-text)' } : { color: 'var(--color-text-muted)' }}>
-              <CheckSquare size={9} /> {chk.done}/{chk.total}
-            </span>
-          )}
-          {commentCount > 0 && (
-            <span className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-text-muted)]">
-              <MessageSquare size={9} /> {commentCount}
-            </span>
-          )}
-          {extra.drive_url && (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]">✓ Entregue</span>
-          )}
-          {/* Ciclo de aprovação do cliente — mesmas cores do cronograma */}
-          {extra.client_approval_status === 'aprovado' && (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ Aprovado</span>
-          )}
-          {extra.client_approval_status === 'aguardando' && extra.client_approval_comment ? (
-            <span title={extra.client_approval_comment} className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>🟡 Ajustado</span>
-          ) : extra.client_approval_status === 'aguardando' ? (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: '#ec489922', color: '#ec4899' }}>Com cliente</span>
-          ) : null}
-          {isAjuste && (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white" style={{ background: '#ef4444' }}>⚠ Ajuste pedido</span>
-          )}
+        {/* Rodapé com papéis fixos: contadores à esquerda, avatares à direita.
+            Era uma fileira só onde data, contadores, selos de estado, avatares
+            e cliente disputavam a mesma linha e embrulhavam — o formato do card
+            de Material, que já funcionava.
+
+            Os selos que a COLUNA já diz saíram: "Com cliente" dentro da coluna
+            "Com o cliente" e "✓ Aprovado" dentro de "Finalizados" eram o card
+            repetindo o cabeçalho. Sobra o que a coluna NÃO conta. */}
+        <div className="flex items-center justify-between gap-2 mt-auto pt-2">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {due && (
+              <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                style={due.overdue ? { background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }
+                     : due.soon    ? { background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }
+                                   : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
+                {due.overdue ? <AlertCircle size={9} /> : <Calendar size={9} />}
+                {due.date}{due.relative && ` · ${due.relative}`}
+              </span>
+            )}
+            {chk && chk.total > 0 && (
+              <span className="flex items-center gap-1 text-[10px] font-medium" style={chk.done === chk.total ? { color: 'var(--ds-success-text)' } : { color: 'var(--color-text-muted)' }}>
+                <CheckSquare size={9} /> {chk.done}/{chk.total}
+              </span>
+            )}
+            {commentCount > 0 && (
+              <span className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-text-muted)]">
+                <MessageSquare size={9} /> {commentCount}
+              </span>
+            )}
+            {attachCount > 0 && (
+              <span className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-text-muted)]">
+                <Paperclip size={9} /> {attachCount}
+              </span>
+            )}
+            {/* "Entregue" só quando NÃO há prévia: os dois saem do mesmo campo
+                (drive_url), então com a arte na tela o chip repete em palavras
+                o que a imagem já provou. Sem prévia — link de pasta, thumbnail
+                que falhou, entrega que não é imagem — ele é a única pista. */}
+            {extra.drive_url && !thumbUrl && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]">✓ Entregue</span>
+            )}
+            {/* Fica: a coluna não conta que o cliente pediu ajuste — o card
+                volta pra "A fazer" e nada ali denunciaria isso. */}
+            {isAjuste && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white flex-shrink-0" style={{ background: '#ef4444' }}>⚠ Ajuste pedido</span>
+            )}
+            {extra.client_approval_status === 'aguardando' && extra.client_approval_comment && (
+              <span title={extra.client_approval_comment} className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#f59e0b22', color: '#f59e0b' }}>🟡 Ajustado</span>
+            )}
+          </div>
+
           {assignedData.length > 0 && (
-            <span className="flex -space-x-1.5 ml-auto">
+            <span className="flex -space-x-1.5 flex-shrink-0">
               {assignedData.slice(0, 3).map(m => (
                 <span key={m.id} title={m.name}
-                  className="w-5 h-5 rounded-full border-2 border-[var(--color-bg-card)] flex items-center justify-center text-white text-[8px] font-bold"
+                  className="w-6 h-6 rounded-full border-2 border-[var(--color-bg-card)] flex items-center justify-center text-white text-[8px] font-bold"
                   style={{ background: m.color || 'var(--color-brand)' }}>
                   {m.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                 </span>
               ))}
               {assignedData.length > 3 && (
-                <span className="w-5 h-5 rounded-full bg-[var(--color-bg-subtle)] border-2 border-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-text-muted)] text-[8px] font-bold">+{assignedData.length - 3}</span>
+                <span className="w-6 h-6 rounded-full bg-[var(--color-bg-subtle)] border-2 border-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-text-muted)] text-[8px] font-bold">+{assignedData.length - 3}</span>
               )}
             </span>
-          )}
-          {clientBadge && (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white"
-              style={{ background: clientBadge.color }}>
-              {clientBadge.name}
-            </span>
-          )}
-          {showGlobalBadge && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]">Global</span>
           )}
         </div>
       </div>

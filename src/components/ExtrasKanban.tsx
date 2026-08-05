@@ -127,6 +127,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   const [dragOverExtraId, setDragOverExtraId] = useState<string | null>(null)
   const [checkCounts,  setCheckCounts]  = useState<Record<string, { done: number; total: number }>>({})
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
+  const [attachCounts, setAttachCounts] = useState<Record<string, number>>({})
   const [copiedLink, setCopiedLink] = useState(false)
   const [internalShowArchived, setInternalShowArchived] = useState(false)
   const showArchived = showArchivedProp !== undefined ? showArchivedProp : internalShowArchived
@@ -194,6 +195,18 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
     const cmc: Record<string, number> = {}
     ;(cms || []).forEach((x: any) => { cmc[x.extra_id] = (cmc[x.extra_id] || 0) + 1 })
     setCommentCounts(cmc)
+
+    // Anexos (link colado + arquivo enviado) — o card de Material já mostrava
+    // esse contador e o de Extra não. `extra_uploads` ainda pode estar sem
+    // permissão pra anon; erro aqui vira console, não lista vazia calada.
+    const [attsR, upsR] = await Promise.all([
+      supabase.from('extra_attachments').select('extra_id'),
+      supabase.from('extra_uploads').select('extra_id'),
+    ])
+    if (attsR.error || upsR.error) console.error('[anexos] contagem falhou no quadro de Extras:', attsR.error || upsR.error)
+    const atc: Record<string, number> = {}
+    ;[...(attsR.data || []), ...(upsR.data || [])].forEach((x: any) => { atc[x.extra_id] = (atc[x.extra_id] || 0) + 1 })
+    setAttachCounts(atc)
 
     setLoading(false)
   }
@@ -425,13 +438,14 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
                         TypeIcon={(TYPE_CONFIG[extra.type] || TYPE_CONFIG.post).icon}
                         typeColor={(TYPE_CONFIG[extra.type] || TYPE_CONFIG.post).color}
                         priorityColor={PRIORITY_BORDER[extra.priority]}
-                        overdue={isOverdue(extra.due_date, extra.status)}
                         assignedData={assignedData}
                         chk={checkCounts[extra.id]}
                         commentCount={commentCounts[extra.id] || 0}
+                        attachCount={attachCounts[extra.id] || 0}
+                        onMovePrev={COLUMNS[COLUMNS.findIndex(c => c.key === col.key) - 1] ? () => moveStatus(extra.id, COLUMNS[COLUMNS.findIndex(c => c.key === col.key) - 1].key) : undefined}
+                        onMoveNext={COLUMNS[COLUMNS.findIndex(c => c.key === col.key) + 1] ? () => moveStatus(extra.id, COLUMNS[COLUMNS.findIndex(c => c.key === col.key) + 1].key) : undefined}
                         clientBadge={globalMode && extra.client_id && clientMap[extra.client_id] ? { name: clientMap[extra.client_id].name, color: clientMap[extra.client_id].color_hex } : null}
                         showGlobalBadge={globalMode && !extra.client_id}
-                        formatDue={formatDue}
                         dragging={draggingId === extra.id}
                         onDragStart={e => {
                           e.dataTransfer.setData('extraId', extra.id)

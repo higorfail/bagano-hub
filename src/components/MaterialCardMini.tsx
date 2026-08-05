@@ -3,6 +3,8 @@
 // Componente de card minimizado de material — usado em TODOS os lugares do sistema
 // Qualquer melhoria aqui aparece automaticamente na aba global E na aba do cliente
 
+import { cardDue } from '@/lib/cardDue'
+
 interface Member {
   id: string
   name: string
@@ -13,6 +15,8 @@ interface Member {
 interface MaterialCardMiniProps {
   material: any
   members: Member[]
+  /** Só no quadro geral, onde os clientes se misturam. */
+  clientBadge?: { name: string; color: string } | null
   onClick: () => void
   onMovePrev?: () => void
   onMoveNext?: () => void
@@ -58,12 +62,11 @@ function initials(name: string) {
   return (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
-export default function MaterialCardMini({ material: m, members, onClick, onMovePrev, onMoveNext, draggable, onDragStart, onDragEnd, onArchive }: MaterialCardMiniProps) {
-  const due = m.due_date ? new Date(m.due_date + 'T23:59:59') : null
-  const now = new Date()
-  const diff = due ? Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
-  const dueColor = diff === null ? '' : diff < 0 ? 'text-[var(--ds-error-text)] bg-[var(--ds-error-bg)]' : diff <= 2 ? 'text-[var(--ds-caution-text)] bg-[var(--ds-caution-bg)]' : 'text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)]'
-  const dueLabel = diff === null ? '' : diff < 0 ? ' · atrasado' : diff === 0 ? ' · hoje' : diff === 1 ? ' · amanhã' : ''
+export default function MaterialCardMini({ material: m, members, clientBadge, onClick, onMovePrev, onMoveNext, draggable, onDragStart, onDragEnd, onArchive }: MaterialCardMiniProps) {
+  // Mesmo formato de data do card de Extra — os dois diziam a mesma coisa em
+  // línguas diferentes ("20 de jul. · atrasado" contra "15d atraso"), e cada
+  // um perdia metade: um dava a data sem a gravidade, o outro o contrário.
+  const due = cardDue(m.due_date)
 
   const assignedArr: string[] = Array.isArray(m.assigned_members) && m.assigned_members.length > 0
     ? m.assigned_members
@@ -90,7 +93,7 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className="group relative bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl flex overflow-hidden shadow-card hover:shadow-pop hover:border-[var(--color-border-hover)] hover:-translate-y-0.5 transition-all duration-150 cursor-pointer"
-      style={{ height: 140 }}
+      style={{ minHeight: 140 }}
     >
       {/* Move arrows + arquivar — aparecem no hover */}
       {(onMovePrev || onMoveNext || onArchive) && (
@@ -125,21 +128,30 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
       )}
 
       <div className="flex-1 min-w-0 min-h-0 p-3 flex flex-col gap-2 overflow-hidden">
-      {/* Etiquetas coloridas */}
-      {labels.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+      {/* Cliente + etiquetas na primeira linha, igual ao card de Extra. O
+          cliente NUNCA aparecia aqui: na página geral, com "Todos os clientes"
+          ligado, não dava pra saber de quem era o material. */}
+      {(clientBadge || labels.length > 0) && (
+        <div className="flex flex-wrap items-center gap-1">
+          {clientBadge && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white max-w-[130px] truncate flex-shrink-0"
+              style={{ background: clientBadge.color }}>{clientBadge.name}</span>
+          )}
           {labels.map((l, i) => (
             <span key={i}
-              className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 max-w-[120px] truncate"
-              style={{ background: l.color + '28', color: l.color, border: `1px solid ${l.color}55` }}>
+              className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full text-white flex-shrink-0 max-w-[120px] truncate"
+              style={{ background: l.color }}>
               {l.text}
             </span>
           ))}
         </div>
       )}
 
-      {/* Título */}
-      <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-shrink-0">{m.title}</p>
+      {/* Título — riscado quando finalizado, como no card de Extra. */}
+      <p className="text-sm font-medium text-[var(--color-text-primary)] leading-snug flex-shrink-0"
+        style={m.status === 'finalizado' ? { textDecoration: 'line-through', opacity: 0.5 } : undefined}>
+        {m.title}
+      </p>
 
       {/* Briefing snippet — preenche o espaço que sobrar (a imagem cresce junto se precisar) */}
       {(m.ai_summary || m.description) && (
@@ -154,12 +166,11 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${MAT_TYPE_COLOR[m.type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
           {MAT_TYPE_LABEL[m.type] || m.type}
         </span>
-        {m.status && (
-          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLOR[m.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
-            {STATUS_LABEL[m.status] || m.status}
-          </span>
-        )}
-        {delivered && (
+        {/* Sem chip de status: ele repetia o cabeçalho da coluna onde o card
+            está. E "Entregue" só sem prévia — os dois saem do mesmo drive_url,
+            então com a arte na tela o chip diz em palavras o que a imagem já
+            provou. */}
+        {delivered && !previewUrl && (
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]">✓ Entregue</span>
         )}
       </div>
@@ -169,15 +180,17 @@ export default function MaterialCardMini({ material: m, members, onClick, onMove
         <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-muted)] flex-wrap">
           {/* Data com cor de alerta */}
           {due && (
-            <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded font-medium ${dueColor}`}>
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full font-medium"
+              style={due.overdue ? { background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }
+                   : due.soon    ? { background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }
+                                 : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="4" width="18" height="18" rx="2"/>
                 <line x1="16" y1="2" x2="16" y2="6"/>
                 <line x1="8" y1="2" x2="8" y2="6"/>
                 <line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
-              {new Date(m.due_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-              {dueLabel}
+              {due.date}{due.relative && ` · ${due.relative}`}
             </span>
           )}
 
