@@ -26,7 +26,9 @@ function ExtrasContent() {
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase.from('extras').select('status, due_date')
+      // `is('archived_at', null)`: o cabeçalho contava os arquivados e o
+      // quadro não — dizia "18 extras · 9 concluídos" com 13 na tela.
+      const { data } = await supabase.from('extras').select('status, due_date').is('archived_at', null)
       if (!data) return
       const now = new Date()
       setStats({

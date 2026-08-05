@@ -7,6 +7,9 @@ import { Plus, Link2, Check, Camera, Images, Video, Image as ImageIcon, Archive,
 import ExtraCard from './ExtraCard'
 import ExtraMiniCard from './ExtraMiniCard'
 import { copyTextAsync } from '@/lib/clipboard'
+import { useToast } from '@/lib/ToastContext'
+import { dbError } from '@/lib/dbError'
+import { logActivity } from '@/lib/activity'
 import { getOrCreateExtrasApprovalToken, sendFeitoExtrasToClient } from '@/lib/approvalLinks'
 
 type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post'
@@ -108,6 +111,7 @@ function isOverdue(due_date?: string | null, status?: ExtraStatus) {
 export default function ExtrasKanban({ clientId, globalMode = false, members = [], initialOpenId, filterClient: filterClientProp, onFilterClientChange, hideClientFilterUI = false, showArchived: showArchivedProp, onShowArchivedChange, hideArchiveToggleUI = false, onArchivedCountChange, newStatus: newStatusProp, onNewStatusChange, heading }: ExtrasKanbanProps) {
   const supabase = createClient()
   const { currentMember, showOnlyMine } = useUser()
+  const { toast } = useToast()
   const [extras,  setExtras]  = useState<Extra[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -225,13 +229,35 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
   useEffect(() => { load() }, [clientId])
 
   async function moveStatus(id: string, status: ExtraStatus) {
-    const prevStatus = extras.find(e => e.id === id)?.status
+    const atual = extras.find(e => e.id === id)
+    const prevStatus = atual?.status
     const patch: Record<string, any> = { status }
     if (status === 'done' && prevStatus !== 'done') patch.completed_at = new Date().toISOString()
     if (status !== 'done') patch.completed_at = null
+
+    // MESMA regra do seletor dentro do card. Arrastar só mexia em `status`, e
+    // por isso soltar um extra em "Com o cliente" NÃO o mandava pro cliente:
+    // quem faz o extra aparecer no link público é `client_approval_status =
+    // 'aguardando'`. O card mudava certo, o quadro não — mesma ação, dois
+    // resultados, e o time só descobriria pelo cliente dizendo que não viu
+    // nada.
+    //
+    // "Feito" é o único que não mexe na aprovação: é o ponto dele, o designer
+    // terminou e nada foi enviado.
+    const apr = atual?.client_approval_status || null
+    if (status === 'aguardando_aprovacao' && apr !== 'aguardando') patch.client_approval_status = 'aguardando'
+    else if (status === 'done' && apr !== 'aprovado')               patch.client_approval_status = 'aprovado'
+    else if (status === 'backlog' && apr)                           patch.client_approval_status = null
+
     setExtras(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e))
     const { error } = await supabase.from('extras').update(patch).eq('id', id)
-    if (error) console.error('moveStatus error:', error)
+    if (error) { dbError(error, toast, 'mover o extra'); load(); return }
+    const label = COLUMNS.find(c => c.key === status)?.label || status
+    logActivity({
+      tableName: 'extras', recordId: id, clientId: atual?.client_id || null, action: 'status_changed',
+      actorName: currentMember?.name, actorId: currentMember?.id,
+      description: `${currentMember?.name || 'Alguém'} moveu para "${label}"`,
+    })
   }
 
   // Reordena dentro de uma coluna (drag manual, tipo Trello) — dropId é o card
