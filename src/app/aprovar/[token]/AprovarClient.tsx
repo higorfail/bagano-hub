@@ -414,10 +414,14 @@ export default function ApprovalPage({ token }: { token: string }) {
   // cliente nunca vê nada disso na hora de aprovar.
   async function loadAttachments(scheduleIds: string[]) {
     if (scheduleIds.length === 0) { setUploadsByPost({}); setAttachmentsByPost({}); return }
-    const [{ data: ups }, { data: atts }] = await Promise.all([
+    const [{ data: ups, error: upsErr }, { data: atts, error: attsErr }] = await Promise.all([
       supabase.from('schedule_uploads').select('*').in('schedule_id', scheduleIds),
       supabase.from('schedule_attachments').select('*').in('schedule_id', scheduleIds),
     ])
+    // O cliente entra sem login, ou seja, como `anon`. Se faltar permissão de
+    // leitura nessas duas tabelas, ele aprova sem ver as referências que o time
+    // anexou — e nada na tela diz isso. Pelo menos não passa calado no console.
+    if (upsErr || attsErr) console.error('[aprovar] anexos não carregaram:', upsErr || attsErr)
     const um: Record<string, ScheduleUpload[]> = {}
     ;(ups || []).forEach((u: any) => { (um[u.schedule_id] ||= []).push(u) })
     const am: Record<string, ScheduleAttachment[]> = {}

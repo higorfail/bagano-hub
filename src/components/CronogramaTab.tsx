@@ -434,13 +434,14 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
       // Anexos vêm de duas tabelas — link colado e arquivo enviado — e na
       // coluna "Refs" da lista os dois contam como a mesma coisa: existe
       // material de apoio nesse post, ou não existe.
-      const [{ data: cms }, { data: atts }, { data: ups }] = await Promise.all([
+      const [{ data: cms }, { data: atts, error: attsErr }, { data: ups, error: upsErr }] = await Promise.all([
         supabase.from('schedule_comments').select('schedule_id').in('schedule_id', ids),
         supabase.from('schedule_attachments').select('schedule_id').in('schedule_id', ids),
         supabase.from('schedule_uploads').select('schedule_id').in('schedule_id', ids),
       ])
       const cmc: Record<string, number> = {}
       ;(cms || []).forEach((x: any) => { cmc[x.schedule_id] = (cmc[x.schedule_id] || 0) + 1 })
+      if (attsErr || upsErr) console.error('[anexos] contagem falhou na lista do cronograma:', attsErr || upsErr)
       const att: Record<string, number> = {}
       ;[...(atts || []), ...(ups || [])].forEach((x: any) => { att[x.schedule_id] = (att[x.schedule_id] || 0) + 1 })
       loaded = loaded.map((p: any) => ({ ...p, comments_count: cmc[p.id] || 0, attachments_count: att[p.id] || 0 }))

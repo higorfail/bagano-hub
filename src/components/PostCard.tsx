@@ -149,6 +149,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [uploads,      setUploads]      = useState<any[]>([])
   const [attachments,  setAttachments]  = useState<any[]>([])
   const [attachmentsLoaded, setAttachmentsLoaded] = useState(false)
+  const [attachError, setAttachError] = useState(false)
   const backfilledRef = useRef(false)
   const [showAttachInput, setShowAttachInput] = useState(false)
   const [newAttachUrl,    setNewAttachUrl]    = useState('')
@@ -318,12 +319,23 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       .then(({ data }) => { if (data) setComments(data) })
   }, [currentId])
 
+  // Se a leitura falhar, a seção ficava com zero anexos — visualmente idêntica
+  // a "esse post não tem anexo". Foi assim que uma permissão faltando no banco
+  // virou "os anexos sumiram" sem uma linha de aviso em lugar nenhum. Erro
+  // agora vira mensagem na tela, porque lista vazia por falha e lista vazia de
+  // verdade não podem se parecer.
   useEffect(() => {
     if (!currentId) return
     supabase.from('schedule_uploads').select('*').eq('schedule_id', currentId).order('created_at', { ascending: true })
-      .then(({ data }) => { if (data) setUploads(data) })
+      .then(({ data, error }) => {
+        if (error) { console.error('[anexos] falha ao ler schedule_uploads:', error); setAttachError(true); return }
+        if (data) setUploads(data)
+      })
     supabase.from('schedule_attachments').select('*').eq('schedule_id', currentId).order('created_at', { ascending: true })
-      .then(({ data }) => { if (data) { setAttachments(data); setAttachmentsLoaded(true) } })
+      .then(({ data, error }) => {
+        if (error) { console.error('[anexos] falha ao ler schedule_attachments:', error); setAttachError(true); return }
+        if (data) { setAttachments(data); setAttachmentsLoaded(true) }
+      })
   }, [currentId])
 
   // Links que já estavam escritos nos campos/comentários ANTES de o anexo
@@ -1373,6 +1385,12 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Anexos & Arquivos</span>
                 <span className="text-[10px] text-[var(--color-text-faint)]">· uploads e links</span>
               </div>
+
+              {attachError && (
+                <p className="mb-2 text-[11px] rounded-lg px-2.5 py-1.5" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+                  Não consegui carregar os anexos deste post. Eles continuam salvos — é permissão de leitura no banco.
+                </p>
+              )}
 
               <AttachmentsGrid
                 uploads={uploads}
