@@ -31,6 +31,9 @@ type Post = {
   scheduled_date: string | null
   briefing: string | null
   copy: string | null
+  legenda?: string | null
+  drive_url?: string | null
+  drive_folder_url?: string | null
   funil: string | null
   post_number: number
   month: number
@@ -134,22 +137,30 @@ export default function CriacaoPage() {
           // 'ajuste' = cliente pediu alteração no conteúdo final (ver AprovarClient.tsx
           // requestChanges) — sem isso, o post some da Criação assim que sai de
           // producao/captacao, mesmo precisando ser refeito por quem está atribuído.
-          .select('id, title, post_type, status, scheduled_date, briefing, copy, funil, post_number, month, year, client_id, assigned_members, approval_comment')
+          .select('id, title, post_type, status, scheduled_date, briefing, copy, legenda, drive_url, drive_folder_url, funil, post_number, month, year, client_id, assigned_members, approval_comment')
           .in('status', ['producao', 'captacao', 'ajuste'])
           .order('scheduled_date', { ascending: true, nullsFirst: false }),
         supabase.from('cronograma_status')
           .select('client_id, month, year, production_note')
           .gte('year', year - 1),
+        // Criação lista o que está PRA CRIAR. "Diferente de finalizado" dava
+        // conta quando só existiam três colunas; com "Feito" no meio, deixou
+        // de dar: item que o designer já terminou, e item que já está com o
+        // cliente, continuavam sendo cobrados aqui. Hoje eram 4 de 17.
+        //
+        // Sem `limit`: o corte em 50 era silencioso, e lista que esconde
+        // trabalho sem avisar é pior que lista comprida. São dezenas de itens,
+        // não milhares.
         supabase.from('extras')
           .select('id, title, type, due_date, client_id, description, assigned_members, assigned_member_id')
-          .neq('status', 'done')
-          .order('due_date', { ascending: true, nullsFirst: false })
-          .limit(50),
+          .in('status', ['backlog', 'ajuste'])
+          .is('archived_at', null)
+          .order('due_date', { ascending: true, nullsFirst: false }),
         supabase.from('materials')
           .select('id, title, type, status, due_date, client_id, assigned_members, assigned_to')
-          .neq('status', 'finalizado')
-          .order('due_date', { ascending: true, nullsFirst: false })
-          .limit(50),
+          .in('status', ['producao', 'ajuste'])
+          .is('archived_at', null)
+          .order('due_date', { ascending: true, nullsFirst: false }),
         supabase.from('agenda_criacao')
           .select('client_id, member_ids')
           .gte('week_start', fromStr)
@@ -206,6 +217,33 @@ export default function CriacaoPage() {
   const clientMap  = Object.fromEntries((clients || []).map(c => [c.id, c]))
   const memberMap  = Object.fromEntries((members || []).map(m => [m.id, m]))
   const todayStr   = todayBrasiliaISO()
+  const amanhaStr  = addDaysISO(todayStr, 1)
+
+  // Ordem da Criação = ordem de fazer.
+  //
+  // Antes ela era acidental: a lista de clientes saía de um Set sobre os posts
+  // já ordenados por data, então quem tinha o post de data mais próxima vinha
+  // primeiro, e extra/material atrasado não mexia em nada. Pior: 13 dos 23
+  // posts não têm data nenhuma, então mais da metade caía num rabo sem
+  // critério, na ordem em que o banco devolveu.
+  //
+  // Agora são faixas: o que passou da data, o que vence hoje ou amanhã, o
+  // resto por data, e sem data por último — sem data não é urgente, mas
+  // também não pode sumir no meio.
+  function urgencia(d?: string | null): number {
+    if (!d) return 3
+    if (d < todayStr) return 0
+    if (d <= amanhaStr) return 1
+    return 2
+  }
+  function porUrgencia(a?: string | null, b?: string | null) {
+    const ua = urgencia(a), ub = urgencia(b)
+    if (ua !== ub) return ua - ub
+    if (!a && !b) return 0
+    if (!a) return 1
+    if (!b) return -1
+    return a.localeCompare(b)
+  }
 
   function cronoKey(clientId: string, month: number, year: number) {
     return `${clientId}-${month}-${year}`
@@ -330,12 +368,29 @@ export default function CriacaoPage() {
     materialsByClient[cid].push(m)
   })
 
-  // All client IDs shown (union of posts + extras + materiais)
+  // Dentro de cada bloco, os posts saem na ordem de fazer.
+  groups.forEach(g => g.posts.sort((a, b) => porUrgencia(a.scheduled_date, b.scheduled_date)))
+
+  // E o CLIENTE sobe pela urgência do item mais urgente dele — contando post,
+  // extra e material. Antes o cliente era posicionado pela data do primeiro
+  // post e um extra atrasado não pesava nada.
   const activeClientIds = [...new Set([
     ...groups.map(g => g.clientId),
     ...filteredExtras.filter(e => e.client_id).map(e => e.client_id!),
     ...filteredMaterials.filter(m => m.client_id).map(m => m.client_id!),
-  ])]
+  ])].sort((a, b) => {
+    const dataMaisUrgente = (cid: string) => {
+      const datas = [
+        ...groups.filter(g => g.clientId === cid).flatMap(g => g.posts.map(p => p.scheduled_date)),
+        ...filteredExtras.filter(e => e.client_id === cid).map(e => e.due_date),
+        ...filteredMaterials.filter(m => m.client_id === cid).map(m => m.due_date),
+      ]
+      return datas.sort(porUrgencia)[0] ?? null
+    }
+    const da = dataMaisUrgente(a), db = dataMaisUrgente(b)
+    const r = porUrgencia(da, db)
+    return r !== 0 ? r : (clientMap[a]?.name || '').localeCompare(clientMap[b]?.name || '')
+  })
 
   // "Limpar" só aparece quando o usuário aplicou filtro além do padrão (membro logado)
   const hasFilter = !!(filterClient || filterType || (filterMember && filterMember !== currentMember?.id))
@@ -521,6 +576,21 @@ export default function CriacaoPage() {
                   )
                 })()}
 
+                {/* Quantos posts do cliente já têm arte, copy e legenda. O
+                    cabeçalho contava só o que está ruim ("2 atrasados") e nada
+                    dizia se o lote está andando. */}
+                {(() => {
+                  const todos = clientGroups.flatMap(g => g.posts)
+                  if (todos.length === 0) return null
+                  const prontos = todos.filter(p =>
+                    (p.drive_url || p.drive_folder_url) && (p.copy || '').trim() && (p.legenda || '').trim()).length
+                  return (
+                    <span className="flex-shrink-0 text-[10px] font-semibold text-[var(--color-text-muted)] tabular-nums" title="posts com arte, copy e legenda prontas">
+                      {prontos}/{todos.length} completos
+                    </span>
+                  )
+                })()}
+
                 {overdueCount > 0 && (
                   <span className="flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
                     ⚠ {overdueCount} atrasado{overdueCount !== 1 ? 's' : ''}
@@ -623,7 +693,34 @@ export default function CriacaoPage() {
                                     </span>
                                   )}
                                   {post.funil && <span className="text-[10px] text-[var(--color-text-muted)]">{post.funil}</span>}
-                                  {post.scheduled_date && <span className="text-[10px] text-[var(--color-text-muted)]">📅 {formatDate(post.scheduled_date)}</span>}
+                                  {/* O QUE FALTA neste post. A página listava o
+                                      item sem dizer o que fazer nele — quem
+                                      abria não sabia se faltava arte, legenda
+                                      ou copy, e nenhum dos 23 posts em produção
+                                      usa etiqueta, então a convenção de
+                                      "CRIAR LEGENDA" não ajuda aqui. Aceso =
+                                      pronto, apagado = falta. */}
+                                  {([
+                                    ['Arte',    !!(post.drive_url || post.drive_folder_url)],
+                                    ['Copy',    !!(post.copy || '').trim()],
+                                    ['Legenda', !!(post.legenda || '').trim()],
+                                  ] as const).map(([nome, ok]) => (
+                                    <span key={nome}
+                                      title={ok ? `${nome} pronta` : `Falta ${nome.toLowerCase()}`}
+                                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+                                      style={ok
+                                        ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }
+                                        : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-faint)' }}>
+                                      {ok ? '✓' : '○'} {nome}
+                                    </span>
+                                  ))}
+                                  {post.scheduled_date
+                                    ? <span className="text-[10px] text-[var(--color-text-muted)]">📅 {formatDate(post.scheduled_date)}</span>
+                                    // Sem data é o maior buraco da Criação — 13
+                                    // dos 23 posts. Post sem data não entra em
+                                    // urgência nenhuma, não conta no fôlego do
+                                    // cliente no Início e não vira alerta.
+                                    : <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md" style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>sem data</span>}
                                 </div>
                               </div>
                             </button>
