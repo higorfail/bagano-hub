@@ -354,7 +354,7 @@ export default function DashboardPage() {
   // "Situação dos clientes" contava só posts, então cliente cujo trabalho é
   // extra aparecia como "sem cronograma · nenhum post". O Unizushi tem dois
   // extras e era mostrado como cliente parado.
-  const [allExtras,    setAllExtras]    = useState<{ client_id: string | null; status: string }[]>([])
+  const [allExtras,    setAllExtras]    = useState<{ client_id: string | null; status: string; client_approval_status?: string | null }[]>([])
   const [allMaterials, setAllMaterials] = useState<{ client_id: string | null; status: string }[]>([])
   const [myExtras,     setMyExtras]     = useState<any[]>([])
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
@@ -418,7 +418,7 @@ export default function DashboardPage() {
           supabase.from('client_team')
             .select('client_id, member_id, funcao')
             .eq('funcao', 'estrategia'),
-          supabase.from('extras').select('client_id, status').is('archived_at', null),
+          supabase.from('extras').select('client_id, status, client_approval_status').is('archived_at', null),
           supabase.from('materials').select('client_id, status').is('archived_at', null),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
@@ -548,7 +548,7 @@ export default function DashboardPage() {
     const rows = clients.map(c => {
       const exs = allExtras.filter(x => x.client_id === c.id)
       const mts = allMaterials.filter(x => x.client_id === c.id)
-      const outros = { exTotal: exs.length, mtTotal: mts.length,
+      const outros = { exTotal: exs.length, mtTotal: mts.length, exs, mts,
                        abertos: exs.filter(x => abertoEx(x.status)).length + mts.filter(x => abertoMt(x.status)).length }
       const per = byClient.get(c.id)
       const keys = per ? [...per.keys()].sort() : []
@@ -1234,12 +1234,29 @@ export default function DashboardPage() {
                 {clientCycles.map(({ client, state, key, posts, restantes, ultima, runway, runwayCurto, outros }) => {
                   const [cy, cm] = key ? key.split('-').map(Number) : [0, 0]
                   const mesLabel = key ? `${MONTHS[cm - 1].slice(0, 3)}${cy !== year ? `/${String(cy).slice(2)}` : ''}` : null
-                  const total      = posts.length
+                  // A barra conta os TRÊS tipos de trabalho, não só posts.
+                  // Contando só posts, cliente cujo trabalho é extra ficava com
+                  // a barra vazia mesmo tendo extra aprovado — foi o caso do
+                  // Unizushi. Os três já compartilham o mesmo vocabulário de
+                  // etapas desde que os quadros ficaram iguais, então dá pra
+                  // somar sem inventar semântica:
+                  //   pronto      = post aprovado/agendado/publicado · extra done · material finalizado
+                  //   com cliente = os três em aguardando_aprovacao
+                  //   ajuste      = post/material em ajuste · extra recusado pelo cliente
+                  //   produção    = todo o resto que não fechou
+                  const ex = outros.exs, mt = outros.mts
+                  const total      = posts.length + ex.length + mt.length
                   const publicado  = posts.filter(s => s.status === CFG.S.publicado).length
                   const entregue   = posts.filter(s => DONE_STAGES.includes(s.status)).length
+                                   + ex.filter(x => x.status === 'done').length
+                                   + mt.filter(x => x.status === 'finalizado').length
                   const comCliente = posts.filter(s => s.status === CFG.S.aguardandoAprovacao).length
+                                   + ex.filter(x => x.status === 'aguardando_aprovacao').length
+                                   + mt.filter(x => x.status === 'aguardando_aprovacao').length
                   const ajuste     = posts.filter(s => s.status === CFG.S.ajuste).length
-                  const producao   = total - entregue - comCliente - ajuste
+                                   + ex.filter(x => (x as any).client_approval_status === 'recusado').length
+                                   + mt.filter(x => x.status === 'ajuste').length
+                  const producao   = Math.max(0, total - entregue - comCliente - ajuste)
                   const atrasados  = posts.filter(s => s.scheduled_date && s.scheduled_date < todayStr && !DONE_STAGES.includes(s.status)).length
                   // Mesma paleta e mesma ordem da barra de "Aguardando
                   // aprovação": duas leituras do mesmo dado no mesmo painel
@@ -1269,7 +1286,7 @@ export default function DashboardPage() {
                     outros.mtTotal > 0 ? `${outros.mtTotal} ${pl(outros.mtTotal, 'material', 'materiais')}` : '',
                   ].filter(Boolean).join(' · ')
                   const sub = state === 'nunca'
-                      ? (outrosTxt ? `sem cronograma · ${outrosTxt}` : 'sem cronograma')
+                      ? (outrosTxt ? `só ${outrosTxt}` : 'sem cronograma')
                     : runway === 'sem-data' ? 'sem datas marcadas'
                     : runway === 'fim' ? 'sem post futuro'
                     : `${restantes} a publicar · até ${fmtDia(ultima!)}`
@@ -1309,12 +1326,9 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center justify-between gap-1 flex-wrap">
                         <span className="text-[10px] md:text-xs text-[var(--color-text-muted)]">
-                          {state === 'nunca'
-                            ? (outrosTxt || 'nenhum post')
-                            : <>
-                                {publicado > 0 ? `${publicado} no ar · ${entregue}/${total} prontos` : `${entregue}/${total} prontos`}
-                                {outros.abertos > 0 && <span className="text-[var(--color-text-faint)]"> · +{outros.abertos} fora do crono</span>}
-                              </>}
+                          {total === 0
+                            ? 'nenhum trabalho'
+                            : publicado > 0 ? `${publicado} no ar · ${entregue}/${total} prontos` : `${entregue}/${total} prontos`}
                         </span>
                         <div className="flex items-center gap-1 flex-wrap">
                           {atrasados > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>{atrasados} atrasado{atrasados !== 1 ? 's' : ''}</span>}
