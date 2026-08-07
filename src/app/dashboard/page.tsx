@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
@@ -391,6 +391,27 @@ export default function DashboardPage() {
     () => allSchedules.filter(s => ![CFG.S.agendado, CFG.S.publicado].includes(s.status)),
     [allSchedules])
 
+  // Recarrega quando você volta pra aba.
+  //
+  // O painel buscava tudo uma vez, na montagem, e nunca mais. Quem deixa o
+  // Início aberto num monitor, ou volta pra aba depois de mexer no cronograma
+  // noutra, ficava vendo o retrato de quando abriu — dava a impressão de que a
+  // tela é um relatório congelado, não o estado de agora.
+  //
+  // Voltar pra aba é o gatilho certo: não custa nada enquanto você está fora e
+  // acerta exatamente no instante em que você volta a olhar. `loadRef` existe
+  // porque o listener é registrado uma vez e precisa chamar a versão atual.
+  const loadRef = useRef<() => void>(() => {})
+  useEffect(() => {
+    const aoVoltar = () => { if (document.visibilityState === 'visible') loadRef.current() }
+    document.addEventListener('visibilitychange', aoVoltar)
+    window.addEventListener('focus', aoVoltar)
+    return () => {
+      document.removeEventListener('visibilitychange', aoVoltar)
+      window.removeEventListener('focus', aoVoltar)
+    }
+  }, [])
+
   useEffect(() => {
     async function load() {
       try {
@@ -436,6 +457,9 @@ export default function DashboardPage() {
       setLoading(false)
     }
     load()
+    // Só recarrega os dados; não volta pro estado de carregando, senão a tela
+    // pisca toda vez que você troca de aba.
+    loadRef.current = () => { load() }
   }, [])
 
   useEffect(() => {
@@ -1249,28 +1273,31 @@ export default function DashboardPage() {
                 {clientCycles.map(({ client, state, key, posts, restantes, ultima, runway, runwayCurto, outros }) => {
                   const [cy, cm] = key ? key.split('-').map(Number) : [0, 0]
                   const mesLabel = key ? `${MONTHS[cm - 1].slice(0, 3)}${cy !== year ? `/${String(cy).slice(2)}` : ''}` : null
-                  // A barra conta os TRÊS tipos de trabalho, não só posts.
-                  // Contando só posts, cliente cujo trabalho é extra ficava com
-                  // a barra vazia mesmo tendo extra aprovado — foi o caso do
-                  // Unizushi. Os três já compartilham o mesmo vocabulário de
-                  // etapas desde que os quadros ficaram iguais, então dá pra
-                  // somar sem inventar semântica:
-                  //   pronto      = post aprovado/agendado/publicado · extra done · material finalizado
-                  //   com cliente = os três em aguardando_aprovacao
-                  //   ajuste      = post/material em ajuste · extra recusado pelo cliente
-                  //   produção    = todo o resto que não fechou
+                  // A barra é do CRONOGRAMA quando existe cronograma.
+                  //
+                  // Ela chegou a somar posts + extras + materiais, o que fazia
+                  // o número não bater com a tela do cliente: o Bem Viver tem
+                  // 12 posts em agosto e o card dizia 13, porque somava um
+                  // material. Número que não bate com o cronograma não serve
+                  // pra ler cronograma.
+                  //
+                  // Extra e material continuam aparecendo — como acréscimo
+                  // explícito no rodapé. E pra quem NÃO tem cronograma nenhum
+                  // (Unizushi) eles viram a própria barra, que foi o problema
+                  // oposto que a gente consertou antes.
                   const ex = outros.exs, mt = outros.mts
-                  const total      = posts.length + ex.length + mt.length
-                  const publicado  = posts.filter(s => s.status === CFG.S.publicado).length
-                  const entregue   = posts.filter(s => DONE_STAGES.includes(s.status)).length
-                                   + ex.filter(x => x.status === 'done').length
-                                   + mt.filter(x => x.status === 'finalizado').length
-                  const comCliente = posts.filter(s => s.status === CFG.S.aguardandoAprovacao).length
-                                   + ex.filter(x => x.status === 'aguardando_aprovacao').length
-                                   + mt.filter(x => x.status === 'aguardando_aprovacao').length
-                  const ajuste     = posts.filter(s => s.status === CFG.S.ajuste).length
-                                   + ex.filter(x => (x as any).client_approval_status === 'recusado').length
-                                   + mt.filter(x => x.status === 'ajuste').length
+                  const soOutros   = posts.length === 0
+                  const total      = soOutros ? ex.length + mt.length : posts.length
+                  const publicado  = soOutros ? 0 : posts.filter(s => s.status === CFG.S.publicado).length
+                  const entregue   = soOutros
+                    ? ex.filter(x => x.status === 'done').length + mt.filter(x => x.status === 'finalizado').length
+                    : posts.filter(s => DONE_STAGES.includes(s.status)).length
+                  const comCliente = soOutros
+                    ? ex.filter(x => x.status === 'aguardando_aprovacao').length + mt.filter(x => x.status === 'aguardando_aprovacao').length
+                    : posts.filter(s => s.status === CFG.S.aguardandoAprovacao).length
+                  const ajuste     = soOutros
+                    ? ex.filter(x => (x as any).client_approval_status === 'recusado').length + mt.filter(x => x.status === 'ajuste').length
+                    : posts.filter(s => s.status === CFG.S.ajuste).length
                   const producao   = Math.max(0, total - entregue - comCliente - ajuste)
                   const atrasados  = posts.filter(s => s.scheduled_date && s.scheduled_date < todayStr && !DONE_STAGES.includes(s.status)).length
                   // Mesma paleta e mesma ordem da barra de "Aguardando
@@ -1343,7 +1370,14 @@ export default function DashboardPage() {
                         <span className="text-[10px] md:text-xs text-[var(--color-text-muted)]">
                           {total === 0
                             ? 'nenhum trabalho'
-                            : publicado > 0 ? `${publicado} no ar · ${entregue}/${total} prontos` : `${entregue}/${total} prontos`}
+                            : <>
+                                {publicado > 0 ? `${publicado} no ar · ${entregue}/${total} prontos` : `${entregue}/${total} prontos`}
+                                {/* Fora do cronograma, e dito com todas as letras
+                                    pra ninguém somar com o número acima. */}
+                                {!soOutros && outros.abertos > 0 && (
+                                  <span className="text-[var(--color-text-faint)]"> · +{outros.abertos} fora do crono</span>
+                                )}
+                              </>}
                         </span>
                         <div className="flex items-center gap-1 flex-wrap">
                           {atrasados > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>{atrasados} atrasado{atrasados !== 1 ? 's' : ''}</span>}
