@@ -113,30 +113,30 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
       className={`group mx-1 bg-[var(--color-bg-card)] rounded-2xl overflow-hidden flex cursor-pointer select-none border transition-all hover:shadow-sm hover:border-[var(--color-border-hover)] ${overdue ? 'border-[var(--ds-error-border)]' : 'border-[var(--color-border)]'}`}
     >
       {/* A arte é o conteúdo deste quadro, e estava em 28x28 — do tamanho de um
-          favicon. Agora 4:5, a mesma proporção e posição do cronograma, dos
-          extras e dos materiais.
+          favicon.
 
-          A coluna ESTICA até o rodapé (pra não sobrar um degrau branco quando o
-          texto é mais alto), mas a IMAGEM fica travada em 4:5 dentro dela. Antes
-          a imagem é que esticava junto, e num card alto o corte deixava de ser
-          4:5 — foi o que apareceu como proporção errada. O que sobra abaixo é só
-          o fundo da faixa. */}
-      <div className={`relative ${publicado ? 'w-16' : 'w-24'} self-stretch flex-shrink-0 bg-[var(--color-bg-subtle)] overflow-hidden`}>
-        <div className="relative w-full aspect-[4/5]">
-          {thumbUrl ? (
-            <img src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-[var(--color-text-faint)] text-[10px]">sem arte</div>
-          )}
-          {isVideo && thumbUrl && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
-              <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center">
-                <Play size={11} className="text-[#111] ml-0.5" fill="currentColor" />
-              </div>
+          A largura sai da ALTURA, não o contrário: `self-stretch` faz a faixa
+          ocupar o card inteiro e `aspect-[4/5]` calcula a largura a partir
+          disso. Com largura fixa, ou sobrava um degrau de fundo embaixo da
+          imagem (quando o texto era mais alto), ou o corte deixava de ser 4:5
+          pra tapar esse degrau — tentei as duas e as duas trocavam um problema
+          pelo outro. Assim a prévia preenche do topo ao rodapé E continua 4:5,
+          e o card publicado, que é mais baixo, ganha naturalmente uma prévia
+          menor. */}
+      <div className="relative self-stretch aspect-[4/5] flex-shrink-0 bg-[var(--color-bg-subtle)] overflow-hidden">
+        {thumbUrl ? (
+          <img src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-[var(--color-text-faint)] text-[10px]">sem arte</div>
+        )}
+        {isVideo && thumbUrl && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
+            <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center">
+              <Play size={11} className="text-[#111] ml-0.5" fill="currentColor" />
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1.5">
