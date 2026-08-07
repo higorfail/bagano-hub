@@ -1177,7 +1177,13 @@ export default function ApprovalPage({ token }: { token: string }) {
 
         {/* Content */}
         <div style={{ padding: '16px 18px' }}>
-          <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 12px', lineHeight: 1.3, letterSpacing: '-0.02em' }}>{post.title}</h3>
+          {/* Sem título aqui, e sem referências/anexos logo abaixo. Na
+              aprovação FINAL o cliente julga a peça pronta: a arte, a legenda
+              que vai no ar e a data. Título é nome interno do card, e
+              referência/anexo é material de trabalho do time — mostrar isso
+              convida o cliente a opinar sobre o processo em vez do resultado.
+              Na aprovação de CRONOGRAMA os dois continuam, porque ali o que
+              está em jogo é justamente a pauta. */}
 
           {/* Legenda (texto final do Instagram; se ainda não tiver, cai no rascunho de copy) */}
           {displayCopy && (
@@ -1208,8 +1214,6 @@ export default function ApprovalPage({ token }: { token: string }) {
               <p style={{ fontSize: 13, color: '#6b6b66', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{post.approval_comment}"</p>
             </div>
           )}
-
-          {renderRefsAndAttachments(post)}
 
           {/* Comment input */}
           {isComm && (
@@ -1939,7 +1943,9 @@ export default function ApprovalPage({ token }: { token: string }) {
                 )}
 
                 <div style={{ padding: '16px 20px 20px' }}>
-                  <h3 style={{ fontSize: 17, fontWeight: 800, color: '#111', margin: '0 0 14px', letterSpacing: '-0.02em', lineHeight: 1.2 }}>{sheetPost.title}</h3>
+                  {/* Mesma regra do card da aprovação final: sem título e sem
+                      referências/anexos. Esta folha abre a partir do feed do
+                      iPhone, que é a tela do conteúdo final. */}
 
                   {/* Legenda (texto final do Instagram; se ainda não tiver, cai no rascunho de copy) */}
                   {(sheetPost.legenda || sheetPost.copy) && (
@@ -1966,7 +1972,6 @@ export default function ApprovalPage({ token }: { token: string }) {
                     </div>
                   )}
 
-                  {renderRefsAndAttachments(sheetPost)}
 
                   {/* Comment */}
                   {!isApproved && !isLive && (
