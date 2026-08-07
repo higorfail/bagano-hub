@@ -32,6 +32,9 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
   const [copied, setCopied] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [scheduling, setScheduling] = useState(false)
+  // Guardo QUAL url falhou, não um booleano: assim a prévia da pasta, que chega
+  // depois por fetch, não herda o erro do arquivo anterior.
+  const [thumbFalhou, setThumbFalhou] = useState<string | null>(null)
   const typeAccent = POST_TYPE_ACCENT[item.postType || ''] || 'var(--color-border)'
   const caption = item.legenda || item.copy || ''
   const overdue = isOverdue(item)
@@ -110,30 +113,33 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`group mx-1 bg-[var(--color-bg-card)] rounded-2xl overflow-hidden flex cursor-pointer select-none border transition-all hover:shadow-sm hover:border-[var(--color-border-hover)] ${overdue ? 'border-[var(--ds-error-border)]' : 'border-[var(--color-border)]'}`}
+      className={`group mx-1 ${publicado ? 'min-h-[120px]' : 'min-h-[175px]'} bg-[var(--color-bg-card)] rounded-2xl overflow-hidden flex cursor-pointer select-none border transition-all hover:shadow-sm hover:border-[var(--color-border-hover)] ${overdue ? 'border-[var(--ds-error-border)]' : 'border-[var(--color-border)]'}`}
     >
       {/* A arte é o conteúdo deste quadro, e estava em 28x28 — do tamanho de um
           favicon.
 
-          A largura sai da ALTURA, não o contrário: `self-stretch` faz a faixa
-          ocupar o card inteiro e `aspect-[4/5]` calcula a largura a partir
-          disso. Com largura fixa, ou sobrava um degrau de fundo embaixo da
-          imagem (quando o texto era mais alto), ou o corte deixava de ser 4:5
-          pra tapar esse degrau — tentei as duas e as duas trocavam um problema
-          pelo outro. Assim a prévia preenche do topo ao rodapé E continua 4:5,
-          e o card publicado, que é mais baixo, ganha naturalmente uma prévia
-          menor. */}
-      <div className="relative self-stretch aspect-[4/5] flex-shrink-0 bg-[var(--color-bg-subtle)] overflow-hidden">
-        {thumbUrl ? (
+          Prévia 4:5 E preenchendo até o rodapé são duas exigências que brigam:
+          a altura do card vem do texto, não da imagem. Resolvo reservando no
+          card a altura exata que a largura da faixa pede (140 × 5/4 = 175), e
+          deixando a imagem esticar dentro dela. Como o conteúdo de texto cabe
+          nessa reserva, o corte fica em 4:5 e não sobra degrau de fundo
+          embaixo. Se algum título estourar a reserva, o card cresce e a imagem
+          acompanha — 4:5 vira 4:5.1, e nunca uma faixa vazia.
+
+          Tentei antes largura fixa sem reserva (sobrava degrau) e
+          aspect-ratio + self-stretch (o flex resolve a largura antes de
+          esticar, então a faixa sumia). */}
+      <div className={`relative self-stretch ${publicado ? 'w-[96px]' : 'w-[140px]'} flex-shrink-0 bg-[var(--color-bg-subtle)] overflow-hidden`}>
+        {thumbUrl && thumbFalhou !== thumbUrl ? (
           <img src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+            onError={() => setThumbFalhou(thumbUrl)} />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-[var(--color-text-faint)] text-[10px]">sem arte</div>
         )}
-        {isVideo && thumbUrl && (
+        {isVideo && thumbUrl && thumbFalhou !== thumbUrl && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
-            <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center">
-              <Play size={11} className="text-[#111] ml-0.5" fill="currentColor" />
+            <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center">
+              <Play size={13} className="text-[#111] ml-0.5" fill="currentColor" />
             </div>
           </div>
         )}
@@ -150,7 +156,7 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
           <span className="flex-shrink-0" style={{ color: item.source === 'extra' ? '#6366f1' : 'var(--color-text-faint)' }}>· {item.source === 'extra' ? 'Extra' : 'Crono'}</span>
         </span>
 
-        <p className={`text-[13px] font-semibold leading-snug line-clamp-2 ${publicado ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+        <p className={`text-[13px] font-semibold leading-snug ${publicado ? 'line-clamp-1' : 'line-clamp-2'} ${publicado ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
           {item.postNumber && <span className="text-[var(--color-text-faint)]">#{item.postNumber} · </span>}
           {item.title}
         </p>
