@@ -150,13 +150,22 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
             estado aparecia três vezes (faixa colorida + rótulo em caixa alta +
             nome da coluna), e nos publicados quatro. Sobra só o que a coluna
             não conta — que o prazo passou. */}
-        <span className="flex items-center gap-1 text-[10px] font-medium text-[var(--color-text-muted)] truncate">
-          {client && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: client.color_hex }} />}
-          <span className="truncate">{client?.name}</span>
-          <span className="flex-shrink-0" style={{ color: item.source === 'extra' ? '#6366f1' : 'var(--color-text-faint)' }}>· {item.source === 'extra' ? 'Extra' : 'Crono'}</span>
+        {/* O CLIENTE é o primeiro nível da hierarquia, não o título do post.
+            Quem opera este quadro publica na conta de um cliente por vez: o que
+            se procura na varredura é "de quem é isso", e o título vem depois
+            pra diferenciar um card do outro dentro do mesmo cliente. Estava ao
+            contrário — nome em 10px cinza, título em 13px preto. */}
+        <span className="flex items-center gap-1.5 min-w-0">
+          {client && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: client.color_hex }} />}
+          <span className={`text-[13px] font-semibold leading-snug truncate ${publicado ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+            {client?.name}
+          </span>
+          <span className="text-[9px] font-semibold flex-shrink-0" style={{ color: item.source === 'extra' ? '#6366f1' : 'var(--color-text-faint)' }}>
+            {item.source === 'extra' ? 'Extra' : 'Crono'}
+          </span>
         </span>
 
-        <p className={`text-[13px] font-semibold leading-snug ${publicado ? 'line-clamp-1' : 'line-clamp-2'} ${publicado ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
+        <p className={`text-[11px] leading-snug text-[var(--color-text-muted)] ${publicado ? 'line-clamp-1' : 'line-clamp-2'}`}>
           {item.postNumber && <span className="text-[var(--color-text-faint)]">#{item.postNumber} · </span>}
           {item.title}
         </p>
