@@ -114,22 +114,29 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
     >
       {/* A arte é o conteúdo deste quadro, e estava em 28x28 — do tamanho de um
           favicon. Agora 4:5, a mesma proporção e posição do cronograma, dos
-          extras e dos materiais. Publicado é arquivo: prévia menor, porque
-          ninguém age nele. */}
-      <div className={`relative ${publicado ? 'w-16 min-h-[80px]' : 'w-24 min-h-[120px]'} self-stretch flex-shrink-0 bg-[var(--color-bg-subtle)] overflow-hidden`}>
-        {thumbUrl ? (
-          <img src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-[var(--color-text-faint)] text-[10px]">sem arte</div>
-        )}
-        {isVideo && thumbUrl && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
-            <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center">
-              <Play size={11} className="text-[#111] ml-0.5" fill="currentColor" />
+          extras e dos materiais.
+
+          A coluna ESTICA até o rodapé (pra não sobrar um degrau branco quando o
+          texto é mais alto), mas a IMAGEM fica travada em 4:5 dentro dela. Antes
+          a imagem é que esticava junto, e num card alto o corte deixava de ser
+          4:5 — foi o que apareceu como proporção errada. O que sobra abaixo é só
+          o fundo da faixa. */}
+      <div className={`relative ${publicado ? 'w-16' : 'w-24'} self-stretch flex-shrink-0 bg-[var(--color-bg-subtle)] overflow-hidden`}>
+        <div className="relative w-full aspect-[4/5]">
+          {thumbUrl ? (
+            <img src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-[var(--color-text-faint)] text-[10px]">sem arte</div>
+          )}
+          {isVideo && thumbUrl && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
+              <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center">
+                <Play size={11} className="text-[#111] ml-0.5" fill="currentColor" />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1.5">
@@ -166,6 +173,13 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
           <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed line-clamp-2">{caption}</p>
         )}
 
+        {/* Legenda e Baixar vêm ANTES: são o que se usa a cada publicação, e
+            "Agendar" fecha o card como último passo — a ordem na tela vira a
+            ordem de fazer. Ficam também no publicado, onde reaproveitar legenda
+            e rebaixar arquivo é justamente o que se faz. */}
+        <div className="mt-auto flex flex-col gap-1.5">
+        {acoes}
+
         {/* UMA ação por coluna, do tamanho de uma ação. No card atrasado ela é
             vermelha: verde-menta num item vencido lia como "está tudo bem". */}
         {item.column === 'aprovado' && onSchedule && (
@@ -177,7 +191,7 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
           ) : (
             <button onClick={schedule}
               title={item.scheduledDate ? 'Confirmar agendamento pra essa data' : 'Escolher uma data e agendar'}
-              className="mt-auto flex items-center justify-center gap-1.5 text-[12px] font-semibold px-2 py-1.5 rounded-lg transition-colors"
+              className="flex items-center justify-center gap-1.5 text-[12px] font-semibold px-2 py-1.5 rounded-lg transition-colors"
               style={overdue
                 ? { background: 'var(--ds-error-accent)', color: '#fff' }
                 : { background: '#14B8A6', color: '#fff' }}>
@@ -188,15 +202,12 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
 
         {item.column === 'agendado' && (
           <button onClick={markPublished} title="Marcar como publicado"
-            className="mt-auto flex items-center justify-center gap-1.5 text-[12px] font-semibold px-2 py-1.5 rounded-lg transition-colors"
+            className="flex items-center justify-center gap-1.5 text-[12px] font-semibold px-2 py-1.5 rounded-lg transition-colors"
             style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
             <CheckCircle2 size={12} /> Marcar publicado
           </button>
         )}
-
-        {/* Ficam também no publicado: repostar e reaproveitar legenda são
-            justamente o que se faz num item que já foi ao ar. */}
-        {acoes}
+        </div>
       </div>
     </div>
   )
