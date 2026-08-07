@@ -373,7 +373,8 @@ function AprovacaoPageInner() {
           // needs_client_approval não é confiável, nunca é setado pelo fluxo
           // normal de Extras).
           supabase.from('extras').select('id, client_id, title, type, drive_url, due_date')
-            .eq('client_approval_status', 'aguardando'),
+            .eq('client_approval_status', 'aguardando')
+            .is('archived_at', null),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
         // Esta página é sobre APROVAÇÃO DO CONTEÚDO. Um post com o cronograma

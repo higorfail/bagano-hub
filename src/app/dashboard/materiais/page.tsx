@@ -74,7 +74,10 @@ function MateriaisContent() {
       const supabase = createClient()
       const [{ data: mats }, { data: cls }] = await Promise.all([
         supabase.from('materials').select('id, client_id, title, type, status, description, ai_summary, due_date, drive_url, assigned_to, assigned_members, labels, created_at, completed_at, archived_at, position').order('position', { ascending: true }).order('created_at', { ascending: false }),
-        supabase.from('clients').select('id, name, color_hex').order('name'),
+        // Só clientes ativos, como todas as outras telas. Sem isso o filtro
+        // listava 6 clientes inativos (Urban Salad, Alexandria Burger…) que
+        // não têm mais trabalho nenhum.
+        supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name'),
       ])
       setMaterials(mats || [])
       setClients(cls || [])

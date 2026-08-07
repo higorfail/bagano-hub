@@ -468,6 +468,10 @@ export default function DashboardPage() {
       .from('extras')
       .select('id, title, type, status, priority, client_id, due_date, client_approval_status, campaign_type, labels')
       .neq('status', 'done')
+      // Arquivado sai do radar. Desde que dá pra arquivar arrastando de
+      // qualquer coluna, um extra ainda "a fazer" pode ir pro arquivo — e sem
+      // este filtro ele voltaria a cobrar no "Para você".
+      .is('archived_at', null)
       .contains('assigned_members', [currentMember.id])
       .order('due_date', { ascending: true, nullsFirst: false })
       .then(({ data }) => { if (data) setMyExtras(data) })
@@ -479,6 +483,7 @@ export default function DashboardPage() {
       .from('materials')
       .select('id, title, status, client_id, due_date, assigned_members, assigned_to, labels')
       .neq('status', 'finalizado')
+      .is('archived_at', null)
       .order('due_date', { ascending: true, nullsFirst: false })
       .then(({ data }) => {
         if (!data) return
@@ -687,7 +692,11 @@ export default function DashboardPage() {
   // Aprovações mostra — e ela não filtra por mês. Contado sobre o mês corrente,
   // o selo dizia 0 no dia 1º com o cronograma do mês anterior inteiro parado
   // com o cliente.
+  // Inclui os extras esperando resposta: a página de Aprovações mostra post E
+  // extra, então um selo que só conta post fica menor que o que você encontra
+  // ao clicar nele.
   const approvalsBadge = pendingApprovalByClient.reduce((n, g) => n + g.pendingCount, 0)
+    + allExtras.filter(x => x.client_approval_status === 'aguardando').length
   // Mesmos ícones da barra lateral de propósito: atalho e menu apontam pro
   // mesmo lugar, então ícone diferente pro mesmo destino faria parecer que são
   // telas diferentes.
