@@ -26,6 +26,7 @@ const CFG = {
     specialDates: 'special_dates',
   },
   S: {
+    estrategia:          'estrategia',
     captacao:            'captacao',
     producao:            'producao',
     revisaoInterna:      'revisao_interna',
@@ -573,9 +574,23 @@ export default function DashboardPage() {
       const runwayCurto = runway === 'ok' && (restantes <= 2 || diasAte <= 7)
       const base = { client: c, restantes, ultima, runway, runwayCurto, outros }
       if (!keys.length) return { ...base, state: 'nunca' as const, key: '', posts: [] as Schedule[] }
-      const openKey = keys.find(k => per!.get(k)!.some(s => !DONE_STAGES.includes(s.status)))
-      const key = openKey || keys[keys.length - 1]
-      return { ...base, state: (openKey ? 'ativo' : 'entregue') as 'ativo' | 'entregue', key, posts: per!.get(key)! }
+
+      // Ciclo SEM NENHUMA DATA marcada ainda está sendo montado — não é o
+      // cronograma que a agência está tocando, é o próximo sendo preparado.
+      // A Bem Viver tinha agosto inteiro aprovado e no ar, e o card mostrava
+      // "SET · 0/5" porque setembro (4 rascunhos, sem data) era o ciclo aberto
+      // mais antigo. O card dizia que a melhor cliente do quadro era a pior, e
+      // ainda se contradizia: selo de setembro com fôlego "até 31/ago".
+      const programados = keys.filter(k => per!.get(k)!.some(s => s.scheduled_date))
+      const candidatos = programados.length ? programados : keys
+
+      // Rascunho não conta como trabalho aberto. Mesma regra que a tela de
+      // aprovação de crono já usa: post em `estrategia` sequer foi enviado.
+      const semRascunho = (k: string) => per!.get(k)!.filter(s => s.status !== CFG.S.estrategia)
+
+      const openKey = candidatos.find(k => semRascunho(k).some(s => !DONE_STAGES.includes(s.status)))
+      const key = openKey || candidatos[candidatos.length - 1]
+      return { ...base, state: (openKey ? 'ativo' : 'entregue') as 'ativo' | 'entregue', key, posts: semRascunho(key) }
     })
     // Quem tem trabalho em aberto primeiro; quem está em dia depois; quem nem
     // cronograma tem, no fim. O bloco é sobre situação, então a ordem é a
