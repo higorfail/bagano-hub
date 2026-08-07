@@ -17,6 +17,7 @@ interface ExtraLite {
   labels?: { text: string; color: string }[] | null
   client_id?: string | null
   client_approval_status?: string | null
+  published_at?: string | null
   client_approval_comment?: string | null
 }
 
@@ -230,8 +231,14 @@ export default function ExtraMiniCard({
                 (drive_url), então com a arte na tela o chip repete em palavras
                 o que a imagem já provou. Sem prévia — link de pasta, thumbnail
                 que falhou, entrega que não é imagem — ele é a única pista. */}
-            {extra.drive_url && !thumbUrl && (
+            {extra.drive_url && !thumbUrl && !extra.published_at && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]">✓ Entregue</span>
+            )}
+            {/* Publicado vem do quadro de Publicações (`published_at`) e o
+                quadro de Extras não sabia disso — extra no ar aparecia igual a
+                extra apenas finalizado. */}
+            {extra.published_at && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ No ar</span>
             )}
             {/* Fica: a coluna não conta que o cliente pediu ajuste — o card
                 volta pra "A fazer" e nada ali denunciaria isso. */}

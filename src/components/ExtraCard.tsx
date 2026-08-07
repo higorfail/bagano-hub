@@ -52,7 +52,19 @@ const STATUS_OPTIONS: { value: ExtraStatus; label: string; color: string }[] = [
 // real de o cliente pedir ajuste por fora (WhatsApp, na reunião) e o time
 // registrar isso do mesmo jeito, com o mesmo destaque no Kanban.
 const AJUSTE_OPTION = { value: 'ajuste', label: 'Ajuste solicitado', color: '#ef4444' }
-const STATUS_SELECT_OPTIONS = [STATUS_OPTIONS[0], AJUSTE_OPTION, STATUS_OPTIONS[1], STATUS_OPTIONS[2]]
+// Montado por VALOR, não por índice. Por índice, incluir "Feito" na lista
+// empurrou tudo e derrubou "Finalizado" do seletor — e como o <select> não
+// tinha a opção do status atual, ele exibia a primeira da lista: extra
+// finalizado e publicado abria escrito "A fazer". Pior que exibir errado:
+// encostar no seletor gravaria esse "A fazer" por cima.
+const byValue = (v: string) => STATUS_OPTIONS.find(o => o.value === v)!
+const STATUS_SELECT_OPTIONS = [
+  byValue('backlog'),
+  AJUSTE_OPTION,
+  byValue('feito'),
+  byValue('aguardando_aprovacao'),
+  byValue('done'),
+]
 const PRIORITY_OPTIONS: { value: ExtraPriority; label: string; color: string }[] = [
   { value: 'low',    label: 'Baixa',  color: '#94a3b8' },
   { value: 'normal', label: 'Normal', color: '#6b7280' },
@@ -120,6 +132,11 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   const [title,           setTitle]           = useState('')
   const [type,            setType]            = useState<ExtraType>('post')
   const [status,          setStatus]          = useState<ExtraStatus>(initialStatus ?? 'backlog')
+  // Publicação NÃO é status: ela vive em `published_at`, escrita pelo quadro de
+  // Publicações. Virar uma quinta opção do seletor criaria duas verdades pro
+  // mesmo fato — e é justamente esse tipo de descasamento que confunde. Aqui
+  // ela só é EXIBIDA, pra quem abre o card não achar que nada aconteceu.
+  const [publishedAt,     setPublishedAt]     = useState<string | null>(null)
   const [priority,        setPriority]        = useState<ExtraPriority>('normal')
   const [clientId,        setClientId]        = useState(fixedClientId || '')
   const [description,     setDescription]     = useState('')
@@ -265,6 +282,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
         setTitle(data.title || '')
         setType(TYPE_OPTIONS.some(t => t.value === data.type) ? data.type : 'post')
         setStatus(data.status || 'backlog')
+        setPublishedAt(data.published_at || null)
         originalStatusRef.current = data.status || 'backlog'
         setPriority(data.priority || 'normal')
         setClientId(data.client_id || '')
@@ -900,6 +918,14 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
             </div>
           </PropertyPill>
           {/* Status */}
+          {publishedAt && (
+            <PropertyPill label="No ar">
+              <span className="text-xs font-semibold px-2 py-1 rounded-lg" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
+                ✓ Publicado em {new Date(publishedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+              </span>
+            </PropertyPill>
+          )}
+
           <PropertyPill label="Status">
             <div className="relative min-w-0">
               <select value={statusSelectValue} onChange={e => changeStatusOrAjuste(e.target.value)}
