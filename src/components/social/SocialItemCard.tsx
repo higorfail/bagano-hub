@@ -80,20 +80,26 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
     : 0
   const publicado = item.column === 'publicado'
 
-  // Ações secundárias sobre a prévia: no hover no computador, sempre visíveis
-  // no toque (iPad não tem hover). Elas ocupavam uma fileira fixa do card, com
-  // borda em cima, pra dois ícones de 24px — a fileira mais vazia do card.
+  // Copiar legenda e baixar viraram BOTÕES, com rótulo e sempre visíveis.
+  //
+  // Escondê-los no hover sobre a arte foi decisão minha e estava errada por
+  // dois motivos: no iPad e no celular não existe hover, e mesmo no computador
+  // eram dois quadradinhos de 24px sem texto — ninguém adivinha o que fazem.
+  // São as duas ações que a social media mais repete no dia; merecem tamanho e
+  // nome.
   const acoes = (
-    <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity">
+    <div className="flex items-center gap-1.5">
       <button onClick={copyCaption} disabled={!caption}
         title={caption ? 'Copiar legenda' : 'Sem legenda preenchida'}
-        className="w-6 h-6 rounded-md bg-black/55 backdrop-blur flex items-center justify-center text-white/90 hover:text-white disabled:opacity-30">
-        {copied ? <Check size={12} /> : <Copy size={12} />}
+        className="flex-1 flex items-center justify-center gap-1.5 text-[12px] font-semibold px-2 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-35 disabled:hover:bg-transparent">
+        {copied
+          ? <><Check size={13} className="text-[var(--ds-success-text)]" /> Copiada</>
+          : <><Copy size={13} /> Legenda</>}
       </button>
       <button onClick={download} disabled={!hasContent || downloading}
         title={hasContent ? 'Baixar conteúdo' : 'Sem link do Drive'}
-        className="w-6 h-6 rounded-md bg-black/55 backdrop-blur flex items-center justify-center text-white/90 hover:text-white disabled:opacity-30">
-        {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+        className="flex-1 flex items-center justify-center gap-1.5 text-[12px] font-semibold px-2 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-35 disabled:hover:bg-transparent">
+        {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Baixar
       </button>
     </div>
   )
@@ -110,7 +116,7 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
           favicon. Agora 4:5, a mesma proporção e posição do cronograma, dos
           extras e dos materiais. Publicado é arquivo: prévia menor, porque
           ninguém age nele. */}
-      <div className={`relative ${publicado ? 'w-16' : 'w-24'} aspect-[4/5] self-start flex-shrink-0 bg-[var(--color-bg-subtle)] overflow-hidden`}>
+      <div className={`relative ${publicado ? 'w-16 min-h-[80px]' : 'w-24 min-h-[120px]'} self-stretch flex-shrink-0 bg-[var(--color-bg-subtle)] overflow-hidden`}>
         {thumbUrl ? (
           <img src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
@@ -124,7 +130,6 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
             </div>
           </div>
         )}
-        {!publicado && acoes}
       </div>
 
       <div className="flex-1 min-w-0 p-2.5 flex flex-col gap-1.5">
@@ -188,6 +193,10 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
             <CheckCircle2 size={12} /> Marcar publicado
           </button>
         )}
+
+        {/* Ficam também no publicado: repostar e reaproveitar legenda são
+            justamente o que se faz num item que já foi ao ar. */}
+        {acoes}
       </div>
     </div>
   )
