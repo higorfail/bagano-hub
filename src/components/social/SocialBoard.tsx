@@ -71,7 +71,10 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
 
   return (
     <div className="flex-1 overflow-x-auto p-4 snap-x snap-mandatory lg:snap-none">
-      <div className="flex gap-4 h-full">
+      {/* `w-full` e sem teto de largura: as colunas tinham `max-w-[460px]`, então
+          três colunas paravam em 1380px e o resto do monitor ficava vazio por
+          definição. Agora elas dividem a largura disponível. */}
+      <div className="flex gap-4 h-full lg:w-full">
         {SOCIAL_COLUMNS.map(col => {
           const colItems = getColItems(col.key)
           const groups = groupByClient(colItems, i => i.clientId)
@@ -79,7 +82,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
           return (
             <div
               key={col.key}
-              className={`flex flex-col w-[calc(100vw-2rem)] md:w-[380px] lg:w-auto lg:flex-1 lg:min-w-[240px] xl:min-w-[300px] lg:max-w-[460px] flex-shrink-0 snap-center snap-always lg:snap-align-none rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
+              className={`flex flex-col w-[calc(100vw-2rem)] md:w-[380px] lg:w-auto lg:flex-1 lg:min-w-[300px] flex-shrink-0 snap-center snap-always lg:snap-align-none rounded-2xl overflow-hidden transition-all ${isDragOver ? 'ring-2 ring-offset-1' : ''}`}
               style={isDragOver ? { outline: `2px solid ${col.color}`, outlineOffset: 1 } : {}}
               onDragEnter={() => {
                 dragCounters.current[col.key] = (dragCounters.current[col.key] || 0) + 1
@@ -107,7 +110,7 @@ export default function SocialBoard({ items, clients, onOpenItem, onItemsChange 
                 </span>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-1.5">
+              <div className="flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-1.5" style={{ scrollbarGutter: 'stable' }}>
                 {colItems.length === 0 && (
                   <div className={`flex items-center justify-center h-20 border-2 border-dashed rounded-xl mx-1 transition-colors ${isDragOver ? 'border-[var(--color-brand)] bg-[var(--color-brand)]/5' : 'border-[var(--color-border)]'}`}>
                     <p className={`text-[10px] font-medium ${isDragOver ? 'text-[var(--color-brand)]' : 'text-[var(--color-text-faint)]'}`}>
