@@ -529,12 +529,35 @@ export default function ApprovalPage({ token }: { token: string }) {
     setSubmitting(null)
   }
 
+  /**
+   * Descobre se o pedido é de arte, de legenda ou de tema, e grava no post — é
+   * isso que faz o ajuste cair no "Para você" da pessoa certa lá no hub.
+   *
+   * Awaited de propósito. Solto, ele morre junto com a aba se o cliente fechar
+   * logo depois de enviar (foi assim que a gente já perdeu registro de
+   * histórico). E falha silenciosa é aceitável aqui: sem alvo, o hub roteia
+   * pelo tipo do post.
+   */
+  async function classificarAjuste(postId: string, comment: string) {
+    try {
+      const post = posts.find(p => p.id === postId)
+      const r = await fetch('/api/ai-ajuste-alvo', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ comment, postType: post?.post_type, title: post?.title }),
+      })
+      const { alvo } = await r.json()
+      if (alvo) await supabase.from('schedules').update({ ajuste_alvo: alvo }).eq('id', postId)
+    } catch { /* sem classificação, o roteamento cai no tipo do post */ }
+  }
+
   async function requestChanges(postId: string, comment: string) {
     const c = comment.trim(); if (!c) return
     setSubmitting(postId)
     const { error } = await supabase.from('schedules').update({ approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' }).eq('id', postId)
     if (error) { showToast('Não deu pra enviar o ajuste — tenta de novo em instantes.', false); setSubmitting(null); return }
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'não aprovado', approval_comment: c, status: 'ajuste' } : p))
+    await classificarAjuste(postId, c)
     await ensureWatchingFromAssigned('schedules', postId)
     await queueApprovalDigest(tokenData?.client_id, 'rejected')
     await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente solicitou ajuste: "${c}"`, skipPush: true })

@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { donosDoAjuste, ALVO_LABEL, type AjusteAlvo, type TimeDoCliente } from '@/lib/ajusteRouting'
 import { useUser } from '@/lib/UserContext'
 import {
   ArrowRight, AlertTriangle, Clock, CalendarDays, ChevronRight, ChevronDown,
@@ -134,7 +135,7 @@ type CardLabel = { text: string; color: string }
 type ParaVoceRowItem = {
   id: string; kind: string; title: string; clientId: string; dueDate: string | null
   ajuste: boolean; href: string; postType?: string | null; campaignType?: string | null
-  labels?: CardLabel[] | null
+  labels?: CardLabel[] | null; ajusteAlvo?: string | null
 }
 
 function ClientAvatar({ client }: { client?: { name: string; color_hex?: string; logo_url?: string | null } }) {
@@ -186,6 +187,13 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
         <span className={`text-xs font-medium truncate flex-1 min-w-0 ${muted ? 'text-[var(--color-text-secondary)]' : 'text-[var(--color-text-primary)]'}`}>
           {it.title || 'Sem título'}
         </span>
+        {/* O que o cliente pediu pra mudar. Sem isto o designer abre o card
+            pra descobrir que a alteração era só na legenda. */}
+        {it.ajuste && it.ajusteAlvo && ALVO_LABEL[it.ajusteAlvo] && (
+          <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
+            {ALVO_LABEL[it.ajusteAlvo]}
+          </span>
+        )}
         {countdown && <span className="text-[10px] text-[var(--color-text-muted)] flex-shrink-0">{countdown}</span>}
         {campaignName && <span className="text-[10px] text-[var(--color-text-muted)] flex-shrink-0 hidden sm:inline">📣 {campaignName}</span>}
         {/* Etiqueta é o que diz o trabalho que falta ali (CRIAR LEGENDA,
@@ -426,7 +434,7 @@ export default function DashboardPage() {
           // Kanban já carrega a tabela inteira do mesmo jeito — o custo é
           // menor que o de mais um recorte pra esquecer de manter.
           supabase.from(CFG.t.schedules)
-            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels, legenda'),
+            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels, legenda, ajuste_alvo'),
           supabase.from(CFG.t.specialDates)
             .select('id, name, date')
             .gte('date', todayStr)
@@ -437,9 +445,10 @@ export default function DashboardPage() {
             .gte('scheduled_date', ago45Str)
             .lte('scheduled_date', in90Str)
             .order('scheduled_date'),
+          // Sem filtro de função: o roteamento de ajuste precisa saber quem é
+          // design, edição e social de cada cliente, não só a estrategista.
           supabase.from('client_team')
-            .select('client_id, member_id, funcao')
-            .eq('funcao', 'estrategia'),
+            .select('client_id, member_id, funcao'),
           supabase.from('extras').select('client_id, status, client_approval_status').is('archived_at', null),
           supabase.from('materials').select('client_id, status').is('archived_at', null),
         ])
@@ -816,8 +825,15 @@ export default function DashboardPage() {
   // post — nessa etapa específica o card conta como "pra você" pra quem tem
   // funcao='estrategia' com o cliente (client_team), não pelo assigned_members do card.
   const myStrategistClients = useMemo(() =>
-    new Set(clientTeam.filter(t => t.member_id === currentMember?.id).map(t => t.client_id)),
+    new Set(clientTeam.filter(t => t.member_id === currentMember?.id && t.funcao === 'estrategia').map(t => t.client_id)),
   [clientTeam, currentMember])
+
+  // { clienteId: { posts: [ids], videos: [ids], social: [ids], ... } }
+  const teamByClient = useMemo(() => {
+    const m: Record<string, TimeDoCliente> = {}
+    clientTeam.forEach(t => { ((m[t.client_id] ||= {})[t.funcao] ||= []).push(t.member_id) })
+    return m
+  }, [clientTeam])
 
   const directAssigned = useMemo(() => {
     if (!currentMember) return []
@@ -836,9 +852,16 @@ export default function DashboardPage() {
       // onde ela é a responsável mas não é da equipe do cliente.
       const assignedToMe = (s.assigned_members || []).includes(currentMember.id)
       if (s.status === CFG.S.revisaoInterna) return assignedToMe || myStrategistClients.has(s.client_id)
+      // Pedido de alteração do cliente vai pra quem faz aquele tipo de peça:
+      // reels pro editor, carrossel/post/story pro designer, e só a legenda
+      // pro social — mesma lógica de acréscimo da revisão interna, quem está
+      // marcado continua vendo.
+      if (s.status === CFG.S.ajuste) {
+        return assignedToMe || donosDoAjuste(teamByClient[s.client_id], s.post_type, ((s as any).ajuste_alvo || null) as AjusteAlvo).includes(currentMember.id)
+      }
       return assignedToMe
     })
-  }, [allSchedules, currentMember, myStrategistClients])
+  }, [allSchedules, currentMember, myStrategistClients, teamByClient])
 
   // Unifica posts + extras + materiais numa lista só, cada item marcado como
   // "precisa de você" (ação sua) ou "esperando o cliente" (aguardando aprovação) —
@@ -847,6 +870,7 @@ export default function DashboardPage() {
     id: string; kind: 'post' | 'extra' | 'material' | 'task'; title: string
     clientId: string; dueDate: string | null; ajuste: boolean; waitingClient: boolean; href: string
     postType?: string | null; campaignType?: string | null; labels?: CardLabel[] | null
+    ajusteAlvo?: string | null
   }
   // Etiqueta às vezes vem como texto JSON do banco, não como lista — normaliza
   // pra nunca quebrar a exibição nem o resumo da IA.
@@ -885,6 +909,7 @@ export default function DashboardPage() {
       href: `/dashboard/clientes/${s.client_id}?tab=cronograma&post=${s.id}&m=${s.month}&y=${s.year}`,
       postType: s.post_type, campaignType: (s as any).campaign_type || null,
       labels: openLabels(asLabels((s as any).labels), s.legenda),
+      ajusteAlvo: (s as any).ajuste_alvo || null,
     })),
     ...myExtras.map((e): ParaVoceItem => ({
       id: `extra-${e.id}`, kind: 'extra', title: e.title, clientId: e.client_id,
@@ -965,7 +990,7 @@ export default function DashboardPage() {
     } catch {}
     const items = needsYou.slice(0, 20).map(i => ({
       kind: i.kind, title: i.title, clientName: clientMap[i.clientId]?.name,
-      ajuste: i.ajuste, overdue: !!i.dueDate && i.dueDate < todayStr, dueDate: i.dueDate,
+      ajuste: i.ajuste, ajusteAlvo: i.ajusteAlvo, overdue: !!i.dueDate && i.dueDate < todayStr, dueDate: i.dueDate,
       // A etiqueta é o que diz o que falta fazer no card ("CRIAR LEGENDA",
       // "Criar o design") — sem ela o resumo só sabia contar, não dizia o
       // trabalho de verdade. A campanha entra pelo mesmo motivo: saber que um
