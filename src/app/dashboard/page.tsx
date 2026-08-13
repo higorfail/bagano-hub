@@ -359,6 +359,7 @@ export default function DashboardPage() {
   const [specialDates, setSpecialDates] = useState<SpecialDate[]>([])
   const [captacoes,    setCaptacoes]    = useState<Captacao[]>([])
   const [clientTeam,   setClientTeam]   = useState<ClientTeamRow[]>([])
+  const [ajusteAlvos,  setAjusteAlvos]  = useState<Record<string, string>>({})
   // Extras e materiais de TODOS os clientes (colunas mínimas) — o bloco
   // "Situação dos clientes" contava só posts, então cliente cujo trabalho é
   // extra aparecia como "sem cronograma · nenhum post". O Unizushi tem dois
@@ -857,11 +858,11 @@ export default function DashboardPage() {
       // pro social — mesma lógica de acréscimo da revisão interna, quem está
       // marcado continua vendo.
       if (s.status === CFG.S.ajuste) {
-        return assignedToMe || donosDoAjuste(teamByClient[s.client_id], s.post_type, ((s as any).ajuste_alvo || null) as AjusteAlvo).includes(currentMember.id)
+        return assignedToMe || donosDoAjuste(teamByClient[s.client_id], s.post_type, (ajusteAlvos[s.id] || null) as AjusteAlvo).includes(currentMember.id)
       }
       return assignedToMe
     })
-  }, [allSchedules, currentMember, myStrategistClients, teamByClient])
+  }, [allSchedules, currentMember, myStrategistClients, teamByClient, ajusteAlvos])
 
   // Unifica posts + extras + materiais numa lista só, cada item marcado como
   // "precisa de você" (ação sua) ou "esperando o cliente" (aguardando aprovação) —
@@ -909,7 +910,7 @@ export default function DashboardPage() {
       href: `/dashboard/clientes/${s.client_id}?tab=cronograma&post=${s.id}&m=${s.month}&y=${s.year}`,
       postType: s.post_type, campaignType: (s as any).campaign_type || null,
       labels: openLabels(asLabels((s as any).labels), s.legenda),
-      ajusteAlvo: (s as any).ajuste_alvo || null,
+      ajusteAlvo: ajusteAlvos[s.id] || null,
     })),
     ...myExtras.map((e): ParaVoceItem => ({
       id: `extra-${e.id}`, kind: 'extra', title: e.title, clientId: e.client_id,

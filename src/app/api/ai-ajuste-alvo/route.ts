@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
- * Lê o pedido de alteração do cliente e diz O QUE ele quer mudar: a arte, a
- * legenda, as duas, ou o post inteiro. Quem conserta sai daí — ajuste de
- * legenda não é trabalho de designer.
+ * Lê o pedido de alteração do cliente e responde UMA coisa: esse pedido mexe na
+ * legenda?
  *
- * Ela só desloca o destino; nunca é a única guarda. Sem resposta, sem chave, ou
- * com resposta estranha, devolve alvo `null` e o hub roteia pelo tipo do post,
- * que é o comportamento de sempre. O pior caso da IA é o presente.
+ * O destino da peça já é certo pelo tipo do post — reels vai pro Editor, post,
+ * story e carrossel vão pro Designer, e isso não precisa de IA. A única
+ * pergunta que sobra é se a Estratégia, que escreve, entra junto.
+ *
+ * Uma pergunta de sim ou não é muito mais confiável que uma classificação de
+ * quatro categorias, e é tudo que o roteamento consome. Sem chave, sem resposta
+ * ou com resposta estranha, devolve `null` e o pedido segue só pra quem produziu
+ * a peça — o comportamento de sempre. O pior caso da IA é o presente.
  */
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY
@@ -16,17 +20,16 @@ export async function POST(req: NextRequest) {
   const { comment, postType, title } = await req.json()
   if (!comment || !String(comment).trim()) return NextResponse.json({ alvo: null })
 
-  // As quatro saídas vieram dos pedidos reais dos clientes da Bagano. "outro"
-  // não é lata de lixo: é a categoria mais comum hoje — "cancelou a feijoada,
-  // pode virar outro tema" não é conserto de arte nem de texto, é o post
-  // inteiro caindo, e mandar isso pro designer queima uma ida e volta.
-  const prompt = `Você classifica pedidos de alteração que um cliente de agência de social media faz sobre um post já produzido.
+  // Só as duas saídas que mudam o destino. Pedido de tema novo ("cancela a
+  // feijoada, pode ser outro assunto") continua sendo "arte": é a mesma pessoa
+  // que vai refazer a peça.
+  const prompt = `Um cliente de uma agência de social media pediu alteração num post já produzido. Leia o pedido e responda se ele envolve mudar o TEXTO DA LEGENDA da publicação.
 
-Responda com UMA palavra, exatamente uma destas quatro:
-arte — a mudança é no material visual: imagem, vídeo, foto, cor, corte, ordem das telas, ou algum texto que está DENTRO da peça
-legenda — a mudança é só no texto que acompanha a publicação: legenda, copy, chamada, hashtag, erro de português na legenda
-ambos — pede mudança na arte E na legenda
-outro — o post inteiro cai ou muda de rumo (trocar o tema, cancelar, mudar a data, refazer com outro assunto), ou o pedido é vago demais pra saber o que mudar
+Responda com UMA palavra, exatamente uma destas duas:
+legenda — o pedido inclui mudar, reescrever ou corrigir a legenda, a copy, a chamada ou as hashtags da publicação
+arte — o pedido é sobre qualquer outra coisa: a imagem, o vídeo, a foto, a cor, o corte, o texto que está dentro da peça, o tema do post, a data, ou é vago demais
+
+Na dúvida, responda arte.
 
 Tipo do post: ${postType || 'não informado'}
 Título do post: ${title || 'sem título'}
@@ -54,9 +57,9 @@ Responda só a palavra, sem pontuação, sem explicação.`
     }
     const data = await res.json()
     const bruto = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().toLowerCase()
-    // Palavra fora da lista é resposta inútil, não um quinto estado: vira null
+    // Palavra fora da lista é resposta inútil, não um terceiro estado: vira null
     // e cai na regra por tipo.
-    const alvo = ['arte', 'legenda', 'ambos', 'outro'].find(a => bruto.startsWith(a)) || null
+    const alvo = ['arte', 'legenda'].find(a => bruto.startsWith(a)) || null
     return NextResponse.json({ alvo })
   } catch {
     return NextResponse.json({ alvo: null })
