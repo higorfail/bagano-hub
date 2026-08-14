@@ -58,9 +58,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [client, setClient] = useState<Client | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [tab, setTab] = useState(() => searchParams.get('tab') || 'cronograma')
-  // Faixa encolhida. Os limiares são diferentes de propósito (72 pra encolher,
-  // 24 pra voltar): com um só, rolar parado em cima do limiar fazia o cabeçalho
-  // piscar entre os dois tamanhos a cada pixel.
+  // Faixa encolhida. Basta o primeiro gesto de rolagem: 16px pra encolher, e
+  // volta ao topo de verdade (4px). Os dois limiares são diferentes de propósito
+  // — com um só, parar de rolar exatamente em cima dele faz o cabeçalho piscar
+  // entre os dois tamanhos a cada pixel.
   const [compacto, setCompacto] = useState(false)
   // Encolhido E com largura pra isso: no celular as abas continuam na linha de
   // baixo, senão sobrariam três delas visíveis ao lado do nome.
@@ -399,7 +400,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
           // oscila sozinho. Só encolhe onde há rolagem sobrando pra absorver.
           const sobra = el.scrollHeight - el.clientHeight > 200
           const y = el.scrollTop
-          setCompacto(c => (sobra ? (c ? y > 24 : y > 72) : false))
+          setCompacto(c => (sobra ? (c ? y > 4 : y > 16) : false))
         }}>
           {tab === 'cronograma' && (
             <div className="flex flex-col gap-4">
