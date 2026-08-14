@@ -24,6 +24,7 @@ import ManualTab from '@/components/ManualTab'
 import TaskMiniCard from '@/components/TaskMiniCard'
 import TaskCard from '@/components/TaskCard'
 import { Plus, ChevronLeft, Pencil, Link as LinkIcon } from 'lucide-react'
+import { useIsWideScreen } from '@/lib/useMediaQuery'
 
 type Client = {
   id: string; name: string; color_hex: string; logo_url: string
@@ -61,6 +62,30 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   // 24 pra voltar): com um só, rolar parado em cima do limiar fazia o cabeçalho
   // piscar entre os dois tamanhos a cada pixel.
   const [compacto, setCompacto] = useState(false)
+  // Encolhido E com largura pra isso: no celular as abas continuam na linha de
+  // baixo, senão sobrariam três delas visíveis ao lado do nome.
+  const telaLarga = useIsWideScreen()
+  const inline = compacto && telaLarga
+
+  // Ordem do fluxo, não alfabética nem histórica: o que se abre todo dia vem
+  // primeiro e o que é consulta fica no fim.
+  const TABS = [
+    { key: 'cronograma', label: 'Cronograma' }, { key: 'extras', label: 'Extras' },
+    { key: 'materiais', label: 'Materiais' },   { key: 'tarefas', label: 'Tarefas' },
+    { key: 'campanhas', label: 'Campanhas' },   { key: 'feed', label: 'Feed' },
+    { key: 'drive', label: 'Arquivos' },        { key: 'onboarding', label: 'Onboarding' },
+    { key: 'manual', label: 'Manual' },         { key: 'historico', label: 'Histórico' },
+    { key: 'time', label: 'Time' },
+  ]
+
+  function renderTabs(menor: boolean) {
+    return TABS.map(t => (
+      <button key={t.key} onClick={() => setTab(t.key)}
+        className={`flex-shrink-0 rounded-lg font-medium transition-all whitespace-nowrap ${menor ? 'px-2 py-1 text-[11px]' : 'px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm'} ${tab === t.key ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>
+        {t.label}
+      </button>
+    ))
+  }
   // Prioridade: o que veio no link > último período visto no Cronograma >
   // mês atual. Sem o meio, abrir um cliente jogava sempre no mês atual, mesmo
   // com a pessoa trabalhando no cronograma do mês seguinte.
@@ -284,7 +309,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
               Rolando o conteúdo, foto e nome encolhem e sobra a linha de abas —
               fixa continua fixa, o custo em tela é que sai. */}
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`flex items-center gap-2.5 min-w-0 ${inline ? "flex-shrink-0 max-w-[38%]" : ""}`}>
               <button onClick={() => router.push('/dashboard/clientes')} title="Voltar pros clientes"
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors flex-shrink-0 -ml-1">
                 <ChevronLeft size={18} />
@@ -295,6 +320,14 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
               }
               <h1 className={`font-bold text-[var(--color-text-primary)] tracking-tight truncate transition-all duration-200 ${compacto ? 'text-base' : 'text-base md:text-2xl'}`}>{client.name}</h1>
             </div>
+
+            {/* As abas ao lado do nome, menores, ocupando o espaço que a foto
+                grande e os números liberaram ao encolher. */}
+            {inline && (
+              <div className="flex items-center gap-0.5 flex-1 min-w-0 overflow-x-auto">
+                {renderTabs(true)}
+              </div>
+            )}
 
             <div className="flex items-center gap-1.5 flex-shrink-0">
               {/* Links que SAEM do hub, com o glifo da plataforma: o texto
@@ -326,8 +359,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   return `${window.location.origin}/aprovar/${generalToken}`
                 })
                 toast(ok ? 'Link da Central de aprovação copiado!' : 'Erro ao gerar link')
-              }} className="hidden md:flex items-center gap-1.5 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 h-9 text-sm font-medium hover:bg-[var(--color-bg-subtle)] transition-colors whitespace-nowrap" title="Copia o link com tudo que está pendente de aprovação (crono + final + extras)">
-                <LinkIcon size={14} /> Central de aprovação
+              }} className={`hidden md:flex items-center justify-center gap-1.5 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl h-9 font-medium hover:bg-[var(--color-bg-subtle)] transition-colors whitespace-nowrap ${inline ? 'w-9' : 'px-3 text-sm'}`} title="Copia o link com tudo que está pendente de aprovação (crono + final + extras)">
+                <LinkIcon size={14} />{!inline && 'Central de aprovação'}
               </button>
               <button onClick={openEditClient} title="Editar cliente"
                 className="w-9 h-9 rounded-xl border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors">
@@ -349,17 +382,25 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             <LinkIcon size={12} /> Central de aprovação
           </button>
 
-          <div className="flex items-center gap-1 mt-2.5 md:mt-3 overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
-            {/* Ordem do fluxo, não alfabética nem histórica: o que se abre todo dia vem
-                primeiro e o que é consulta fica no fim. "Time" não estava na lista
-                pedida — ficou no fim pra não sumir. */}
-            {[{key:'cronograma',label:'Cronograma'},{key:'extras',label:'Extras'},{key:'materiais',label:'Materiais'},{key:'tarefas',label:'Tarefas'},{key:'campanhas',label:'Campanhas'},{key:'feed',label:'Feed'},{key:'drive',label:'Arquivos'},{key:'onboarding',label:'Onboarding'},{key:'manual',label:'Manual'},{key:'historico',label:'Histórico'},{key:'time',label:'Time'}].map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)} className={`flex-shrink-0 px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all whitespace-nowrap ${tab===t.key?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
-            ))}
-          </div>
+          {/* Só quando NÃO está encolhido: rolando, as abas sobem pra linha do
+              nome (lá em cima) em vez de ocuparem uma linha própria. */}
+          {!inline && (
+            <div className="flex items-center gap-1 mt-2.5 md:mt-3 overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
+              {renderTabs(false)}
+            </div>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6" onScroll={e => { const y = (e.target as HTMLDivElement).scrollTop; setCompacto(c => (c ? y > 24 : y > 72)) }}>
+        <div className="flex-1 overflow-y-auto p-4 md:p-6" onScroll={e => {
+          const el = e.target as HTMLDivElement
+          // Encolher devolve ~44px de altura ao conteúdo. No fim de uma página
+          // curta, o navegador corrige a rolagem pra baixo por causa disso, o
+          // que reexpande o cabeçalho, que tira os 44px de novo — e o troço
+          // oscila sozinho. Só encolhe onde há rolagem sobrando pra absorver.
+          const sobra = el.scrollHeight - el.clientHeight > 200
+          const y = el.scrollTop
+          setCompacto(c => (sobra ? (c ? y > 24 : y > 72) : false))
+        }}>
           {tab === 'cronograma' && (
             <div className="flex flex-col gap-4">
               {/* Month/year nav */}
