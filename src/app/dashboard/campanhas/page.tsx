@@ -9,21 +9,7 @@ import ExtraCard from '@/components/ExtraCard'
 import MaterialCard from '@/components/MaterialCard'
 import { campaignDaysUntil, campaignPeriod } from '@/lib/campaignPeriod'
 import { campaignProgress } from '@/lib/postStages'
-
-const SEASONAL = [
-  { type: 'natal',     name: 'Natal & Réveillon', emoji: '🎄', color: '#DC2626', month: 12, day: 25, leadDays: 60,
-    theme: { bg: '#FEF2F2', border: '#FECACA', accent: '#DC2626', darkBg: '#450a0a', darkBorder: '#7f1d1d' } },
-  { type: 'maes',      name: 'Dia das Mães',       emoji: '🌸', color: '#DB2777', month: 5,  day: 11, leadDays: 45,
-    theme: { bg: '#FDF2F8', border: '#FBCFE8', accent: '#DB2777', darkBg: '#4a044e', darkBorder: '#701a75' } },
-  { type: 'namorados', name: 'Dia dos Namorados',  emoji: '💕', color: '#E11D48', month: 6,  day: 12, leadDays: 45,
-    theme: { bg: '#FFF1F2', border: '#FECDD3', accent: '#E11D48', darkBg: '#4c0519', darkBorder: '#881337' } },
-  { type: 'pascoa',    name: 'Páscoa',             emoji: '🐣', color: '#D97706', month: 4,  day: 20, leadDays: 30,
-    theme: { bg: '#FFFBEB', border: '#FDE68A', accent: '#D97706', darkBg: '#431407', darkBorder: '#78350f' } },
-  { type: 'carnaval',  name: 'Carnaval',           emoji: '🎭', color: '#7C3AED', month: 2,  day: 28, leadDays: 30,
-    theme: { bg: '#F5F3FF', border: '#DDD6FE', accent: '#7C3AED', darkBg: '#2e1065', darkBorder: '#4c1d95' } },
-  { type: 'pais',      name: 'Dia dos Pais',       emoji: '👔', color: '#0369A1', month: 8,  day: 11, leadDays: 30,
-    theme: { bg: '#EFF6FF', border: '#BFDBFE', accent: '#0369A1', darkBg: '#172554', darkBorder: '#1e3a5f' } },
-]
+import { useCampaignDates, campaignTheme, campaignDateLabel, orderByProximity, slugifyCampaignType, createCampaignDate, type CampaignDate } from '@/lib/campaigns'
 
 // Ver src/lib/campaignPeriod.ts: a campanha só vira de ano depois da janela de
 // encerramento, então `days` pode vir negativo enquanto ainda há trabalho.
@@ -53,7 +39,12 @@ export default function CampanhasPage() {
   useEffect(() => { document.title = 'Campanhas · Bagano Hub' }, [])
   const supabase = createClient()
   const isDark = useDarkMode()
+  const { dates: SEASONAL, reload: reloadDates } = useCampaignDates()
   const [selected, setSelected] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('campanhas:lastType')) || 'natal')
+  const [novaAberta, setNovaAberta] = useState(false)
+  const [nova, setNova] = useState({ name: '', day: '', month: '', leadDays: '30', color: '#0891B2' })
+  const [novaErro, setNovaErro] = useState<string | null>(null)
+  const [salvandoNova, setSalvandoNova] = useState(false)
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
   const [posts, setPosts] = useState<any[]>([])
@@ -190,9 +181,44 @@ export default function CampanhasPage() {
     setCampaigns(c => c.map(x => x.id === campId ? { ...x, briefing } : x))
   }
 
-  const orderedSeasonal = [...SEASONAL].sort((a, b) => campaignDaysUntil(a.month, a.day) - campaignDaysUntil(b.month, b.day))
-  const seasonal = SEASONAL.find(s => s.type === selected)!
-  const days = campaignDaysUntil(seasonal.month, seasonal.day)
+  async function salvarNovaData() {
+    const name = nova.name.trim()
+    const day = parseInt(nova.day, 10)
+    const month = parseInt(nova.month, 10)
+    const leadDays = parseInt(nova.leadDays, 10) || 30
+    if (!name)                              return setNovaErro('Falta o nome da campanha.')
+    if (!(day >= 1 && day <= 31))           return setNovaErro('Dia precisa ser de 1 a 31.')
+    if (!(month >= 1 && month <= 12))       return setNovaErro('Mês precisa ser de 1 a 12.')
+    // 31 de fevereiro passaria batido e a campanha nasceria com data que não
+    // existe — a contagem regressiva viraria lixo silenciosamente.
+    if (new Date(2001, month - 1, day).getMonth() !== month - 1) return setNovaErro('Essa data não existe nesse mês.')
+    const type = slugifyCampaignType(name)
+    if (!type)                              return setNovaErro('Esse nome não gera uma chave válida — use letras ou números.')
+    if (SEASONAL.some(s => s.type === type)) return setNovaErro('Já existe uma campanha com esse nome.')
+
+    setSalvandoNova(true); setNovaErro(null)
+    const { error } = await createCampaignDate({ type, name, month, day, leadDays, color: nova.color })
+    setSalvandoNova(false)
+    if (error) {
+      // Sem a tabela criada no banco, o insert falha — e dizer "erro" seco aqui
+      // mandaria alguém procurar bug no lugar errado.
+      setNovaErro(error.message?.includes('campaign_dates')
+        ? 'A tabela campaign_dates ainda não existe no banco — rode o SQL de criação primeiro.'
+        : `Não deu pra criar: ${error.message}`)
+      return
+    }
+    await reloadDates()
+    setSelected(type)
+    setNovaAberta(false)
+    setNova({ name: '', day: '', month: '', leadDays: '30', color: '#0891B2' })
+  }
+
+  const orderedSeasonal = orderByProximity(SEASONAL)
+  const tema = (c: string) => campaignTheme(c, isDark)
+  // Sem o `!`: a lista agora vem do banco e pode não ter mais o tipo que ficou
+  // guardado no navegador — uma data desativada deixava a tela em branco.
+  const seasonal = SEASONAL.find(s => s.type === selected) || orderedSeasonal[0]
+  const days = seasonal ? campaignDaysUntil(seasonal.month, seasonal.day) : 0
 
   // Clientes com esta campanha ativa
   const activeCamps = campaigns.filter(c => c.type === selected)
@@ -219,8 +245,59 @@ export default function CampanhasPage() {
       {/* Header */}
       <div className="flex items-baseline gap-2.5">
         <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Campanhas</h1>
-        <p className="text-[var(--color-text-muted)] text-sm">todos os clientes por campanha</p>
+        <p className="text-[var(--color-text-muted)] text-sm flex-1">todos os clientes por campanha</p>
+        <button onClick={() => { setNovaAberta(v => !v); setNovaErro(null) }}
+          className="flex items-center gap-1.5 bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg px-3 py-1.5 text-xs font-semibold flex-shrink-0">
+          <Plus size={13} /> Nova data
+        </button>
       </div>
+
+      {/* Criar data vale pro hub inteiro, não pra um cliente — é assim que o
+          Natal sempre funcionou, e é o que faltava pro Dia do Cliente. Cada
+          cliente continua sendo ativado um a um, embaixo. */}
+      {novaAberta && (
+        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-3 flex flex-col gap-2.5">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 flex-1 min-w-[180px]">
+              <span className="text-[11px] font-medium text-[var(--color-text-muted)]">Nome</span>
+              <input autoFocus value={nova.name} onChange={e => setNova(n => ({ ...n, name: e.target.value }))}
+                placeholder="Dia do Cliente"
+                className="text-sm border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 outline-none focus:border-[var(--color-brand)]" />
+            </label>
+            <label className="flex flex-col gap-1 w-[72px]">
+              <span className="text-[11px] font-medium text-[var(--color-text-muted)]">Dia</span>
+              <input value={nova.day} onChange={e => setNova(n => ({ ...n, day: e.target.value.replace(/\D/g, '').slice(0, 2) }))}
+                inputMode="numeric" placeholder="15"
+                className="text-sm tabular-nums border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 outline-none focus:border-[var(--color-brand)]" />
+            </label>
+            <label className="flex flex-col gap-1 w-[72px]">
+              <span className="text-[11px] font-medium text-[var(--color-text-muted)]">Mês</span>
+              <input value={nova.month} onChange={e => setNova(n => ({ ...n, month: e.target.value.replace(/\D/g, '').slice(0, 2) }))}
+                inputMode="numeric" placeholder="09"
+                className="text-sm tabular-nums border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 outline-none focus:border-[var(--color-brand)]" />
+            </label>
+            {/* Dias de preparo é o que acende o alerta de urgência e desenha o
+                traço de prazo na barra — Natal precisa de 60, Halloween de 21. */}
+            <label className="flex flex-col gap-1 w-[96px]">
+              <span className="text-[11px] font-medium text-[var(--color-text-muted)]">Preparo</span>
+              <input value={nova.leadDays} onChange={e => setNova(n => ({ ...n, leadDays: e.target.value.replace(/\D/g, '').slice(0, 3) }))}
+                inputMode="numeric"
+                className="text-sm tabular-nums border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 outline-none focus:border-[var(--color-brand)]" />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] font-medium text-[var(--color-text-muted)]">Cor</span>
+              <input type="color" value={nova.color} onChange={e => setNova(n => ({ ...n, color: e.target.value }))}
+                className="w-[44px] h-[38px] rounded-lg border border-[var(--color-border)] bg-transparent cursor-pointer" />
+            </label>
+            <button onClick={salvarNovaData} disabled={salvandoNova}
+              className="bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-xs font-semibold px-4 py-2.5 rounded-lg disabled:opacity-50">
+              {salvandoNova ? 'Criando...' : 'Criar'}
+            </button>
+            <button onClick={() => setNovaAberta(false)} className="text-[var(--color-text-muted)] text-xs px-2 py-2.5">Cancelar</button>
+          </div>
+          {novaErro && <p className="text-xs" style={{ color: 'var(--ds-error-text)' }}>{novaErro}</p>}
+        </div>
+      )}
 
       {/* Seletor de campanha — ordenado pela data mais próxima primeiro */}
       {/* Grade de 2 colunas no celular: em linha corrida cada chip tinha a
@@ -248,7 +325,7 @@ export default function CampanhasPage() {
             campaignProgress({ posts: camPosts, extras: camKanban, materials: camMaterials, checklist: camChecklist })
           const timePct = getTimeProgress(d, s.leadDays)
           const behind = totalItems > 0 && workPct < timePct - 10
-          const barColor = totalItems === 0 ? 'var(--color-text-faint)' : behind ? 'var(--ds-error-accent)' : s.theme.accent
+          const barColor = totalItems === 0 ? 'var(--color-text-faint)' : behind ? 'var(--ds-error-accent)' : s.color
 
           return (
             <button
@@ -256,14 +333,14 @@ export default function CampanhasPage() {
               onClick={() => setSelected(s.type)}
               className="flex flex-col gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all text-xs md:min-w-[132px]"
               style={selected === s.type
-                ? { background: isDark ? s.theme.darkBg : s.theme.bg, borderColor: isDark ? s.theme.darkBorder : s.theme.border, color: s.theme.accent, fontWeight: 500 }
+                ? { background: tema(s.color).bg, borderColor: tema(s.color).border, color: s.color, fontWeight: 600 }
                 : { background: 'var(--color-bg-card)', borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }
               }
             >
               <div className="flex items-center gap-1.5 min-w-0 w-full">
-                <span className="flex-shrink-0">{s.emoji}</span>
-                <span className="truncate text-left">{s.name}</span>
-                {activeCnt > 0 && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: selected === s.type ? s.theme.accent : 'var(--color-bg-subtle)', color: selected === s.type ? 'white' : 'var(--color-text-secondary)' }}>{activeCnt}</span>}
+                <span className="truncate text-left flex-1">{s.name}</span>
+                <span className="text-[10px] tabular-nums flex-shrink-0 text-[var(--color-text-faint)]">{campaignDateLabel(s)}</span>
+                {activeCnt > 0 && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ background: selected === s.type ? s.color : 'var(--color-bg-subtle)', color: selected === s.type ? 'white' : 'var(--color-text-secondary)' }}>{activeCnt}</span>}
                 {isUrgent && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--ds-error-accent)' }} />}
               </div>
               {activeCnt > 0 && (
@@ -283,16 +360,18 @@ export default function CampanhasPage() {
           de clientes eram flex-shrink-0 e comiam a largura toda, sobrando pro
           nome da campanha um "Di…" truncado — justamente o dado mais
           importante da faixa. */}
-      <div className="rounded-2xl px-4 py-3 border flex flex-col gap-1 md:flex-row md:items-center md:justify-between md:gap-3" style={{ background: isDark ? seasonal.theme.darkBg : seasonal.theme.bg, borderColor: isDark ? seasonal.theme.darkBorder : seasonal.theme.border }}>
+      <div className="rounded-2xl px-4 py-3 border flex flex-col gap-1 md:flex-row md:items-center md:justify-between md:gap-3" style={{ background: tema(seasonal.color).bg, borderColor: tema(seasonal.color).border }}>
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-2xl flex-shrink-0">{seasonal.emoji}</span>
-          <h2 className="text-sm font-semibold truncate" style={{ color: seasonal.theme.accent }}>{seasonal.name}</h2>
+          {/* Barra de cor no lugar do emoji: é o que identifica a campanha
+              agora, e nasce igual pra qualquer data nova. */}
+          <span className="w-1 h-6 rounded-full flex-shrink-0" style={{ background: seasonal.color }} />
+          <h2 className="text-base font-semibold truncate" style={{ color: seasonal.color }}>{seasonal.name}</h2>
         </div>
         <div className="flex items-center justify-between gap-3 pl-[2.4rem] md:pl-0 md:flex-shrink-0">
-          <span className="text-sm" style={{ color: seasonal.theme.accent, opacity: 0.7 }}>
+          <span className="text-sm" style={{ color: seasonal.color, opacity: 0.7 }}>
             {days < 0 ? `passou há ${-days} ${-days === 1 ? 'dia' : 'dias'} · ${seasonal.day}/${seasonal.month}` : days === 0 ? 'hoje!' : `faltam ${days} dias · ${seasonal.day}/${seasonal.month}`}
           </span>
-          <p className="text-sm font-semibold flex-shrink-0" style={{ color: seasonal.theme.accent }}>
+          <p className="text-sm font-semibold flex-shrink-0" style={{ color: seasonal.color }}>
             {activeClients.length} cliente{activeClients.length !== 1 ? 's' : ''} ativo{activeClients.length !== 1 ? 's' : ''}
           </p>
         </div>
@@ -333,7 +412,7 @@ export default function CampanhasPage() {
                       {prog.total > 0 && (
                         <div className="flex items-center gap-1.5">
                           <div className="w-16 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all" style={{ width: `${prog.pct}%`, background: seasonal.theme.accent }} />
+                            <div className="h-full rounded-full transition-all" style={{ width: `${prog.pct}%`, background: seasonal.color }} />
                           </div>
                           <span className="text-[10px] text-[var(--color-text-muted)]">{prog.done}/{prog.total}</span>
                         </div>
@@ -425,13 +504,13 @@ export default function CampanhasPage() {
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-2">Checklist da campanha {extras.length > 0 && `· ${doneExtras}/${extras.length}`}</p>
                         {extras.length > 0 && (
                           <div className="w-full h-1 bg-[var(--color-bg-subtle)] rounded-full mb-2 overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${extras.length ? (doneExtras / extras.length) * 100 : 0}%`, background: seasonal.theme.accent }} />
+                            <div className="h-full rounded-full" style={{ width: `${extras.length ? (doneExtras / extras.length) * 100 : 0}%`, background: seasonal.color }} />
                           </div>
                         )}
                         <div className="flex flex-col gap-1">
                           {extras.map((e: any) => (
                             <div key={e.id} className="flex items-center gap-2">
-                              <button onClick={() => toggleExtra(camp.id, e.id, e.done)} className="w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors" style={e.done ? { background: seasonal.theme.accent, borderColor: seasonal.theme.accent } : { borderColor: 'var(--color-border-strong)' }}>
+                              <button onClick={() => toggleExtra(camp.id, e.id, e.done)} className="w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors" style={e.done ? { background: seasonal.color, borderColor: seasonal.color } : { borderColor: 'var(--color-border-strong)' }}>
                                 {e.done && <Check size={9} color="white" />}
                               </button>
                               <span className={`text-xs flex-1 ${e.done ? 'line-through text-[var(--color-text-muted)]' : 'text-[var(--color-text-primary)]'}`}>{e.title}</span>
@@ -441,7 +520,7 @@ export default function CampanhasPage() {
                         {addingExtra === camp.id ? (
                           <div className="flex gap-2 mt-2">
                             <input autoFocus value={newExtraText[camp.id] || ''} onChange={e => setNewExtraText(t => ({ ...t, [camp.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addExtra(camp.id)} placeholder="Novo extra..." className="flex-1 text-xs border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 outline-none focus:border-[var(--color-brand)]" />
-                            <button onClick={() => addExtra(camp.id)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg text-white" style={{ background: seasonal.theme.accent }}>+</button>
+                            <button onClick={() => addExtra(camp.id)} className="text-xs font-medium px-2.5 py-1.5 rounded-lg text-white" style={{ background: seasonal.color }}>+</button>
                             <button onClick={() => setAddingExtra(null)} className="text-xs text-[var(--color-text-muted)] px-1">×</button>
                           </div>
                         ) : (
@@ -498,7 +577,6 @@ export default function CampanhasPage() {
 
       {activeClients.length === 0 && (
         <div className="flex flex-col items-center justify-center h-48 text-center border border-dashed border-[var(--color-border)] rounded-2xl">
-          <span className="text-3xl mb-2">{seasonal.emoji}</span>
           <p className="text-sm font-medium text-[var(--color-text-primary)]">Nenhum cliente com {seasonal.name} ainda</p>
           <p className="text-xs text-[var(--color-text-muted)] mt-1">Ative a campanha na página de cada cliente</p>
         </div>

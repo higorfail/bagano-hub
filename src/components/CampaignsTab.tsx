@@ -8,21 +8,7 @@ import PostCard from '@/components/PostCard'
 import ExtraCard from '@/components/ExtraCard'
 import MaterialCard from '@/components/MaterialCard'
 import { campaignDaysUntil, campaignPeriod } from '@/lib/campaignPeriod'
-
-const SEASONAL = [
-  { type: 'natal',     name: 'Natal & Réveillon', emoji: '🎄', month: 12, day: 25, leadDays: 60,
-    theme: { bg: '#FEF2F2', border: '#FECACA', accent: '#DC2626', darkBg: '#450a0a', darkBorder: '#7f1d1d' } },
-  { type: 'maes',      name: 'Dia das Mães',       emoji: '🌸', month: 5,  day: 11, leadDays: 45,
-    theme: { bg: '#FDF2F8', border: '#FBCFE8', accent: '#DB2777', darkBg: '#4a044e', darkBorder: '#701a75' } },
-  { type: 'namorados', name: 'Dia dos Namorados',  emoji: '💕', month: 6,  day: 12, leadDays: 45,
-    theme: { bg: '#FFF1F2', border: '#FECDD3', accent: '#E11D48', darkBg: '#4c0519', darkBorder: '#881337' } },
-  { type: 'pascoa',    name: 'Páscoa',             emoji: '🐣', month: 4,  day: 20, leadDays: 30,
-    theme: { bg: '#FFFBEB', border: '#FDE68A', accent: '#D97706', darkBg: '#431407', darkBorder: '#78350f' } },
-  { type: 'carnaval',  name: 'Carnaval',           emoji: '🎭', month: 2,  day: 28, leadDays: 30,
-    theme: { bg: '#F5F3FF', border: '#DDD6FE', accent: '#7C3AED', darkBg: '#2e1065', darkBorder: '#4c1d95' } },
-  { type: 'pais',      name: 'Dia dos Pais',       emoji: '👔', month: 8,  day: 11, leadDays: 30,
-    theme: { bg: '#EFF6FF', border: '#BFDBFE', accent: '#0369A1', darkBg: '#172554', darkBorder: '#1e3a5f' } },
-]
+import { useCampaignDates, campaignTheme, campaignDateLabel, orderByProximity, slugifyCampaignType, createCampaignDate } from '@/lib/campaigns'
 
 // `days` negativo = data passou, campanha ainda em encerramento (ver
 // campaignPeriod.ts). Antes isso era impossível e o ramo abaixo dizia
@@ -55,6 +41,7 @@ interface CampaignsTabProps {
 export default function CampaignsTab({ clientId, clientColor, members, initialType }: CampaignsTabProps) {
   const supabase = createClient()
   const isDark = useDarkMode()
+  const { dates: SEASONAL, reload: reloadDates } = useCampaignDates()
   const [campaigns, setCampaigns]     = useState<any[]>([])
   const [posts, setPosts]             = useState<any[]>([])
   const [kanbanExtras, setKanbanExtras] = useState<any[]>([])
@@ -65,6 +52,10 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
   const [addingExtra, setAddingExtra] = useState<string | null>(null)
   const [showCustom, setShowCustom]   = useState(false)
   const [customName, setCustomName]   = useState('')
+  const [customDay, setCustomDay]     = useState('')
+  const [customMonth, setCustomMonth] = useState('')
+  const [customColor, setCustomColor] = useState('#0891B2')
+  const [customErro, setCustomErro]   = useState<string | null>(null)
   const [saving, setSaving]           = useState<string | null>(null)
   const [creatingPost, setCreatingPost]         = useState<string | null>(null)
   const [creatingExtra, setCreatingExtra]       = useState<string | null>(null)
@@ -199,19 +190,49 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
     setMaterials(m => m.map(x => x.id === materialId ? { ...x, campaign_type: null } : x))
   }
 
+  /**
+   * Campanha nova nasce como DATA DO HUB, não como campanha de um cliente só.
+   *
+   * Era o contrário: criava um registro `type: 'custom'` preso a este cliente,
+   * sem data nenhuma — daí campanha sem contagem regressiva, fora da ordenação
+   * por proximidade, e invisível na página geral de Campanhas. Foi o que
+   * aconteceu com o "Dia do Cliente 15.09", com a data escrita no nome na mão.
+   *
+   * Agora a data entra na lista do hub e já é ativada aqui, que é o que a
+   * pessoa queria ao criar por dentro do cliente.
+   */
   async function createCustom() {
-    if (!customName.trim()) return
-    const { data } = await supabase.from('campaigns')
-      .insert({ client_id: clientId, type: 'custom', name: customName, active: true })
-      .select('*, campaign_extras(*)')
-      .single()
-    if (data) { setCampaigns(c => [...c, data]); setExpanded(data.id); setShowCustom(false); setCustomName('') }
+    const name = customName.trim()
+    if (!name) return
+    const day = parseInt(customDay, 10), month = parseInt(customMonth, 10)
+    if (!(day >= 1 && day <= 31) || !(month >= 1 && month <= 12) ||
+        new Date(2001, month - 1, day).getMonth() !== month - 1) {
+      setCustomErro('Confira o dia e o mês.')
+      return
+    }
+    const type = slugifyCampaignType(name)
+    if (!type || SEASONAL.some(x => x.type === type)) {
+      setCustomErro(type ? 'Já existe uma campanha com esse nome.' : 'Use letras ou números no nome.')
+      return
+    }
+    setCustomErro(null)
+    const { error } = await createCampaignDate({ type, name, month, day, leadDays: 30, color: customColor })
+    if (error) {
+      setCustomErro(error.message?.includes('campaign_dates')
+        ? 'A tabela campaign_dates ainda não existe no banco — rode o SQL de criação.'
+        : `Não deu pra criar: ${error.message}`)
+      return
+    }
+    await reloadDates()
+    await activate(type, name)
+    setShowCustom(false); setCustomName(''); setCustomDay(''); setCustomMonth('')
   }
 
   if (loading) return <div className="p-4 text-sm text-[var(--color-text-muted)]">Carregando campanhas...</div>
 
+  const tema = (c: string) => campaignTheme(c, isDark)
   const customCampaigns = campaigns.filter(c => c.type === 'custom')
-  const orderedSeasonal = [...SEASONAL].sort((a, b) => campaignDaysUntil(a.month, a.day) - campaignDaysUntil(b.month, b.day))
+  const orderedSeasonal = orderByProximity(SEASONAL)
 
   return (
     <div className="flex flex-col gap-3">
@@ -228,10 +249,20 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
 
       {/* Custom form */}
       {showCustom && (
-        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 flex gap-2">
-          <input autoFocus value={customName} onChange={e => setCustomName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createCustom()} placeholder="Nome da campanha personalizada..." className="flex-1 text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 outline-none focus:border-[var(--color-brand)]" />
-          <button onClick={createCustom} className="bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-xs font-medium px-3 py-2 rounded-lg">Criar</button>
-          <button onClick={() => setShowCustom(false)} className="text-[var(--color-text-muted)] text-xs px-2">×</button>
+        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-3 flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <input autoFocus value={customName} onChange={e => setCustomName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createCustom()}
+              placeholder="Nome da campanha" className="flex-1 min-w-[150px] text-sm border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 outline-none focus:border-[var(--color-brand)]" />
+            <input value={customDay} onChange={e => setCustomDay(e.target.value.replace(/\D/g, '').slice(0, 2))} inputMode="numeric" placeholder="dia"
+              className="w-[60px] text-sm tabular-nums border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 outline-none focus:border-[var(--color-brand)]" />
+            <input value={customMonth} onChange={e => setCustomMonth(e.target.value.replace(/\D/g, '').slice(0, 2))} inputMode="numeric" placeholder="mês"
+              className="w-[60px] text-sm tabular-nums border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] rounded-lg px-3 py-2 outline-none focus:border-[var(--color-brand)]" />
+            <input type="color" value={customColor} onChange={e => setCustomColor(e.target.value)} className="w-[42px] h-[38px] rounded-lg border border-[var(--color-border)] bg-transparent cursor-pointer" />
+            <button onClick={createCustom} className="bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-xs font-semibold px-3 py-2 rounded-lg">Criar</button>
+            <button onClick={() => setShowCustom(false)} className="text-[var(--color-text-muted)] text-xs px-2">×</button>
+          </div>
+          <p className="text-[11px] text-[var(--color-text-faint)]">A data entra pra todos os clientes do hub e já fica ativa neste aqui.</p>
+          {customErro && <p className="text-xs" style={{ color: 'var(--ds-error-text)' }}>{customErro}</p>}
         </div>
       )}
 
@@ -252,18 +283,20 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
         const doneExtras = extras.filter((e: any) => e.done).length
 
         return (
-          <div key={s.type} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-card" style={isExpanded ? { borderColor: isDark ? s.theme.darkBorder : s.theme.border } : {}}>
+          <div key={s.type} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-card" style={isExpanded ? { borderColor: tema(s.color).border } : {}}>
             {/* Header — dois elementos separados: área clicável + botão ativar */}
-            <div className="flex items-center" style={isExpanded ? { background: isDark ? s.theme.darkBg : s.theme.bg } : {}}>
+            <div className="flex items-center" style={isExpanded ? { background: tema(s.color).bg } : {}}>
               {/* Área clicável para expand */}
               <div className="flex items-center gap-3 px-4 py-3 flex-1 cursor-pointer hover:bg-black/5 transition-colors" onClick={() => setExpanded(isExpanded ? null : (camp?.id || s.type))}>
-                <span className="text-xl flex-shrink-0">{s.emoji}</span>
+                {/* Barra de cor no lugar do emoji — data nova nasce com a
+                    mesma identidade, sem ninguém escolher símbolo. */}
+                <span className="w-1 h-7 rounded-full flex-shrink-0" style={{ background: s.color }} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-[var(--color-text-primary)]">{s.name}</p>
                     {camp && !isActive && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">inativa</span>}
                   </div>
-                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{s.day}/{s.month} · {campPosts.length} posts · {campKanbanExtras.length} extras · {campMaterials.length} materiais</p>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{campaignDateLabel(s)} · {campPosts.length} posts · {campKanbanExtras.length} extras · {campMaterials.length} materiais</p>
                 </div>
                 <span className="text-[11px] font-medium px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: status.bg, color: status.color }}>{status.label}</span>
                 {isExpanded ? <ChevronUp size={14} className="text-[var(--color-text-muted)] flex-shrink-0" /> : <ChevronDown size={14} className="text-[var(--color-text-muted)] flex-shrink-0" />}
@@ -283,7 +316,7 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
                   <button
                     onClick={() => deactivate(camp.id)}
                     className="text-xs font-medium px-3 py-1.5 rounded-lg text-white transition-colors"
-                    style={{ background: s.theme.accent }}
+                    style={{ background: s.color }}
                   >
                     Ativa
                   </button>
@@ -300,7 +333,7 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
 
             {/* Body expandido */}
             {isExpanded && isActive && camp && (
-              <div className="border-t p-4 flex flex-col gap-4" style={{ borderColor: isDark ? s.theme.darkBorder : s.theme.border }}>
+              <div className="border-t p-4 flex flex-col gap-4" style={{ borderColor: tema(s.color).border }}>
 
                 {/* Posts do cronograma */}
                 <div>
@@ -408,13 +441,13 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
                   </div>
                   {extras.length > 0 && (
                     <div className="w-full h-1 bg-[var(--color-bg-subtle)] rounded-full mb-3 overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${(doneExtras/extras.length)*100}%`, background: s.theme.accent }} />
+                      <div className="h-full rounded-full transition-all" style={{ width: `${(doneExtras/extras.length)*100}%`, background: s.color }} />
                     </div>
                   )}
                   <div className="flex flex-col gap-1.5 mb-2">
                     {extras.map((e: any) => (
                       <div key={e.id} className="group flex items-center gap-2.5 bg-[var(--color-bg-alt)] border border-[var(--color-border)] rounded-lg px-3 py-2">
-                        <button onClick={() => toggleExtra(camp.id, e.id, e.done)} className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors" style={e.done ? { background: s.theme.accent, borderColor: s.theme.accent } : { borderColor: 'var(--color-border-strong)' }}>
+                        <button onClick={() => toggleExtra(camp.id, e.id, e.done)} className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors" style={e.done ? { background: s.color, borderColor: s.color } : { borderColor: 'var(--color-border-strong)' }}>
                           {e.done && <Check size={10} color="white" />}
                         </button>
                         <span className={`text-xs flex-1 ${e.done ? 'line-through text-[var(--color-text-muted)]' : 'text-[var(--color-text-primary)]'}`}>{e.title}</span>
@@ -425,7 +458,7 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
                   {addingExtra === camp.id ? (
                     <div className="flex gap-2">
                       <input autoFocus value={newExtra[camp.id]||''} onChange={e => setNewExtra(t => ({ ...t, [camp.id]: e.target.value }))} onKeyDown={e => e.key === 'Enter' && addExtra(camp.id)} placeholder="Ex: Arte cardápio temático, brinde clientes..." className="flex-1 text-xs border border-[var(--color-border)] rounded-lg px-3 py-1.5 outline-none focus:border-[var(--color-brand)]" />
-                      <button onClick={() => addExtra(camp.id)} className="text-xs font-medium px-3 py-1.5 rounded-lg text-white" style={{ background: s.theme.accent }}>Adicionar</button>
+                      <button onClick={() => addExtra(camp.id)} className="text-xs font-medium px-3 py-1.5 rounded-lg text-white" style={{ background: s.color }}>Adicionar</button>
                       <button onClick={() => setAddingExtra(null)} className="text-xs text-[var(--color-text-muted)] px-2">×</button>
                     </div>
                   ) : (
