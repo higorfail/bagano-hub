@@ -19,12 +19,19 @@ import { createClient } from '@/lib/supabase'
 import { campaignDaysUntil } from '@/lib/campaignPeriod'
 
 export type CampaignDate = {
+  /**
+   * Chave da campanha. É ela que fica gravada em `campaign_type` dos posts,
+   * extras e materiais — então ela nasce do nome mas NUNCA muda depois. Renomear
+   * "Dia do Cliente" pra "Dia do Consumidor" mantém a chave `cliente` e todo o
+   * trabalho vinculado continua no lugar.
+   */
   type: string
   name: string
   month: number
   day: number
   leadDays: number
   color: string
+  active?: boolean
 }
 
 /**
@@ -85,19 +92,21 @@ export function slugifyCampaignType(name: string) {
  * derruba a consulta INTEIRA no PostgREST, e já derrubamos uma tela assim.
  */
 export function useCampaignDates() {
-  const [dates, setDates] = useState<CampaignDate[]>(DEFAULT_CAMPAIGN_DATES)
+  const [all, setAll] = useState<CampaignDate[]>(DEFAULT_CAMPAIGN_DATES)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     const supabase = createClient()
+    // Traz as arquivadas também: sem elas na mão, arquivar seria só outro nome
+    // pra apagar — não haveria por onde restaurar.
     const { data, error } = await supabase
       .from('campaign_dates')
-      .select('type, name, month, day, lead_days, color')
-      .eq('active', true)
+      .select('type, name, month, day, lead_days, color, active')
     if (!error && data && data.length) {
-      setDates(data.map((d: any) => ({
+      setAll(data.map((d: any) => ({
         type: d.type, name: d.name, month: d.month, day: d.day,
         leadDays: d.lead_days ?? 30, color: d.color || '#6B7280',
+        active: d.active !== false,
       })))
     }
     setLoading(false)
@@ -105,7 +114,30 @@ export function useCampaignDates() {
 
   useEffect(() => { load() }, [load])
 
-  return { dates, loading, reload: load }
+  return { dates: all.filter(d => d.active !== false), all, loading, reload: load }
+}
+
+export async function updateCampaignDate(type: string, patch: Partial<CampaignDate>) {
+  const supabase = createClient()
+  const row: Record<string, unknown> = {}
+  if (patch.name     !== undefined) row.name = patch.name
+  if (patch.month    !== undefined) row.month = patch.month
+  if (patch.day      !== undefined) row.day = patch.day
+  if (patch.leadDays !== undefined) row.lead_days = patch.leadDays
+  if (patch.color    !== undefined) row.color = patch.color
+  // `type` fora de propósito: ver o comentário na definição de CampaignDate.
+  return supabase.from('campaign_dates').update(row).eq('type', type)
+}
+
+export async function setCampaignDateActive(type: string, active: boolean) {
+  const supabase = createClient()
+  return supabase.from('campaign_dates').update({ active }).eq('type', type)
+}
+
+/** Só faz sentido pra data sem nada vinculado — quem chama confere antes. */
+export async function deleteCampaignDate(type: string) {
+  const supabase = createClient()
+  return supabase.from('campaign_dates').delete().eq('type', type)
 }
 
 export async function createCampaignDate(d: CampaignDate) {

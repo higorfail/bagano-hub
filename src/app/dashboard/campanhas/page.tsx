@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Check, Trash2, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Check, Trash2, Plus, ChevronDown, ChevronUp, Pencil, Archive } from 'lucide-react'
 import { useDarkMode } from '@/lib/useDarkMode'
 import PostCard from '@/components/PostCard'
 import ExtraCard from '@/components/ExtraCard'
 import MaterialCard from '@/components/MaterialCard'
 import { campaignDaysUntil, campaignPeriod } from '@/lib/campaignPeriod'
 import { campaignProgress } from '@/lib/postStages'
-import { useCampaignDates, campaignTheme, campaignDateLabel, orderByProximity, slugifyCampaignType, createCampaignDate, type CampaignDate } from '@/lib/campaigns'
+import { useCampaignDates, campaignTheme, campaignDateLabel, orderByProximity, slugifyCampaignType, createCampaignDate, updateCampaignDate, setCampaignDateActive, deleteCampaignDate } from '@/lib/campaigns'
 
 // Ver src/lib/campaignPeriod.ts: a campanha só vira de ano depois da janela de
 // encerramento, então `days` pode vir negativo enquanto ainda há trabalho.
@@ -39,11 +39,12 @@ export default function CampanhasPage() {
   useEffect(() => { document.title = 'Campanhas · Bagano Hub' }, [])
   const supabase = createClient()
   const isDark = useDarkMode()
-  const { dates: SEASONAL, reload: reloadDates } = useCampaignDates()
+  const { dates: SEASONAL, all: ALL_DATES, reload: reloadDates } = useCampaignDates()
   const [selected, setSelected] = useState(() => (typeof window !== 'undefined' && localStorage.getItem('campanhas:lastType')) || 'natal')
   const [novaAberta, setNovaAberta] = useState(false)
   const [nova, setNova] = useState({ name: '', day: '', month: '', leadDays: '30', color: '#0891B2' })
   const [novaErro, setNovaErro] = useState<string | null>(null)
+  const [editando, setEditando] = useState<string | null>(null)
   const [salvandoNova, setSalvandoNova] = useState(false)
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
@@ -181,6 +182,11 @@ export default function CampanhasPage() {
     setCampaigns(c => c.map(x => x.id === campId ? { ...x, briefing } : x))
   }
 
+  function abrirEdicao(d: { type: string; name: string; day: number; month: number; leadDays: number; color: string }) {
+    setNova({ name: d.name, day: String(d.day), month: String(d.month), leadDays: String(d.leadDays), color: d.color })
+    setEditando(d.type); setNovaAberta(true); setNovaErro(null)
+  }
+
   async function salvarNovaData() {
     const name = nova.name.trim()
     const day = parseInt(nova.day, 10)
@@ -192,12 +198,16 @@ export default function CampanhasPage() {
     // 31 de fevereiro passaria batido e a campanha nasceria com data que não
     // existe — a contagem regressiva viraria lixo silenciosamente.
     if (new Date(2001, month - 1, day).getMonth() !== month - 1) return setNovaErro('Essa data não existe nesse mês.')
-    const type = slugifyCampaignType(name)
-    if (!type)                              return setNovaErro('Esse nome não gera uma chave válida — use letras ou números.')
-    if (SEASONAL.some(s => s.type === type)) return setNovaErro('Já existe uma campanha com esse nome.')
+    // Editando, a chave é a que já está gravada nos posts — renomear não pode
+    // arrastar o trabalho vinculado junto.
+    const type = editando || slugifyCampaignType(name)
+    if (!type)                                              return setNovaErro('Esse nome não gera uma chave válida — use letras ou números.')
+    if (!editando && ALL_DATES.some(s => s.type === type))  return setNovaErro('Já existe uma campanha com esse nome.')
 
     setSalvandoNova(true); setNovaErro(null)
-    const { error } = await createCampaignDate({ type, name, month, day, leadDays, color: nova.color })
+    const { error } = editando
+      ? await updateCampaignDate(type, { name, month, day, leadDays, color: nova.color })
+      : await createCampaignDate({ type, name, month, day, leadDays, color: nova.color })
     setSalvandoNova(false)
     if (error) {
       // Sem a tabela criada no banco, o insert falha — e dizer "erro" seco aqui
@@ -209,8 +219,38 @@ export default function CampanhasPage() {
     }
     await reloadDates()
     setSelected(type)
-    setNovaAberta(false)
+    setNovaAberta(false); setEditando(null)
     setNova({ name: '', day: '', month: '', leadDays: '30', color: '#0891B2' })
+  }
+
+  // Quanto trabalho está pendurado nesta data, entre todos os clientes. É o que
+  // separa arquivar de excluir: com item vinculado, apagar a data deixaria post
+  // apontando pra uma campanha que não existe mais.
+  function vinculadosDe(type: string) {
+    return posts.filter(p => p.campaign_type === type).length
+      + kanbanExtras.filter(e => e.campaign_type === type).length
+      + materials.filter(m => m.campaign_type === type).length
+      + campaigns.filter(c => c.type === type).length
+  }
+
+  async function arquivarData(type: string, ativo: boolean) {
+    const { error } = await setCampaignDateActive(type, ativo)
+    if (error) { setNovaErro(`Não deu pra ${ativo ? 'restaurar' : 'arquivar'}: ${error.message}`); return }
+    await reloadDates()
+    if (!ativo) setSelected(orderByProximity(SEASONAL.filter(s => s.type !== type))[0]?.type || '')
+  }
+
+  async function excluirData(type: string, name: string) {
+    const n = vinculadosDe(type)
+    if (n > 0) {
+      alert(`"${name}" tem ${n} ${n === 1 ? 'vínculo' : 'vínculos'} (clientes ativos, posts, extras ou materiais). Arquive em vez de excluir — assim o histórico continua de pé e ela some das telas.`)
+      return
+    }
+    if (!confirm(`Excluir "${name}" de vez? Ela não tem nada vinculado, então nada se perde além da data em si.`)) return
+    const { error } = await deleteCampaignDate(type)
+    if (error) { setNovaErro(`Não deu pra excluir: ${error.message}`); return }
+    await reloadDates()
+    setSelected(orderByProximity(SEASONAL.filter(s => s.type !== type))[0]?.type || '')
   }
 
   const orderedSeasonal = orderByProximity(SEASONAL)
@@ -246,7 +286,7 @@ export default function CampanhasPage() {
       <div className="flex items-baseline gap-2.5">
         <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Campanhas</h1>
         <p className="text-[var(--color-text-muted)] text-sm flex-1">todos os clientes por campanha</p>
-        <button onClick={() => { setNovaAberta(v => !v); setNovaErro(null) }}
+        <button onClick={() => { setNovaAberta(v => !v); setEditando(null); setNovaErro(null); setNova({ name: '', day: '', month: '', leadDays: '30', color: '#0891B2' }) }}
           className="flex items-center gap-1.5 bg-[var(--color-brand)] text-[var(--color-brand-fg)] rounded-lg px-3 py-1.5 text-xs font-semibold flex-shrink-0">
           <Plus size={13} /> Nova data
         </button>
@@ -291,9 +331,9 @@ export default function CampanhasPage() {
             </label>
             <button onClick={salvarNovaData} disabled={salvandoNova}
               className="bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-xs font-semibold px-4 py-2.5 rounded-lg disabled:opacity-50">
-              {salvandoNova ? 'Criando...' : 'Criar'}
+              {salvandoNova ? 'Salvando...' : editando ? 'Salvar' : 'Criar'}
             </button>
-            <button onClick={() => setNovaAberta(false)} className="text-[var(--color-text-muted)] text-xs px-2 py-2.5">Cancelar</button>
+            <button onClick={() => { setNovaAberta(false); setEditando(null) }} className="text-[var(--color-text-muted)] text-xs px-2 py-2.5">Cancelar</button>
           </div>
           {novaErro && <p className="text-xs" style={{ color: 'var(--ds-error-text)' }}>{novaErro}</p>}
         </div>
@@ -353,6 +393,19 @@ export default function CampanhasPage() {
           )
         })}
       </div>
+      {/* Arquivada precisa ter volta, senão arquivar é só apagar com outro nome. */}
+      {ALL_DATES.some(d => d.active === false) && (
+        <div className="flex items-center gap-2 flex-wrap -mt-1">
+          <span className="text-[11px] text-[var(--color-text-faint)]">Arquivadas:</span>
+          {ALL_DATES.filter(d => d.active === false).map(d => (
+            <button key={d.type} onClick={() => arquivarData(d.type, true)} title="Restaurar esta campanha"
+              className="text-[11px] px-2 py-1 rounded-lg border border-dashed border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-hover)] transition-colors">
+              {d.name} · restaurar
+            </button>
+          ))}
+        </div>
+      )}
+
       <p className="text-[11px] text-[var(--color-text-faint)] -mt-2">A barra mostra o quanto já está pronto; o traço marca quanto do prazo já passou — se a barra estiver atrás do traço, a campanha tá atrasada.</p>
 
       {/* Banner da campanha selecionada — slim */}
@@ -374,6 +427,23 @@ export default function CampanhasPage() {
           <p className="text-sm font-semibold flex-shrink-0" style={{ color: seasonal.color }}>
             {activeClients.length} cliente{activeClients.length !== 1 ? 's' : ''} ativo{activeClients.length !== 1 ? 's' : ''}
           </p>
+          {/* Editar, arquivar e excluir moram na campanha aberta, não numa
+              engrenagem escondida: são três ações raras, mas quando se procura
+              uma delas é olhando pra campanha em questão. */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button onClick={() => abrirEdicao(seasonal)} title="Editar nome, data, preparo e cor"
+              className="p-1.5 rounded-lg transition-colors hover:bg-black/10" style={{ color: seasonal.color }}>
+              <Pencil size={14} />
+            </button>
+            <button onClick={() => arquivarData(seasonal.type, false)} title="Arquivar: some das telas, nada se perde"
+              className="p-1.5 rounded-lg transition-colors hover:bg-black/10" style={{ color: seasonal.color }}>
+              <Archive size={14} />
+            </button>
+            <button onClick={() => excluirData(seasonal.type, seasonal.name)} title="Excluir de vez (só se não tiver nada vinculado)"
+              className="p-1.5 rounded-lg transition-colors hover:bg-black/10" style={{ color: seasonal.color }}>
+              <Trash2 size={14} />
+            </button>
+          </div>
         </div>
       </div>
 

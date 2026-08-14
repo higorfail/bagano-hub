@@ -201,6 +201,35 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
    * Agora a data entra na lista do hub e já é ativada aqui, que é o que a
    * pessoa queria ao criar por dentro do cliente.
    */
+  /**
+   * Campanha personalizada é anterior às datas do hub e continua existindo pra
+   * quem já tinha uma. Excluir tira o checklist junto (que só existe dentro
+   * dela) e desvincula posts/extras/materiais, senão eles ficariam apontando pra
+   * uma campanha que não existe mais — invisíveis em qualquer tela.
+   */
+  async function excluirCustom(camp: any) {
+    const vinculados = posts.filter(p => p.campaign_type === camp.id).length
+      + kanbanExtras.filter(e => e.campaign_type === camp.id).length
+      + materials.filter(m => m.campaign_type === camp.id).length
+    const aviso = vinculados > 0
+      ? `Excluir "${camp.name}"? ${vinculados} ${vinculados === 1 ? 'item volta' : 'itens voltam'} a ficar sem campanha — nada é apagado além da campanha e do checklist dela.`
+      : `Excluir "${camp.name}"? Ela não tem nada vinculado.`
+    if (!confirm(aviso)) return
+
+    await Promise.all([
+      supabase.from('schedules').update({ campaign_type: null }).eq('campaign_type', camp.id),
+      supabase.from('extras').update({ campaign_type: null }).eq('campaign_type', camp.id),
+      supabase.from('materials').update({ campaign_type: null }).eq('campaign_type', camp.id),
+      supabase.from('campaign_extras').delete().eq('campaign_id', camp.id),
+    ])
+    const { error } = await supabase.from('campaigns').delete().eq('id', camp.id)
+    if (error) { alert(`Não deu pra excluir: ${error.message}`); return }
+    setCampaigns(c => c.filter(x => x.id !== camp.id))
+    setPosts(p => p.map(x => x.campaign_type === camp.id ? { ...x, campaign_type: null } : x))
+    setKanbanExtras(k => k.map(x => x.campaign_type === camp.id ? { ...x, campaign_type: null } : x))
+    setMaterials(m => m.map(x => x.campaign_type === camp.id ? { ...x, campaign_type: null } : x))
+  }
+
   async function createCustom() {
     const name = customName.trim()
     if (!name) return
@@ -496,12 +525,16 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
         return (
           <div key={camp.id} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-card">
             <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--color-bg-alt)]" onClick={() => setExpanded(isExpanded ? null : camp.id)}>
-              <span className="text-xl">📌</span>
+              <span className="w-1 h-7 rounded-full flex-shrink-0 bg-[var(--color-text-faint)]" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-[var(--color-text-primary)]">{camp.name}</p>
                 <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{campPosts.length} posts · {extras.length} extras</p>
               </div>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>personalizada</span>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>só deste cliente</span>
+              <button onClick={e => { e.stopPropagation(); excluirCustom(camp) }} title="Excluir esta campanha"
+                className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--ds-error-text)] transition-colors">
+                <Trash2 size={13} />
+              </button>
               {isExpanded ? <ChevronUp size={14} className="text-[var(--color-text-muted)]" /> : <ChevronDown size={14} className="text-[var(--color-text-muted)]" />}
             </div>
             {isExpanded && (
