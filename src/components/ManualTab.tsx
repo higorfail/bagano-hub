@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   MapPin, Phone, AtSign, Globe, Truck, BookOpen,
-  ChevronDown, ChevronRight, Sparkles, X,
+  ChevronDown, ChevronRight, Sparkles, X, ExternalLink,
 } from 'lucide-react'
 
 type Pillar       = { name: string; description: string }
@@ -553,7 +553,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
   const [data, setData]       = useState<ManualData | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
-  const [clientInfo, setClientInfo] = useState<{ name: string; instagram_url: string | null } | null>(null)
+  const [clientInfo, setClientInfo] = useState<{ name: string; instagram_url: string | null; sous_chef_url: string | null } | null>(null)
 
   // Gerador de rascunho via IA (pesquisa na web) — pra clientes novos sem manual
   const [showGenerator, setShowGenerator] = useState(false)
@@ -569,7 +569,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
     const supabase = createClient()
     const [{ data: manual }, { data: client }] = await Promise.all([
       supabase.from('client_manuals').select('*').eq('client_id', clientId).maybeSingle(),
-      supabase.from('clients').select('name, instagram_url').eq('id', clientId).maybeSingle(),
+      supabase.from('clients').select('name, instagram_url, sous_chef_url').eq('id', clientId).maybeSingle(),
     ])
     setData(manual)
     setClientInfo(client)
@@ -672,11 +672,22 @@ export default function ManualTab({ clientId }: { clientId: string }) {
             <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">{data.concept}</p>
           )}
         </div>
+        {/* O Sous Chef vivia num botão no topo da página do cliente, escrito
+            "Manual" — mesmo rótulo da aba, dois destinos diferentes. O botão
+            saiu; o link mora aqui, que é onde alguém procurando o manual olha. */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+        {clientInfo?.sous_chef_url && (
+          <a href={clientInfo.sous_chef_url} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors whitespace-nowrap">
+            Sous Chef <ExternalLink size={11} />
+          </a>
+        )}
         <button onClick={openGenerator} title="Gerar novo rascunho com IA (sobrescreve ao salvar)"
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 transition-colors"
           style={{ background: '#8b5cf618', color: '#8b5cf6' }}>
           <Sparkles size={12} /> Regerar com IA
         </button>
+        </div>
       </div>
       {showGenerator && <ManualGeneratorModal
         genName={genName} setGenName={setGenName}

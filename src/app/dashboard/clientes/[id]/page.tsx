@@ -23,7 +23,7 @@ import OnboardingTab from '@/components/OnboardingTab'
 import ManualTab from '@/components/ManualTab'
 import TaskMiniCard from '@/components/TaskMiniCard'
 import TaskCard from '@/components/TaskCard'
-import { Plus } from 'lucide-react'
+import { Plus, ChevronLeft, Pencil, Link as LinkIcon } from 'lucide-react'
 
 type Client = {
   id: string; name: string; color_hex: string; logo_url: string
@@ -57,6 +57,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   const [client, setClient] = useState<Client | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [tab, setTab] = useState(() => searchParams.get('tab') || 'cronograma')
+  // Faixa encolhida. Os limiares são diferentes de propósito (72 pra encolher,
+  // 24 pra voltar): com um só, rolar parado em cima do limiar fazia o cabeçalho
+  // piscar entre os dois tamanhos a cada pixel.
+  const [compacto, setCompacto] = useState(false)
   // Prioridade: o que veio no link > último período visto no Cronograma >
   // mês atual. Sem o meio, abrir um cliente jogava sempre no mês atual, mesmo
   // com a pessoa trabalhando no cronograma do mês seguinte.
@@ -268,36 +272,53 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-3 md:p-6 border-b border-[var(--color-border)]">
 
-          {/* Breadcrumb — escondido no mobile pra economizar espaço vertical */}
-          <div className="hidden md:flex items-center gap-2 mb-4">
-            <button onClick={() => router.push('/dashboard/clientes')} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-all flex items-center gap-1">
-              ← Clientes
-            </button>
-            <span className="text-xs text-[var(--color-border)]">/</span>
-            <span className="text-xs font-medium text-[var(--color-text-primary)]">{client.name}</span>
-          </div>
-
+          {/* Uma faixa só, que encolhe quando você rola.
+              Antes eram três: breadcrumb ("Clientes / Zebuino"), identidade
+              (foto, nome, três pílulas de números) e abas — ~200px de altura
+              fixa antes do primeiro card, num painel que a pessoa usa o dia
+              inteiro montando cronograma.
+              O nome do cliente aparecia duas vezes (breadcrumb e título), e
+              "Setembro 2026" três (aqui, no texto do crono e no seletor de mês).
+              Os números desceram pro cronograma, que é de onde eles falam: em
+              Materiais ou no Time, "0/12 publicados de setembro" é ruído.
+              Rolando o conteúdo, foto e nome encolhem e sobra a linha de abas —
+              fixa continua fixa, o custo em tela é que sai. */}
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <button onClick={() => router.push('/dashboard/clientes')} className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] flex-shrink-0 -ml-1">
-                ←
+            <div className="flex items-center gap-2.5 min-w-0">
+              <button onClick={() => router.push('/dashboard/clientes')} title="Voltar pros clientes"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors flex-shrink-0 -ml-1">
+                <ChevronLeft size={18} />
               </button>
               {client.logo_url
-                ? <img src={client.logo_url} alt={client.name} className="w-9 h-9 md:w-12 md:h-12 rounded-full object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                : <div className="w-9 h-9 md:w-12 md:h-12 rounded-full flex items-center justify-center text-white text-xs md:text-sm font-bold flex-shrink-0" style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
+                ? <img src={client.logo_url} alt={client.name} className={`rounded-full object-cover flex-shrink-0 transition-all duration-200 ${compacto ? 'w-8 h-8' : 'w-9 h-9 md:w-12 md:h-12'}`} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                : <div className={`rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 transition-all duration-200 ${compacto ? 'w-8 h-8 text-[10px]' : 'w-9 h-9 md:w-12 md:h-12 text-xs md:text-sm'}`} style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
               }
-              <div className="min-w-0">
-                <h1 className="text-base md:text-2xl font-bold text-[var(--color-text-primary)] tracking-tight truncate">{client.name}</h1>
-                <div className="hidden md:flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="text-xs text-[var(--color-text-muted)]">{posts.length} posts · {MONTHS[selectedMonth-1]} {selectedYear}</span>
-                  {notApproved > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>✗ {notApproved} não aprovado{notApproved>1?'s':''}</span>}
-                  {approved > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>✓ {approved} aprovado{approved>1?'s':''}</span>}
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]">{published}/{posts.length} publicados</span>
-                </div>
-              </div>
+              <h1 className={`font-bold text-[var(--color-text-primary)] tracking-tight truncate transition-all duration-200 ${compacto ? 'text-base' : 'text-base md:text-2xl'}`}>{client.name}</h1>
             </div>
-            {/* Ações — texto some no mobile, vira só ícone/menu compacto */}
-            <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Links que SAEM do hub, com o glifo da plataforma: o texto
+                  "Instagram" e "Drive" comia ~250px de largura e ainda colidia
+                  com o nome das abas de dentro do hub. */}
+              {client.instagram_url && (
+                <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" title="Abrir o Instagram do cliente"
+                  className="w-9 h-9 rounded-xl border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="2" y="2" width="20" height="20" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none" />
+                  </svg>
+                </a>
+              )}
+              {client.drive_folder_url && (
+                <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" title="Abrir a pasta no Google Drive"
+                  className="w-9 h-9 rounded-xl border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M8.4 2.6h7.2l6.4 11.1-3.6 6.2-6.4-11.1z" opacity=".55" />
+                    <path d="M1.9 13.7 8.4 2.6l3.6 6.2-6.4 11.1z" opacity=".8" />
+                    <path d="M5.6 19.9h12.8l-3.6 1.5H9.2z" opacity=".35" />
+                    <path d="M5.6 19.9 9.2 13.7h12.8l-3.6 6.2z" />
+                  </svg>
+                </a>
+              )}
               <button onClick={async () => {
                 const ok = await copyTextAsync(async () => {
                   const generalToken = await getOrCreateGeneralApprovalToken(client.id)
@@ -305,47 +326,53 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                   return `${window.location.origin}/aprovar/${generalToken}`
                 })
                 toast(ok ? 'Link da Central de aprovação copiado!' : 'Erro ao gerar link')
-              }} className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]" title="Mostra tudo que está pendente de aprovação (crono + final + extras) numa página só">🔗 Central de aprovação</button>
-              {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Instagram</a>}
-              {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Manual</a>}
-              {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Drive</a>}
-              <button onClick={openEditClient} className="border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-xl px-3 py-2 text-sm font-medium hover:bg-[var(--color-bg-subtle)]">Editar</button>
+              }} className="hidden md:flex items-center gap-1.5 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl px-3 h-9 text-sm font-medium hover:bg-[var(--color-bg-subtle)] transition-colors whitespace-nowrap" title="Copia o link com tudo que está pendente de aprovação (crono + final + extras)">
+                <LinkIcon size={14} /> Central de aprovação
+              </button>
+              <button onClick={openEditClient} title="Editar cliente"
+                className="w-9 h-9 rounded-xl border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors">
+                <Pencil size={14} />
+              </button>
             </div>
-            <button onClick={openEditClient} className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-[var(--color-text-muted)] flex-shrink-0" title="Editar cliente">⋯</button>
           </div>
 
-          {/* Ações — linha compacta com scroll horizontal no mobile */}
-          <div className="flex md:hidden items-center gap-1.5 mt-2.5 overflow-x-auto -mx-3 px-3">
-            <button onClick={async () => {
-              const ok = await copyTextAsync(async () => {
-                const generalToken = await getOrCreateGeneralApprovalToken(client.id)
-                if (!generalToken) throw new Error('sem token')
-                return `${window.location.origin}/aprovar/${generalToken}`
-              })
-              toast(ok ? 'Link da Central de aprovação copiado!' : 'Erro ao gerar link')
-            }} className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">🔗 Central</button>
-            {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">Instagram</a>}
-            {client.sous_chef_url && <a href={client.sous_chef_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">Manual</a>}
-            {client.drive_folder_url && <a href={client.drive_folder_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap">Drive</a>}
-          </div>
+          {/* No celular a Central não cabe na linha de cima e é a ação mais
+              usada da tela — fica sozinha embaixo, inteira. */}
+          <button onClick={async () => {
+            const ok = await copyTextAsync(async () => {
+              const generalToken = await getOrCreateGeneralApprovalToken(client.id)
+              if (!generalToken) throw new Error('sem token')
+              return `${window.location.origin}/aprovar/${generalToken}`
+            })
+            toast(ok ? 'Link da Central de aprovação copiado!' : 'Erro ao gerar link')
+          }} className="md:hidden flex items-center justify-center gap-1.5 mt-2 w-full border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg py-2 text-xs font-semibold">
+            <LinkIcon size={12} /> Central de aprovação
+          </button>
 
-          <div className="flex items-center gap-1 mt-3 md:mt-5 overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
+          <div className="flex items-center gap-1 mt-2.5 md:mt-3 overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
             {/* Ordem do fluxo, não alfabética nem histórica: o que se abre todo dia vem
                 primeiro e o que é consulta fica no fim. "Time" não estava na lista
                 pedida — ficou no fim pra não sumir. */}
-            {[{key:'cronograma',label:'Cronograma'},{key:'extras',label:'Extras'},{key:'materiais',label:'Materiais'},{key:'tarefas',label:'Tarefas'},{key:'campanhas',label:'Campanhas'},{key:'feed',label:'Feed'},{key:'drive',label:'Drive'},{key:'onboarding',label:'Onboarding'},{key:'manual',label:'Manual'},{key:'historico',label:'Histórico'},{key:'time',label:'Time'}].map(t => (
+            {[{key:'cronograma',label:'Cronograma'},{key:'extras',label:'Extras'},{key:'materiais',label:'Materiais'},{key:'tarefas',label:'Tarefas'},{key:'campanhas',label:'Campanhas'},{key:'feed',label:'Feed'},{key:'drive',label:'Arquivos'},{key:'onboarding',label:'Onboarding'},{key:'manual',label:'Manual'},{key:'historico',label:'Histórico'},{key:'time',label:'Time'}].map(t => (
               <button key={t.key} onClick={() => setTab(t.key)} className={`flex-shrink-0 px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium transition-all whitespace-nowrap ${tab===t.key?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>{t.label}</button>
             ))}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6" onScroll={e => { const y = (e.target as HTMLDivElement).scrollTop; setCompacto(c => (c ? y > 24 : y > 72)) }}>
           {tab === 'cronograma' && (
             <div className="flex flex-col gap-4">
               {/* Month/year nav */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <p className="text-sm text-[var(--color-text-secondary)]">{CRONO_MONTHS[selectedMonth-1]} {selectedYear}</p>
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                  {/* Estes números moravam lá em cima, no header do cliente,
+                      junto de mais um "Setembro 2026" — o terceiro da tela. São
+                      do MÊS, então vivem ao lado do seletor de mês; e o mês em
+                      si só aparece no seletor, à direita. */}
+                  <span className="text-sm text-[var(--color-text-secondary)]">{posts.length} posts</span>
+                  {notApproved > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>{notApproved} não aprovado{notApproved>1?'s':''}</span>}
+                  {approved > 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>{approved} aprovado{approved>1?'s':''}</span>}
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]">{published}/{posts.length} publicados</span>
                   {/* Mesmo atalho da página de Cronograma: no dia 1º a aba
                       abre no mês novo e o mês anterior parado com o cliente
                       desaparecia da vista de quem está trabalhando. */}
