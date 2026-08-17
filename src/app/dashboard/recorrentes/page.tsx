@@ -309,15 +309,28 @@ export default function RecorrentesPage() {
           ) : (
             <div className="p-4 md:p-6 flex flex-col gap-4">
               {todayGroups.map(({ client, items }) => (
-                <div key={client.id} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-hidden">
-                  <div className="flex items-center gap-2 px-3 md:px-4 py-2 border-b border-[var(--color-border)]"
+                <div key={client.id} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl">
+                  {/* Grudado no topo enquanto o grupo está na tela: com 8+
+                      clientes, rolar a lista fazia perder de vista de quem é a
+                      postagem que está na frente. */}
+                  <div className="sticky top-0 z-10 flex items-center gap-2 px-3 md:px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-card)] rounded-t-xl"
                     style={{ boxShadow: `inset 3px 0 0 ${client.color_hex}` }}>
                     <Avatar client={client} px={20} />
                     <span className="text-xs font-bold text-[var(--color-text-primary)]">{client.name}</span>
-                    <span className="text-[10px] text-[var(--color-text-faint)] ml-auto">
-                      {items.filter(i => i.log).length}/{items.length}
-                    </span>
+                    {(() => {
+                      const feitos = items.filter(i => i.log).length
+                      const tudo = feitos === items.length
+                      return (
+                        <span className="text-[10px] font-bold ml-auto px-1.5 py-0.5 rounded"
+                          style={tudo
+                            ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }
+                            : { color: 'var(--color-text-faint)' }}>
+                          {feitos}/{items.length}
+                        </span>
+                      )
+                    })()}
                   </div>
+                  <div className="overflow-hidden rounded-b-xl">
                   {items.map(({ rec, slot, log }) => (
                     <TodayRow
                       key={`${rec.id}|${slot}`}
@@ -329,6 +342,7 @@ export default function RecorrentesPage() {
                       onEdit={r => setModal({ editing: r })}
                     />
                   ))}
+                  </div>
                 </div>
               ))}
             </div>

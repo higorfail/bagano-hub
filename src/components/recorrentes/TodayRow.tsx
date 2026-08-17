@@ -5,13 +5,14 @@ import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
 import { downloadDriveContent } from '@/lib/socialItems'
 import { useDriveSequences, sequenceForDate } from '@/lib/useDriveFolder'
+import SwipeAction from '@/components/SwipeAction'
 import {
   Recurring, RecurringLog, TYPE_LABEL,
   lastUsedMap, lastUsedLabel, isLate, WEEKDAY_SHORT, parseISO,
 } from '@/lib/recurrings'
 import {
-  Check, ChevronDown, Copy, Download, FolderOpen, Play,
-  Pencil, Clock, Shuffle, ImageOff, Layers,
+  Check, Copy, Download, FolderOpen, Play, Pencil,
+  Clock, Shuffle, ImageOff, Undo2, AlertTriangle,
 } from 'lucide-react'
 
 type Props = {
@@ -19,7 +20,6 @@ type Props = {
   slot: string
   iso: string
   log: RecurringLog | null
-  /** Todo o histórico DESTE recorrente — é o que decide a rotação. */
   logs: RecurringLog[]
   captions: Record<string, string>
   busy: boolean
@@ -28,16 +28,14 @@ type Props = {
 }
 
 const TYPE_COLOR: Record<string, string> = { story: '#8b5cf6', post: '#f59e0b' }
+const actionCls = 'flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] disabled:opacity-40 flex-shrink-0'
 
 export default function TodayRow({ rec, slot, iso, log, logs, captions, busy, onToggle, onEdit }: Props) {
   const { toast } = useToast()
-  const [open, setOpen] = useState(false)
   const [override, setOverride] = useState<string | null>(null)
-  const [downloading, setDownloading] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [showFullCaption, setShowFullCaption] = useState(false)
 
-  // Duas passadas de propósito. A primeira lê só o índice da pasta (rápido, e é
-  // o que diz se o esquema é por dia da semana); com isso a gente já sabe QUAL
-  // subpasta interessa e manda abrir só ela — em vez das sete.
   const probe = useDriveSequences(rec.drive_folder_url, { expand: null })
   const lastUsed = useMemo(() => lastUsedMap(logs), [logs])
   const target =
@@ -52,27 +50,24 @@ export default function TodayRow({ rec, slot, iso, log, logs, captions, busy, on
   const done = !!log
   const late = !done && isLate(iso, slot)
   const caption = (target && captions[target]) || rec.caption || ''
-
-  // Sem subpasta pro dia de hoje é um buraco real de produção: o cliente espera
-  // story e não tem arte. Melhor gritar do que mostrar uma linha em branco.
   const missingWeekday = mode === 'weekday' && !current && !loading && sequences.length > 0
 
   async function copyCaption() {
-    if (!caption) { toast('Este recorrente não tem legenda cadastrada.', 'error'); return }
     const ok = await copyTextAsync(async () => caption)
     toast(ok ? 'Legenda copiada' : 'Não consegui copiar', ok ? 'success' : 'error')
   }
 
-  // Um por vez, aguardando cada um: disparar 5 downloads juntos faz o navegador
-  // bloquear os últimos como "múltiplos downloads automáticos".
+  // Um por vez: disparar 6 downloads juntos faz o navegador bloquear os
+  // últimos como "múltiplos downloads automáticos".
   async function downloadAll() {
-    if (!files.length) { toast('Nenhuma arte pra baixar.', 'error'); return }
-    setDownloading(true)
-    for (const f of files) {
-      const r = await downloadDriveContent(`https://drive.google.com/file/d/${f.id}/view`)
+    if (!files.length) return
+    setProgress(1)
+    for (let i = 0; i < files.length; i++) {
+      setProgress(i + 1)
+      const r = await downloadDriveContent(`https://drive.google.com/file/d/${files[i].id}/view`)
       if (!r.ok) { toast(r.message, 'error'); break }
     }
-    setDownloading(false)
+    setProgress(0)
   }
 
   function shuffle() {
@@ -81,160 +76,152 @@ export default function TodayRow({ rec, slot, iso, log, logs, captions, busy, on
     setOverride(sequences[(i + 1) % sequences.length].id)
   }
 
-  return (
-    <div className={`border-b border-[var(--color-border)] last:border-b-0 transition-colors ${late ? 'bg-[var(--ds-error-bg)]' : ''}`}>
+  const toggle = () => onToggle(rec, slot, target, done)
 
-      <div className="flex items-center gap-2.5 px-3 md:px-4 py-2">
-        <button
-          onClick={() => onToggle(rec, slot, target, done)}
-          disabled={busy}
-          title={done ? 'Desmarcar' : 'Marcar como postado'}
-          className={`w-5 h-5 flex-shrink-0 rounded-md border-2 flex items-center justify-center transition-colors disabled:opacity-40 ${
-            done ? 'bg-[var(--ds-success-accent)] border-[var(--ds-success-accent)]' : 'border-[var(--color-border-strong)] hover:border-[var(--ds-success-accent)]'
-          }`}>
-          {done && <Check size={13} color="#fff" strokeWidth={3} />}
+  // ── Feito: encolhe pra uma linha ────────────────────────────────────────
+  // A lista existe pra mostrar o que FALTA. Quem já foi ao ar vira registro,
+  // não trabalho — some da frente e devolve a tela pro que ainda não saiu.
+  if (done) {
+    return (
+      <div className="flex items-center gap-2.5 px-3 md:px-4 py-1.5 border-b border-[var(--color-border)] last:border-b-0">
+        <button onClick={toggle} disabled={busy}
+          className="w-5 h-5 flex-shrink-0 rounded-md flex items-center justify-center bg-[var(--ds-success-accent)] disabled:opacity-40">
+          <Check size={13} color="#fff" strokeWidth={3} />
         </button>
+        <span className="text-[13px] text-[var(--color-text-muted)] line-through truncate">{rec.title}</span>
+        <span className="text-[11px] text-[var(--ds-success-text)] font-medium flex-shrink-0">
+          postado{log?.done_by ? ` · ${log.done_by}` : ''}{slot ? ` · ${slot}` : ''}
+        </span>
+        <button onClick={toggle} disabled={busy}
+          className="ml-auto flex items-center gap-1 text-[11px] text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] flex-shrink-0">
+          <Undo2 size={11} />desfazer
+        </button>
+      </div>
+    )
+  }
 
-        <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2.5 flex-1 min-w-0 text-left">
-          {/* Capa empilhada: dá pra ver de relance que é uma sequência de 3, não
-              uma arte só — sem precisar abrir a linha. */}
-          <div className="relative w-8 h-10 flex-shrink-0">
-            {files.length > 1 && (
-              <div className="absolute -right-[3px] -top-[3px] w-full h-full rounded-md bg-[var(--color-bg-alt)] border border-[var(--color-border)]" />
-            )}
-            <div className="relative w-full h-full rounded-md overflow-hidden bg-[var(--color-bg-alt)] flex items-center justify-center">
-              {files[0]
-                ? <>
-                    <img src={`/api/drive-thumb?id=${files[0].id}&sz=w120`} alt="" className="w-full h-full object-cover" />
-                    {files[0].isVideo && <Play size={11} fill="#fff" color="#fff" className="absolute" />}
-                  </>
-                : <ImageOff size={13} className="text-[var(--color-text-faint)]" />}
-            </div>
-            {files.length > 1 && (
-              <span className="absolute -bottom-1 -left-1 text-[9px] font-bold px-1 rounded bg-[var(--color-text-primary)] text-[var(--color-bg-card)]">
-                {files.length}
-              </span>
-            )}
-          </div>
+  // ── Pendente: tudo aberto, sem clique pra ver ───────────────────────────
+  const thumbs = files.length > 0 && (
+    // Quebra de linha, não rolagem horizontal: rolar o strip pro lado seria o
+    // mesmo gesto de arrastar a linha pra marcar como postado, e um comeria o
+    // outro. Quebrando, todas as artes aparecem sem gesto nenhum.
+    <div className="flex flex-wrap gap-1 flex-shrink-0 md:max-w-[220px] lg:max-w-[320px]">
+      {files.map((f, i) => (
+        <a key={f.id} href={`https://drive.google.com/file/d/${f.id}/view`} target="_blank" rel="noopener noreferrer"
+          title={`${i + 1} de ${files.length}`}
+          className="relative w-11 md:w-12 aspect-[4/5] flex-shrink-0 rounded-md overflow-hidden bg-[var(--color-bg-alt)] block">
+          {/* height inline junto do object-cover: sem ela a imagem não ocupa a
+              caixa inteira e a miniatura sai partida ao meio. */}
+          <img src={`/api/drive-thumb?id=${f.id}&sz=w160`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
+          {f.isVideo && <Play size={12} fill="#fff" color="#fff" className="absolute inset-0 m-auto" />}
+          {files.length > 1 && (
+            <span className="absolute top-0 left-0 text-[9px] font-bold w-3.5 h-3.5 rounded-br flex items-center justify-center bg-black/65 text-white">{i + 1}</span>
+          )}
+        </a>
+      ))}
+    </div>
+  )
 
+  const actions = (
+    <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
+      <button onClick={copyCaption} disabled={!caption} className={actionCls} title={caption ? undefined : 'Nenhuma legenda cadastrada'}>
+        <Copy size={12} />Legenda
+      </button>
+      <button onClick={downloadAll} disabled={!files.length || progress > 0} className={actionCls}>
+        <Download size={12} />
+        {progress > 0 ? `${progress}/${files.length}` : files.length > 1 ? `Baixar as ${files.length}` : 'Baixar'}
+      </button>
+      {(current?.folderUrl || rec.drive_folder_url) && (
+        <a href={current?.folderUrl || rec.drive_folder_url!} target="_blank" rel="noopener noreferrer" className={actionCls}>
+          <FolderOpen size={12} /><span className="hidden md:inline">{current?.folderUrl ? current.name : 'Pasta'}</span><span className="md:hidden">Pasta</span>
+        </a>
+      )}
+      {mode === 'rotation' && sequences.length > 1 && (
+        <button onClick={shuffle} className={actionCls}><Shuffle size={12} />Trocar</button>
+      )}
+    </div>
+  )
+
+  const meta = (
+    <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
+      {slot && (
+        <span className={`flex items-center gap-0.5 font-semibold ${late ? 'text-[var(--ds-error-text)]' : 'text-[var(--color-text-muted)]'}`}>
+          <Clock size={10} />{late ? `atrasado · ${slot}` : `até ${slot}`}
+        </span>
+      )}
+      <span className="text-[var(--color-text-faint)]">
+        {current ? `${current.name}${files.length > 1 ? ` · ${files.length} artes` : ''}` : loading ? 'lendo pasta…' : ''}
+      </span>
+      {mode === 'rotation' && target && (
+        <span className="text-[var(--color-text-faint)]">· {lastUsedLabel(target, logs)}</span>
+      )}
+    </div>
+  )
+
+  const body = (
+    <div className={`px-3 md:px-4 py-2.5 ${late ? 'bg-[var(--ds-error-bg)]' : ''}`}>
+      {/* Celular empilha, desktop usa a largura que sobra: a linha inteira cabe
+          numa faixa só, e a legenda ocupa o vazio no meio. */}
+      <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+
+        <div className="flex items-start gap-2.5 md:w-52 md:flex-shrink-0">
+          <button onClick={toggle} disabled={busy}
+            title="Marcar como postado"
+            className="w-6 h-6 md:w-5 md:h-5 mt-0.5 flex-shrink-0 rounded-md border-2 border-[var(--color-border-strong)] hover:border-[var(--ds-success-accent)] transition-colors disabled:opacity-40" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <span className={`text-[13px] font-semibold truncate ${done ? 'text-[var(--color-text-muted)] line-through' : 'text-[var(--color-text-primary)]'}`}>
-                {rec.title}
-              </span>
+              <span className="text-[13px] font-semibold text-[var(--color-text-primary)] truncate">{rec.title}</span>
               <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded flex-shrink-0"
                 style={{ background: `${TYPE_COLOR[rec.type]}1a`, color: TYPE_COLOR[rec.type] }}>
                 {TYPE_LABEL[rec.type]}
               </span>
+              <button onClick={() => onEdit(rec)} title="Editar"
+                className="md:hidden ml-auto p-1 text-[var(--color-text-faint)] flex-shrink-0"><Pencil size={13} /></button>
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] mt-0.5 flex-wrap">
-              {slot && (
-                <span className={`flex items-center gap-0.5 font-medium ${late ? 'text-[var(--ds-error-text)]' : 'text-[var(--color-text-muted)]'}`}>
-                  <Clock size={10} />{late && !done ? `atrasado · ${slot}` : `até ${slot}`}
-                </span>
-              )}
-              {files.length > 1 && (
-                <span className="flex items-center gap-0.5 text-[var(--color-text-muted)]">
-                  <Layers size={10} />sequência de {files.length}
-                </span>
-              )}
-              {missingWeekday && (
-                <span className="font-semibold text-[var(--ds-error-text)]">
-                  sem pasta de {WEEKDAY_SHORT[parseISO(iso).getDay()]}
-                </span>
-              )}
-              {done && <span className="text-[var(--ds-success-text)] font-medium">postado{log?.done_by ? ` · ${log.done_by}` : ''}</span>}
-              {!done && !slot && !missingWeekday && files.length <= 1 && <span className="text-[var(--color-text-faint)]">sem hora marcada</span>}
-            </div>
-          </div>
-
-          <ChevronDown size={15} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform" style={{ transform: open ? 'rotate(180deg)' : 'none' }} />
-        </button>
-      </div>
-
-      {open && (
-        <div className="px-3 md:px-4 pb-3 pl-[42px] md:pl-[50px] flex flex-col gap-2.5">
-
-          {caption
-            ? <p className="text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap leading-relaxed bg-[var(--color-bg-subtle)] rounded-lg px-3 py-2">{caption}</p>
-            : <p className="text-xs text-[var(--color-text-faint)] italic">Sem legenda cadastrada.</p>}
-
-          {rec.notes && <p className="text-[11px] text-[var(--color-text-muted)]">📌 {rec.notes}</p>}
-
-          {missingWeekday && (
-            <p className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
-              A pasta tem {sequences.map(s => s.name).join(', ')} — nenhuma pra {WEEKDAY_SHORT[parseISO(iso).getDay()]}.
-            </p>
-          )}
-
-          {/* A sequência do dia, na ordem em que sai. Numerada porque a ordem
-              importa: story 1 chama o 2. */}
-          {files.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-faint)]">
-                  {mode === 'weekday'
-                    ? `pasta ${current?.name} · ${files.length} arte${files.length === 1 ? '' : 's'}`
-                    : `${files.length} arte${files.length === 1 ? '' : 's'} · ${target ? lastUsedLabel(target, logs) : ''}`}
-                </span>
-                {mode === 'rotation' && sequences.length > 1 && !done && (
-                  <button onClick={shuffle} className="flex items-center gap-1 text-[11px] font-semibold text-[var(--color-accent)] hover:underline">
-                    <Shuffle size={11} />trocar
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {files.map((f, i) => (
-                  <a key={f.id} href={`https://drive.google.com/file/d/${f.id}/view`} target="_blank" rel="noopener noreferrer"
-                    className="relative w-[54px] aspect-[4/5] flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-bg-alt)]">
-                    <img src={`/api/drive-thumb?id=${f.id}&sz=w160`} alt="" className="w-full h-full object-cover" />
-                    {f.isVideo && <Play size={12} fill="#fff" color="#fff" className="absolute inset-0 m-auto" />}
-                    {files.length > 1 && (
-                      <span className="absolute top-0.5 left-0.5 text-[9px] font-bold w-4 h-4 rounded flex items-center justify-center bg-black/60 text-white">{i + 1}</span>
-                    )}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Na rotação, as outras opções ficam à mão. Por dia da semana não:
-              trocar a segunda pela quinta não é escolha, é engano. */}
-          {mode === 'rotation' && sequences.length > 1 && (
-            <div className="flex flex-wrap gap-1">
-              {sequences.map(s => (
-                <button key={s.id} onClick={() => !done && setOverride(s.id)} title={lastUsedLabel(s.id, logs)}
-                  className={`text-[10px] font-semibold px-2 py-1 rounded-md border transition-colors ${
-                    s.id === target
-                      ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/8'
-                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)]'
-                  }`}>
-                  {s.name}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-1.5">
-            <button onClick={copyCaption} className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">
-              <Copy size={12} />Legenda
-            </button>
-            <button onClick={downloadAll} disabled={!files.length || downloading}
-              className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] disabled:opacity-40">
-              <Download size={12} />{downloading ? 'Baixando…' : files.length > 1 ? `Baixar as ${files.length}` : 'Baixar'}
-            </button>
-            {(current?.folderUrl || rec.drive_folder_url) && (
-              <a href={current?.folderUrl || rec.drive_folder_url!} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">
-                <FolderOpen size={12} />{current?.folderUrl ? `Pasta ${current.name}` : 'Pasta'}
-              </a>
-            )}
-            <button onClick={() => onEdit(rec)} className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] ml-auto">
-              <Pencil size={12} />Editar
-            </button>
+            {meta}
           </div>
         </div>
-      )}
+
+        {missingWeekday ? (
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-2 rounded-lg flex-1"
+            style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+            <AlertTriangle size={13} className="flex-shrink-0" />
+            Sem pasta de {WEEKDAY_SHORT[parseISO(iso).getDay()]} — a pasta tem {sequences.map(s => s.name).join(', ')}.
+          </div>
+        ) : files.length === 0 && !loading ? (
+          <div className="text-[11px] text-[var(--ds-warn-text)] flex items-center gap-1.5 flex-1">
+            <ImageOff size={13} />Nenhuma arte nesta pasta.
+          </div>
+        ) : (
+          <>
+            {thumbs}
+            {caption && (
+              <button onClick={() => setShowFullCaption(v => !v)}
+                className={`text-[11px] text-[var(--color-text-secondary)] text-left leading-relaxed flex-1 min-w-0 ${showFullCaption ? 'whitespace-pre-wrap' : 'line-clamp-2 md:line-clamp-3'}`}>
+                {caption}
+              </button>
+            )}
+          </>
+        )}
+
+        <div className="md:ml-auto flex items-center gap-1.5">
+          {actions}
+          <button onClick={() => onEdit(rec)} title="Editar"
+            className="hidden md:flex p-1.5 rounded-lg text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]"><Pencil size={13} /></button>
+        </div>
+      </div>
+
+      {rec.notes && <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5 md:ml-[42px]">📌 {rec.notes}</p>}
+    </div>
+  )
+
+  return (
+    <div className="border-b border-[var(--color-border)] last:border-b-0">
+      {/* Arrastar pra marcar: 15 postagens em 15 gestos, sem mirar na caixinha.
+          No desktop o mesmo está no clique — gesto nunca é o único caminho. */}
+      <SwipeAction left={{ label: 'Postado', icon: <Check size={16} />, color: 'var(--ds-success-accent)', onAction: toggle }}>
+        <div className="bg-[var(--color-bg-card)]">{body}</div>
+      </SwipeAction>
     </div>
   )
 }
