@@ -4,27 +4,26 @@ import { useMemo, useState } from 'react'
 import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
 import { downloadDriveContent } from '@/lib/socialItems'
-import { useDriveFolder } from '@/lib/useDriveFolder'
+import { useDriveSequences, sequenceForDate } from '@/lib/useDriveFolder'
 import {
   Recurring, RecurringLog, TYPE_LABEL,
-  pickVariant, lastUsedLabel, isLate,
+  lastUsedMap, lastUsedLabel, isLate, WEEKDAY_SHORT, parseISO,
 } from '@/lib/recurrings'
 import {
   Check, ChevronDown, Copy, Download, FolderOpen, Play,
-  Pencil, Clock, Shuffle, ImageOff,
+  Pencil, Clock, Shuffle, ImageOff, Layers,
 } from 'lucide-react'
 
 type Props = {
   rec: Recurring
   slot: string
   iso: string
-  /** A marcação deste compromisso, se já foi feito. */
   log: RecurringLog | null
-  /** Todo o histórico DESTE recorrente — é o que decide a rotação das artes. */
+  /** Todo o histórico DESTE recorrente — é o que decide a rotação. */
   logs: RecurringLog[]
   captions: Record<string, string>
   busy: boolean
-  onToggle: (rec: Recurring, slot: string, fileId: string | null, done: boolean) => void
+  onToggle: (rec: Recurring, slot: string, sequenceId: string | null, done: boolean) => void
   onEdit: (rec: Recurring) => void
 }
 
@@ -34,18 +33,29 @@ export default function TodayRow({ rec, slot, iso, log, logs, captions, busy, on
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [override, setOverride] = useState<string | null>(null)
-  const { files } = useDriveFolder(rec.drive_folder_url)
+  const [downloading, setDownloading] = useState(false)
 
+  // Duas passadas de propósito. A primeira lê só o índice da pasta (rápido, e é
+  // o que diz se o esquema é por dia da semana); com isso a gente já sabe QUAL
+  // subpasta interessa e manda abrir só ela — em vez das sete.
+  const probe = useDriveSequences(rec.drive_folder_url, { expand: null })
+  const lastUsed = useMemo(() => lastUsedMap(logs), [logs])
+  const target =
+    log?.drive_file_id ||
+    override ||
+    sequenceForDate(probe.mode, probe.sequences, iso, lastUsed)?.id ||
+    null
+  const { mode, sequences, loading } = useDriveSequences(rec.drive_folder_url, { expand: target })
+
+  const current = sequences.find(s => s.id === target) || null
+  const files = current?.files || []
   const done = !!log
   const late = !done && isLate(iso, slot)
+  const caption = (target && captions[target]) || rec.caption || ''
 
-  // Depois de marcado, a arte mostrada é a que FOI usada — não a sugestão de
-  // agora. Sem isso a linha trocava de imagem sozinha assim que o log entrava,
-  // e ninguém conseguia conferir o que tinha acabado de postar.
-  const suggested = useMemo(() => pickVariant(files.map(f => f.id), logs), [files, logs])
-  const currentId = log?.drive_file_id || override || suggested
-  const current = files.find(f => f.id === currentId) || null
-  const caption = (currentId && captions[currentId]) || rec.caption || ''
+  // Sem subpasta pro dia de hoje é um buraco real de produção: o cliente espera
+  // story e não tem arte. Melhor gritar do que mostrar uma linha em branco.
+  const missingWeekday = mode === 'weekday' && !current && !loading && sequences.length > 0
 
   async function copyCaption() {
     if (!caption) { toast('Este recorrente não tem legenda cadastrada.', 'error'); return }
@@ -53,26 +63,30 @@ export default function TodayRow({ rec, slot, iso, log, logs, captions, busy, on
     toast(ok ? 'Legenda copiada' : 'Não consegui copiar', ok ? 'success' : 'error')
   }
 
-  async function download() {
-    if (!currentId) { toast('Nenhuma arte pra baixar.', 'error'); return }
-    const r = await downloadDriveContent(`https://drive.google.com/file/d/${currentId}/view`)
-    if (!r.ok) toast(r.message, 'error')
+  // Um por vez, aguardando cada um: disparar 5 downloads juntos faz o navegador
+  // bloquear os últimos como "múltiplos downloads automáticos".
+  async function downloadAll() {
+    if (!files.length) { toast('Nenhuma arte pra baixar.', 'error'); return }
+    setDownloading(true)
+    for (const f of files) {
+      const r = await downloadDriveContent(`https://drive.google.com/file/d/${f.id}/view`)
+      if (!r.ok) { toast(r.message, 'error'); break }
+    }
+    setDownloading(false)
   }
 
   function shuffle() {
-    if (files.length < 2) return
-    const i = files.findIndex(f => f.id === currentId)
-    setOverride(files[(i + 1) % files.length].id)
+    if (sequences.length < 2) return
+    const i = sequences.findIndex(s => s.id === target)
+    setOverride(sequences[(i + 1) % sequences.length].id)
   }
 
   return (
     <div className={`border-b border-[var(--color-border)] last:border-b-0 transition-colors ${late ? 'bg-[var(--ds-error-bg)]' : ''}`}>
 
-      {/* Linha compacta — é o que a social media varre de manhã. Tudo que não
-          for decidir "já postei isso?" fica escondido atrás da seta. */}
       <div className="flex items-center gap-2.5 px-3 md:px-4 py-2">
         <button
-          onClick={() => onToggle(rec, slot, currentId, done)}
+          onClick={() => onToggle(rec, slot, target, done)}
           disabled={busy}
           title={done ? 'Desmarcar' : 'Marcar como postado'}
           className={`w-5 h-5 flex-shrink-0 rounded-md border-2 flex items-center justify-center transition-colors disabled:opacity-40 ${
@@ -82,13 +96,25 @@ export default function TodayRow({ rec, slot, iso, log, logs, captions, busy, on
         </button>
 
         <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2.5 flex-1 min-w-0 text-left">
-          <div className="relative w-8 h-10 flex-shrink-0 rounded-md overflow-hidden bg-[var(--color-bg-alt)] flex items-center justify-center">
-            {current
-              ? <>
-                  <img src={`/api/drive-thumb?id=${current.id}&sz=w120`} alt="" className="w-full h-full object-cover" />
-                  {current.isVideo && <Play size={11} fill="#fff" color="#fff" className="absolute" />}
-                </>
-              : <ImageOff size={13} className="text-[var(--color-text-faint)]" />}
+          {/* Capa empilhada: dá pra ver de relance que é uma sequência de 3, não
+              uma arte só — sem precisar abrir a linha. */}
+          <div className="relative w-8 h-10 flex-shrink-0">
+            {files.length > 1 && (
+              <div className="absolute -right-[3px] -top-[3px] w-full h-full rounded-md bg-[var(--color-bg-alt)] border border-[var(--color-border)]" />
+            )}
+            <div className="relative w-full h-full rounded-md overflow-hidden bg-[var(--color-bg-alt)] flex items-center justify-center">
+              {files[0]
+                ? <>
+                    <img src={`/api/drive-thumb?id=${files[0].id}&sz=w120`} alt="" className="w-full h-full object-cover" />
+                    {files[0].isVideo && <Play size={11} fill="#fff" color="#fff" className="absolute" />}
+                  </>
+                : <ImageOff size={13} className="text-[var(--color-text-faint)]" />}
+            </div>
+            {files.length > 1 && (
+              <span className="absolute -bottom-1 -left-1 text-[9px] font-bold px-1 rounded bg-[var(--color-text-primary)] text-[var(--color-bg-card)]">
+                {files.length}
+              </span>
+            )}
           </div>
 
           <div className="min-w-0 flex-1">
@@ -101,14 +127,24 @@ export default function TodayRow({ rec, slot, iso, log, logs, captions, busy, on
                 {TYPE_LABEL[rec.type]}
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] mt-0.5">
+            <div className="flex items-center gap-1.5 text-[11px] mt-0.5 flex-wrap">
               {slot && (
                 <span className={`flex items-center gap-0.5 font-medium ${late ? 'text-[var(--ds-error-text)]' : 'text-[var(--color-text-muted)]'}`}>
                   <Clock size={10} />{late && !done ? `atrasado · ${slot}` : `até ${slot}`}
                 </span>
               )}
+              {files.length > 1 && (
+                <span className="flex items-center gap-0.5 text-[var(--color-text-muted)]">
+                  <Layers size={10} />sequência de {files.length}
+                </span>
+              )}
+              {missingWeekday && (
+                <span className="font-semibold text-[var(--ds-error-text)]">
+                  sem pasta de {WEEKDAY_SHORT[parseISO(iso).getDay()]}
+                </span>
+              )}
               {done && <span className="text-[var(--ds-success-text)] font-medium">postado{log?.done_by ? ` · ${log.done_by}` : ''}</span>}
-              {!done && !slot && <span className="text-[var(--color-text-faint)]">sem hora marcada</span>}
+              {!done && !slot && !missingWeekday && files.length <= 1 && <span className="text-[var(--color-text-faint)]">sem hora marcada</span>}
             </div>
           </div>
 
@@ -116,8 +152,6 @@ export default function TodayRow({ rec, slot, iso, log, logs, captions, busy, on
         </button>
       </div>
 
-      {/* Expandido inline, não modal: abrir uma janela por item quebra o ritmo
-          de quem está resolvendo cinco postagens seguidas. */}
       {open && (
         <div className="px-3 md:px-4 pb-3 pl-[42px] md:pl-[50px] flex flex-col gap-2.5">
 
@@ -127,34 +161,57 @@ export default function TodayRow({ rec, slot, iso, log, logs, captions, busy, on
 
           {rec.notes && <p className="text-[11px] text-[var(--color-text-muted)]">📌 {rec.notes}</p>}
 
+          {missingWeekday && (
+            <p className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+              A pasta tem {sequences.map(s => s.name).join(', ')} — nenhuma pra {WEEKDAY_SHORT[parseISO(iso).getDay()]}.
+            </p>
+          )}
+
+          {/* A sequência do dia, na ordem em que sai. Numerada porque a ordem
+              importa: story 1 chama o 2. */}
           {files.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-faint)]">
-                  {files.length} arte{files.length === 1 ? '' : 's'} · sugerida: {currentId ? lastUsedLabel(currentId, logs) : '—'}
+                  {mode === 'weekday'
+                    ? `pasta ${current?.name} · ${files.length} arte${files.length === 1 ? '' : 's'}`
+                    : `${files.length} arte${files.length === 1 ? '' : 's'} · ${target ? lastUsedLabel(target, logs) : ''}`}
                 </span>
-                {files.length > 1 && !done && (
+                {mode === 'rotation' && sequences.length > 1 && !done && (
                   <button onClick={shuffle} className="flex items-center gap-1 text-[11px] font-semibold text-[var(--color-accent)] hover:underline">
                     <Shuffle size={11} />trocar
                   </button>
                 )}
               </div>
-              {/* Rolagem horizontal: a pasta pode ter 20 artes e a lista não
-                  pode empurrar as outras postagens do dia pra fora da tela. */}
               <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {files.map(f => {
-                  const isCurrent = f.id === currentId
-                  return (
-                    <button key={f.id} onClick={() => !done && setOverride(f.id)} title={lastUsedLabel(f.id, logs)}
-                      className={`relative w-[54px] aspect-[4/5] flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-bg-alt)] transition-all ${
-                        isCurrent ? 'ring-2 ring-[var(--color-accent)] ring-offset-1 ring-offset-[var(--color-bg-card)]' : 'opacity-60 hover:opacity-100'
-                      }`}>
-                      <img src={`/api/drive-thumb?id=${f.id}&sz=w160`} alt="" className="w-full h-full object-cover" />
-                      {f.isVideo && <Play size={12} fill="#fff" color="#fff" className="absolute inset-0 m-auto" />}
-                    </button>
-                  )
-                })}
+                {files.map((f, i) => (
+                  <a key={f.id} href={`https://drive.google.com/file/d/${f.id}/view`} target="_blank" rel="noopener noreferrer"
+                    className="relative w-[54px] aspect-[4/5] flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-bg-alt)]">
+                    <img src={`/api/drive-thumb?id=${f.id}&sz=w160`} alt="" className="w-full h-full object-cover" />
+                    {f.isVideo && <Play size={12} fill="#fff" color="#fff" className="absolute inset-0 m-auto" />}
+                    {files.length > 1 && (
+                      <span className="absolute top-0.5 left-0.5 text-[9px] font-bold w-4 h-4 rounded flex items-center justify-center bg-black/60 text-white">{i + 1}</span>
+                    )}
+                  </a>
+                ))}
               </div>
+            </div>
+          )}
+
+          {/* Na rotação, as outras opções ficam à mão. Por dia da semana não:
+              trocar a segunda pela quinta não é escolha, é engano. */}
+          {mode === 'rotation' && sequences.length > 1 && (
+            <div className="flex flex-wrap gap-1">
+              {sequences.map(s => (
+                <button key={s.id} onClick={() => !done && setOverride(s.id)} title={lastUsedLabel(s.id, logs)}
+                  className={`text-[10px] font-semibold px-2 py-1 rounded-md border transition-colors ${
+                    s.id === target
+                      ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/8'
+                      : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)]'
+                  }`}>
+                  {s.name}
+                </button>
+              ))}
             </div>
           )}
 
@@ -162,13 +219,14 @@ export default function TodayRow({ rec, slot, iso, log, logs, captions, busy, on
             <button onClick={copyCaption} className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">
               <Copy size={12} />Legenda
             </button>
-            <button onClick={download} disabled={!currentId} className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] disabled:opacity-40">
-              <Download size={12} />Baixar
+            <button onClick={downloadAll} disabled={!files.length || downloading}
+              className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] disabled:opacity-40">
+              <Download size={12} />{downloading ? 'Baixando…' : files.length > 1 ? `Baixar as ${files.length}` : 'Baixar'}
             </button>
-            {rec.drive_folder_url && (
-              <a href={rec.drive_folder_url} target="_blank" rel="noopener noreferrer"
+            {(current?.folderUrl || rec.drive_folder_url) && (
+              <a href={current?.folderUrl || rec.drive_folder_url!} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">
-                <FolderOpen size={12} />Pasta
+                <FolderOpen size={12} />{current?.folderUrl ? `Pasta ${current.name}` : 'Pasta'}
               </a>
             )}
             <button onClick={() => onEdit(rec)} className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] ml-auto">

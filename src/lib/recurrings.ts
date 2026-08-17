@@ -35,13 +35,16 @@ export type RecurringLog = {
    *  Postgres, NULL não colide com NULL num UNIQUE, e o dia poderia ser
    *  marcado como feito várias vezes. */
   slot: string
+  /** Qual sequência foi ao ar: o id da SUBPASTA do dia, ou o do arquivo quando
+   *  a pasta é chata. A coluna nasceu chamada `drive_file_id` e continua assim
+   *  pra não pedir migração — mas o que ela guarda é "o que foi usado". */
   drive_file_id: string | null
   done_by: string | null
   created_at: string
 }
 
-/** A legenda de UMA arte da pasta. Mora no hub, amarrada ao id do arquivo do
- *  Drive — o Drive não guarda esse texto pra gente. */
+/** A legenda de uma sequência (a subpasta do dia, ou o arquivo solto). Mora no
+ *  hub porque o Drive não guarda esse texto pra gente. */
 export type RecurringVariant = {
   id: string
   recurring_id: string
@@ -174,22 +177,29 @@ export function lastUsedMap(logs: RecurringLog[]): Record<string, string> {
   return map
 }
 
-/** A arte sugerida do dia: a que faz mais tempo que não vai ao ar. Não é
- *  sorteio — sorteio repete a mesma imagem dois dias seguidos com frequência
- *  alta, que é exatamente o que a rotação existe pra evitar. Nunca usada vem
- *  antes de qualquer uma já usada. */
-export function pickVariant(fileIds: string[], logs: RecurringLog[]): string | null {
-  if (!fileIds.length) return null
-  const lastUsed = lastUsedMap(logs)
-  const sorted = [...fileIds].sort((a, b) => {
-    const ua = lastUsed[a]
-    const ub = lastUsed[b]
-    if (!ua && !ub) return fileIds.indexOf(a) - fileIds.indexOf(b)
-    if (!ua) return -1
-    if (!ub) return 1
-    return ua < ub ? -1 : ua > ub ? 1 : 0
-  })
-  return sorted[0]
+// Nomes aceitos de subpasta por dia da semana. Casamento por TOKEN exato, não
+// por "contém": "quadro" começa com "qua" e viraria quarta-feira sem querer.
+const WEEKDAY_TOKENS: Record<string, number> = {
+  dom: 0, domingo: 0,
+  seg: 1, segunda: 1, segundas: 1,
+  ter: 2, terca: 2, tercas: 2,
+  qua: 3, quarta: 3, quartas: 3,
+  qui: 4, quinta: 4, quintas: 4,
+  sex: 5, sexta: 5, sextas: 5,
+  sab: 6, sabado: 6, sabados: 6,
+}
+
+/** 0=dom … 6=sáb quando o nome da pasta é um dia da semana. Aguenta acento,
+ *  maiúscula, numeração e "-feira": "3 - Terça-feira" → 2. */
+export function weekdayOfFolderName(name: string): number | null {
+  const clean = (name || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // tira acento
+    .toLowerCase()
+  for (const token of clean.split(/[^a-z]+/).filter(Boolean)) {
+    if (token === 'feira') continue
+    if (token in WEEKDAY_TOKENS) return WEEKDAY_TOKENS[token]
+  }
+  return null
 }
 
 export function lastUsedLabel(fileId: string, logs: RecurringLog[]): string {

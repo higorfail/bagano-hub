@@ -7,12 +7,12 @@ import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
 import ModalPortal from '@/components/ModalPortal'
-import { useDriveFolder, invalidateDriveFolder } from '@/lib/useDriveFolder'
+import { useDriveSequences, invalidateDriveFolder } from '@/lib/useDriveFolder'
 import {
   Recurring, RecurringVariant, RecurrenceMode, RecurringType,
   TYPE_LABEL, WEEKDAY_LETTER, WEEKDAY_SHORT, humanDate, todayISO,
 } from '@/lib/recurrings'
-import { Camera, Image as ImageIcon, Plus, X, Trash2, Play, FolderOpen } from 'lucide-react'
+import { Camera, Image as ImageIcon, Plus, X, Trash2, Play, FolderOpen, CalendarDays, Shuffle, Layers } from 'lucide-react'
 
 type Client = { id: string; name: string; color_hex: string }
 
@@ -60,10 +60,21 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
   const [notes, setNotes]         = useState(editing?.notes || '')
   const [active, setActive]       = useState(editing?.active ?? true)
 
-  // Legenda por arte. Carrega o que já existe e guarda em memória enquanto o
-  // modal está aberto — só grava no salvar, junto com o resto.
+  // Legenda por sequência. Carrega o que já existe e guarda em memória enquanto
+  // o modal está aberto — só grava no salvar, junto com o resto.
   const [variants, setVariants] = useState<Record<string, string>>({})
-  const { files, loading: filesLoading, folderId } = useDriveFolder(folderUrl)
+  // 'all': é aqui que a pessoa cadastra a legenda de cada dia, então precisa
+  // ver o conteúdo de todas as subpastas, não só a de hoje.
+  const { mode: seqMode, sequences, loading: filesLoading, folderId } = useDriveSequences(folderUrl, { expand: 'all' })
+
+  // Dia que a recorrência cobra mas a pasta não tem — o buraco que só aparece
+  // no dia em que a social media abre e não acha arte nenhuma.
+  const missingDays = (() => {
+    if (seqMode !== 'weekday') return []
+    const covered = new Set(sequences.map(s => s.weekday))
+    const needed = mode === 'weekdays' ? weekdays : mode === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : []
+    return needed.filter(d => !covered.has(d))
+  })()
 
   useEffect(() => {
     if (!editing) return
@@ -330,49 +341,74 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
               <input value={folderUrl} onChange={e => setFolderUrl(e.target.value)}
                 placeholder="https://drive.google.com/drive/folders/…" className={inputCls} />
               <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5">
-                Aponte pra pasta, não pro arquivo. Arte nova jogada lá dentro já entra na rotação sozinha.
+                Aponte pra pasta de cima. Subpasta com nome de dia (ter, qua, qui…) vira a sequência daquele dia;
+                sem subpasta, cada arquivo é uma opção e o hub roda entre elas.
               </p>
 
               {folderUrl && !folderId && (
                 <p className="text-[11px] text-[var(--ds-error-text)] mt-1.5">Esse link não parece uma pasta do Drive.</p>
               )}
               {filesLoading && <p className="text-[11px] text-[var(--color-text-muted)] mt-2">Lendo a pasta…</p>}
-              {folderId && !filesLoading && files.length === 0 && (
+              {folderId && !filesLoading && sequences.length === 0 && (
                 <p className="text-[11px] text-[var(--ds-warn-text)] mt-2">
-                  Nenhuma imagem ou vídeo encontrado. Confira se a pasta está compartilhada como “qualquer pessoa com o link”.
+                  Nada encontrado. Confira se a pasta está compartilhada como “qualquer pessoa com o link”.
                 </p>
               )}
 
-              {files.length > 0 && (
+              {sequences.length > 0 && (
                 <div className="mt-3">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-[var(--color-text-primary)]">
-                      {files.length} arte{files.length === 1 ? '' : 's'} na rotação
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-text-primary)]">
+                      {seqMode === 'weekday'
+                        ? <><CalendarDays size={12} />Uma pasta por dia da semana</>
+                        : <><Shuffle size={12} />{sequences.length} opç{sequences.length === 1 ? 'ão' : 'ões'} em rotação</>}
                     </span>
                     <a href={folderUrl} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-[11px] text-[var(--color-accent)] hover:underline">
-                      <FolderOpen size={12} />abrir pasta
+                      <FolderOpen size={12} />abrir
                     </a>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    {files.map(f => (
-                      <div key={f.id} className="flex gap-2.5 items-start">
-                        <div className="relative w-[52px] aspect-[4/5] flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-bg-alt)]">
-                          <img src={`/api/drive-thumb?id=${f.id}&sz=w200`} alt="" className="w-full h-full object-cover" />
-                          {f.isVideo && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                              <Play size={14} fill="#fff" color="#fff" />
+
+                  {missingDays.length > 0 && (
+                    <p className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg mb-2"
+                      style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>
+                      Sem pasta pra {missingDays.map(d => WEEKDAY_SHORT[d]).join(', ')} — nesses dias a lista de hoje abre sem arte.
+                    </p>
+                  )}
+
+                  <div className="flex flex-col gap-2.5">
+                    {[...sequences]
+                      // Por dia da semana, a ordem é a da semana — não a que o
+                      // Drive devolveu (alfabética: dom, qua, qui, sáb, seg…).
+                      .sort((a, b) => (a.weekday ?? 99) - (b.weekday ?? 99))
+                      .map(s => (
+                        <div key={s.id} className="flex gap-2.5 items-start">
+                          <div className="flex-shrink-0 w-[52px]">
+                            <div className="relative w-full aspect-[4/5] rounded-lg overflow-hidden bg-[var(--color-bg-alt)] flex items-center justify-center">
+                              {s.files[0]
+                                ? <>
+                                    <img src={`/api/drive-thumb?id=${s.files[0].id}&sz=w200`} alt="" className="w-full h-full object-cover" />
+                                    {s.files[0].isVideo && <Play size={14} fill="#fff" color="#fff" className="absolute" />}
+                                  </>
+                                : <span className="text-[9px] text-[var(--ds-error-text)] font-bold text-center px-1">vazia</span>}
                             </div>
-                          )}
+                            <div className="text-[10px] font-semibold text-[var(--color-text-secondary)] mt-1 truncate text-center" title={s.name}>
+                              {s.weekday !== null ? WEEKDAY_SHORT[s.weekday] : s.name}
+                            </div>
+                            {s.files.length > 1 && (
+                              <div className="flex items-center justify-center gap-0.5 text-[9px] text-[var(--color-text-faint)]">
+                                <Layers size={8} />{s.files.length}
+                              </div>
+                            )}
+                          </div>
+                          <textarea
+                            value={variants[s.id] ?? ''}
+                            onChange={e => setVariants(v => ({ ...v, [s.id]: e.target.value }))}
+                            rows={3}
+                            placeholder={`Legenda${s.weekday !== null ? ` de ${WEEKDAY_SHORT[s.weekday]}` : ''}${caption ? ' (vazio = usa a padrão)' : ''}`}
+                            className={`${inputCls} resize-none text-xs flex-1`} />
                         </div>
-                        <textarea
-                          value={variants[f.id] ?? ''}
-                          onChange={e => setVariants(v => ({ ...v, [f.id]: e.target.value }))}
-                          rows={2}
-                          placeholder={`Legenda desta arte${caption ? ' (vazio = usa a legenda padrão)' : ''}`}
-                          className={`${inputCls} resize-none text-xs flex-1`} />
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </div>
               )}
