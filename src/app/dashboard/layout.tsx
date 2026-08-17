@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check, Menu, X as XIcon } from 'lucide-react'
-import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, Trash2, Zap, Share2, ListTodo } from 'lucide-react'
+import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, Trash2, Zap, Share2, ListTodo, Repeat } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import NotificationsPanel from '@/components/NotificationsPanel'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
@@ -44,6 +44,10 @@ const productionItems = [
   // produção, e o que sai dele é justamente o que vai pro ar.
   { href: '/dashboard/kanban',     icon: Kanban,         label: 'Kanban' },
   { href: '/dashboard/social',     icon: Share2,         label: 'Publicações' },
+  // Recorrentes fecha a lista porque é o único que não anda pelo fluxo: não tem
+  // aprovação nem status, é a rotina que se repete todo dia depois que tudo
+  // isso acima já foi resolvido uma vez.
+  { href: '/dashboard/recorrentes', icon: Repeat,        label: 'Recorrentes' },
 ]
 const contentItems = [
   // Campanha é planejamento do que vai ser feito (Dia dos Pais, Natal), não
