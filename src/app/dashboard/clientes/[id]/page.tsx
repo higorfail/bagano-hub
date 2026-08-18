@@ -397,13 +397,21 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6" onScroll={e => {
           const el = e.target as HTMLDivElement
-          // Encolher devolve ~44px de altura ao conteúdo. No fim de uma página
-          // curta, o navegador corrige a rolagem pra baixo por causa disso, o
-          // que reexpande o cabeçalho, que tira os 44px de novo — e o troço
-          // oscila sozinho. Só encolhe onde há rolagem sobrando pra absorver.
-          const sobra = el.scrollHeight - el.clientHeight > 200
+          // Encolher devolve ~44px de altura ao conteúdo — ou seja, a própria
+          // `sobra` de rolagem DIMINUI ~44px assim que o cabeçalho encolhe.
+          //
+          // Por isso o limiar tem que ser diferente pra entrar e pra sair. Com
+          // um número só (era 200 nos dois), qualquer página com sobra entre
+          // 200 e 244 passava no teste aberta (210 > 200), reprovava fechada
+          // (166 < 200), reabria, e voltava a passar — piscando pra sempre. O
+          // mesmo vale pro scrollTop, que o navegador corrige junto.
+          //
+          // Os 100px de folga entre os dois limiares são bem maiores que os
+          // ~44px que o cabeçalho tira, então nenhum estado consegue derrubar
+          // o outro.
+          const sobra = el.scrollHeight - el.clientHeight
           const y = el.scrollTop
-          setCompacto(c => (sobra ? (c ? y > 4 : y > 16) : false))
+          setCompacto(c => (c ? sobra > 100 && y > 4 : sobra > 200 && y > 16))
         }}>
           {tab === 'cronograma' && (
             <div className="flex flex-col gap-4">
