@@ -10,7 +10,8 @@ import ModalPortal from '@/components/ModalPortal'
 import { useDriveSequences, invalidateDriveFolder } from '@/lib/useDriveFolder'
 import {
   Recurring, RecurringVariant, RecurrenceMode, RecurringType,
-  TYPE_LABEL, WEEKDAY_LETTER, WEEKDAY_SHORT, humanDate, todayISO,
+  TYPE_LABEL, WEEKDAY_LETTER, WEEKDAY_SHORT, WEEKDAY_FULL, ORDINAL_LABEL,
+  humanDate, todayISO, isOrdinalWeekday, parseISO, shiftISO,
 } from '@/lib/recurrings'
 import { Camera, Image as ImageIcon, Plus, X, Trash2, Play, FolderOpen, CalendarDays, Shuffle, Layers } from 'lucide-react'
 
@@ -25,12 +26,15 @@ type Props = {
   onDeleted?: (id: string) => void
 }
 
-const MODE_OPTIONS: { value: RecurrenceMode; label: string }[] = [
+const MODE_OPTIONS: { value: RecurrenceMode; label: string; wide?: boolean }[] = [
   { value: 'daily',     label: 'Todo dia' },
   { value: 'weekdays',  label: 'Dias da semana' },
-  { value: 'monthdays', label: 'Dias do mês' },
-  { value: 'dates',     label: 'Datas específicas' },
+  { value: 'monthdays', label: 'Dia do mês' },
+  { value: 'ordinal',   label: 'Ordem no mês' },
+  { value: 'dates',     label: 'Datas específicas', wide: true },
 ]
+
+const ORDINAL_WEEKS = [1, 2, 3, 4, -1]
 
 const TYPE_OPTIONS: { value: RecurringType; icon: React.ElementType; color: string }[] = [
   { value: 'story', icon: Camera,    color: '#8b5cf6' },
@@ -52,6 +56,8 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
   const [mode, setMode]           = useState<RecurrenceMode>(editing?.recurrence_mode || 'daily')
   const [weekdays, setWeekdays]   = useState<number[]>(editing?.weekdays || [1, 2, 3, 4, 5])
   const [monthDays, setMonthDays] = useState<number[]>(editing?.month_days || [])
+  const [ordWeek, setOrdWeek]     = useState<number>(editing?.ordinal_week ?? -1)
+  const [ordDay, setOrdDay]       = useState<number>(editing?.ordinal_weekday ?? 0)
   const [dates, setDates]         = useState<string[]>(editing?.specific_dates || [])
   const [newDate, setNewDate]     = useState('')
   const [times, setTimes]         = useState<string[]>(editing?.times || [])
@@ -65,14 +71,17 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
   const [variants, setVariants] = useState<Record<string, string>>({})
   // 'all': é aqui que a pessoa cadastra a legenda de cada dia, então precisa
   // ver o conteúdo de todas as subpastas, não só a de hoje.
-  const { mode: seqMode, sequences, loading: filesLoading, folderId } = useDriveSequences(folderUrl, { expand: 'all' })
+  const { mode: seqMode, sequences, ignored, loading: filesLoading, folderId } = useDriveSequences(folderUrl, { expand: 'all' })
 
   // Dia que a recorrência cobra mas a pasta não tem — o buraco que só aparece
   // no dia em que a social media abre e não acha arte nenhuma.
   const missingDays = (() => {
     if (seqMode !== 'weekday') return []
     const covered = new Set(sequences.map(s => s.weekday))
-    const needed = mode === 'weekdays' ? weekdays : mode === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : []
+    const needed =
+      mode === 'weekdays' ? weekdays :
+      mode === 'daily'    ? [0, 1, 2, 3, 4, 5, 6] :
+      mode === 'ordinal'  ? [ordDay] : []
     return needed.filter(d => !covered.has(d))
   })()
 
@@ -118,9 +127,11 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
       recurrence_mode: mode,
       // Só o campo do modo escolhido vai preenchido: guardar os outros faria a
       // tela de "Todos" descrever uma regra que não está valendo.
-      weekdays:       mode === 'weekdays'  ? weekdays  : [],
-      month_days:     mode === 'monthdays' ? monthDays : [],
-      specific_dates: mode === 'dates'     ? dates     : [],
+      weekdays:        mode === 'weekdays'  ? weekdays  : [],
+      month_days:      mode === 'monthdays' ? monthDays : [],
+      specific_dates:  mode === 'dates'     ? dates     : [],
+      ordinal_week:    mode === 'ordinal'   ? ordWeek   : null,
+      ordinal_weekday: mode === 'ordinal'   ? ordDay    : null,
       times: times.filter(Boolean).sort(),
       drive_folder_url: folderUrl.trim() || null,
       caption: caption.trim() || null,
@@ -237,7 +248,7 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
               <div className="grid grid-cols-2 gap-1 bg-[var(--color-bg-subtle)] rounded-lg p-1 mb-2.5">
                 {MODE_OPTIONS.map(opt => (
                   <button key={opt.value} type="button" onClick={() => setMode(opt.value)}
-                    className={`text-[11px] font-semibold px-2 py-1.5 rounded-md transition-colors ${
+                    className={`text-[11px] font-semibold px-2 py-1.5 rounded-md transition-colors ${opt.wide ? 'col-span-2' : ''} ${
                       mode === opt.value ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm' : 'text-[var(--color-text-muted)]'
                     }`}>
                     {opt.label}
@@ -280,6 +291,37 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
                   {monthDays.some(d => d > 28) && (
                     <p className="col-span-7 text-[11px] text-[var(--ds-warn-text)] mt-1">
                       Dia 29, 30 ou 31 não existe em todo mês — nesses meses o recorrente simplesmente não aparece.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {mode === 'ordinal' && (
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={ordWeek} onChange={e => setOrdWeek(Number(e.target.value))} className={inputCls}>
+                      {ORDINAL_WEEKS.map(w => <option key={w} value={w}>{ORDINAL_LABEL[w]}</option>)}
+                    </select>
+                    <select value={ordDay} onChange={e => setOrdDay(Number(e.target.value))} className={inputCls}>
+                      {WEEKDAY_FULL.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                    </select>
+                  </div>
+                  {/* Mostra as próximas de verdade: "último domingo" é fácil de
+                      errar de cabeça, e ver as três datas confirma na hora. */}
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    Próximas: {(() => {
+                      const out: string[] = []
+                      let cur = todayISO()
+                      for (let i = 0; i < 400 && out.length < 3; i++) {
+                        if (isOrdinalWeekday(parseISO(cur), ordWeek, ordDay)) out.push(humanDate(cur))
+                        cur = shiftISO(cur, 1)
+                      }
+                      return out.join(' · ')
+                    })()}
+                  </p>
+                  {ordWeek === -1 && (
+                    <p className="text-[11px] text-[var(--color-text-faint)]">
+                      “Último” não é o mesmo que “quarto”: mês com cinco {WEEKDAY_FULL[ordDay]}s tem um quarto que não é o último.
                     </p>
                   )}
                 </div>
@@ -368,6 +410,25 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
                       <FolderOpen size={12} />abrir
                     </a>
                   </div>
+
+                  {/* Diagnóstico do "por que não está trocando de pasta": em
+                      rotação, o nome de cada opção diz na cara se o hub
+                      reconheceu os dias ou não. */}
+                  {seqMode === 'rotation' && sequences.some(s => s.folderUrl) && (
+                    <p className="text-[11px] px-2.5 py-1.5 rounded-lg mb-2"
+                      style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>
+                      Nenhum nome de subpasta foi reconhecido como dia da semana, então elas entram em rotação
+                      (uma por dia, na ordem). Pra amarrar cada pasta a um dia, renomeie pra <b>seg</b>, <b>ter</b>,
+                      <b> qua</b>… (aceita “Terça-feira”, “3 - Terça”).
+                    </p>
+                  )}
+
+                  {ignored.length > 0 && (
+                    <p className="text-[11px] px-2.5 py-1.5 rounded-lg mb-2"
+                      style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
+                      Fora do esquema de dias: {ignored.map(s => s.name).join(', ')} — o hub não usa essas.
+                    </p>
+                  )}
 
                   {missingDays.length > 0 && (
                     <p className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg mb-2"

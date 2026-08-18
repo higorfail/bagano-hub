@@ -5,7 +5,7 @@
 // hoje" ou não.
 
 export type RecurringType = 'story' | 'post'
-export type RecurrenceMode = 'daily' | 'weekdays' | 'monthdays' | 'dates'
+export type RecurrenceMode = 'daily' | 'weekdays' | 'monthdays' | 'ordinal' | 'dates'
 
 export type Recurring = {
   id: string
@@ -18,6 +18,10 @@ export type Recurring = {
   recurrence_mode: RecurrenceMode
   weekdays: number[] | null
   month_days: number[] | null
+  /** "Último domingo do mês": 1ª a 4ª semana, ou -1 pra última. Última não é o
+   *  mesmo que 4ª — mês com 5 domingos tem uma quarta que não é a última. */
+  ordinal_week: number | null
+  ordinal_weekday: number | null
   specific_dates: string[] | null
   /** Horários do dia, 'HH:MM'. Vazio = um único compromisso sem hora marcada. */
   times: string[] | null
@@ -104,10 +108,30 @@ export function occursOn(rec: Recurring, iso: string): boolean {
     case 'daily':     return true
     case 'weekdays':  return (rec.weekdays || []).includes(d.getDay())
     case 'monthdays': return (rec.month_days || []).includes(d.getDate())
+    case 'ordinal':   return isOrdinalWeekday(d, rec.ordinal_week, rec.ordinal_weekday)
     case 'dates':     return (rec.specific_dates || []).includes(iso)
     default:          return false
   }
 }
+
+/** "É o último domingo do mês?" — `week` 1..4, ou -1 pra última ocorrência. */
+export function isOrdinalWeekday(d: Date, week: number | null, weekday: number | null): boolean {
+  if (week == null || weekday == null) return false
+  if (d.getDay() !== weekday) return false
+  if (week === -1) {
+    // Última = não existe outra igual sete dias à frente ainda dentro do mês.
+    // Contar "a 4ª" erraria todo mês que tem cinco.
+    const next = new Date(d)
+    next.setDate(d.getDate() + 7)
+    return next.getMonth() !== d.getMonth()
+  }
+  return Math.ceil(d.getDate() / 7) === week
+}
+
+export const ORDINAL_LABEL: Record<number, string> = {
+  1: 'Primeiro', 2: 'Segundo', 3: 'Terceiro', 4: 'Quarto', [-1]: 'Último',
+}
+export const WEEKDAY_FULL = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 
 /** Os compromissos do dia. Um recorrente com 2 horários vira 2 linhas na tela —
  *  story do almoço e story do jantar são trabalhos separados, e marcar um não
@@ -134,6 +158,10 @@ export function recurrenceLabel(rec: Recurring): string {
       const ds = [...(rec.month_days || [])].sort((a, b) => a - b)
       if (!ds.length) return 'Nenhum dia'
       return `Dia ${ds.join(', ')} do mês`
+    }
+    case 'ordinal': {
+      if (rec.ordinal_week == null || rec.ordinal_weekday == null) return 'Incompleto'
+      return `${ORDINAL_LABEL[rec.ordinal_week]} ${WEEKDAY_FULL[rec.ordinal_weekday]} do mês`
     }
     case 'dates': {
       const ds = (rec.specific_dates || []).filter(iso => iso >= todayISO()).sort()

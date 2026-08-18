@@ -88,10 +88,12 @@ export function useDriveSequences(
   const expand = opts.expand
   const [mode, setMode] = useState<SequenceMode>('empty')
   const [sequences, setSequences] = useState<Sequence[]>([])
+  /** Subpastas que não são dia da semana, num esquema por dia da semana. */
+  const [ignored, setIgnored] = useState<Sequence[]>([])
   const [loading, setLoading] = useState(!!folderId)
 
   useEffect(() => {
-    if (!folderId) { setSequences([]); setMode('empty'); setLoading(false); return }
+    if (!folderId) { setSequences([]); setIgnored([]); setMode('empty'); setLoading(false); return }
     let alive = true
     setLoading(true)
 
@@ -106,15 +108,23 @@ export function useDriveSequences(
           files: [],
           folderUrl: folderUrlOf(f.id),
         }))
-        // Só é "por dia da semana" se TODAS as subpastas forem dias. Metade
-        // sim, metade não seria uma regra que ninguém consegue prever.
-        const isWeekday = base.every(s => s.weekday !== null)
-        const wanted = expand === 'all' ? base : base.filter(s => s.id === expand)
+        // Duas subpastas com nome de dia já bastam pra valer o esquema por dia
+        // da semana. Antes era preciso que TODAS fossem — e aí uma pasta
+        // "Antigas" ou "Referências" no meio derrubava o esquema inteiro em
+        // silêncio, jogando tudo na rotação. As que não são dia viram `ignored`
+        // e ficam de fora, sem sumir do diagnóstico.
+        const withDay = base.filter(s => s.weekday !== null)
+        const isWeekday = withDay.length >= 2
+        const active = isWeekday ? withDay : base
+        const rest   = isWeekday ? base.filter(s => s.weekday === null) : []
+
+        const wanted = expand === 'all' ? active : active.filter(s => s.id === expand)
         const filled = await Promise.all(wanted.map(async s => ({ ...s, files: (await list(s.id)).files })))
         const byId = Object.fromEntries(filled.map(s => [s.id, s]))
         if (!alive) return
         setMode(isWeekday ? 'weekday' : 'rotation')
-        setSequences(base.map(s => byId[s.id] || s))
+        setSequences(active.map(s => byId[s.id] || s))
+        setIgnored(rest)
         setLoading(false)
         return
       }
@@ -125,13 +135,14 @@ export function useDriveSequences(
       setSequences(root.files.map(f => ({
         id: f.id, name: f.name, weekday: null, files: [f], folderUrl: null,
       })))
+      setIgnored([])
       setLoading(false)
     })
 
     return () => { alive = false }
   }, [folderId, expand])
 
-  return { mode, sequences, loading, folderId }
+  return { mode, sequences, ignored, loading, folderId }
 }
 
 /** A sequência que deve ir ao ar num dia — sem abrir o Drive, só com o que já
@@ -152,13 +163,21 @@ export function sequenceForDate(
   // Rotação: a que faz mais tempo que não vai ao ar. Não é sorteio — sorteio
   // repete a mesma coisa dois dias seguidos com frequência alta, que é
   // exatamente o que a rotação existe pra evitar.
+  //
+  // Nunca usada conta como "infinitamente antiga" e vem antes de qualquer uma
+  // já usada. Entre as nunca usadas, quem desempata é O DIA: antes era a ordem
+  // da pasta, e enquanto ninguém marcasse nada como postado a sugestão ficava
+  // parada na primeira pra sempre — a pasta nunca "virava".
+  const never = sequences.filter(s => !lastUsed[s.id])
+  if (never.length) {
+    const dayIndex = Math.floor(parseISO(iso).getTime() / 86_400_000)
+    return never[((dayIndex % never.length) + never.length) % never.length]
+  }
+
   const sorted = [...sequences].sort((a, b) => {
     const ua = lastUsed[a.id]
     const ub = lastUsed[b.id]
-    if (!ua && !ub) return sequences.indexOf(a) - sequences.indexOf(b)
-    if (!ua) return -1
-    if (!ub) return 1
-    return ua < ub ? -1 : ua > ub ? 1 : 0
+    return ua < ub ? -1 : ua > ub ? 1 : sequences.indexOf(a) - sequences.indexOf(b)
   })
   return sorted[0] || null
 }

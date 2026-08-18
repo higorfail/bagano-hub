@@ -11,9 +11,12 @@ CREATE TABLE IF NOT EXISTS recurrings (
   notes            TEXT,
   drive_folder_url TEXT,                                    -- pasta com as artes
   caption          TEXT,                                    -- legenda padrão
-  recurrence_mode  TEXT        NOT NULL DEFAULT 'daily',    -- daily | weekdays | monthdays | dates
+  recurrence_mode  TEXT        NOT NULL DEFAULT 'daily',    -- daily | weekdays | monthdays | ordinal | dates
   weekdays         SMALLINT[]  DEFAULT '{}',                -- 0=dom … 6=sáb
   month_days       SMALLINT[]  DEFAULT '{}',                -- 1..31
+  -- "Último domingo do mês": semana 1..4, ou -1 pra última ocorrência.
+  ordinal_week     SMALLINT,
+  ordinal_weekday  SMALLINT,
   specific_dates   DATE[]      DEFAULT '{}',
   times            TEXT[]      DEFAULT '{}',                -- 'HH:MM'; vazio = sem hora marcada
   active           BOOLEAN     NOT NULL DEFAULT TRUE,
@@ -74,3 +77,8 @@ END $plpg$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON recurrings         TO authenticated, anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON recurring_logs     TO authenticated, anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON recurring_variants TO authenticated, anon;
+
+-- ── Depois: "último domingo do mês" (caso do Sato) ──────────────────────────
+-- Seguro rodar de novo em banco que já tem a tabela.
+ALTER TABLE recurrings ADD COLUMN IF NOT EXISTS ordinal_week    SMALLINT;
+ALTER TABLE recurrings ADD COLUMN IF NOT EXISTS ordinal_weekday SMALLINT;

@@ -48,7 +48,10 @@ export default function RecurringCard({ rec, logs, onEdit }: Props) {
   // Dia que a recorrência cobra e a pasta não cobre — aparece como aviso no
   // card, que é onde a pessoa vai pra consertar.
   const missing = mode === 'weekday'
-    ? (rec.recurrence_mode === 'weekdays' ? (rec.weekdays || []) : rec.recurrence_mode === 'daily' ? [0,1,2,3,4,5,6] : [])
+    ? (rec.recurrence_mode === 'weekdays' ? (rec.weekdays || [])
+      : rec.recurrence_mode === 'daily'   ? [0, 1, 2, 3, 4, 5, 6]
+      : rec.recurrence_mode === 'ordinal' && rec.ordinal_weekday != null ? [rec.ordinal_weekday]
+      : [])
         .filter(d => !sequences.some(s => s.weekday === d))
     : []
 
