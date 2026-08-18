@@ -51,7 +51,10 @@ export default function RecorrentesView({ fixedClientId }: Props) {
   const [loading, setLoading]       = useState(true)
   const [failed, setFailed]         = useState(false)
 
-  const [view, setView]           = useState<View>('hoje')
+  // Dentro do cliente abre em "Todos": ali a pergunta é "o que esse cliente tem
+  // de rotina?", não "o que falta postar agora" — o checklist do dia é o
+  // trabalho da tela geral, onde os 8 clientes aparecem juntos.
+  const [view, setView]           = useState<View>(embedded ? 'todos' : 'hoje')
   const [iso, setIso]             = useState(todayISO())
   const [clientIds, setClientIds] = useState<Set<string>>(new Set())
   const [search, setSearch]       = useState('')
