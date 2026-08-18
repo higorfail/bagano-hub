@@ -21,6 +21,7 @@ import ExtrasKanban from '@/components/ExtrasKanban'
 import ActivityLog from '@/components/ActivityLog'
 import OnboardingTab from '@/components/OnboardingTab'
 import ManualTab from '@/components/ManualTab'
+import RecorrentesView from '@/components/recorrentes/RecorrentesView'
 import TaskMiniCard from '@/components/TaskMiniCard'
 import TaskCard from '@/components/TaskCard'
 import { Plus, ChevronLeft, Pencil, Link as LinkIcon } from 'lucide-react'
@@ -72,6 +73,8 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
   // primeiro e o que é consulta fica no fim.
   const TABS = [
     { key: 'cronograma', label: 'Cronograma' }, { key: 'extras', label: 'Extras' },
+    // Recorrentes ao lado de Extras: os dois são o que sai fora do cronograma.
+    { key: 'recorrentes', label: 'Recorrentes' },
     { key: 'materiais', label: 'Materiais' },   { key: 'tarefas', label: 'Tarefas' },
     { key: 'campanhas', label: 'Campanhas' },   { key: 'feed', label: 'Feed' },
     { key: 'drive', label: 'Arquivos' },        { key: 'onboarding', label: 'Onboarding' },
@@ -620,6 +623,10 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 />
               )}
             </div>
+          )}
+
+          {tab === 'recorrentes' && (
+            <RecorrentesView fixedClientId={id as string} />
           )}
 
           {tab === 'campanhas' && (

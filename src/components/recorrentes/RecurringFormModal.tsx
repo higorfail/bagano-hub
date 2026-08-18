@@ -216,7 +216,9 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Aberto hoje · Almoço executivo" className={inputCls} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* Sem o seletor de cliente (aberto de dentro de um), o tipo fica
+                sozinho — e numa grade de duas colunas sobraria meia linha vazia. */}
+            <div className={`grid gap-3 ${fixedClientId ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {!fixedClientId && (
                 <div>
                   <label className={labelCls}>Cliente *</label>
