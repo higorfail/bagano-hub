@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import type { EmailOtpType } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import LogoWordmark from '@/components/logos/LogoWordmark'
 import Button from '@/components/ui/Button'
@@ -11,6 +12,7 @@ export default function Home() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [sent, setSent] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -29,6 +31,8 @@ export default function Home() {
 
     const code = params.get('code')
     const tokenHash = params.get('token_hash')
+    // invite (convite), recovery (esqueci a senha), magiclink, email…
+    const linkType = (params.get('type') || 'invite') as EmailOtpType
     const accessToken = hash.get('access_token')
     const refreshToken = hash.get('refresh_token')
 
@@ -42,13 +46,34 @@ export default function Home() {
     setLoading(true)
     const done = ({ error }: { error: any }) => {
       if (!error) router.push('/auth/definir-senha')
-      else { setError('Link inválido ou expirado. Peça um convite novo.'); setLoading(false) }
+      else { setError('Link inválido ou expirado. Peça um link novo.'); setLoading(false) }
     }
 
     if (code) supabase.auth.exchangeCodeForSession(code).then(done)
-    else if (tokenHash) supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'invite' }).then(done)
+    // O `type` vem no próprio link e precisa bater com o que o Supabase emitiu.
+    // Estava chumbado em 'invite', então o e-mail de recuperação de senha (que
+    // chega como type=recovery) era recusado e a pessoa lia "link inválido" —
+    // parecia link quebrado, era o hub lendo o tipo errado.
+    else if (tokenHash) supabase.auth.verifyOtp({ token_hash: tokenHash, type: linkType }).then(done)
     else supabase.auth.setSession({ access_token: accessToken!, refresh_token: refreshToken || '' }).then(done)
   }, [])
+
+  // Redefinir senha sem depender de alguém mexer no painel do Supabase. Manda
+  // pra raiz: é aqui que o token é trocado por sessão antes de cair na tela de
+  // definir senha.
+  async function handleReset() {
+    if (!email.trim()) { setError('Escreva seu e-mail primeiro.'); return }
+    setLoading(true)
+    setError('')
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/`,
+    })
+    setLoading(false)
+    // Não conta se o e-mail existe ou não — isso viraria uma forma de descobrir
+    // quem tem conta. A mensagem é a mesma nos dois casos.
+    if (error) setError('Não consegui enviar agora. Tente de novo em instantes.')
+    else setSent(true)
+  }
 
   async function handleLogin() {
     setLoading(true)
@@ -95,9 +120,19 @@ export default function Home() {
               />
             </div>
             {error && <p className="text-xs" style={{ color: 'var(--ds-error-text)' }}>{error}</p>}
+            {sent && (
+              <p className="text-xs" style={{ color: 'var(--ds-success-text)' }}>
+                Se existe conta com esse e-mail, o link de redefinir senha já saiu. Confere a caixa de entrada e o spam.
+              </p>
+            )}
             <Button variant="dark" size="lg" fullWidth onClick={handleLogin} disabled={loading} className="mt-1">
               {loading ? 'Entrando...' : 'Entrar'}
             </Button>
+            <button
+              type="button" onClick={handleReset} disabled={loading}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors disabled:opacity-50">
+              Esqueci minha senha
+            </button>
           </div>
         </div>
         <p className="text-center text-xs text-[var(--color-text-muted)] mt-4">Bagano Marketing Gastronômico</p>
