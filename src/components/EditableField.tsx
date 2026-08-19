@@ -8,10 +8,35 @@ import { useRef, useState } from 'react'
 import { Bold, Italic, List } from 'lucide-react'
 import { autoGrow } from '@/lib/autoGrow'
 
-// markdown leve: **negrito**, *itálico* e "- " bullets (escapa HTML antes)
+// Endereços que viram link. Só http(s) e www — nunca um esquema qualquer:
+// o resultado vai pra dentro de dangerouslySetInnerHTML, e aceitar "javascript:"
+// aqui seria abrir a porta pra execução de script vindo de um campo de texto.
+// Para no primeiro espaço e antes de "<" pra não engolir as tags que o negrito
+// e o itálico já colocaram.
+const LINK_RE = /\b(https?:\/\/|www\.)[^\s<]+/gi
+
+/** Transforma endereço em link clicável. Roda DEPOIS do escape de HTML — o que
+ *  chega aqui já tem "&" virado "&amp;", e é assim mesmo que ele deve entrar no
+ *  href (o navegador desfaz na hora de navegar), então query string com & sai
+ *  inteira. */
+function linkify(s: string) {
+  return s.replace(LINK_RE, raw => {
+    // Ponto final e parêntese de fechamento quase nunca são do endereço — são
+    // da frase em volta ("veja em https://x.com/menu."). Devolve pro texto.
+    const m = raw.match(/[.,;:!?)\]]+$/)
+    const url = m ? raw.slice(0, -m[0].length) : raw
+    const tail = m ? m[0] : ''
+    const href = url.toLowerCase().startsWith('www.') ? `https://${url}` : url
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>${tail}`
+  })
+}
+
+// markdown leve: **negrito**, *itálico*, "- " bullets e link (escapa HTML antes)
 export function renderMd(text: string) {
   const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const inline = (s: string) => s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>').replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+  const inline = (s: string) => linkify(
+    s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>').replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+  )
   const blocks: string[] = []
   let buf: string[] = [], items: string[] = []
   const flush = () => { if (buf.length) { blocks.push('<div>' + buf.join('<br/>') + '</div>'); buf = [] } }
@@ -42,8 +67,11 @@ export default function EditableField({ label, hint, placeholder, value, onCommi
   const taRef = useRef<HTMLTextAreaElement>(null)
 
   function startEdit() { setDraft(value); discardRef.current = false; setEditing(true) }
-  // Não entra em modo de edição se o clique foi pra soltar uma seleção de texto (copiar)
-  function handleDisplayClick() {
+  // Não entra em modo de edição se o clique foi pra soltar uma seleção de texto
+  // (copiar) nem se foi num link — clicar num link é abrir o link. Sem isso o
+  // campo virava textarea por baixo da aba que acabou de abrir.
+  function handleDisplayClick(e: React.MouseEvent<HTMLElement>) {
+    if ((e.target as HTMLElement).closest('a')) return
     const sel = window.getSelection()
     if (sel && sel.toString().length > 0) return
     startEdit()

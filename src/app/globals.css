@@ -40,6 +40,15 @@
 .md-content li { margin: 0.1rem 0; }
 .md-content strong { font-weight: 700; }
 .md-content em { font-style: italic; }
+/* Link dentro de descrição/briefing. break-all no endereço: link do Drive não
+   tem espaço pra quebrar e esticava o card inteiro. */
+.md-content a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+.md-content a:hover { opacity: 0.8; }
 
 /* ── Elevation utilities ─────────────────────────────────────────────────── */
 .shadow-card { box-shadow: var(--shadow-card); }

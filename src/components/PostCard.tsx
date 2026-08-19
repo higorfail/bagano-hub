@@ -22,6 +22,7 @@ import { approvalKind, approvalLabel } from '@/lib/approvalKind'
 import { useDragToDismiss } from '@/lib/gestures'
 import WatchButton from '@/components/WatchButton'
 import ModalPortal from '@/components/ModalPortal'
+import { renderMd } from '@/components/EditableField'
 import DeliverySection from '@/components/DeliverySection'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 
@@ -91,22 +92,9 @@ function fullDateTime(iso: string) {
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 function hostOf(url: string) { try { return new URL(url).hostname.replace('www.', '') } catch { return url } }
-// markdown leve: **negrito**, *itálico* e "- " bullets (escapa HTML antes)
-function renderMd(text: string) {
-  const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const inline = (s: string) => s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>').replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
-  const blocks: string[] = []
-  let buf: string[] = [], items: string[] = []
-  const flush = () => { if (buf.length) { blocks.push('<div>' + buf.join('<br/>') + '</div>'); buf = [] } }
-  const flushList = () => { if (items.length) { blocks.push('<ul>' + items.join('') + '</ul>'); items = [] } }
-  for (const line of esc.split('\n')) {
-    const m = line.match(/^\s*[-•]\s+(.*)$/)
-    if (m) { flush(); items.push('<li>' + inline(m[1]) + '</li>') }
-    else { flushList(); buf.push(inline(line)) }
-  }
-  flush(); flushList()
-  return blocks.join('')
-}
+// O renderMd daqui era uma cópia byte a byte do de EditableField. Duas cópias
+// significavam que ensinar o hub a reconhecer links teria que ser feito duas
+// vezes — e a segunda seria esquecida.
 const EMOJI_GROUPS: [string, string[]][] = [
   ['Rostos', ['😀','😃','😄','😁','😆','😅','😂','🤣','🥲','☺️','😊','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳','😏','😒','😞','😔','😟','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👾','🤖','🫥','😶','😑','😐','🙄','😬','🤥','🤫','🤭','🫢','🫣','🤔','🫠','🤐','🥴','😵','😵‍💫','🤯','🤠','🥸','😳','🥱','😴','🤤','😪','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','😨','😰','😥','😓','😦','😧','😲','😯','😮','🥹','😱','😺','😸','😹','😻','😼','😽','🙀','😿','😾']],
   ['Gestos & mãos', ['👋','🤚','🖐️','✋','🖖','🫱','🫲','🫳','🫴','🫷','🫸','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏','🫶','🙌','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦿','🦵','🦶','👂','🦻','👃','🫀','🫁','🧠','🦷','🦴','👁️','👀','👅','👄','🫦']],
@@ -221,6 +209,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   // Não entra em modo de edição se o clique foi pra soltar uma seleção de texto (copiar)
   function selectionGuardClick(field: TextField, e: React.MouseEvent<HTMLElement>) {
+    // Clicar num link é abrir o link, não editar o campo — sem isso o campo
+    // virava textarea por baixo da aba que acabou de abrir.
+    if ((e.target as HTMLElement).closest('a')) return
     const sel = window.getSelection()
     if (sel && sel.toString().length > 0) return
     startEdit(field)
