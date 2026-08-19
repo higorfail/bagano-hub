@@ -800,7 +800,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   )
 
   const fieldEditCls = 'w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none resize-none leading-relaxed'
-  const fieldViewCls = 'cursor-text text-sm text-[var(--color-text-primary)] leading-relaxed whitespace-pre-line rounded-lg hover:bg-[var(--color-bg-subtle)] -mx-2 px-2 py-1.5 transition-colors'
   const mdViewCls   = 'cursor-text text-sm text-[var(--color-text-primary)] leading-relaxed rounded-lg hover:bg-[var(--color-bg-subtle)] -mx-2 px-2 py-1.5 transition-colors md-content'
 
   // Campo de texto editável (click-to-edit + autosave)
@@ -1348,6 +1347,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 <span className="text-xs font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">Referências</span>
                 <span className="text-[10px] text-[var(--color-text-faint)]">· inspiração, links, observações</span>
               </div>
+              {/* Referências é justamente o campo onde link é a regra, não a
+                  exceção — e era o único do card que ainda saía como texto cru,
+                  fora do markdown leve. O chip logo abaixo dava o link do site,
+                  mas o endereço escrito no texto não era clicável. */}
               {editingField === 'reference_notes' ? (
                 <textarea autoFocus ref={el => { if (el) autoGrow(el, 9999) }} value={form.reference_notes}
                   onChange={e => { setForm(f => ({ ...f, reference_notes: e.target.value })); autoGrow(e.currentTarget, 9999) }}
@@ -1355,8 +1358,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                   placeholder="Cole links de referência, observações…"
                   className={fieldEditCls} style={{ minHeight: 60 }} />
               ) : (
-                <div onClick={e => selectionGuardClick('reference_notes', e)} className={fieldViewCls} style={{ minHeight: 40 }}>
-                  {form.reference_notes || <span className="text-[var(--color-text-faint)]">Clique para adicionar links/observações…</span>}
+                <div onClick={e => selectionGuardClick('reference_notes', e)} className={mdViewCls} style={{ minHeight: 40 }}>
+                  {form.reference_notes
+                    ? <div dangerouslySetInnerHTML={{ __html: renderMd(form.reference_notes) }} />
+                    : <span className="text-[var(--color-text-faint)]">Clique para adicionar links/observações…</span>}
                 </div>
               )}
               {/* chips de link */}
