@@ -39,14 +39,34 @@ export default function Home() {
     // Erro devolvido pelo próprio Supabase (link expirado, já usado…) chega
     // como parâmetro. Sem ler isso, um convite vencido virava tela muda.
     const urlError = params.get('error_description') || hash.get('error_description')
-    if (urlError) { setError(decodeURIComponent(urlError)); return }
+    const urlCode  = params.get('error_code') || hash.get('error_code')
+    if (urlError) {
+      // "Expirado" quase nunca é o relógio: o link é de uso único, e o
+      // antivírus/pré-visualizador do e-mail costuma abrir antes da pessoa —
+      // gastando o token. Dizer só "expirou" manda a pessoa esperar, quando o
+      // que resolve é pedir outro e clicar direto.
+      setError(urlCode === 'otp_expired'
+        ? 'Esse link já foi usado ou passou da validade. Peça um novo abaixo e clique nele direto do e-mail — alguns antivírus abrem o link antes de você e gastam ele.'
+        : decodeURIComponent(urlError))
+      return
+    }
 
     if (!code && !tokenHash && !accessToken) return
 
     setLoading(true)
     const done = ({ error }: { error: any }) => {
-      if (!error) router.push('/auth/definir-senha')
-      else { setError('Link inválido ou expirado. Peça um link novo.'); setLoading(false) }
+      if (!error) { router.push('/auth/definir-senha'); return }
+      // O motivo real importa muito aqui: cada um tem uma saída diferente, e a
+      // frase genérica de antes mandava todo mundo pro mesmo beco.
+      const msg = String(error?.message || '')
+      if (/code verifier|code_verifier/i.test(msg)) {
+        setError('Abra o link no MESMO navegador e aparelho onde você pediu a troca de senha. Pedido no celular e aberto no computador (ou em aba anônima) não funciona.')
+      } else if (/expired|invalid/i.test(msg)) {
+        setError('Link já usado ou vencido. Peça um novo abaixo e clique direto do e-mail.')
+      } else {
+        setError(`Não consegui validar o link: ${msg || 'erro desconhecido'}`)
+      }
+      setLoading(false)
     }
 
     if (code) supabase.auth.exchangeCodeForSession(code).then(done)
