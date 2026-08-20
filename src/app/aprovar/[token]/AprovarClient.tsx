@@ -1170,9 +1170,13 @@ export default function ApprovalPage({ token }: { token: string }) {
       ? new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
       : null
 
-    const cardBorder = isPublicado ? '#6ee7b7' : isAgendado ? '#99f6e4' : isApproved ? '#86efac' : isChanges ? '#fcd34d' : isAdjustedPending ? '#fcd34d' : '#ebebeb'
-    const statusBg   = isPublicado ? '#ecfdf5' : isAgendado ? '#f0fdfa' : isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : isAdjustedPending ? '#fffbeb' : '#fafafa'
-    const statusClr  = isPublicado ? '#047857' : isAgendado ? '#0d9488' : isApproved ? '#16a34a'  : isChanges ? '#b45309' : isAdjustedPending ? '#b45309' : '#9ca3af'
+    // Três verdes que dá pra separar de relance, do mais leve ao mais fechado:
+    // aprovado (verde claro) → agendado (verde-azulado) → publicado (esmeralda
+    // cheio). O publicado leva o preenchimento mais forte de propósito: é o
+    // estado final, e é o que o cliente procura quando abre a página.
+    const cardBorder = isPublicado ? '#34d399' : isAgendado ? '#5eead4' : isApproved ? '#86efac' : isChanges ? '#fcd34d' : isAdjustedPending ? '#fcd34d' : '#ebebeb'
+    const statusBg   = isPublicado ? '#d1fae5' : isAgendado ? '#f0fdfa' : isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : isAdjustedPending ? '#fffbeb' : '#fafafa'
+    const statusClr  = isPublicado ? '#065f46' : isAgendado ? '#0f766e' : isApproved ? '#15803d'  : isChanges ? '#b45309' : isAdjustedPending ? '#b45309' : '#9ca3af'
     const statusTxt  = isPublicado ? '🚀 Publicado'
       : isAgendado ? (quando ? `📅 Agendado · ${quando}` : '📅 Agendado')
       : isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : isAdjustedPending ? '🟡 Ajustado — revisar' : '● Pendente'
@@ -1288,13 +1292,20 @@ export default function ApprovalPage({ token }: { token: string }) {
           {/* Actions */}
           {isApproved ? (
             <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#f0fdf4', border: '1.5px solid #86efac', fontSize: 15, fontWeight: 700, color: '#16a34a' }}>
-                <CheckCircle size={17} strokeWidth={2.5} /> Aprovado
+              {/* O rodapé diz o estado REAL. Antes um post já publicado dizia
+                  "Aprovado" e ainda oferecia Desfazer — desfazer aprovação de
+                  algo que já está no ar não existe como ação, e só assusta. */}
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: statusBg, border: `1.5px solid ${cardBorder}`, fontSize: 15, fontWeight: 700, color: statusClr }}>
+                {isPublicado ? <>🚀 Publicado</>
+                  : isAgendado ? <>📅 {quando ? `Agendado · ${quando}` : 'Agendado'}</>
+                  : <><CheckCircle size={17} strokeWidth={2.5} /> Aprovado</>}
               </div>
-              <button onClick={() => undo(post.id)} disabled={!!isLoading}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 16px', borderRadius: 16, background: '#fff', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}>
-                <RotateCcw size={13} /> Desfazer
-              </button>
+              {!isPublicado && !isAgendado && (
+                <button onClick={() => undo(post.id)} disabled={!!isLoading}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 16px', borderRadius: 16, background: '#fff', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}>
+                  <RotateCcw size={13} /> Desfazer
+                </button>
+              )}
             </div>
           ) : isComm ? (
             <div style={{ display: 'flex', gap: 10 }}>
