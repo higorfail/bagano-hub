@@ -1156,10 +1156,22 @@ export default function ApprovalPage({ token }: { token: string }) {
     const thumbUrl    = driveId && !isVideoPost && !(isCarrossel && folderId) && !isMultiFile ? `/api/drive-thumb?id=${driveId}&sz=w800` : null
     const embedVideoId = driveId && isVideoPost ? driveId : null
 
-    const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : isAdjustedPending ? '#fcd34d' : '#ebebeb'
-    const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : isAdjustedPending ? '#fffbeb' : '#fafafa'
-    const statusClr  = isApproved ? '#16a34a'  : isChanges ? '#b45309' : isAdjustedPending ? '#b45309' : '#9ca3af'
-    const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : isAdjustedPending ? '🟡 Ajustado — revisar' : '● Pendente'
+    // "Aprovado" e "já está no ar" são coisas diferentes pro cliente, e antes
+    // os dois apareciam como "✓ Aprovado" — ele não tinha como saber o que já
+    // saiu. Agendado mostra a data: é a pergunta que ele faria em seguida
+    // ("quando sai?"), respondida sem precisar perguntar.
+    const isPublicado = post.status === 'publicado'
+    const isAgendado  = post.status === 'agendado'
+    const quando = post.scheduled_date
+      ? new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+      : null
+
+    const cardBorder = isPublicado ? '#6ee7b7' : isAgendado ? '#99f6e4' : isApproved ? '#86efac' : isChanges ? '#fcd34d' : isAdjustedPending ? '#fcd34d' : '#ebebeb'
+    const statusBg   = isPublicado ? '#ecfdf5' : isAgendado ? '#f0fdfa' : isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : isAdjustedPending ? '#fffbeb' : '#fafafa'
+    const statusClr  = isPublicado ? '#047857' : isAgendado ? '#0d9488' : isApproved ? '#16a34a'  : isChanges ? '#b45309' : isAdjustedPending ? '#b45309' : '#9ca3af'
+    const statusTxt  = isPublicado ? '🚀 Publicado'
+      : isAgendado ? (quando ? `📅 Agendado · ${quando}` : '📅 Agendado')
+      : isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : isAdjustedPending ? '🟡 Ajustado — revisar' : '● Pendente'
 
     return (
       <div key={post.id} style={{ background: '#fff', borderRadius: 22, border: `1.5px solid ${cardBorder}`, overflow: 'hidden', boxShadow: isApproved ? '0 2px 12px rgba(34,197,94,0.08)' : '0 1px 4px rgba(0,0,0,0.06)', transition: 'border-color 0.35s' }}>
