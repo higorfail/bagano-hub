@@ -10,6 +10,7 @@ import MaterialCard from '@/components/MaterialCard'
 import { campaignDaysUntil, campaignPeriod } from '@/lib/campaignPeriod'
 import { campaignProgress } from '@/lib/postStages'
 import { useCampaignDates, campaignTheme, campaignDateLabel, orderByProximity, slugifyCampaignType, createCampaignDate, updateCampaignDate, setCampaignDateActive, deleteCampaignDate } from '@/lib/campaigns'
+import { statusBadge, statusShort } from '@/lib/status'
 
 // Ver src/lib/campaignPeriod.ts: a campanha só vira de ano depois da janela de
 // encerramento, então `days` pode vir negativo enquanto ainda há trabalho.
@@ -19,10 +20,6 @@ const TYPE_BG_L: Record<string, string>  = { reels: '#FEE2E2', carrossel: '#DBEA
 const TYPE_BG_D: Record<string, string>  = { reels: '#450a0a', carrossel: '#172554', post: '#431407', story: '#2e1065', carrossel_stories: '#1e1b4b' , post_story: '#d946ef'}
 const TYPE_TX_L: Record<string, string>  = { reels: '#B91C1C', carrossel: '#1E40AF', post: '#92400E', story: '#5B21B6', carrossel_stories: '#3730A3' , post_story: '#d946ef'}
 const TYPE_TX_D: Record<string, string>  = { reels: '#fca5a5', carrossel: '#93c5fd', post: '#fde68a', story: '#d8b4fe', carrossel_stories: '#818cf8' , post_story: '#d946ef'}
-const STATUS_BG_L: Record<string, string> = { producao: '#FEF3C7', aprovado: '#D1FAE5', publicado: '#D1FAE5', aguardando_aprovacao: '#FCE7F3', revisao_interna: '#EDE9FE', agendado: '#DBEAFE' }
-const STATUS_BG_D: Record<string, string> = { producao: '#431407', aprovado: '#052e16', publicado: '#052e16', aguardando_aprovacao: '#4a044e', revisao_interna: '#2e1065', agendado: '#172554' }
-const STATUS_TX_L: Record<string, string> = { producao: '#92400E', aprovado: '#065F46', publicado: '#065F46', aguardando_aprovacao: '#9D174D', revisao_interna: '#5B21B6', agendado: '#1E40AF' }
-const STATUS_TX_D: Record<string, string> = { producao: '#fde68a', aprovado: '#4ade80', publicado: '#4ade80', aguardando_aprovacao: '#f9a8d4', revisao_interna: '#d8b4fe', agendado: '#93c5fd' }
 const STATUS_LABEL: Record<string, string> = { producao: 'Produção', revisao_interna: 'Revisão', aguardando_aprovacao: 'Aguardando', aprovado: 'Aprovado', agendado: 'Agendado', publicado: 'Publicado' }
 
 function getInitials(name: string) { return (name || '?').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() }
@@ -512,7 +509,7 @@ export default function CampanhasPage() {
                                 <span className="font-bold text-[var(--color-text-muted)] w-5">#{p.post_number}</span>
                                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: (isDark ? TYPE_BG_D : TYPE_BG_L)[p.post_type] || 'var(--color-bg-subtle)', color: (isDark ? TYPE_TX_D : TYPE_TX_L)[p.post_type] || 'var(--color-text-secondary)' }}>{TYPE_LABEL[p.post_type] || p.post_type}</span>
                                 <span className="flex-1 text-[var(--color-text-primary)] truncate">{p.title}</span>
-                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: (isDark ? STATUS_BG_D : STATUS_BG_L)[p.status] || 'var(--color-bg-subtle)', color: (isDark ? STATUS_TX_D : STATUS_TX_L)[p.status] || 'var(--color-text-secondary)' }}>{STATUS_LABEL[p.status] || p.status}</span>
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={statusBadge(p.status)}>{STATUS_LABEL[p.status] || p.status}</span>
                               </button>
                             ))}
                           </div>

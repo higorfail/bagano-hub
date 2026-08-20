@@ -5,6 +5,7 @@ import { useToast } from '@/lib/ToastContext'
 import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
 import { Copy, Check, Download, Loader2, CalendarClock, CheckCircle2, AlertTriangle, Clock3, BadgeCheck, Play } from 'lucide-react'
 import { useState } from 'react'
+import { statusColor } from '@/lib/status'
 
 type Client = { id: string; name: string; color_hex: string }
 
@@ -21,9 +22,9 @@ type Props = {
 }
 
 const STATUS_META = {
-  aprovado:  { label: 'Aprovado',  icon: BadgeCheck,   color: '#3B82F6' },
-  agendado:  { label: 'Agendado',  icon: Clock3,       color: '#14B8A6' },
-  publicado: { label: 'Publicado', icon: CheckCircle2, color: '#22C55E' },
+  aprovado:  { label: 'Aprovado',  icon: BadgeCheck,   color: statusColor('aprovado') },
+  agendado:  { label: 'Agendado',  icon: Clock3,       color: statusColor('agendado') },
+  publicado: { label: 'Publicado', icon: CheckCircle2, color: statusColor('publicado') },
   atrasado:  { label: 'Atrasado',  icon: AlertTriangle, color: 'var(--ds-error-accent)' },
 } as const
 
@@ -209,7 +210,7 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
               className="flex items-center justify-center gap-1.5 text-[12px] font-semibold px-2 py-1.5 rounded-lg transition-colors"
               style={overdue
                 ? { background: 'var(--ds-error-accent)', color: '#fff' }
-                : { background: '#14B8A6', color: '#fff' }}>
+                : { background: statusColor('agendado'), color: '#fff' }}>
               <CalendarClock size={12} /> Agendar
             </button>
           )

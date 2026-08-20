@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Calendar, Paperclip, Copy, Package, Play, Zap, MessageSquare } from 'lucide-react'
 import { approvalShort } from '@/lib/approvalKind'
+import { STATUS as STATUS_META, STATUS_ORDER } from '@/lib/status'
 
 const TYPE: Record<string, { label: string; color: string }> = {
   carrossel:         { label: 'Carrossel',         color: '#3b82f6' },
@@ -11,16 +12,10 @@ const TYPE: Record<string, { label: string; color: string }> = {
   story:             { label: 'Story',             color: '#8b5cf6' },
   carrossel_stories: { label: 'Carrossel/Stories', color: '#6366f1' }, post_story: { label: 'Post/Story', color: '#d946ef' },
 }
-const STATUS: Record<string, { label: string; color: string }> = {
-  captacao:             { label: 'Captação',      color: '#0ea5e9' },
-  producao:             { label: 'Produção',      color: '#f59e0b' },
-  revisao_interna:      { label: 'Revisão interna', color: '#8b5cf6' },
-  aguardando_aprovacao: { label: 'Com cliente',    color: '#ec4899' },
-  ajuste:              { label: 'Ajuste',          color: '#ef4444' },
-  aprovado:             { label: 'Aprovado',       color: '#22c55e' },
-  agendado:             { label: 'Agendado',       color: '#3b82f6' },
-  publicado:            { label: 'Publicado',      color: '#059669' },
-}
+// Rótulo e cor vêm de src/lib/status.ts — antes esta lista discordava do
+// PostCard e de Publicações sobre o que é azul e o que é verde.
+const STATUS: Record<string, { label: string; color: string }> =
+  Object.fromEntries(STATUS_ORDER.map(k => [k, { label: STATUS_META[k].short, color: STATUS_META[k].color }]))
 
 export type MiniPost = {
   id: string

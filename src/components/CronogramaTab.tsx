@@ -17,6 +17,7 @@ import { ensureWatching } from '@/lib/watch'
 import ModalPortal from '@/components/ModalPortal'
 import ListCell from '@/components/ListCell'
 import { useIsWideScreen } from '@/lib/useMediaQuery'
+import { statusBadge } from '@/lib/status'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -51,18 +52,6 @@ const typeColor: Record<string,string> = {
   carrossel_stories: 'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
   post_story: 'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
   post: 'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]',
-}
-const statusColor: Record<string,string> = {
-  estrategia: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',
-  aguardando_aprovacao_crono: 'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
-  captacao: 'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]',
-  producao: 'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]',
-  revisao_interna: 'bg-[#8b5cf6]/10 text-[#8b5cf6]',
-  aguardando_aprovacao: 'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
-  ajuste: 'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]',
-  aprovado: 'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]',
-  agendado: 'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]',
-  publicado: 'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]',
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -169,7 +158,7 @@ function CalendarChip({ post, members, dragging, otherCronograma, onDragStart, o
           mais título não cabem, e o que sobrava vazava pra cima dos dias
           vizinhos. Sobra a tarja de status com o número do post — dá pra ver
           quantos posts tem no dia e em que pé estão, e o toque abre o card. */}
-      <span className={`md:hidden w-full block text-[9px] font-bold leading-[1.4] px-1 rounded text-center truncate ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}
+      <span className="md:hidden w-full block text-[9px] font-bold leading-[1.4] px-1 rounded text-center truncate" style={statusBadge(post.status)}
         title={`${post.post_number != null ? `#${post.post_number} ` : ''}${post.title || 'Sem título'} — ${st}`}>
         {post.post_number != null ? `#${post.post_number}` : '•'}
       </span>
@@ -178,7 +167,7 @@ function CalendarChip({ post, members, dragging, otherCronograma, onDragStart, o
       </div>
       <div className="hidden md:block min-w-0 flex-1">
         <div className="flex items-center gap-1 mb-0.5">
-          <span className={`text-[8px] font-bold uppercase tracking-wide px-1 py-px rounded truncate ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>{st}</span>
+          <span className="text-[8px] font-bold uppercase tracking-wide px-1 py-px rounded truncate" style={statusBadge(post.status)}>{st}</span>
           {otherCronograma && (
             <span title={`Post do cronograma de ${otherCronograma}`}
               className="text-[8px] font-bold px-1 py-px rounded flex-shrink-0" style={{ background: 'var(--ds-caution-bg)', color: 'var(--ds-caution-text)' }}>
@@ -991,7 +980,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                               ✓ {approvalShort(post.status, post.approval_status)}
                             </span>
                           )}
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor[post.status] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={statusBadge(post.status)}>
                             {STATUS_LABEL[post.status] || post.status}
                           </span>
                         </div>

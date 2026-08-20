@@ -22,6 +22,7 @@ import ActivityLog from '@/components/ActivityLog'
 import OnboardingTab from '@/components/OnboardingTab'
 import ManualTab from '@/components/ManualTab'
 import RecorrentesView from '@/components/recorrentes/RecorrentesView'
+import { statusBadge } from '@/lib/status'
 import TaskMiniCard from '@/components/TaskMiniCard'
 import TaskCard from '@/components/TaskCard'
 import { Plus, ChevronLeft, Pencil, Link as LinkIcon } from 'lucide-react'
@@ -42,7 +43,6 @@ type Post = {
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const typeColor: Record<string,string> = { 'reels':'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]','carrossel':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','story':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','carrossel_stories':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','post':'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]','post_story':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]' }
-const statusColor: Record<string,string> = { 'publicado':'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]','aprovado':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','agendado':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','aguardando_aprovacao':'bg-[var(--ds-warn-bg)] text-[var(--ds-warn-text)]','aguardando_aprovacao_crono':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','revisao_interna':'bg-[#8b5cf6]/10 text-[#8b5cf6]','ajuste':'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]','captacao':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','producao':'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]','estrategia':'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]','pendente':'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]' }
 const STATUS_LABEL: Record<string,string> = { estrategia:'Estratégia', aguardando_aprovacao_crono:'Ag. crono', captacao:'Captação', producao:'Produção', revisao_interna:'Revisão', aguardando_aprovacao:'Aguardando aprovação', ajuste:'Ajuste', aprovado:'Aprovado', agendado:'Agendado', publicado:'Publicado' }
 const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'Carrossel/Stories' , post_story:'Post/Story'}
 const FUNCAO_LABEL: Record<string,string> = { videos:'Editor', posts:'Designer', estrategia:'Estratégia', social:'Social Media', acompanha:'Acompanha', outro:'Outro' }

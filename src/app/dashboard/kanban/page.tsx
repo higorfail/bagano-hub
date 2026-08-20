@@ -8,6 +8,7 @@ import { dbError } from '@/lib/dbError'
 import { groupByClient, useClientGrouping } from '@/lib/useClientGrouping'
 import { approvalShort } from '@/lib/approvalKind'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import { statusColor } from '@/lib/status'
 
 type Post = {
   id: string; post_number: number; title: string; post_type: string
@@ -20,12 +21,14 @@ type Client = { id: string; name: string; color_hex: string }
 
 const COLUMNS = [
   { key: 'crono_feito',          label: 'Crono Feito',  color: '#10B981', virtual: true },
-  { key: 'aguardando_aprovacao', label: 'Com cliente',  color: '#EC4899' },
-  { key: 'producao',             label: 'Em Produção',  color: '#F59E0B' },
-  { key: 'revisao_interna',      label: 'Revisão',      color: '#8B5CF6' },
-  { key: 'aprovado',             label: 'Aprovado',     color: '#3B82F6' },
-  { key: 'agendado',             label: 'Agendado',     color: '#14B8A6' },
-  { key: 'publicado',            label: 'Publicado',    color: '#22C55E' },
+  // Cores de src/lib/status.ts — estas já batiam com a paleta canônica, mas
+  // eram cópia: a próxima mudança lá não chegaria aqui sozinha.
+  { key: 'aguardando_aprovacao', label: 'Com cliente',  color: statusColor('aguardando_aprovacao') },
+  { key: 'producao',             label: 'Em Produção',  color: statusColor('producao') },
+  { key: 'revisao_interna',      label: 'Revisão',      color: statusColor('revisao_interna') },
+  { key: 'aprovado',             label: 'Aprovado',     color: statusColor('aprovado') },
+  { key: 'agendado',             label: 'Agendado',     color: statusColor('agendado') },
+  { key: 'publicado',            label: 'Publicado',    color: statusColor('publicado') },
 ]
 
 const TYPE_LABEL: Record<string, string> = {

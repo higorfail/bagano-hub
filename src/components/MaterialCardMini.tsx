@@ -42,13 +42,6 @@ const MAT_TYPE_COLOR: Record<string, string> = {
   outro: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  producao: 'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]',
-  feito: 'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]',
-  aguardando_aprovacao: 'bg-[var(--ds-warn-bg)] text-[var(--ds-warn-text)]',
-  ajuste: 'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]',
-  finalizado: 'bg-[var(--ds-success-bg)] text-[var(--ds-success-text)]',
-}
 
 const STATUS_LABEL: Record<string, string> = {
   producao: 'A fazer',

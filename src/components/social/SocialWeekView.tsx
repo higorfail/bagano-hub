@@ -10,11 +10,12 @@ import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
 import SwipeAction from '@/components/SwipeAction'
 import SocialItemPopover, { PopoverAnchor } from './SocialItemPopover'
 import { ChevronLeft, ChevronRight, CheckCircle2, Clock3, BadgeCheck, AlertTriangle, Play } from 'lucide-react'
+import { statusColor } from '@/lib/status'
 
 const STATUS_META = {
-  aprovado:  { label: 'Aprovado',  icon: BadgeCheck,    color: '#3B82F6' },
-  agendado:  { label: 'Agendado',  icon: Clock3,        color: '#14B8A6' },
-  publicado: { label: 'Publicado', icon: CheckCircle2,  color: '#22C55E' },
+  aprovado:  { label: 'Aprovado',  icon: BadgeCheck,    color: statusColor('aprovado') },
+  agendado:  { label: 'Agendado',  icon: Clock3,        color: statusColor('agendado') },
+  publicado: { label: 'Publicado', icon: CheckCircle2,  color: statusColor('publicado') },
   atrasado:  { label: 'Atrasado',  icon: AlertTriangle, color: 'var(--ds-error-accent)' },
 } as const
 

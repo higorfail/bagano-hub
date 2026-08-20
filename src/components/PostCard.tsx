@@ -24,6 +24,7 @@ import WatchButton from '@/components/WatchButton'
 import ModalPortal from '@/components/ModalPortal'
 import { renderMd } from '@/components/EditableField'
 import { useEnsureOnce } from '@/lib/ensureOnce'
+import { STATUS, STATUS_ORDER } from '@/lib/status'
 import DeliverySection from '@/components/DeliverySection'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 
@@ -38,18 +39,14 @@ const POST_TYPES = [
   // contagem.
   { value: 'post_story',        label: 'Post/Story',        color: '#d946ef' },
 ]
-const STATUSES = [
-  { value: 'estrategia',                 label: 'Estratégia',           color: '#8b5cf6' },
-  { value: 'aguardando_aprovacao_crono', label: 'Ag. crono',            color: '#f472b6' },
-  { value: 'captacao',                   label: 'Captação',             color: '#0ea5e9' },
-  { value: 'producao',                   label: 'Produção',             color: '#f59e0b' },
-  { value: 'revisao_interna',            label: 'Revisão interna',      color: '#8b5cf6' },
-  { value: 'aguardando_aprovacao',       label: 'Aguardando aprovação', color: '#ec4899' },
-  { value: 'ajuste',                     label: 'Ajuste solicitado',    color: '#ef4444' },
-  { value: 'aprovado',                   label: 'Aprovado',             color: '#22c55e' },
-  { value: 'agendado',                   label: 'Agendado',             color: '#3b82f6' },
-  { value: 'publicado',                  label: 'Publicado',            color: '#059669' },
-]
+// Rótulo e cor vêm de src/lib/status.ts. Este arquivo mantinha a própria lista,
+// e era a que mais destoava: "aprovado" saía verde aqui e azul em Publicações,
+// e "estratégia" dividia o mesmo roxo com "revisão interna" no próprio seletor.
+const STATUSES = STATUS_ORDER.map(value => ({
+  value,
+  label: value === 'aguardando_aprovacao_crono' ? 'Ag. crono' : STATUS[value].label,
+  color: STATUS[value].color,
+}))
 const FUNIL_OPTIONS = ['Topo de funil','Meio de funil','Fundo de funil','Institucional','Promocional','Engajamento','Venda']
 const LABEL_PALETTE = [
   { name: 'Vermelho', color: '#EF4444' }, { name: 'Laranja', color: '#F59E0B' },

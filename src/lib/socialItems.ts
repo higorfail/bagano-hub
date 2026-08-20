@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase'
 import { extractDriveFileId } from '@/lib/useMentions'
 import { todayBrasiliaISO } from '@/lib/timezone'
 import { logActivity } from '@/lib/activity'
+import { statusColor } from './status'
 
 export type SocialActor = { id?: string | null; name?: string | null }
 
@@ -82,9 +83,9 @@ export const POST_TYPE_ACCENT: Record<string, string> = {
 }
 
 export const SOCIAL_COLUMNS: { key: SocialColumn; label: string; color: string }[] = [
-  { key: 'aprovado',  label: 'Aprovados', color: '#3B82F6' },
-  { key: 'agendado',  label: 'Agendado',  color: '#14B8A6' },
-  { key: 'publicado', label: 'Publicado', color: '#22C55E' },
+  { key: 'aprovado',  label: 'Aprovados', color: statusColor('aprovado') },
+  { key: 'agendado',  label: 'Agendado',  color: statusColor('agendado') },
+  { key: 'publicado', label: 'Publicado', color: statusColor('publicado') },
 ]
 
 const SCHEDULE_SELECT ='id, post_number, title, post_type, status, scheduled_date, client_id, month, year, approval_status, copy, legenda, drive_url, drive_folder_url'
