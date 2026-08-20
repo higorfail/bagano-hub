@@ -23,6 +23,7 @@ import { useDragToDismiss } from '@/lib/gestures'
 import WatchButton from '@/components/WatchButton'
 import ModalPortal from '@/components/ModalPortal'
 import { renderMd } from '@/components/EditableField'
+import { useEnsureOnce } from '@/lib/ensureOnce'
 import DeliverySection from '@/components/DeliverySection'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 
@@ -144,6 +145,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [newAttachTitle,  setNewAttachTitle]  = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [currentId,    setCurrentId]    = useState<string | undefined>(postId)
+  const ensureOnce = useEnsureOnce()
   const [campaigns,    setCampaigns]    = useState<{ id: string; name: string; type: string }[]>([])
   const [editingField, setEditingField] = useState<TextField | null>(null)
   const [justSaved,    setJustSaved]    = useState(false)
@@ -364,7 +366,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   }
 
   async function ensurePostId(): Promise<string | undefined> {
-    if (currentId) return currentId
+    return ensureOnce(currentId, async () => {
     const f = formRef.current
     const { data, error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year, post_number: postNumber,
@@ -385,6 +387,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       return data.id
     }
     return undefined
+    })
   }
 
   async function persist(patch: Record<string, any>, logMsg?: string, action = 'updated'): Promise<string | undefined> {

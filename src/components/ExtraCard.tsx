@@ -11,6 +11,7 @@ import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
 import { autoGrow } from '@/lib/autoGrow'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
+import { useEnsureOnce } from '@/lib/ensureOnce'
 import WatchButton from '@/components/WatchButton'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { generateAiLegenda } from '@/lib/aiLegenda'
@@ -110,6 +111,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   const [loading, setLoading] = useState(!!extraId)
   const [saving,  setSaving]  = useState(false)
   const [id,      setId]      = useState<string | undefined>(extraId)
+  const ensureOnce = useEnsureOnce()
   const [linkCopied, setLinkCopied] = useState(false)
   const originalStatusRef = useRef<ExtraStatus>(initialStatus ?? 'backlog')
   const snapshotRef = useRef<string>('')
@@ -316,8 +318,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   }, [extraId, loadSub])
 
   async function ensureId(): Promise<string | undefined> {
-    if (id) return id
     if (!title.trim()) return undefined
+    return ensureOnce(id, async () => {
     const payload = {
       title, type, status, priority,
       client_id: fixedClientId || clientId || null,
@@ -343,6 +345,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
       return data.id
     }
     return undefined
+    })
   }
 
   // Salva um campo específico imediatamente e registra no histórico com mensagem detalhada (padrão cronograma)

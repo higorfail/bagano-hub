@@ -10,6 +10,7 @@ import { moveToTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
+import { useEnsureOnce } from '@/lib/ensureOnce'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { autoGrow } from '@/lib/autoGrow'
 import { hostOf, formatBytes } from '@/lib/url'
@@ -89,6 +90,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
   const [saving,        setSaving]        = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [id,       setId]       = useState<string | undefined>(materialId)
+  const ensureOnce = useEnsureOnce()
   const [linkCopied, setLinkCopied] = useState(false)
 
   // Campos principais
@@ -252,8 +254,8 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
 
   // Garante que o material existe no banco antes de salvar sub-entidades
   async function ensureId(): Promise<string | undefined> {
-    if (id) return id
     if (!title.trim()) return undefined
+    return ensureOnce(id, async () => {
     const payload = {
       title, type, status,
       client_id: clientId || null,
@@ -287,6 +289,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
       return data.id
     }
     return undefined
+    })
   }
 
   // Salva um campo específico imediatamente e registra no histórico com mensagem detalhada (padrão cronograma)

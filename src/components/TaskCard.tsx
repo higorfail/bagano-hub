@@ -9,6 +9,7 @@ import { dbError } from '@/lib/dbError'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
+import { useEnsureOnce } from '@/lib/ensureOnce'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { autoGrow } from '@/lib/autoGrow'
 import { hostOf } from '@/lib/url'
@@ -82,6 +83,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
   const [loading, setLoading] = useState(!!taskId)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [id, setId] = useState<string | undefined>(taskId)
+  const ensureOnce = useEnsureOnce()
   const [linkCopied, setLinkCopied] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [cardDragOver, setCardDragOver] = useState(false)
@@ -180,7 +182,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
   }, [taskId, loadSub, members])
 
   async function ensureId(): Promise<string | undefined> {
-    if (id) return id
+    return ensureOnce(id, async () => {
     // Salva mesmo sem título ainda preenchido — "Sem título" até a pessoa nomear.
     const payload = {
       title: title.trim() || 'Sem título', type, status, priority, note,
@@ -202,6 +204,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
       return data.id
     }
     return undefined
+    })
   }
 
   async function persist(patch: Record<string, any>, logMsg?: string, action = 'updated'): Promise<string | undefined> {
