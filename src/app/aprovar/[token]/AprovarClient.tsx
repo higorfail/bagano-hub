@@ -891,11 +891,15 @@ export default function ApprovalPage({ token }: { token: string }) {
     await requestChanges(fp.id, c)
   }
 
-  // Posts já agendados/publicados só têm lugar no feed visual (grid) e no
-  // calendário — na revisão em lista (scroll, tab "posts") não faz sentido
-  // pedir pra aprovar/ajustar algo que já foi ao ar, então nem entram nessa
-  // lista nem nas contagens de progresso.
-  const reviewPosts = posts.filter(p => p.status !== 'agendado' && p.status !== 'publicado')
+  // Post agendado ou publicado CONTINUA na lista. Antes ele saía daqui, e o
+  // efeito era o cliente abrir o mês, ver 4 cards e saber que tinha combinado
+  // 6 — os dois que já tinham ido ao ar simplesmente sumiam, o que parece erro,
+  // não fluxo. Ele não ganha botão de aprovar (renderFinalCard trata os dois
+  // como decididos), só o selo dizendo em que pé está.
+  const reviewPosts = posts
+  // Agendado e publicado contam como decididos: o cliente já disse sim (ou o
+  // post passou direto). Sem isso a barra ficaria em 4/6 com nada pendente.
+  const decidido = (p: Post) => p.approval_status === 'aprovado' || p.status === 'agendado' || p.status === 'publicado'
   // Ordem em 3 níveis, em vez de misturados na ordem de produção (post_number):
   // 1) quem ainda precisa de uma decisão do cliente (pendente, ajuste, ou
   //    ajuste já resolvido aguardando o cliente olhar de novo);
@@ -903,14 +907,14 @@ export default function ApprovalPage({ token }: { token: string }) {
   //    "✓ Ajuste aplicado" — ainda vale a pena revisar por cima);
   // 3) aprovados sem nenhum histórico de ajuste, por último.
   // Sort estável: dentro de cada grupo mantém a ordem original.
-  const reviewRank = (p: Post) => p.approval_status !== 'aprovado' ? 0 : p.approval_comment ? 1 : 2
+  const reviewRank = (p: Post) => !decidido(p) ? 0 : p.approval_comment ? 1 : 2
   const reviewPostsOrdered = [...reviewPosts].sort((a, b) => reviewRank(a) - reviewRank(b))
 
   // Stats
   const totalPosts    = reviewPosts.length
-  const approvedCount = reviewPosts.filter(p => p.approval_status === 'aprovado').length
+  const approvedCount = reviewPosts.filter(decidido).length
   const changesCount  = reviewPosts.filter(p => p.approval_status === 'não aprovado').length
-  const pendingCount  = reviewPosts.filter(p => !p.approval_status || !['aprovado','não aprovado'].includes(p.approval_status)).length
+  const pendingCount  = reviewPosts.filter(p => !decidido(p) && p.approval_status !== 'não aprovado').length
   const pct           = totalPosts > 0 ? (approvedCount / totalPosts) * 100 : 0
   const allDone       = totalPosts > 0 && approvedCount === totalPosts
 
