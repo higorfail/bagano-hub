@@ -56,6 +56,7 @@ const FORMAT_LABEL: Record<string, string> = {
   reels: '🎬 Reels (vídeo vertical curto)', carrossel: '🖼️ Carrossel (várias fotos estáticas em sequência)',
   post: '📷 Post (uma imagem só)', story: '⭕ Story (vídeo/foto vertical único)',
   carrossel_stories: '🔁 Carrossel de Stories (várias telas verticais em sequência)',
+  post_story: '📷 Post/Story (a mesma arte sai no feed e nos stories)',
 }
 
 export async function POST(req: NextRequest) {

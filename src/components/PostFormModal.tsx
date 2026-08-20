@@ -15,6 +15,7 @@ const POST_TYPES = [
   { value: 'post',             label: 'Post' },
   { value: 'story',            label: 'Story' },
   { value: 'carrossel_stories',label: 'Carrossel/Stories' },
+  { value: 'post_story',       label: 'Post/Story' },
 ]
 const STATUSES = [
   { value: 'producao',             label: 'Produção' },

@@ -28,6 +28,7 @@ const POST_TYPES = [
   { value: 'post', label: 'Post' },
   { value: 'story', label: 'Story' },
   { value: 'carrossel_stories', label: 'Carrossel/Stories' },
+  { value: 'post_story',        label: 'Post/Story' },
 ]
 const STATUSES = [
   { value: 'estrategia',                 label: 'Estratégia' },
@@ -42,12 +43,13 @@ const STATUSES = [
   { value: 'publicado',                  label: 'Publicado' },
 ]
 const STATUS_LABEL: Record<string,string> = Object.fromEntries(STATUSES.map(s => [s.value, s.label]))
-const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'Carrossel/Stories' }
+const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'Carrossel/Stories' , post_story:'Post/Story'}
 const typeColor: Record<string,string> = {
   reels: 'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]',
   carrossel: 'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]',
   story: 'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
   carrossel_stories: 'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
+  post_story: 'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]',
   post: 'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]',
 }
 const statusColor: Record<string,string> = {

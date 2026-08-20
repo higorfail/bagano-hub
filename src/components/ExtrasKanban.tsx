@@ -12,7 +12,7 @@ import { dbError } from '@/lib/dbError'
 import { logActivity } from '@/lib/activity'
 import { getOrCreateExtrasApprovalToken, sendFeitoExtrasToClient } from '@/lib/approvalLinks'
 
-type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post'
+type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post' | 'carrossel' | 'post_story'
 // 'feito' entrou entre "a fazer" e "com o cliente": o designer termina a arte
 // e precisa de um lugar pra dizer isso SEM disparar o envio pro cliente. Antes
 // as duas únicas saídas eram deixar em "a fazer" (parece que não fez) ou mover
@@ -58,9 +58,10 @@ const COLUMNS: { key: ExtraStatus; label: string; color: string }[] = [
 
 const TYPE_CONFIG: Record<ExtraType, { icon: React.ElementType; color: string }> = {
   story:             { icon: Camera,    color: '#8b5cf6' },
-  carrossel_stories: { icon: Images,    color: '#6366f1' },
+  carrossel_stories: { icon: Images,    color: '#6366f1' }, post_story: { icon: Images,    color: '#d946ef' },
   reels:             { icon: Video,     color: '#ef4444' },
   post:              { icon: ImageIcon, color: '#f59e0b' },
+  carrossel:         { icon: Images,    color: '#3b82f6' },
 }
 
 const PRIORITY_BORDER: Record<ExtraPriority, string> = {

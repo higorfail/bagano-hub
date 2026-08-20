@@ -74,7 +74,7 @@ type ClientTeamRow = { client_id: string; member_id: string; funcao: string }
 // Quais tipos de post cada função cobre. null = cobre todos os tipos do cliente.
 const FUNCAO_POST_TYPES: Record<string, string[] | null> = {
   videos: ['reels'],
-  posts:  ['carrossel', 'story', 'carrossel_stories', 'post'],
+  posts:  ['carrossel', 'story', 'carrossel_stories', 'post', 'post_story'],
 }
 
 function getInitials(name: string) {
@@ -117,7 +117,7 @@ const TYPE_META: Record<string, { emoji: string; label: string; plural: string }
   reels:             { emoji: '🎬', label: 'Reels',              plural: 'reels' },
   post:              { emoji: '🖼️', label: 'Post',               plural: 'posts' },
   story:             { emoji: '📸', label: 'Story',              plural: 'stories' },
-  carrossel_stories: { emoji: '🎞️', label: 'Carrossel/Stories',  plural: 'carrossel/stories' },
+  carrossel_stories: { emoji: '🎞️', label: 'Carrossel/Stories',  plural: 'carrossel/stories' }, post_story: { emoji: '🎞️', label: 'Post/Story',  plural: 'carrossel/stories' },
 }
 
 function dueCountdown(dueDate: string | null, todayStr: string): string | null {

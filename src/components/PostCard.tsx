@@ -33,6 +33,10 @@ const POST_TYPES = [
   { value: 'post',              label: 'Post',              color: '#f59e0b' },
   { value: 'story',             label: 'Story',             color: '#8b5cf6' },
   { value: 'carrossel_stories', label: 'Carrossel/Stories', color: '#6366f1' },
+  // Mesma ideia do Carrossel/Stories: um conteúdo só que sai no feed e nos
+  // stories. Sem ele, quem faz isso escolhia um dos dois e o outro sumia da
+  // contagem.
+  { value: 'post_story',        label: 'Post/Story',        color: '#d946ef' },
 ]
 const STATUSES = [
   { value: 'estrategia',                 label: 'Estratégia',           color: '#8b5cf6' },

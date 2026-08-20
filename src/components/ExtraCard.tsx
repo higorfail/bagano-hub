@@ -31,7 +31,7 @@ import {
   Camera, Images, Video, Image as ImageIcon, Sparkles
 , Reply} from 'lucide-react'
 
-type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post'
+type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post' | 'carrossel' | 'post_story'
 type ExtraStatus   = 'backlog' | 'feito' | 'aguardando_aprovacao' | 'done'
 type ExtraPriority = 'low' | 'normal' | 'high'
 
@@ -40,6 +40,10 @@ const TYPE_OPTIONS: { value: ExtraType; label: string; icon: React.ElementType; 
   { value: 'carrossel_stories', label: 'Carrossel/Stories', icon: Images,   color: '#6366f1' },
   { value: 'reels',             label: 'Reels',             icon: Video,    color: '#ef4444' },
   { value: 'post',              label: 'Post',              icon: ImageIcon, color: '#f59e0b' },
+  // 'carrossel' faltava só aqui — o Cronograma sempre teve. Mesmo vocabulário
+  // nas duas telas, senão o filtro de Publicações conta coisas diferentes.
+  { value: 'carrossel',         label: 'Carrossel',         icon: Images,    color: '#3b82f6' },
+  { value: 'post_story',        label: 'Post/Story',        icon: ImageIcon, color: '#d946ef' },
 ]
 const STATUS_OPTIONS: { value: ExtraStatus; label: string; color: string }[] = [
   { value: 'backlog',              label: 'A fazer',       color: '#F59E0B' },
@@ -76,6 +80,8 @@ const TYPE_KEYWORDS: Record<ExtraType, string[]> = {
   carrossel_stories: ['carrossel', 'carrossel/stories', 'carrossel de stories'],
   reels:             ['reel', 'reels', 'vídeo', 'video'],
   post:              ['post', 'foto', 'imagem'],
+  carrossel:         ['carrossel'],
+  post_story:        ['post/story', 'post e story', 'post + story'],
 }
 
 const LABEL_PALETTE = [

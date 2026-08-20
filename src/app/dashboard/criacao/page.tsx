@@ -16,10 +16,10 @@ const POST_TYPES: Record<string, { label: string; emoji: string; color: string }
   reels:             { label: 'Reels',             emoji: '🎬', color: '#ef4444' },
   post:              { label: 'Post',              emoji: '🖼️', color: '#f59e0b' },
   story:             { label: 'Story',             emoji: '📸', color: '#8b5cf6' },
-  carrossel_stories: { label: 'Carrossel/Stories', emoji: '🎞️', color: '#6366f1' },
+  carrossel_stories: { label: 'Carrossel/Stories', emoji: '🎞️', color: '#6366f1' }, post_story: { label: 'Post/Story', emoji: '🎞️', color: '#d946ef' },
 }
 
-const POST_TYPE_ORDER = ['carrossel', 'reels', 'post', 'story', 'carrossel_stories']
+const POST_TYPE_ORDER = ['carrossel', 'reels', 'post', 'story', 'carrossel_stories', 'post_story']
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -256,7 +256,7 @@ export default function CriacaoPage() {
   // client_team rows for the filtered member (primary source of truth for who works on what)
   const FUNCAO_POST_TYPES: Record<string, string[] | null> = {
     videos: ['reels'],
-    posts:  ['carrossel', 'story', 'carrossel_stories', 'post'],
+    posts:  ['carrossel', 'story', 'carrossel_stories', 'post', 'post_story'],
   }
   // Returns true if a member is responsible for a given post type on a given client
   function memberCoversPost(clientId: string, memberId: string, postType: string): boolean {

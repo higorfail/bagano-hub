@@ -74,11 +74,11 @@ export type ExtraRow = {
 // Tipos de post — mesmo vocabulário usado em schedules.post_type e extras.type
 export const POST_TYPE_LABEL: Record<string, string> = {
   reels: 'Reels', carrossel: 'Carrossel', post: 'Post',
-  story: 'Story', carrossel_stories: 'Carrossel/Stories',
+  story: 'Story', carrossel_stories: 'Carrossel/Stories', post_story: 'Post/Story',
 }
 export const POST_TYPE_ACCENT: Record<string, string> = {
   reels: '#ef4444', carrossel: '#3b82f6', post: '#f59e0b',
-  story: '#8b5cf6', carrossel_stories: '#6366f1',
+  story: '#8b5cf6', carrossel_stories: '#6366f1', post_story: '#d946ef',
 }
 
 export const SOCIAL_COLUMNS: { key: SocialColumn; label: string; color: string }[] = [

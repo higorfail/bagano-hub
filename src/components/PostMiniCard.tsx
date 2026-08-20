@@ -9,7 +9,7 @@ const TYPE: Record<string, { label: string; color: string }> = {
   reels:             { label: 'Reels',             color: '#ef4444' },
   post:              { label: 'Post',              color: '#f59e0b' },
   story:             { label: 'Story',             color: '#8b5cf6' },
-  carrossel_stories: { label: 'Carrossel/Stories', color: '#6366f1' },
+  carrossel_stories: { label: 'Carrossel/Stories', color: '#6366f1' }, post_story: { label: 'Post/Story', color: '#d946ef' },
 }
 const STATUS: Record<string, { label: string; color: string }> = {
   captacao:             { label: 'Captação',      color: '#0ea5e9' },

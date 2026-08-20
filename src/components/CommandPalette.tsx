@@ -10,7 +10,7 @@ const STATUS_LABEL: Record<string,string> = {
   aprovado: 'Aprovado', agendado: 'Agendado', publicado: 'Publicado',
 }
 const TYPE_LABEL: Record<string,string> = {
-  reels: 'Reels', carrossel: 'Carrossel', post: 'Post', story: 'Story', carrossel_stories: 'Carrossel/Stories',
+  reels: 'Reels', carrossel: 'Carrossel', post: 'Post', story: 'Story', carrossel_stories: 'Carrossel/Stories', post_story: 'Post/Story',
 }
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 

@@ -35,7 +35,7 @@ type Row = {
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const TYPE_LABEL: Record<string, string> = {
   reels: 'Reels', carrossel: 'Carrossel', post: 'Post',
-  story: 'Story', carrossel_stories: 'Carrossel/Stories',
+  story: 'Story', carrossel_stories: 'Carrossel/Stories', post_story: 'Post/Story',
 }
 
 // Um post "passou pelo crono" quando saiu da fila de aprovação de pauta.

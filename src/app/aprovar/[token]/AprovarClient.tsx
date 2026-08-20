@@ -13,10 +13,10 @@ const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','A
 
 const TYPE_LABELS: Record<string, string> = {
   reels: 'Reels', carrossel: 'Carrossel', post: 'Post',
-  story: 'Story', carrossel_stories: 'Carrossel/Stories',
+  story: 'Story', carrossel_stories: 'Carrossel/Stories', post_story: 'Post/Story',
 }
 const TYPE_EMOJIS: Record<string, string> = {
-  reels: '🎬', carrossel: '📸', post: '🖼️', story: '⭕', carrossel_stories: '🔁',
+  reels: '🎬', carrossel: '📸', post: '🖼️', story: '⭕', carrossel_stories: '🔁', post_story: '📷',
 }
 
 // Streaming direto da API do Drive (sem passar pelo nosso servidor) numa <video>
@@ -687,7 +687,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     const isCommenting = extraCommenting.has(extra.id)
     const comment = extraComments[extra.id] || ''
     const isLoading = extraSubmitting === extra.id
-    const TYPE_EXTRA: Record<string, string> = { story: '📸 Story', carrossel_stories: '🎠 Carrossel/Stories', reels: '🎬 Reels', post: '🖼️ Post' }
+    const TYPE_EXTRA: Record<string, string> = { story: '📸 Story', carrossel_stories: '🎠 Carrossel/Stories', post_story: '🎠 Post/Story', reels: '🎬 Reels', post: '🖼️ Post' }
 
     const isApproved = extra.client_approval_status === 'aprovado'
     const isChanges  = extra.client_approval_status === 'recusado'

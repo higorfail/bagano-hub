@@ -30,11 +30,11 @@ const COLUMNS = [
 
 const TYPE_LABEL: Record<string, string> = {
   reels: 'Reels', carrossel: 'Carrossel', post: 'Post',
-  story: 'Story', carrossel_stories: 'Carrossel/Stories',
+  story: 'Story', carrossel_stories: 'Carrossel/Stories', post_story: 'Post/Story',
 }
 const TYPE_ACCENT: Record<string, string> = {
   reels: '#ef4444', carrossel: '#3b82f6', post: '#f59e0b',
-  story: '#8b5cf6', carrossel_stories: '#6366f1',
+  story: '#8b5cf6', carrossel_stories: '#6366f1', post_story: '#d946ef',
 }
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 

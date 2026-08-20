@@ -42,10 +42,10 @@ type ExtraPending = { id: string; client_id: string; title: string; type: string
 
 const TYPE_LABEL: Record<string, string> = {
   reels: 'Reels', carrossel: 'Carrossel', post: 'Post',
-  story: 'Story', carrossel_stories: 'Carrossel/Stories',
+  story: 'Story', carrossel_stories: 'Carrossel/Stories', post_story: 'Post/Story',
 }
 const TYPE_EMOJI: Record<string, string> = {
-  reels: '🎬', carrossel: '🎠', post: '🖼️', story: '📸', carrossel_stories: '🎞️',
+  reels: '🎬', carrossel: '🎠', post: '🖼️', story: '📸', carrossel_stories: '🎞️', post_story: '📷',
 }
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 

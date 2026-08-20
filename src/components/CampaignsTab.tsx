@@ -20,11 +20,11 @@ function getStatus(days: number, leadDays: number, dark: boolean) {
   return                       { label: `${days} dias`,      color: dark ? '#9B9891' : '#6B7280', bg: dark ? 'var(--color-bg-subtle)' : '#F3F4F6' }
 }
 
-const TYPE_LABEL: Record<string,string> = { reels:'Reel', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'C+S' }
-const TYPE_BG_L:  Record<string,string> = { reels:'#FEE2E2', carrossel:'#DBEAFE', post:'#FEF3C7', story:'#EDE9FE', carrossel_stories:'#E0E7FF' }
-const TYPE_BG_D:  Record<string,string> = { reels:'#450a0a', carrossel:'#172554', post:'#431407', story:'#2e1065', carrossel_stories:'#1e1b4b' }
-const TYPE_TX_L:  Record<string,string> = { reels:'#B91C1C', carrossel:'#1E40AF', post:'#92400E', story:'#5B21B6', carrossel_stories:'#3730A3' }
-const TYPE_TX_D:  Record<string,string> = { reels:'#fca5a5', carrossel:'#93c5fd', post:'#fde68a', story:'#d8b4fe', carrossel_stories:'#818cf8' }
+const TYPE_LABEL: Record<string,string> = { reels:'Reel', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'C+S' , post_story:'📷'}
+const TYPE_BG_L:  Record<string,string> = { reels:'#FEE2E2', carrossel:'#DBEAFE', post:'#FEF3C7', story:'#EDE9FE', carrossel_stories:'#E0E7FF' , post_story:'#d946ef'}
+const TYPE_BG_D:  Record<string,string> = { reels:'#450a0a', carrossel:'#172554', post:'#431407', story:'#2e1065', carrossel_stories:'#1e1b4b' , post_story:'#d946ef'}
+const TYPE_TX_L:  Record<string,string> = { reels:'#B91C1C', carrossel:'#1E40AF', post:'#92400E', story:'#5B21B6', carrossel_stories:'#3730A3' , post_story:'#d946ef'}
+const TYPE_TX_D:  Record<string,string> = { reels:'#fca5a5', carrossel:'#93c5fd', post:'#fde68a', story:'#d8b4fe', carrossel_stories:'#818cf8' , post_story:'#d946ef'}
 const STATUS_BG_L:Record<string,string> = { producao:'#FEF3C7', aprovado:'#D1FAE5', publicado:'#D1FAE5', aguardando_aprovacao:'#FCE7F3', revisao_interna:'#EDE9FE', agendado:'#DBEAFE' }
 const STATUS_BG_D:Record<string,string> = { producao:'#431407', aprovado:'#052e16', publicado:'#052e16', aguardando_aprovacao:'#4a044e', revisao_interna:'#2e1065', agendado:'#172554' }
 const STATUS_TX_L:Record<string,string> = { producao:'#92400E', aprovado:'#065F46', publicado:'#065F46', aguardando_aprovacao:'#9D174D', revisao_interna:'#5B21B6', agendado:'#1E40AF' }
