@@ -342,6 +342,10 @@ export default function ApprovalPage({ token }: { token: string }) {
   const [extraSubmitting,  setExtraSubmitting]  = useState<string | null>(null)
   const [toast,        setToast]        = useState<{ msg: string; ok: boolean } | null>(null)
   const [commenting,   setCommenting]   = useState<Set<string>>(new Set())
+  // Histórico começa fechado: o que a Central precisa mostrar primeiro é o que
+  // depende do cliente. Fechado também evita carregar as miniaturas do Drive
+  // de dezenas de posts antigos antes de alguém pedir por elas.
+  const [verHistorico, setVerHistorico] = useState(false)
   const [comments,     setComments]     = useState<Record<string, string>>({})
   const [extraComments,    setExtraComments]    = useState<Record<string, string>>({})
   const [extraCommenting,  setExtraCommenting]  = useState<Set<string>>(new Set())
@@ -457,13 +461,24 @@ export default function ApprovalPage({ token }: { token: string }) {
     }
 
     if (tk.type === 'geral') {
-      // Visão unificada: tudo que está pendente pro cliente agora, sem
-      // recorte de mês — diferente do crono/final que são de um mês
-      // específico, aqui é "o que falta aprovar, período".
+      // Visão unificada do cliente, sem recorte de mês — diferente do
+      // crono/final, que são de um mês específico.
+      //
+      // O post NÃO sai da lista depois de decidido: aprovado, com ajuste
+      // pedido, agendado ou já publicado, ele continua aí. Antes sumia no
+      // instante em que o cliente aprovava, e o efeito era o cliente clicar,
+      // ver o item desaparecer e não ter como conferir o que acabou de
+      // aprovar — nem rever depois o que já foi ao ar. Mesma regra que o feed
+      // final já seguia; só esta visão estava de fora.
+      //
+      // Ordena por ano/mês antes do número porque o post_number recomeça a
+      // cada mês: sem isso, o histórico de meses diferentes vinha embaralhado.
       const geralSchedulesQuery = supabase.from('schedules')
         .select('id, title, post_type, status, drive_url, drive_folder_url, copy, legenda, briefing, scheduled_date, post_number, approval_comment, approval_status, funil, campaign_type, reference_images, reference_notes')
         .eq('client_id', tk.client_id)
-        .in('status', ['aguardando_aprovacao_crono', 'aguardando_aprovacao'])
+        .in('status', ['aguardando_aprovacao_crono', 'aguardando_aprovacao', 'aprovado', 'ajuste', 'agendado', 'publicado'])
+        .order('year', { ascending: true })
+        .order('month', { ascending: true })
         .order('post_number', { ascending: true })
       const [{ data: sc }, { data: ex }] = await Promise.all([geralSchedulesQuery, extrasQuery])
       setPosts(sc || [])
@@ -919,7 +934,10 @@ export default function ApprovalPage({ token }: { token: string }) {
   // Cronograma card — hoisted pro escopo do componente (não só dentro do
   // branch 'cronograma') pra ser reaproveitado também na visão unificada 'geral'.
   function renderCronoCard(post: Post) {
-    const isApproved = post.approval_status === 'aprovado'
+    // Post movido direto pra agendado/publicado pelo time nunca teve
+    // approval_status preenchido — sem incluir esses dois aqui, ele aparecia
+    // pro cliente com botão de "Aprovar" um conteúdo que já foi ao ar.
+    const isApproved = post.approval_status === 'aprovado' || post.status === 'agendado' || post.status === 'publicado'
     const isChanged  = post.approval_status === 'não aprovado'
     const isComm     = commenting.has(post.id)
     const comment    = comments[post.id] || ''
@@ -1293,6 +1311,12 @@ export default function ApprovalPage({ token }: { token: string }) {
   if (tokenData?.type === 'geral') {
     const cronoList = posts.filter(p => p.status === 'aguardando_aprovacao_crono')
     const finalList = posts.filter(p => p.status === 'aguardando_aprovacao')
+    // Tudo que o cliente já decidiu, ou que o time já levou adiante. Continua
+    // na página em vez de sumir no clique — mais recente primeiro, que é o que
+    // ele vai querer rever.
+    const decididos = posts
+      .filter(p => ['aprovado', 'ajuste', 'agendado', 'publicado'].includes(p.status || ''))
+      .reverse()
     const totalPendingGeral = cronoList.length + finalList.length + extras.length
     const allDoneGeral = totalPendingGeral === 0
 
@@ -1354,6 +1378,26 @@ export default function ApprovalPage({ token }: { token: string }) {
               )}
             </>
           )}
+
+          {/* Fora do bloco acima de propósito: o histórico aparece mesmo quando
+              não há nada pendente — é justamente aí que o cliente vai querer
+              rever o que aprovou. */}
+          {decididos.length > 0 && (
+            <div style={{ marginTop: 24, borderTop: '1px solid #ebebeb', paddingTop: 20 }}>
+              <button
+                onClick={() => setVerHistorico(v => !v)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                <span style={{ display: 'inline-block', transform: verHistorico ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>
+                📁 Já aprovados e publicados · {decididos.length}
+              </button>
+              {verHistorico && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+                  {decididos.map((p, i) => renderFinalCard(p, i))}
+                </div>
+              )}
+            </div>
+          )}
+
           <p style={{ textAlign: 'center', fontSize: 11, color: '#d1d5db', marginTop: 28 }}>Powered by Bagano Hub</p>
         </main>
         <style>{`* { -webkit-tap-highlight-color: transparent; box-sizing: border-box; } @keyframes spin { to { transform: rotate(360deg) } }`}</style>
@@ -1688,17 +1732,15 @@ export default function ApprovalPage({ token }: { token: string }) {
                   Entraremos em contato em breve com os próximos passos.
                 </p>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {reviewPosts.map(p => (
-                  <div key={p.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, border: '1px solid #ebebeb' }}>
-                    <span style={{ fontSize: 22, flexShrink: 0 }}>{TYPE_EMOJIS[p.post_type] || '📄'}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: '#111', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</p>
-                      <p style={{ fontSize: 11, color: '#9ca3af', margin: '1px 0 0' }}>{TYPE_LABELS[p.post_type] || p.post_type}</p>
-                    </div>
-                    <CheckCircle size={18} color="#22c55e" strokeWidth={2.5} style={{ flexShrink: 0 }} />
-                  </div>
-                ))}
+              {/* Os cards inteiros continuam aqui depois de aprovado — antes
+                  esta tela trocava tudo por uma lista de nomes com um check, e
+                  o cliente perdia a arte, a legenda e o texto no instante em
+                  que terminava de aprovar. Não tinha como conferir o que
+                  acabou de aprovar, nem voltar depois pra rever.
+                  renderFinalCard já desenha o estado aprovado (borda verde,
+                  "✓ Aprovado") e não mostra botão de ação. */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {reviewPostsOrdered.map((post, idx) => renderFinalCard(post, idx))}
               </div>
             </div>
           ) : (
