@@ -18,6 +18,7 @@ import ModalPortal from '@/components/ModalPortal'
 import ListCell from '@/components/ListCell'
 import { useIsWideScreen } from '@/lib/useMediaQuery'
 import { statusBadge } from '@/lib/status'
+import { autoAssignFor } from '@/lib/autoAssign'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -536,7 +537,9 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
       post_type: full.post_type, status: full.status, scheduled_date: full.scheduled_date, scheduled_time: full.scheduled_time,
       drive_url: full.drive_url, drive_folder_url: full.drive_folder_url,
       reference_notes: full.reference_notes, funil: full.funil, campaign_type: full.campaign_type, labels: full.labels,
-      assigned_members: full.assigned_members,
+      // Cópia de post sem dono herdava "sem dono". Cai pra regra automática
+      // nesse caso, em vez de propagar o buraco.
+      assigned_members: full.assigned_members?.length ? full.assigned_members : await autoAssignFor(clientId, full.post_type),
     }).select('id').single()
     if (error) { toast('Erro ao duplicar post'); return }
     if (data) {

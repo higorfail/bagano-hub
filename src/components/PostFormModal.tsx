@@ -8,6 +8,8 @@ import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
 import ModalPortal from '@/components/ModalPortal'
 import { X } from 'lucide-react'
+import { autoAssignFor } from '@/lib/autoAssign'
+import { ensureWatching } from '@/lib/watch'
 
 const POST_TYPES = [
   { value: 'carrossel',        label: 'Carrossel' },
@@ -68,15 +70,25 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
     if (!form.title.trim()) return
     setSaving(true)
     const supabase = createClient()
+    // Marca quem faz esse tipo neste cliente (editor pra vídeo, designer pro
+    // resto) — mesma regra do card completo.
+    const auto = await autoAssignFor(clientId, form.post_type)
     const { data, error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year, post_number: nextPostNumber,
       ...form,
       scheduled_date: form.scheduled_date || null,
       campaign_type: form.campaign_type || null,
+      assigned_members: auto,
     }).select('id').single()
     setSaving(false)
     if (dbError(error, toast, 'criar post')) return
-    if (data) await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${form.title}"` })
+    if (data) {
+      // Esta tela criava o post e nunca registrava observador — post nascido
+      // aqui não gerava notificação nenhuma, nem pra quem criou. Precisa vir
+      // ANTES do logActivity, que é quem dispara o push.
+      await ensureWatching('schedules', data.id, [currentMember?.id, ...auto])
+      await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${form.title}"` })
+    }
     onSaved()
     onClose()
   }
