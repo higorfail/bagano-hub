@@ -24,7 +24,10 @@ const TYPE_EMOJIS: Record<string, string> = {
 // que o Safari/iOS bloqueia (ITP) e deixa o player todo preto — a API com key não
 // depende de cookie e funciona com playsInline no iOS.
 function driveStreamUrl(id: string) {
-  return `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${process.env.NEXT_PUBLIC_GOOGLE_API_KEY}`
+  // Pelo nosso servidor, não direto pro googleapis: a chave é restrita por
+  // referrer, e o Safari/iOS corta esse cabeçalho (medido: 403 sem, 200 com).
+  // Ver src/app/api/drive-video/route.ts.
+  return `/api/drive-video?id=${id}`
 }
 
 // <video> do Drive com DUAS tentativas antes de desistir: 1) streaming nativo
@@ -180,16 +183,29 @@ function CarouselPreview({ folderId, folderUrl, ratio = '100%' }: { folderId: st
         <>
           <button onClick={prev} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>‹</button>
           <button onClick={next} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>›</button>
-          <div style={{ position: 'absolute', bottom: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 5 }}>
-            {items.map((_, i) => (
-              <div key={i} onClick={() => setSlide(i)} style={{ width: i === slide ? 16 : 6, height: 6, borderRadius: 3, background: i === slide ? '#fff' : 'rgba(255,255,255,0.45)', cursor: 'pointer', transition: 'width 0.2s, background 0.2s' }} />
-            ))}
-          </div>
         </>
+      )}
+      {/* Indicador em faixa própria, entre a mídia e o rodapé. Antes ele era
+          absoluto no container de fora — que inclui o rodapé — então as
+          bolinhas caíam em cima do texto "Abrir pasta no Drive", e ainda
+          repetiam o "3/4" escrito ali do lado.
+          Fora da mídia também evita brigar com os controles nativos do player
+          quando o slide é um vídeo. Bolinha só até 8 itens: acima disso vira
+          um enxame ilegível e o número informa melhor. */}
+      {items.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0 8px', background: '#f5f5f3' }}>
+          {items.length <= 8 ? items.map((_, i) => (
+            <button key={i} onClick={() => setSlide(i)} aria-label={`Ir para ${i + 1} de ${items.length}`}
+              style={{ width: i === slide ? 18 : 7, height: 7, borderRadius: 4, border: 'none', padding: 0,
+                background: i === slide ? '#374151' : '#d1d5db', cursor: 'pointer', transition: 'width 0.2s, background 0.2s' }} />
+          )) : (
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#6b7280' }}>{slide + 1} / {items.length}</span>
+          )}
+        </div>
       )}
       <a href={folderUrl} target="_blank" rel="noopener noreferrer"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 12, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
-        📂 {slide + 1}/{items.length} · Abrir pasta no Drive
+        📂 Abrir pasta no Drive
       </a>
     </div>
   )
