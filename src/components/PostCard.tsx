@@ -25,7 +25,6 @@ import ModalPortal from '@/components/ModalPortal'
 import { renderMd } from '@/components/EditableField'
 import { useEnsureOnce } from '@/lib/ensureOnce'
 import { STATUS, STATUS_ORDER } from '@/lib/status'
-import { autoAssignFor } from '@/lib/autoAssign'
 import DeliverySection from '@/components/DeliverySection'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 
@@ -370,26 +369,20 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   async function ensurePostId(): Promise<string | undefined> {
     return ensureOnce(currentId, async () => {
     const f = formRef.current
-    // Quem faz esse tipo de conteúdo neste cliente já está definido em
-    // client_team — vídeo é do editor, o resto é do designer. Sem isto o card
-    // nascia sem dono (76% do cronograma estava assim) e, como observador vem
-    // de atribuição, ele também nascia sem ninguém pra avisar.
-    const auto = assignedMembers.length ? assignedMembers : await autoAssignFor(clientId, f.post_type)
     const { data, error } = await supabase.from('schedules').insert({
       client_id: clientId, month, year, post_number: postNumber,
       title: f.title.trim() || 'Sem título', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
       post_type: f.post_type, status: f.status, scheduled_date: f.scheduled_date || null, scheduled_time: f.scheduled_time || null,
       drive_url: f.drive_url, drive_folder_url: f.drive_folder_url || null, reference_notes: f.reference_notes, funil: f.funil,
-      campaign_type: f.campaign_type || null, labels, assigned_members: auto,
+      campaign_type: f.campaign_type || null, labels, assigned_members: assignedMembers,
     }).select().single()
     if (dbError(error, toast, 'criar post')) return undefined
     if (data) {
       setCurrentId(data.id)
-      if (auto.length && !assignedMembers.length) setAssignedMembers(auto)
       // Precisa terminar ANTES do logActivity — senão o push que ele dispara
       // consulta card_watchers antes do watcher novo estar salvo (corrida real,
       // já detectada em produção: atribuição não gerava notificação).
-      await ensureWatching('schedules', data.id, [currentMember?.id, ...auto])
+      await ensureWatching('schedules', data.id, [currentMember?.id, ...assignedMembers])
       await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${f.title.trim() || 'Sem título'}"` })
       setActivityKey(k => k + 1); flashSaved(); onSaved()
       return data.id
