@@ -344,16 +344,20 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
       campaign_type: campaignType || null,
     }
     if (!id) {
-      const { data, error } = await supabase.from('materials').insert(payload).select().single()
-      // Avisar e parar. Antes seguia até o "Material salvo!" lá embaixo mesmo
-      // com o insert recusado — a mensagem mais enganosa possível.
+      // Cria pela MESMA trava do ensureId, em vez de um insert próprio aqui.
+      // Com dois caminhos de criação lendo `id` (que é estado do React e não
+      // muda no meio do tique), clicar em "Salvar" tirava o foco do campo: o
+      // onBlur disparava persist() → ensureId() e o clique rodava esta função
+      // ao mesmo tempo, cada um inserindo um material. Mesmo defeito que
+      // duplicava extra.
+      const eid = await ensureId()
+      if (!eid) { toast('Erro ao salvar: não consegui criar o material'); setSaving(false); return }
+      // ensureId já registra o "criou" e o observador; aqui só resta gravar o
+      // formulário inteiro por cima.
+      const { error } = await supabase.from('materials').update(payload).eq('id', eid)
       if (dbError(error, toast, 'salvar material')) { setSaving(false); return }
-      if (data) {
-        setId(data.id)
-        originalStatusRef.current = status
-        await logActivity({ tableName: 'materials', recordId: data.id, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
-        setActivityKey(k => k + 1)
-      }
+      originalStatusRef.current = status
+      setActivityKey(k => k + 1)
     }
     // Se o material já existe, não escreve nada aqui — cada campo já persiste
     // sozinho no momento em que muda (os vários persist() espalhados pelo

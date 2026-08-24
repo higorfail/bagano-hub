@@ -476,17 +476,29 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
 
     let savedData: any
     if (!id) {
-      const { data, error } = await supabase.from('extras').insert(payload).select('*').single()
+      // Cria pela MESMA trava do ensureId, em vez de ter um insert próprio.
+      // Este era o card duplicado: clicar em "Salvar" tira o foco do campo, e
+      // o onBlur dispara persist() → ensureId() (insert 1) no mesmo instante em
+      // que o clique roda esta função com `id` ainda vazio — porque `id` é
+      // estado do React e não muda no meio do tique — e inseria o segundo.
+      // Passando pelo ensureId, quem chegar durante a criação espera a mesma
+      // promessa e recebe o mesmo id; aqui só resta atualizar com o formulário
+      // inteiro. O ensureId também já registra o "criou" e o observador.
+      const eid = await ensureId()
+      if (!eid) {
+        toast('Erro ao salvar: não consegui criar o extra')
+        setSaving(false)
+        return
+      }
+      const { data, error } = await supabase.from('extras').update(payload).eq('id', eid).select('*').single()
       if (error || !data) {
         console.error('Extra save error:', error)
         toast(`Erro ao salvar: ${error?.message ?? 'resposta vazia'}`)
         setSaving(false)
         return
       }
-      setId(data.id)
       savedData = withRelations(data)
       originalStatusRef.current = status
-      await logActivity({ tableName: 'extras', recordId: data.id, clientId: resolvedClientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${title}"` })
       setActivityKey(k => k + 1)
     } else {
       // Se o extra já existe, não escreve nada aqui — cada campo já persiste
