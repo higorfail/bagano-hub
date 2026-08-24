@@ -477,7 +477,13 @@ export default function DashboardPage() {
     supabase
       .from('extras')
       .select('id, title, type, status, priority, client_id, due_date, client_approval_status, campaign_type, labels')
-      .neq('status', 'done')
+      // "Feito" sai da lista junto com "Finalizado". A lista é o que precisa de
+      // VOCÊ — e "Feito" é justamente a pessoa dizendo que terminou a parte
+      // dela. Antes o filtro só tirava o "done", então marcar como feito não
+      // mudava nada: o extra continuava cobrando quem já tinha entregado.
+      // (O que ainda falta acontecer com ele depois de feito é outro assunto,
+      // e não é pendência de quem está marcado no card.)
+      .not('status', 'in', '("done","feito")')
       // Arquivado sai do radar. Desde que dá pra arquivar arrastando de
       // qualquer coluna, um extra ainda "a fazer" pode ir pro arquivo — e sem
       // este filtro ele voltaria a cobrar no "Para você".
@@ -492,7 +498,8 @@ export default function DashboardPage() {
     supabase
       .from('materials')
       .select('id, title, status, client_id, due_date, assigned_members, assigned_to, labels')
-      .neq('status', 'finalizado')
+      // Mesma regra dos extras: "Feito" é a pessoa dizendo que terminou.
+      .not('status', 'in', '("finalizado","feito")')
       .is('archived_at', null)
       .order('due_date', { ascending: true, nullsFirst: false })
       .then(({ data }) => {
