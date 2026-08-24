@@ -477,13 +477,7 @@ export default function DashboardPage() {
     supabase
       .from('extras')
       .select('id, title, type, status, priority, client_id, due_date, client_approval_status, campaign_type, labels')
-      // "Feito" sai da lista junto com "Finalizado". A lista é o que precisa de
-      // VOCÊ — e "Feito" é justamente a pessoa dizendo que terminou a parte
-      // dela. Antes o filtro só tirava o "done", então marcar como feito não
-      // mudava nada: o extra continuava cobrando quem já tinha entregado.
-      // (O que ainda falta acontecer com ele depois de feito é outro assunto,
-      // e não é pendência de quem está marcado no card.)
-      .not('status', 'in', '("done","feito")')
+      .neq('status', 'done')
       // Arquivado sai do radar. Desde que dá pra arquivar arrastando de
       // qualquer coluna, um extra ainda "a fazer" pode ir pro arquivo — e sem
       // este filtro ele voltaria a cobrar no "Para você".
@@ -498,8 +492,7 @@ export default function DashboardPage() {
     supabase
       .from('materials')
       .select('id, title, status, client_id, due_date, assigned_members, assigned_to, labels')
-      // Mesma regra dos extras: "Feito" é a pessoa dizendo que terminou.
-      .not('status', 'in', '("finalizado","feito")')
+      .neq('status', 'finalizado')
       .is('archived_at', null)
       .order('due_date', { ascending: true, nullsFirst: false })
       .then(({ data }) => {
@@ -876,7 +869,7 @@ export default function DashboardPage() {
   // ajuste solicitado conta como "precisa de você" (é ação sua consertar).
   type ParaVoceItem = {
     id: string; kind: 'post' | 'extra' | 'material' | 'task'; title: string
-    clientId: string; dueDate: string | null; ajuste: boolean; waitingClient: boolean; href: string
+    clientId: string; dueDate: string | null; ajuste: boolean; waitingClient: boolean; entregue: boolean; href: string
     postType?: string | null; campaignType?: string | null; labels?: CardLabel[] | null
     ajusteAlvo?: string | null
   }
@@ -911,6 +904,7 @@ export default function DashboardPage() {
       id: `post-${s.id}`, kind: 'post', title: s.title, clientId: s.client_id,
       dueDate: s.scheduled_date, ajuste: s.status === CFG.S.ajuste,
       waitingClient: s.status === CFG.S.aguardandoAprovacao && !stillOwesWork(openLabels(asLabels((s as any).labels), s.legenda)),
+      entregue: false,
       // post/m/y — sem isso o clique só caía na aba de cronograma do cliente,
       // sem abrir o post específico (o CronogramaTab já sabe abrir direto
       // quando recebe esses 3 parâmetros, só não estavam sendo passados).
@@ -923,6 +917,7 @@ export default function DashboardPage() {
       id: `extra-${e.id}`, kind: 'extra', title: e.title, clientId: e.client_id,
       dueDate: e.due_date, ajuste: e.client_approval_status === 'recusado',
       waitingClient: e.client_approval_status === 'aguardando' && !stillOwesWork(asLabels(e.labels)),
+      entregue: e.status === 'feito',
       href: e.client_id ? `/dashboard/clientes/${e.client_id}?tab=extras` : '/dashboard/kanban',
       postType: e.type, campaignType: e.campaign_type || null,
       labels: asLabels(e.labels),
@@ -931,18 +926,25 @@ export default function DashboardPage() {
       id: `material-${m.id}`, kind: 'material', title: m.title, clientId: m.client_id,
       dueDate: m.due_date, ajuste: m.status === 'ajuste',
       waitingClient: m.status === 'aguardando_aprovacao' && !stillOwesWork(asLabels(m.labels)),
+      entregue: m.status === 'feito',
       href: m.client_id ? `/dashboard/clientes/${m.client_id}?tab=materiais` : '/dashboard/materiais',
       labels: asLabels(m.labels),
     })),
     ...myTasks.map((t): ParaVoceItem => ({
       id: `task-${t.id}`, kind: 'task', title: t.title, clientId: t.client_id,
-      dueDate: t.due_date, ajuste: false, waitingClient: false,
+      dueDate: t.due_date, ajuste: false, waitingClient: false, entregue: false,
       href: `/dashboard/tarefas?task=${t.id}`,
       labels: asLabels(t.labels),
     })),
   ]
-  const needsYou = paraVoceItems.filter(i => !i.waitingClient)
-  const waitingOnClient = paraVoceItems.filter(i => i.waitingClient)
+  // Três baldes, não dois. "Feito" não é pendência de ninguém e também não é
+  // espera pelo cliente: é entrega feita esperando o próximo passo nosso
+  // (mandar pro cliente, agendar). Ficava no meio das pendências, então marcar
+  // Feito não mudava nada na tela — o card continuava cobrando quem já tinha
+  // entregado, e quem precisava dar o passo seguinte só via um aviso passar.
+  const entregues = paraVoceItems.filter(i => i.entregue)
+  const needsYou = paraVoceItems.filter(i => !i.waitingClient && !i.entregue)
+  const waitingOnClient = paraVoceItems.filter(i => i.waitingClient && !i.entregue)
 
   function itemSort(a: ParaVoceItem, b: ParaVoceItem) {
     if (a.ajuste !== b.ajuste) return a.ajuste ? -1 : 1
@@ -956,6 +958,7 @@ export default function DashboardPage() {
   }
   needsYou.sort(itemSort)
   waitingOnClient.sort(itemSort)
+  entregues.sort(itemSort)
 
   // Destino do clique em "N itens esperando o cliente": foca o cliente certo
   // (e se for 1 item só, já abre o preview dele) em vez de sempre cair na
@@ -1292,6 +1295,9 @@ export default function DashboardPage() {
                 )}
                 {needsYouRest.length > 0 && (
                   <ParaVoceGroup label="Pendências" items={needsYouRest} clientMap={clientMap} router={router} todayStr={todayStr} cap={5} agingMap={agingMap} campaignNameMap={campaignNameMap} />
+                )}
+                {entregues.length > 0 && (
+                  <ParaVoceGroup label="✅ Entregue — falta o próximo passo" items={entregues} clientMap={clientMap} router={router} todayStr={todayStr} muted cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} />
                 )}
                 {waitingOnClient.length > 0 && (
                   <ParaVoceSummaryRow icon="⏳" label={`${waitingOnClient.length} ${pl(waitingOnClient.length, 'item esperando', 'itens esperando')} o cliente`} onClick={() => router.push(waitingOnClientHref())} muted />
