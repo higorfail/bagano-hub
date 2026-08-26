@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { ChevronLeft, ChevronRight, Camera, PenLine, Filter, Users, Laptop, PartyPopper, CalendarDays, Plus, X, Loader2, Trash2, Check } from 'lucide-react'
 import PostCard from '@/components/PostCard'
 import { fromActiveClients } from '@/lib/activeClients'
+import { eventosDoGoogle, type EventoGoogle } from '@/lib/calendarSync'
 
 const MONTHS   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const WEEKDAYS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
@@ -66,6 +67,11 @@ export default function CalendarioPage() {
   const [captacoes,      setCaptacoes]      = useState<Captacao[]>([])
   const [criacaoEntries, setCriacaoEntries] = useState<CriacaoEntry[]>([])
   const [hubEvents,      setHubEvents]      = useState<HubEvent[]>([])
+  // O que existe no Google e NÃO nasceu aqui. Era o lado cego da ponte: a
+  // equipe marca captação direto no Google (UNI FLORIPA, NIHAO, STATION63…) e
+  // o hub não via nada disso — dos 8 eventos do calendário, só 1 tinha saído
+  // daqui.
+  const [googleEvents,   setGoogleEvents]   = useState<EventoGoogle[]>([])
   const [allClients,     setAllClients]     = useState<Client[]>([])
   const [memberMap,      setMemberMap]      = useState<Record<string, Member>>({})
   const [loading,        setLoading]        = useState(true)
@@ -75,6 +81,7 @@ export default function CalendarioPage() {
   const [showCriacao,   setShowCriacao]   = useState(true)
   const [showCaptacao,  setShowCaptacao]  = useState(true)
   const [showEventos,   setShowEventos]   = useState(true)
+  const [showGoogle,    setShowGoogle]    = useState(true)
 
   const [showPostCard,   setShowPostCard]   = useState(false)
   const [editingPostId,  setEditingPostId]  = useState<string | null>(null)
@@ -162,6 +169,16 @@ export default function CalendarioPage() {
         google_calendar_event_id: d.google_calendar_event_id || null,
       })))
 
+      // Os eventos do Google entram DEPOIS, sem segurar a tela: são um extra,
+      // e travar o mês inteiro esperando a API do Google seria pagar caro por
+      // eles. `ignorar` tira o que o hub já desenha por conta própria — sem
+      // isso a captação criada aqui apareceria duas vezes no mesmo dia.
+      const jaMostrados = new Set<string>([
+        ...(eventsData || []).map((d: any) => d.google_calendar_event_id),
+        ...(captData   || []).map((d: any) => d.google_calendar_event_id),
+      ].filter(Boolean) as string[])
+      eventosDoGoogle(startISO, endISO, jaMostrados).then(setGoogleEvents)
+
       setAllClients(clientData || [])
       const mm: Record<string, Member> = {}
       ;(memberData || []).forEach((m: any) => { mm[m.id] = m })
@@ -200,6 +217,9 @@ export default function CalendarioPage() {
       captacoes: showCaptacao ? captacoes.filter(c => c.scheduled_date === d && (!filterClient || c.client_id === filterClient)) : [],
       criacao:   showCriacao  ? criacaoEntries.filter(e => e.date === d && (!filterClient || e.client_id === filterClient)) : [],
       eventos:   showEventos  ? hubEvents.filter(ev => ev.date === d) : [],
+      // Evento do Google não tem cliente, então o filtro por cliente o
+      // esconderia sempre. Fica de fora dele de propósito.
+      google:    showGoogle && !filterClient ? googleEvents.filter(ev => ev.date === d) : [],
     }
   }
 
@@ -366,14 +386,18 @@ export default function CalendarioPage() {
             </button>
           </div>
 
-          {/* Type toggles — 4 células iguais no celular, em vez de quatro
-              larguras diferentes ("Posts" vs "Captação") quebrando torto */}
-          <div className="grid grid-cols-4 gap-1.5 md:flex md:items-center">
+          {/* Type toggles — células iguais no celular, em vez de larguras
+              diferentes ("Posts" vs "Captação") quebrando torto. Três colunas
+              (e não cinco) porque com o filtro do Google cinco não cabem numa
+              linha de celular sem virar texto ilegível: duas fileiras de três
+              é melhor que uma fileira apertada. */}
+          <div className="grid grid-cols-3 md:flex gap-1.5 md:items-center">
             {([
               { key: 'posts',    label: 'Posts',    active: showPosts,    toggle: () => setShowPosts(v => !v),    color: '#3b82f6', icon: null },
               { key: 'criacao',  label: 'Criação',  active: showCriacao,  toggle: () => setShowCriacao(v => !v),  color: '#f59e0b', icon: <PenLine size={9} /> },
               { key: 'captacao', label: 'Captação', active: showCaptacao, toggle: () => setShowCaptacao(v => !v), color: '#8b5cf6', icon: <Camera size={9} /> },
               { key: 'eventos',  label: 'Eventos',  active: showEventos,  toggle: () => setShowEventos(v => !v),  color: '#10b981', icon: <CalendarDays size={9} /> },
+              { key: 'google',   label: 'Google',   active: showGoogle,   toggle: () => setShowGoogle(v => !v),   color: '#64748b', icon: <CalendarDays size={9} /> },
             ] as const).map(({ key, label, active, toggle, color, icon }) => (
               <button key={key} onClick={toggle}
                 className="h-7 flex items-center justify-center gap-1 text-[11px] md:text-xs font-semibold px-1.5 md:px-2.5 rounded-full border transition-all"
@@ -428,8 +452,8 @@ export default function CalendarioPage() {
 
         <div className="grid grid-cols-7 flex-1">
           {cells.map((day, i) => {
-            const { posts: dp, captacoes: dc, criacao: dr, eventos: dev } = day ? itemsForDay(day) : { posts: [], captacoes: [], criacao: [], eventos: [] }
-            const totalItems = dp.length + dc.length + dr.length + dev.length
+            const { posts: dp, captacoes: dc, criacao: dr, eventos: dev, google: dg } = day ? itemsForDay(day) : { posts: [], captacoes: [], criacao: [], eventos: [], google: [] }
+            const totalItems = dp.length + dc.length + dr.length + dev.length + dg.length
             const todayCell  = day ? isToday(day) : false
             const maxShow = 3
 
@@ -438,6 +462,10 @@ export default function CalendarioPage() {
               ...dr.map(e  => ({ type: 'criacao'  as const, id: e.id,  label: e.client_name, color: e.client_color, notes: e.notes, members: e.member_ids, data: e })),
               ...dc.map(c  => ({ type: 'captacao' as const, id: c.id,  label: c.client_name || c.notes?.split('\n')[0] || 'Captação', color: '#8b5cf6', notes: c.notes, time: c.scheduled_time, data: c })),
               ...dp.map(p  => ({ type: 'post'     as const, id: p.id,  label: p.title, color: p.client_color, data: p })),
+              // Por último de propósito: o que vem do Google é contexto, não
+              // trabalho do hub. Se o dia estiver cheio, o que é nosso aparece
+              // primeiro e o do Google entra no "+N".
+              ...dg.map(ev => ({ type: 'google'   as const, id: ev.id,  label: ev.summary, color: '#64748b', data: ev })),
             ]
 
             return (
@@ -501,6 +529,24 @@ export default function CalendarioPage() {
                         <span className="truncate md:hidden">{initials(item.label)}</span>
                         <span className="truncate hidden md:inline">{c.scheduled_time ? c.scheduled_time.slice(0,5) + ' ' : ''}{item.label}</span>
                       </div>
+                    )
+                  }
+                  if (item.type === 'google') {
+                    const g = item.data as EventoGoogle
+                    // Abre no Google, não aqui: o hub não é dono deste evento e
+                    // fingir que edita seria mentir — a edição não voltaria pro
+                    // Google. Cinza e sem preenchimento forte pelo mesmo motivo:
+                    // é contexto de fora, não item de trabalho do hub.
+                    return (
+                      <a key={`g-${item.id}`}
+                        href={g.htmlLink || undefined} target="_blank" rel="noopener noreferrer"
+                        className="rounded md:rounded-md px-1 md:px-1.5 py-px md:py-0.5 text-[9px] md:text-[10px] font-medium truncate border border-dashed flex items-center gap-0.5"
+                        style={{ background: 'transparent', color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}
+                        title={`Google Agenda${g.allDay ? '' : g.startTime ? ' ' + g.startTime : ''}: ${g.summary}`}>
+                        <CalendarDays size={8} className="flex-shrink-0" />
+                        <span className="truncate md:hidden">{initials(g.summary)}</span>
+                        <span className="truncate hidden md:inline">{!g.allDay && g.startTime ? g.startTime + ' ' : ''}{g.summary}</span>
+                      </a>
                     )
                   }
                   // post

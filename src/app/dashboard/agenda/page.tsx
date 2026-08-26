@@ -6,6 +6,7 @@ import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import { Plus, ChevronLeft, ChevronRight, Calendar, Camera, X, Check, Loader2, CalendarPlus } from 'lucide-react'
 import { fromActiveClients } from '@/lib/activeClients'
+import { sincronizarCaptacao, removerDoCalendario, eventosDoGoogle, type EventoGoogle } from '@/lib/calendarSync'
 
 type Client       = { id: string; name: string; color_hex: string; logo_url: string | null }
 type Member       = { id: string; name: string; role: string }
@@ -137,10 +138,11 @@ export default function AgendaPage() {
 
   useEffect(() => { load() }, [load])
 
-  // Check if calendar is configured
+  // O calendário está ligado? Perguntar lendo um intervalo vazio custa o mesmo
+  // que o POST vazio que existia aqui — e aquele virava uma tentativa de criar
+  // evento sem título nem data, uma escrita fadada a falhar a cada abertura.
   useEffect(() => {
-    fetch('/api/calendar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ _ping: true }) })
+    fetch('/api/calendar?start=2000-01-01&end=2000-01-01')
       .then(r => setCalendarOk(r.status !== 503))
       .catch(() => setCalendarOk(false))
   }, [])
@@ -203,7 +205,13 @@ export default function AgendaPage() {
       months_covered: captForm.months_covered,
     }).select().single()
     if (dbError(error, toast, 'salvar captação')) { setSavingCapt(false); return }
-    if (data) setCaptacoes(prev => [...prev, data].sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)))
+    if (data) {
+      setCaptacoes(prev => [...prev, data].sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)))
+      // Vai pro Google junto com o salvar, sem botão. O botão existia e era
+      // esquecido: 5 das 7 captações nunca viraram evento, incluindo as 4 que
+      // ainda estavam por acontecer.
+      void enviarPraGoogle(data)
+    }
     setCaptModal(false)
     setCaptForm({ ...BLANK_CAPTACAO })
     setSavingCapt(false)
@@ -211,55 +219,40 @@ export default function AgendaPage() {
 
   async function deleteCapt(id: string) {
     const capt = captacoes.find(c => c.id === id)
-    if (capt?.google_calendar_event_id) {
-      await fetch('/api/calendar', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId: capt.google_calendar_event_id }),
-      })
-    }
+    await removerDoCalendario(capt?.google_calendar_event_id)
     const { error } = await supabase.from('captacoes').delete().eq('id', id)
     if (dbError(error, toast, 'excluir captação')) return
     setCaptacoes(prev => prev.filter(c => c.id !== id))
   }
 
-  async function syncToCalendar(capt: Captacao) {
+  // Um caminho só pro Google, usado pelo salvar, pelo mudar de status e pelo
+  // botão de reenviar — antes cada um teria que remontar o mesmo payload, e o
+  // que existia só sabia CRIAR: mudar a data deixava o evento no dia velho.
+  async function enviarPraGoogle(capt: Captacao) {
+    if (calendarOk === false) return
     setSyncingId(capt.id)
-    const client = clientMap[capt.client_id]
     const teamNames = (capt.team_member_ids || []).map(mid => memberMap[mid]?.name).filter(Boolean).join(', ')
-    const endMinutes = capt.scheduled_time
-      ? (() => {
-          const [h, m] = capt.scheduled_time.split(':').map(Number)
-          const total  = h * 60 + m + capt.duration_minutes
-          return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
-        })()
-      : null
-
-    const res = await fetch('/api/calendar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        summary:     `📸 Captação — ${client?.name || 'Cliente'}`,
-        description: [capt.notes, teamNames ? `Equipe: ${teamNames}` : ''].filter(Boolean).join('\n'),
-        date:        capt.scheduled_date,
-        startTime:   capt.scheduled_time || undefined,
-        endTime:     endMinutes || undefined,
-      }),
-    })
-
-    if (res.ok) {
-      const { eventId } = await res.json()
-      await supabase.from('captacoes').update({ google_calendar_event_id: eventId }).eq('id', capt.id)
-      setCaptacoes(prev => prev.map(c => c.id === capt.id ? { ...c, google_calendar_event_id: eventId } : c))
-    }
+    const { ok, eventId } = await sincronizarCaptacao(
+      capt as any, clientMap[capt.client_id]?.name || '', teamNames,
+    )
+    if (ok) setCaptacoes(prev => prev.map(c => c.id === capt.id ? { ...c, google_calendar_event_id: eventId } : c))
+    else toast('Captação salva, mas não entrou no Google Agenda', 'error')
     setSyncingId(null)
   }
 
   async function updateStatus(id: string, status: string) {
     const prev = captacoes
+    const capt = captacoes.find(c => c.id === id)
     setCaptacoes(p => p.map(c => c.id === id ? { ...c, status } : c))
     const { error } = await supabase.from('captacoes').update({ status }).eq('id', id)
-    if (error) { setCaptacoes(prev); dbError(error, toast, 'mudar status') }
+    if (error) { setCaptacoes(prev); dbError(error, toast, 'mudar status'); return }
+    // Captação cancelada sai do Google. Deixar o evento de pé é pior que não
+    // ter enviado: a equipe reserva o dia por causa de algo que não acontece.
+    if (capt && status === 'cancelada' && capt.google_calendar_event_id) {
+      await removerDoCalendario(capt.google_calendar_event_id)
+      await supabase.from('captacoes').update({ google_calendar_event_id: null }).eq('id', id)
+      setCaptacoes(p => p.map(c => c.id === id ? { ...c, google_calendar_event_id: null } : c))
+    }
   }
 
   // ── Rendering helpers ──────────────────────────────────────────────
@@ -425,7 +418,7 @@ export default function AgendaPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {upcomingCaptacoes.map(c => <CaptacaoRow key={c.id} c={c} clientMap={clientMap} memberMap={memberMap} syncing={syncingId === c.id} calendarOk={!!calendarOk} onSync={() => syncToCalendar(c)} onDelete={() => deleteCapt(c.id)} onStatus={s => updateStatus(c.id, s)} />)}
+              {upcomingCaptacoes.map(c => <CaptacaoRow key={c.id} c={c} clientMap={clientMap} memberMap={memberMap} syncing={syncingId === c.id} calendarOk={!!calendarOk} onSync={() => enviarPraGoogle(c)} onDelete={() => deleteCapt(c.id)} onStatus={s => updateStatus(c.id, s)} />)}
 
               {pastCaptacoes.length > 0 && (
                 <>
@@ -650,9 +643,12 @@ function CaptacaoRow({ c, clientMap, memberMap, syncing, calendarOk, onSync, onD
           )}
         </div>
 
-        {/* Google Calendar sync */}
+        {/* Google Calendar. O envio agora é automático, então este botão é
+            indicador, não gatilho — mas continua clicável de propósito: se a
+            nota ou a equipe mudou depois de criada, ou se o envio falhou, dá
+            pra reenviar sem apagar e refazer a captação. */}
         {calendarOk && c.status !== 'cancelada' && (
-          <button onClick={onSync} disabled={syncing || !!c.google_calendar_event_id} title={c.google_calendar_event_id ? 'Sincronizado' : 'Adicionar ao Google Calendar'}
+          <button onClick={onSync} disabled={syncing} title={c.google_calendar_event_id ? 'No Google Agenda — clique pra reenviar' : 'Enviar ao Google Agenda'}
             className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${c.google_calendar_event_id ? 'bg-[var(--ds-success-bg)]' : 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)]'}`} style={c.google_calendar_event_id ? { color: 'var(--ds-success-text)' } : {}}>
             {syncing ? <Loader2 size={14} className="animate-spin" /> : c.google_calendar_event_id ? <Check size={14} /> : <CalendarPlus size={14} />}
           </button>

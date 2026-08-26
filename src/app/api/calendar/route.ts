@@ -1,6 +1,18 @@
 import { google } from 'googleapis'
 import { NextRequest, NextResponse } from 'next/server'
+import { usuarioLogado } from '@/lib/apiAuth'
 
+// Ponte com o Google Calendar da Bagano (calendário "Captação").
+//
+// A ligação era de mão única — o hub escrevia e nunca lia. Medido antes de
+// mexer: das 7 captações do hub só 2 tinham virado evento, e dos 8 eventos do
+// Google só 1 tinha saído do hub. As duas agendas viviam separadas, porque a
+// equipe cria o evento direto no Google e o hub não enxergava nada disso.
+//
+// Agora vai nos dois sentidos, com uma regra de dono pra não precisar de
+// resolução de conflito: quem criou o evento manda nele. Evento nascido no hub
+// tem `google_calendar_event_id` guardado e é o hub que o mantém; evento
+// nascido no Google o hub mostra e não toca.
 function getAuth() {
   const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
   const calendarId = process.env.GOOGLE_CALENDAR_ID
@@ -11,57 +23,160 @@ function getAuth() {
       credentials,
       scopes: ['https://www.googleapis.com/auth/calendar'],
     })
-    return { auth, calendarId }
+    return { calendar: google.calendar({ version: 'v3', auth }), calendarId }
   } catch {
     return null
   }
 }
 
-export async function POST(req: NextRequest) {
-  const ctx = getAuth()
-  if (!ctx) {
-    return NextResponse.json({ error: 'Google Calendar não configurado' }, { status: 503 })
-  }
+const TZ = 'America/Sao_Paulo'
+const NAO_CONFIGURADO = { error: 'Google Calendar não configurado' }
 
-  const body = await req.json()
-  const { summary, description, date, startTime, endTime, location } = body
+/** Monta start/end no formato do Google: com hora quando há hora, dia inteiro quando não há. */
+function periodo(date: string, startTime?: string, endTime?: string) {
+  return startTime && endTime
+    ? {
+        start: { dateTime: `${date}T${startTime}:00`, timeZone: TZ },
+        end:   { dateTime: `${date}T${endTime}:00`,   timeZone: TZ },
+      }
+    : { start: { date }, end: { date } }
+}
+
+/** Devolve o acesso ao calendário, ou a resposta de recusa pronta pra retornar. */
+async function comAcesso(): Promise<NonNullable<ReturnType<typeof getAuth>> | NextResponse> {
+  if (!(await usuarioLogado())) {
+    return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
+  }
+  return getAuth() ?? NextResponse.json(NAO_CONFIGURADO, { status: 503 })
+}
+
+/**
+ * Lê os eventos de um intervalo. É o lado que faltava.
+ *
+ * Serve também de teste de configuração: a Agenda perguntava se o calendário
+ * estava ligado mandando um POST vazio, que virava uma tentativa de criar
+ * evento sem título nem data — uma escrita fadada a falhar a cada abertura da
+ * tela. Perguntar lendo custa o mesmo e não escreve nada.
+ */
+export async function GET(req: NextRequest) {
+  const acesso = await comAcesso()
+  if (acesso instanceof NextResponse) return acesso
+  const { calendar, calendarId } = acesso
+
+  const p = req.nextUrl.searchParams
+  const start = p.get('start')
+  const end   = p.get('end')
+  if (!start || !end) return NextResponse.json({ error: 'start e end obrigatórios' }, { status: 400 })
 
   try {
-    const calendar = google.calendar({ version: 'v3', auth: ctx.auth })
-
-    const hasTime = startTime && endTime
-    const start = hasTime
-      ? { dateTime: `${date}T${startTime}:00`, timeZone: 'America/Sao_Paulo' }
-      : { date }
-    const end = hasTime
-      ? { dateTime: `${date}T${endTime}:00`, timeZone: 'America/Sao_Paulo' }
-      : { date }
-
-    const event = await calendar.events.insert({
-      calendarId: ctx.calendarId,
-      requestBody: { summary, description: description || '', start, end, location: location || '' },
+    const { data } = await calendar.events.list({
+      calendarId,
+      timeMin: new Date(`${start}T00:00:00-03:00`).toISOString(),
+      timeMax: new Date(`${end}T23:59:59-03:00`).toISOString(),
+      // `singleEvents` expande a recorrência: sem isso um evento semanal volta
+      // como uma linha só e some do calendário em todas as semanas menos uma.
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 250,
     })
+    const events = (data.items || []).map(e => ({
+      id: e.id,
+      summary: e.summary || '(sem título)',
+      description: e.description || null,
+      location: e.location || null,
+      htmlLink: e.htmlLink || null,
+      // Dia inteiro vem em `date`; com hora vem em `dateTime`. Quem consome
+      // precisa distinguir os dois pra não inventar 00:00 como horário real.
+      date: e.start?.date || (e.start?.dateTime || '').slice(0, 10),
+      startTime: e.start?.dateTime ? new Date(e.start.dateTime).toTimeString().slice(0, 5) : null,
+      endTime:   e.end?.dateTime   ? new Date(e.end.dateTime).toTimeString().slice(0, 5)   : null,
+      allDay: !!e.start?.date,
+    }))
+    return NextResponse.json({ events })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
 
+export async function POST(req: NextRequest) {
+  const acesso = await comAcesso()
+  if (acesso instanceof NextResponse) return acesso
+  const { calendar, calendarId } = acesso
+
+  const { summary, description, date, startTime, endTime, location } = await req.json()
+  if (!date) return NextResponse.json({ error: 'date obrigatório' }, { status: 400 })
+
+  try {
+    const event = await calendar.events.insert({
+      calendarId,
+      requestBody: {
+        summary, description: description || '', location: location || '',
+        ...periodo(date, startTime, endTime),
+      },
+    })
     return NextResponse.json({ eventId: event.data.id })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  const ctx = getAuth()
-  if (!ctx) {
-    return NextResponse.json({ error: 'Google Calendar não configurado' }, { status: 503 })
+/**
+ * Atualiza um evento que o hub criou.
+ *
+ * Sem isto, mudar a data de uma captação já enviada deixava o Google com a
+ * data velha pra sempre — e ninguém percebe um evento que ficou parado no dia
+ * errado. Só era possível criar e apagar.
+ */
+export async function PATCH(req: NextRequest) {
+  const acesso = await comAcesso()
+  if (acesso instanceof NextResponse) return acesso
+  const { calendar, calendarId } = acesso
+
+  const { eventId, summary, description, date, startTime, endTime, location } = await req.json()
+  if (!eventId) return NextResponse.json({ error: 'eventId obrigatório' }, { status: 400 })
+  if (!date)    return NextResponse.json({ error: 'date obrigatório' },    { status: 400 })
+
+  try {
+    const { data } = await calendar.events.patch({
+      calendarId,
+      eventId,
+      requestBody: {
+        summary, description: description || '', location: location || '',
+        ...periodo(date, startTime, endTime),
+      },
+    })
+    // Apagado à mão no Google não some: vira `cancelled`, e o patch CONTINUA
+    // funcionando nele — medido contra a API de verdade. Sem esta checagem o
+    // hub gravaria as alterações num evento invisível e daria tudo por certo,
+    // enquanto a captação seguia fora do calendário da equipe.
+    if (data.status === 'cancelled') {
+      return NextResponse.json({ error: 'evento foi apagado no Google', gone: true }, { status: 410 })
+    }
+    return NextResponse.json({ ok: true })
+  } catch (err: any) {
+    // Id que o Google já não reconhece — mesmo desfecho: quem chamou recria.
+    if (err.code === 404 || err.code === 410) {
+      return NextResponse.json({ error: 'evento não existe mais', gone: true }, { status: 410 })
+    }
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
+}
+
+export async function DELETE(req: NextRequest) {
+  const acesso = await comAcesso()
+  if (acesso instanceof NextResponse) return acesso
+  const { calendar, calendarId } = acesso
 
   const { eventId } = await req.json()
   if (!eventId) return NextResponse.json({ error: 'eventId obrigatório' }, { status: 400 })
 
   try {
-    const calendar = google.calendar({ version: 'v3', auth: ctx.auth })
-    await calendar.events.delete({ calendarId: ctx.calendarId, eventId })
+    await calendar.events.delete({ calendarId, eventId })
     return NextResponse.json({ ok: true })
   } catch (err: any) {
+    // Já não existe = o objetivo está cumprido. Tratar como erro faria a tela
+    // reclamar de um apagamento que deu certo.
+    if (err.code === 404 || err.code === 410) return NextResponse.json({ ok: true })
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
