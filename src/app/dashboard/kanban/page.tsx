@@ -9,6 +9,7 @@ import { groupByClient, useClientGrouping } from '@/lib/useClientGrouping'
 import { approvalShort } from '@/lib/approvalKind'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { statusColor } from '@/lib/status'
+import { fromActiveClients } from '@/lib/activeClients'
 
 type Post = {
   id: string; post_number: number; title: string; post_type: string
@@ -71,8 +72,12 @@ export default function KanbanPage() {
         supabase.from('cronograma_status')
           .select('client_id, month, year, status'),
       ])
+      // Os posts vêm sem recorte de cliente (o Kanban mostra tudo e filtra o
+      // período do lado de cá). Sem isto, cliente desativado continuava com
+      // coluna e cards no quadro.
+      const ativos = new Set((clientData || []).map(c => c.id))
       setClients(clientData || [])
-      setPosts(postData || [])
+      setPosts(fromActiveClients<any>(postData, ativos))
       const map: Record<string, string> = {}
       ;(cronoData || []).forEach(cs => { map[`${cs.client_id}-${cs.month}-${cs.year}`] = cs.status })
       setCronoStatuses(map)

@@ -11,6 +11,7 @@ import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import { logActivity } from '@/lib/activity'
 import { getOrCreateExtrasApprovalToken, sendFeitoExtrasToClient } from '@/lib/approvalLinks'
+import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
 
 type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post' | 'carrossel' | 'post_story'
 // 'feito' entrou entre "a fazer" e "com o cliente": o designer termina a arte
@@ -189,11 +190,18 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
 
     const { data, error } = await q
     if (error) console.error('ExtrasKanban load error:', error)
-    if (data) setExtras(data as Extra[])
 
     // Always load clients for name lookup (even in non-global mode)
     const { data: cl } = await supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name')
     if (cl) setClients(cl)
+
+    // No modo global não há `clientId` na consulta, então os extras vinham de
+    // todos os clientes — inclusive dos desativados. No modo por cliente o
+    // recorte já veio do `eq`, e este filtro não tira nada.
+    if (data) {
+      const ativos = clientId ? null : await activeClientIds(supabase)
+      setExtras((ativos ? fromActiveClients<any>(data, ativos) : data) as Extra[])
+    }
 
     // Progresso do checklist por extra
     const { data: chk } = await supabase.from('extra_checklist').select('extra_id, done')

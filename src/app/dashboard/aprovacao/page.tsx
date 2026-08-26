@@ -8,6 +8,7 @@ import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight, Chevrons
 import ModalPortal from '@/components/ModalPortal'
 import CronoApprovals from '@/components/CronoApprovals'
 import { approvalKind, approvalLabel } from '@/lib/approvalKind'
+import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
 
 // "Aprovado" nesta página significa APROVAÇÃO FINAL do conteúdo. O campo
 // approval_status vale 'aprovado' pros dois tipos (crono e final), então usar
@@ -337,10 +338,15 @@ function AprovacaoPageInner() {
   const [surface,   setSurface]   = useState<'conteudo' | 'crono'>('conteudo')
   const [cronoPendentes, setCronoPendentes] = useState(0)
   useEffect(() => {
-    createClient().from('schedules')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'aguardando_aprovacao_crono')
-      .then(({ count }) => setCronoPendentes(count || 0))
+    // Contagem feita no servidor, então o recorte de cliente ativo vai na
+    // consulta: não volta linha nenhuma pra filtrar aqui.
+    const supabase = createClient()
+    activeClientIds(supabase).then(ativos =>
+      supabase.from('schedules')
+        .select('id', { count: 'exact', head: true })
+        .in('client_id', [...ativos])
+        .eq('status', 'aguardando_aprovacao_crono')
+        .then(({ count }) => setCronoPendentes(count || 0)))
   }, [])
   const [search,    setSearch]    = useState('')
   const [monthFilter, setMonthFilter] = useState('')
@@ -360,7 +366,7 @@ function AprovacaoPageInner() {
     async function load() {
       try {
         const supabase = createClient()
-        const [{ data: postData, error: e1 }, { data: clientData }, { data: extrasData }] = await Promise.all([
+        const [{ data: postRaw, error: e1 }, { data: clientData }, { data: extrasRaw }] = await Promise.all([
           supabase
             .from('schedules')
             .select('id, title, post_type, status, approval_status, approval_comment, scheduled_date, month, year, client_id, drive_url, drive_folder_url, funil, campaign_type')
@@ -377,6 +383,13 @@ function AprovacaoPageInner() {
             .is('archived_at', null),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
+        // `clientData` já vem só com ativo, mas os posts e extras acima são
+        // buscados por status, sem passar por cliente. Sem este recorte o
+        // conteúdo de cliente desativado continuava na fila de aprovação, com
+        // o nome em branco porque o mapa de clientes nem o tinha.
+        const ativos = new Set((clientData || []).map((c: any) => c.id))
+        const postData = fromActiveClients<any>(postRaw, ativos)
+        const extrasData = fromActiveClients<any>(extrasRaw, ativos)
         // Esta página é sobre APROVAÇÃO DO CONTEÚDO. Um post com o cronograma
         // aprovado seguindo em produção não é assunto daqui: ele aparecia na
         // aba "Aprovados" e passava a impressão de que a arte estava aprovada

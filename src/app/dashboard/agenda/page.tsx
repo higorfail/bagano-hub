@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import { Plus, ChevronLeft, ChevronRight, Calendar, Camera, X, Check, Loader2, CalendarPlus } from 'lucide-react'
+import { fromActiveClients } from '@/lib/activeClients'
 
 type Client       = { id: string; name: string; color_hex: string; logo_url: string | null }
 type Member       = { id: string; name: string; role: string }
@@ -123,10 +124,14 @@ export default function AgendaPage() {
       supabase.from('agenda_criacao').select('*').eq('week_start', start),
       supabase.from('captacoes').select('*').gte('scheduled_date', start).lte('scheduled_date', end).order('scheduled_date'),
     ])
+    // Captação e agenda de criação são buscadas por semana, sem passar por
+    // cliente. Sem este recorte, cliente desativado seguia ocupando dia na
+    // agenda de quem ainda trabalha.
+    const ativos = new Set((cl || []).map(c => c.id))
     setClients(cl || [])
     setMembers(mb || [])
-    setEntries(en || [])
-    setCaptacoes(cap || [])
+    setEntries(fromActiveClients<any>(en, ativos))
+    setCaptacoes(fromActiveClients<any>(cap, ativos))
     setLoading(false)
   }, [weekStart])
 

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { useUser } from '@/lib/UserContext'
 import ExtrasKanban from '@/components/ExtrasKanban'
 import { Archive, ArchiveRestore } from 'lucide-react'
+import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
 
 function ExtrasContent() {
   const { members } = useUser()
@@ -28,8 +29,15 @@ function ExtrasContent() {
     async function load() {
       // `is('archived_at', null)`: o cabeçalho contava os arquivados e o
       // quadro não — dizia "18 extras · 9 concluídos" com 13 na tela.
-      const { data } = await supabase.from('extras').select('status, due_date').is('archived_at', null)
-      if (!data) return
+      // Sem recorte de cliente ativo o cabeçalho contava os extras de cliente
+      // desativado — inclusive no "atrasados", que é justamente o número que
+      // não dava pra zerar por mais que se trabalhasse.
+      const [{ data: raw }, ativos] = await Promise.all([
+        supabase.from('extras').select('client_id, status, due_date').is('archived_at', null),
+        activeClientIds(supabase),
+      ])
+      if (!raw) return
+      const data = fromActiveClients<any>(raw, ativos)
       const now = new Date()
       setStats({
         total:   data.length,

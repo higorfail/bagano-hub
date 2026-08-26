@@ -2,6 +2,7 @@
 
 import { createClient } from './supabase'
 import { todayBrasiliaISO, addDaysISO } from './timezone'
+import { activeClientIds } from './activeClients'
 
 // Alerta de agência é CONDIÇÃO, não evento — e essa diferença define tudo aqui.
 //
@@ -28,23 +29,34 @@ export async function fetchAgencyAlerts(): Promise<AgencyAlert[]> {
   const tomorrow = addDaysISO(today, 1)
   const in3Days = addDaysISO(today, 3)
 
+  // Aqui o recorte de cliente ativo tem que ir DENTRO da consulta, não depois:
+  // dois destes alertas são contagem feita no servidor (`head: true`), e não
+  // volta linha nenhuma pra filtrar do lado de cá. Sem isso, desativar um
+  // cliente deixava os posts dele inflando "sai até amanhã" e "extra vencido"
+  // pra sempre, num número que ninguém conseguia zerar.
+  const idsAtivos = [...(await activeClientIds(supabase))]
+
   const [captacoes, parados, urgentes, extrasVencidos] = await Promise.all([
     supabase.from('captacoes')
       .select('id, scheduled_date, clients(name)')
+      .in('client_id', idsAtivos)
       .gte('scheduled_date', today).lte('scheduled_date', in3Days)
       .eq('status', 'agendada').order('scheduled_date').limit(10),
     // Aguardando o cliente há 3+ dias — é onde o cronograma trava sem ninguém
     // ver. Traz os ids; o tempo de espera é medido depois, no activity_log.
     supabase.from('schedules')
       .select('id, title, client_id, month, year')
+      .in('client_id', idsAtivos)
       .eq('status', 'aguardando_aprovacao'),
     // Sai hoje ou amanhã e ainda não está pronto.
     supabase.from('schedules')
       .select('id', { count: 'exact', head: true })
+      .in('client_id', idsAtivos)
       .gte('scheduled_date', today).lte('scheduled_date', tomorrow)
       .not('status', 'in', '(agendado,publicado,aprovado)'),
     supabase.from('extras')
       .select('id', { count: 'exact', head: true })
+      .in('client_id', idsAtivos)
       .lt('due_date', today).neq('status', 'done'),
   ])
 

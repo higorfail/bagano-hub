@@ -10,6 +10,7 @@ import { CheckCircle2, Loader2, Pencil, X, Check, Filter, ChevronDown } from 'lu
 import PostCard from '@/components/PostCard'
 import MaterialCard from '@/components/MaterialCard'
 import ExtraCard from '@/components/ExtraCard'
+import { fromActiveClients } from '@/lib/activeClients'
 
 const POST_TYPES: Record<string, { label: string; emoji: string; color: string }> = {
   carrossel:         { label: 'Carrossel',         emoji: '🎠', color: '#3b82f6' },
@@ -170,32 +171,39 @@ export default function CriacaoPage() {
 
       if (e1 || e2 || e3) { setLoadError(true); setLoading(false); return }
 
+      // Posts, extras e materiais vêm por status, sem passar por cliente. Sem
+      // este recorte a Criação seguia cobrando produção de cliente desativado.
+      const ativos = new Set((cl || []).map(c => c.id))
+      const po2  = fromActiveClients<any>(po, ativos)
+      const ex2  = fromActiveClients<any>(ex, ativos)
+      const mat2 = fromActiveClients<any>(mat, ativos)
+
       setClients(cl || [])
       setMembers(mb || [])
-      setPosts(po || [])
+      setPosts(po2)
       setCronoNotes(cs || [])
-      setExtras((ex || []).map(e => ({
+      setExtras(ex2.map((e: any) => ({
         ...e,
         assigned_members: Array.isArray(e.assigned_members) && e.assigned_members.length > 0
           ? e.assigned_members
           : (e as any).assigned_member_id ? [(e as any).assigned_member_id] : [],
       })))
-      setMaterials((mat || []).map(m => ({
+      setMaterials(mat2.map((m: any) => ({
         ...m,
         assigned_members: Array.isArray(m.assigned_members) && m.assigned_members.length > 0
           ? m.assigned_members
           : (m as any).assigned_to ? [(m as any).assigned_to] : [],
       })))
-      setAgendaEntries(ag || [])
-      setClientTeam(ct || [])
+      setAgendaEntries(fromActiveClients<any>(ag, ativos))
+      setClientTeam(fromActiveClients<any>(ct, ativos))
 
       // On first load only: collapse all clients except the first
       if (!hasInitialized.current) {
         hasInitialized.current = true
         const orderedIds = [...new Set([
-          ...(po || []).map(p => p.client_id),
-          ...(ex || []).filter(e => e.client_id).map(e => e.client_id!),
-          ...(mat || []).filter(m => m.client_id).map(m => m.client_id!),
+          ...po2.map((p: any) => p.client_id),
+          ...ex2.filter((e: any) => e.client_id).map((e: any) => e.client_id!),
+          ...mat2.filter((m: any) => m.client_id).map((m: any) => m.client_id!),
         ])]
         if (orderedIds.length > 1) {
           setCollapsedClients(new Set(orderedIds.slice(1)))

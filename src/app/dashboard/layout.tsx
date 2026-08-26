@@ -17,6 +17,7 @@ import { useDrawer, usePullToRefresh } from '@/lib/gestures'
 import { fetchUnreadCount } from '@/lib/notifications'
 import { installTouchDragBridge } from '@/lib/touchDragBridge'
 import { BellRing, RefreshCw, KeyRound, LogOut } from 'lucide-react'
+import { activeClientIds } from '@/lib/activeClients'
 
 const navItems = [
   { href: '/dashboard',          icon: Home,          label: 'Início' },
@@ -183,9 +184,15 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   // barra lateral, que não é notificação — é um número de fila.
   async function loadNotifications() {
     const supabase = createClient()
+    // Contagem feita no servidor: o recorte de cliente ativo vai na consulta.
+    // Este é o número da barra lateral — cliente desativado o mantinha alto
+    // sem que houvesse nada a fazer pra baixá-lo.
+    const ids = [...(await activeClientIds(supabase))]
     const [pendingRes, rejectedRes] = await Promise.all([
-      supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('status', 'aguardando_aprovacao'),
       supabase.from('schedules').select('id', { count: 'exact', head: true })
+        .in('client_id', ids).eq('status', 'aguardando_aprovacao'),
+      supabase.from('schedules').select('id', { count: 'exact', head: true })
+        .in('client_id', ids)
         .eq('approval_status', 'não aprovado')
         .not('status', 'in', '(aprovado,agendado,publicado,aguardando_aprovacao)'),
     ])

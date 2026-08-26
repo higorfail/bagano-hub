@@ -8,6 +8,7 @@ import MaterialCard from '@/components/MaterialCard'
 import MaterialCardMini from '@/components/MaterialCardMini'
 import { logActivity } from '@/lib/activity'
 import { Archive, ArchiveRestore, Plus } from 'lucide-react'
+import { fromActiveClients } from '@/lib/activeClients'
 
 type Material = {
   id: string
@@ -79,7 +80,12 @@ function MateriaisContent() {
         // não têm mais trabalho nenhum.
         supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name'),
       ])
-      setMaterials(mats || [])
+      // A lista de materiais vem sem recorte de cliente. Filtrar só o seletor
+      // de cliente (logo acima) escondia o nome mas não o card: material de
+      // cliente desativado seguia no quadro, sem cliente nenhum no rótulo.
+      const ativos = new Set((cls || []).map(c => c.id))
+      const mats2 = fromActiveClients<any>(mats, ativos)
+      setMaterials(mats2)
       setClients(cls || [])
       const [{ data: chk }, { data: cms }, { data: atts }, { data: ups }] = await Promise.all([
         supabase.from('material_checklist').select('material_id, done'),
@@ -88,7 +94,7 @@ function MateriaisContent() {
         supabase.from('material_uploads').select('material_id, file_url, created_at').order('created_at', { ascending: true }),
       ])
       const c: Record<string, any> = {}
-      ;(mats || []).forEach((m: any) => { c[m.id] = { checklist: 0, checkDone: 0, comments: 0, attachments: 0, preview: null } })
+      ;mats2.forEach((m: any) => { c[m.id] = { checklist: 0, checkDone: 0, comments: 0, attachments: 0, preview: null } })
       ;(chk || []).forEach((x: any) => { if (c[x.material_id]) { c[x.material_id].checklist++; if (x.done) c[x.material_id].checkDone++ } })
       ;(cms || []).forEach((x: any) => { if (c[x.material_id]) c[x.material_id].comments++ })
       ;(atts || []).forEach((x: any) => { if (c[x.material_id]) c[x.material_id].attachments++ })

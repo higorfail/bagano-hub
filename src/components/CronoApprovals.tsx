@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
 import { Link2, Check, ChevronDown, ChevronRight, Clock } from 'lucide-react'
+import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
 
 // Acompanhamento das aprovações de CRONOGRAMA — separado da aprovação de arte
 // final de propósito.
@@ -68,12 +69,15 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const [{ data: posts }, { data: cronos }] = await Promise.all([
+      const [{ data: postsRaw }, { data: cronos }, ativos] = await Promise.all([
         supabase.from('schedules')
           .select('id, client_id, month, year, status, post_number, title, post_type, scheduled_date')
           .neq('status', NOT_SENT),
         supabase.from('cronograma_status').select('client_id, month, year, finalized_at'),
+        // Cronograma de cliente desativado não espera aprovação de ninguém.
+        activeClientIds(supabase),
       ])
+      const posts = fromActiveClients(postsRaw as any, ativos)
 
       const finalizedBy = new Map<string, string | null>()
       for (const c of (cronos || []) as any[]) finalizedBy.set(`${c.client_id}:${c.month}:${c.year}`, c.finalized_at)

@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { ChevronLeft, ChevronRight, Camera, PenLine, Filter, Users, Laptop, PartyPopper, CalendarDays, Plus, X, Loader2, Trash2, Check } from 'lucide-react'
 import PostCard from '@/components/PostCard'
+import { fromActiveClients } from '@/lib/activeClients'
 
 const MONTHS   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const WEEKDAYS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
@@ -119,14 +120,19 @@ export default function CalendarioPage() {
         supabase.from('team_members').select('id, name').order('name'),
       ])
 
-      setPosts((postsData || []).map((d: any) => ({
+      // Calendário busca por mês, nunca por cliente — então o recorte de
+      // cliente ativo precisa ser feito aqui, senão o mês segue pintado com os
+      // posts de quem já saiu.
+      const ativos = new Set((clientData || []).map(c => c.id))
+
+      setPosts(fromActiveClients<any>(postsData, ativos).map((d: any) => ({
         id: d.id, title: d.title || 'Sem título', scheduled_date: d.scheduled_date,
         post_type: d.post_type || '', approval_status: d.approval_status || null,
         client_id: d.client_id, client_name: d.clients?.name || '—',
         client_color: d.clients?.color_hex || '#94a3b8', month: d.month, year: d.year,
       })))
 
-      setCaptacoes((captData || []).map((d: any) => ({
+      setCaptacoes(fromActiveClients<any>(captData, ativos).map((d: any) => ({
         id: d.id, client_id: d.client_id || null, scheduled_date: d.scheduled_date,
         scheduled_time: d.scheduled_time || null, status: d.status,
         notes: d.notes || null, team_member_ids: d.team_member_ids || null,

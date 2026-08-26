@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
 import { storeNotifications } from '@/lib/storeNotifications'
+import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,7 +43,12 @@ export async function GET(req: NextRequest) {
   const todayISO = todayBrasiliaISO()
   const in2DaysISO = addDaysISO(todayISO, 2)
 
-  const [{ data: schedulesData }, { data: extrasData }, { data: materialsData }] = await Promise.all([
+  // Cliente desativado não cobra mais nada. Sem isto o cron seguia mandando
+  // "⚠️ Publicação atrasada" de cliente que saiu da agência — aviso que não dá
+  // pra atender, e que ensina a ignorar os outros.
+  const ativos = await activeClientIds(supabase)
+
+  const [{ data: schedulesRaw }, { data: extrasRaw }, { data: materialsRaw }] = await Promise.all([
     // "Atrasado" agora vale pra qualquer coisa não publicada com data vencida,
     // não só Agendado — um post parado em Aprovado com data vencida também
     // conta (mesmo critério de isOverdue em src/lib/socialItems.ts).
@@ -62,6 +68,10 @@ export async function GET(req: NextRequest) {
       .not('due_date', 'is', null)
       .lte('due_date', in2DaysISO),
   ])
+
+  const schedulesData = fromActiveClients(schedulesRaw, ativos)
+  const extrasData    = fromActiveClients(extrasRaw, ativos)
+  const materialsData = fromActiveClients(materialsRaw, ativos)
 
   function stageFor(dateISO: string): Stage | null {
     if (dateISO < todayISO) return 'overdue'

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
 import { storeNotifications } from '@/lib/storeNotifications'
+import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,11 +46,15 @@ export async function GET(req: NextRequest) {
   // `updated_at` e não `created_at`: o que importa é há quanto tempo o post
   // está parado ESPERANDO, não a idade dele. Post criado em maio e mandado pro
   // cliente ontem não é cobrança de hoje.
-  const { data: parados } = await supabase.from('schedules')
+  const { data: paradosRaw } = await supabase.from('schedules')
     .select('id, title, client_id, status, updated_at')
     .in('status', STATUS_ESPERANDO)
     .lt('updated_at', limite)
-  if (!parados?.length) return NextResponse.json({ sent: 0, clientes: 0 })
+
+  // Cliente desativado não vai aprovar nada — cobrar a estrategista por isso é
+  // um aviso que ela não tem como atender, e que só treina a ignorar os outros.
+  const parados = fromActiveClients(paradosRaw, await activeClientIds(supabase))
+  if (!parados.length) return NextResponse.json({ sent: 0, clientes: 0 })
 
   const { data: clients } = await supabase.from('clients').select('id, name')
   const nomeCliente = new Map((clients || []).map((c: any) => [c.id, c.name]))

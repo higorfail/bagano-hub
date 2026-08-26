@@ -18,6 +18,7 @@ import DonutChart from '@/components/ui/DonutChart'
 import LineChart from '@/components/ui/LineChart'
 import { brasiliaISOFromDate } from '@/lib/timezone'
 import { POST_DONE_STAGES } from '@/lib/postStages'
+import { fromActiveClients } from '@/lib/activeClients'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
 const CFG = {
@@ -454,13 +455,19 @@ export default function DashboardPage() {
           supabase.from('materials').select('client_id, status').is('archived_at', null),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
+        // `cls` já vem só com cliente ativo, mas o conteúdo acima é buscado por
+        // pessoa e por data, sem passar por cliente nenhum. Sem este recorte,
+        // desativar um cliente não tirava os posts dele do painel: seguiam
+        // contando como pendência e como atrasado, com o nome do cliente em
+        // branco porque o mapa de clientes nem os tinha.
+        const ativos = new Set((cls || []).map(c => c.id))
         setClients(cls || [])
-        setAllSchedules(sch || [])
+        setAllSchedules(fromActiveClients(sch, ativos))
         setSpecialDates(sd || [])
-        setCaptacoes(cap || [])
-        setClientTeam(ct || [])
-        setAllExtras((ex || []) as any)
-        setAllMaterials((mt || []) as any)
+        setCaptacoes(fromActiveClients(cap, ativos))
+        setClientTeam(fromActiveClients(ct, ativos))
+        setAllExtras(fromActiveClients(ex, ativos) as any)
+        setAllMaterials(fromActiveClients(mt, ativos) as any)
       } catch {
         setLoadError(true)
       }
@@ -532,6 +539,11 @@ export default function DashboardPage() {
   }, [ovMonth, ovYear])
 
   // ── Computed ─────────────────────────────────────────────────────────────
+  // As listas pessoais são buscadas por atribuição, em efeitos próprios que
+  // rodam antes de `clients` chegar — então o recorte de cliente ativo não cabe
+  // na consulta e é feito aqui, onde as duas coisas já existem.
+  const clientesAtivos = useMemo(() => new Set(clients.map(c => c.id)), [clients])
+
   const clientMap = useMemo(() => {
     const m: Record<string, Client> = {}
     clients.forEach(c => { m[c.id] = c })
@@ -913,7 +925,7 @@ export default function DashboardPage() {
       labels: openLabels(asLabels((s as any).labels), s.legenda),
       ajusteAlvo: ajusteAlvos[s.id] || null,
     })),
-    ...myExtras.map((e): ParaVoceItem => ({
+    ...fromActiveClients(myExtras, clientesAtivos).map((e): ParaVoceItem => ({
       id: `extra-${e.id}`, kind: 'extra', title: e.title, clientId: e.client_id,
       dueDate: e.due_date, ajuste: e.client_approval_status === 'recusado',
       waitingClient: e.client_approval_status === 'aguardando' && !stillOwesWork(asLabels(e.labels)),
@@ -922,7 +934,7 @@ export default function DashboardPage() {
       postType: e.type, campaignType: e.campaign_type || null,
       labels: asLabels(e.labels),
     })),
-    ...myMaterials.map((m): ParaVoceItem => ({
+    ...fromActiveClients(myMaterials, clientesAtivos).map((m): ParaVoceItem => ({
       id: `material-${m.id}`, kind: 'material', title: m.title, clientId: m.client_id,
       dueDate: m.due_date, ajuste: m.status === 'ajuste',
       waitingClient: m.status === 'aguardando_aprovacao' && !stillOwesWork(asLabels(m.labels)),
@@ -930,7 +942,7 @@ export default function DashboardPage() {
       href: m.client_id ? `/dashboard/clientes/${m.client_id}?tab=materiais` : '/dashboard/materiais',
       labels: asLabels(m.labels),
     })),
-    ...myTasks.map((t): ParaVoceItem => ({
+    ...fromActiveClients(myTasks, clientesAtivos).map((t): ParaVoceItem => ({
       id: `task-${t.id}`, kind: 'task', title: t.title, clientId: t.client_id,
       dueDate: t.due_date, ajuste: false, waitingClient: false, entregue: false,
       href: `/dashboard/tarefas?task=${t.id}`,

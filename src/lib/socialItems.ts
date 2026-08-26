@@ -5,6 +5,7 @@ import { extractDriveFileId } from '@/lib/useMentions'
 import { todayBrasiliaISO } from '@/lib/timezone'
 import { logActivity } from '@/lib/activity'
 import { statusColor } from './status'
+import { activeClientIds, fromActiveClients } from './activeClients'
 
 export type SocialActor = { id?: string | null; name?: string | null }
 
@@ -169,13 +170,19 @@ export function extraToSocialItem(row: ExtraRow): SocialItem | null {
 
 export async function fetchSocialItems(): Promise<SocialItem[]> {
   const supabase = createClient()
-  const [{ data: scheduleData }, { data: extraData }] = await Promise.all([
+  const [{ data: scheduleRaw }, { data: extraRaw }, ativos] = await Promise.all([
     supabase.from('schedules').select(SCHEDULE_SELECT).in('status', ['aprovado', 'agendado', 'publicado']),
     supabase.from('extras').select(EXTRA_SELECT),
+    // Nada aqui é buscado por cliente — é tudo por status. Sem este recorte, o
+    // painel do social seguia listando pra agendar e pra publicar o conteúdo de
+    // cliente que já saiu.
+    activeClientIds(supabase),
   ])
+  const scheduleData = fromActiveClients(scheduleRaw as any, ativos)
+  const extraData    = fromActiveClients(extraRaw as any, ativos)
 
   const items: SocialItem[] = []
-  for (const row of (scheduleData || []) as ScheduleRow[]) {
+  for (const row of (scheduleData || []) as unknown as ScheduleRow[]) {
     const item = scheduleToSocialItem(row)
     if (item) items.push(item)
   }
