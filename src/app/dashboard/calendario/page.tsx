@@ -91,7 +91,12 @@ export default function CalendarioPage() {
   const [loading,        setLoading]        = useState(true)
 
   const [filterClient,  setFilterClient]  = useState('')
-  const [showPosts,     setShowPosts]     = useState(true)
+  // Post começa DESLIGADO. São 162 num mês contra um punhado de captações,
+  // dias de criação e eventos — ligados por padrão, afogam tudo o que é
+  // compromisso de gente com data, que é pra isso que se abre um calendário. O
+  // cronograma de posts já tem tela própria; aqui eles são consulta eventual, e
+  // o filtro continua a um clique.
+  const [showPosts,     setShowPosts]     = useState(false)
   const [showCriacao,   setShowCriacao]   = useState(true)
   const [showCaptacao,  setShowCaptacao]  = useState(true)
   const [showEventos,   setShowEventos]   = useState(true)

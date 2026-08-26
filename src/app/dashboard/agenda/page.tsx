@@ -440,17 +440,24 @@ export default function AgendaPage() {
                         {date.getDate()}
                       </p>
                     </div>
-                    {/* Quem está fora aparece ANTES de a pessoa abrir o
-                        modal. Aviso que só surge depois de escolher a equipe
-                        chega tarde: a decisão de qual dia usar já foi tomada. */}
-                    {ausencias.filter(a => a.date === dateStr).length > 0 && (
-                      <span className="text-[10px] flex items-center gap-1 px-1.5 py-0.5 rounded-full"
-                        style={{ background: 'var(--ds-warning-bg, #fef3c7)', color: 'var(--ds-warning-text, #b45309)' }}
-                        title="Segundo o Google Agenda">
-                        <AlertTriangle size={9} />
-                        {ausencias.filter(a => a.date === dateStr).map(a => a.nome.split(' ')[0]).join(', ')} fora
-                      </span>
-                    )}
+                    {/* Avisa só sobre quem está MARCADO neste dia de criação.
+                        Antes mostrava qualquer ausência da data, e o resultado
+                        era "Gee fora" na agenda de criação — a Gee é filmaker,
+                        ela não faz criação. Ausência só é informação onde a
+                        pessoa faria falta: a da filmaker importa na captação, a
+                        do designer importa aqui. */}
+                    {(() => {
+                      const marcados = dayEntries.flatMap(e => e.member_ids || [])
+                      const fora = foraNoDia(dateStr, marcados)
+                      return fora.length > 0 ? (
+                        <span className="text-[10px] flex items-center gap-1 px-1.5 py-0.5 rounded-full"
+                          style={{ background: 'var(--ds-warning-bg, #fef3c7)', color: 'var(--ds-warning-text, #b45309)' }}
+                          title="Segundo o Google Agenda">
+                          <AlertTriangle size={9} />
+                          {fora.map(n => n.split(' ')[0]).join(', ')} fora
+                        </span>
+                      ) : null
+                    })()}
                     <button
                       onClick={() => { setEntryModal({ dayIndex }); setEntryClient(''); setEntryMembers([]); setEntryNotes('') }}
                       className="w-6 h-6 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] transition-colors">
@@ -671,6 +678,20 @@ export default function AgendaPage() {
                     </button>
                   ))}
                 </div>
+                {/* Mesmo aviso da captação, aqui pra quem faz a criação: marcar
+                    um designer num dia em que ele está fora é o mesmo erro, só
+                    que na outra ponta. */}
+                {(() => {
+                  const dia = entryModal ? toLocalISO(dayDates[entryModal.dayIndex])
+                            : editingEntry ? dataDaCriacao(editingEntry.week_start, editingEntry.day_of_week) : ''
+                  const fora = dia ? foraNoDia(dia, entryMembers) : []
+                  return fora.length > 0 ? (
+                    <p className="mt-2 text-[11px] flex items-start gap-1.5" style={{ color: 'var(--ds-warning-text, #b45309)' }}>
+                      <AlertTriangle size={12} className="flex-shrink-0 mt-px" />
+                      <span>{fora.join(' e ')} {fora.length > 1 ? 'estão' : 'está'} fora nesse dia, segundo o Google Agenda.</span>
+                    </p>
+                  ) : null
+                })()}
               </div>
 
               <div>
