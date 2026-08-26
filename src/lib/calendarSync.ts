@@ -132,3 +132,71 @@ export async function eventosDoGoogle(
     return []
   }
 }
+
+
+// ── Agenda de criação ────────────────────────────────────────────────────
+
+export type CriacaoSync = {
+  id: string
+  client_id: string
+  /** Data já resolvida (week_start + day_of_week), no formato YYYY-MM-DD. */
+  date: string
+  notes: string | null
+  google_calendar_event_id?: string | null
+}
+
+/**
+ * Manda um dia de criação pro Google.
+ *
+ * Vai como dia inteiro de propósito: a agenda de criação diz "quarta é dia do
+ * Donna", não "quarta às 14h". Inventar um horário pra caber na faixa horária
+ * seria escrever no calendário de todo mundo uma informação que não existe.
+ */
+export async function sincronizarCriacao(
+  entry: CriacaoSync, clientName: string, teamNames: string,
+): Promise<{ ok: boolean; eventId: string | null }> {
+  const payload = {
+    summary: `✏️ Criação — ${clientName || 'Cliente'}`,
+    description: [entry.notes, teamNames ? `Equipe: ${teamNames}` : ''].filter(Boolean).join('\n'),
+    date: entry.date,
+  }
+
+  let eventId: string | null = null
+  try {
+    if (entry.google_calendar_event_id) {
+      const res = await fetch('/api/calendar', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: entry.google_calendar_event_id, ...payload }),
+      })
+      if (res.ok) eventId = entry.google_calendar_event_id
+      else if (res.status !== 410) return { ok: false, eventId: null }
+    }
+    if (!eventId) {
+      const res = await fetch('/api/calendar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) return { ok: false, eventId: null }
+      eventId = (await res.json()).eventId || null
+    }
+  } catch {
+    return { ok: false, eventId: null }
+  }
+
+  if (eventId && eventId !== entry.google_calendar_event_id) {
+    // Tolerante à coluna ainda não existir: o ALTER TABLE é um passo manual no
+    // Supabase, e um erro aqui não pode derrubar a tela — o evento JÁ está no
+    // Google, e perder o id só significa que a próxima edição cria outro.
+    const { error } = await createClient().from('agenda_criacao')
+      .update({ google_calendar_event_id: eventId }).eq('id', entry.id)
+    if (error) console.warn('agenda_criacao sem google_calendar_event_id ainda:', error.message)
+  }
+  return { ok: true, eventId }
+}
+
+/** Data real de uma linha da agenda de criação (guardada por semana + dia). */
+export function dataDaCriacao(weekStart: string, dayOfWeek: number): string {
+  const d = new Date(weekStart + 'T12:00:00')
+  d.setDate(d.getDate() + (dayOfWeek - 1))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}

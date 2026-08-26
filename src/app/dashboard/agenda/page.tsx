@@ -4,9 +4,10 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
-import { Plus, ChevronLeft, ChevronRight, Calendar, Camera, X, Check, Loader2, CalendarPlus } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Calendar, Camera, X, Check, Loader2, CalendarPlus, AlertTriangle } from 'lucide-react'
 import { fromActiveClients } from '@/lib/activeClients'
-import { sincronizarCaptacao, removerDoCalendario, eventosDoGoogle, type EventoGoogle } from '@/lib/calendarSync'
+import { detectarAusencia } from '@/lib/googleEventos'
+import { sincronizarCaptacao, sincronizarCriacao, dataDaCriacao, removerDoCalendario, eventosDoGoogle, type EventoGoogle } from '@/lib/calendarSync'
 
 type Client       = { id: string; name: string; color_hex: string; logo_url: string | null }
 type Member       = { id: string; name: string; role: string }
@@ -148,6 +149,22 @@ export default function AgendaPage() {
   }, [])
 
   // ── Agenda de criação ───────────────────────────────────────────────
+  // Um caminho só pro Google, pras três operações da agenda de criação.
+  const nomesDe = (ids: string[] | null | undefined) =>
+    (ids || []).map(id => memberMap[id]?.name).filter(Boolean).join(', ')
+
+  async function criacaoPraGoogle(entry: any) {
+    if (calendarOk === false || !entry?.client_id) return
+    const { ok, eventId } = await sincronizarCriacao(
+      { id: entry.id, client_id: entry.client_id,
+        date: dataDaCriacao(entry.week_start, entry.day_of_week),
+        notes: entry.notes ?? null,
+        google_calendar_event_id: entry.google_calendar_event_id ?? null },
+      clientMap[entry.client_id]?.name || '', nomesDe(entry.member_ids),
+    )
+    if (ok) setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, google_calendar_event_id: eventId } : e))
+  }
+
   async function addEntry() {
     if (!entryClient) return
     setSavingEntry(true)
@@ -159,7 +176,13 @@ export default function AgendaPage() {
       notes: entryNotes || null,
     }).select().single()
     if (dbError(error, toast, 'adicionar à agenda')) { setSavingEntry(false); return }
-    if (data) setEntries(prev => [...prev, data])
+    if (data) {
+      setEntries(prev => [...prev, data])
+      // Dia de criação também é compromisso de pessoa com data. Ia só a
+      // captação pro Google, então metade do que ocupa a semana da equipe
+      // ficava invisível pra quem olha o calendário.
+      void criacaoPraGoogle(data)
+    }
     setEntryModal(null)
     setEntryClient('')
     setEntryMembers([])
@@ -176,6 +199,7 @@ export default function AgendaPage() {
       notes:      entryNotes || null,
     }).eq('id', editingEntry.id)
     if (dbError(error, toast, 'editar entrada')) { setSavingEntry(false); return }
+    void criacaoPraGoogle({ ...editingEntry, client_id: entryClient, member_ids: entryMembers, notes: entryNotes })
     setEntries(prev => prev.map(e => e.id === editingEntry.id
       ? { ...e, client_id: entryClient, member_ids: entryMembers.length > 0 ? entryMembers : null, notes: entryNotes || null }
       : e))
@@ -185,6 +209,8 @@ export default function AgendaPage() {
   }
 
   async function removeEntry(id: string) {
+    const alvo = entries.find(e => e.id === id)
+    await removerDoCalendario((alvo as any)?.google_calendar_event_id)
     const { error } = await supabase.from('agenda_criacao').delete().eq('id', id)
     if (dbError(error, toast, 'remover da agenda')) return
     setEntries(prev => prev.filter(e => e.id !== id))
@@ -257,6 +283,36 @@ export default function AgendaPage() {
 
   // ── Rendering helpers ──────────────────────────────────────────────
   const dayDates = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i))
+  // ── Quem está fora ────────────────────────────────────────────────
+  //
+  // O calendário da Bagano já registra ausência há tempos: "GEE OFF" aparece 72
+  // vezes entre 2026 e 2027, toda semana. O hub nunca soube disso, então marcava
+  // captação e dia de criação em cima da folga de alguém sem nem piscar — e a
+  // descoberta acontecia depois, na conversa.
+  //
+  // O dado já existe e não custa nada ler. Aqui ele vira aviso.
+  const [ausencias, setAusencias] = useState<{ date: string; memberId: string | null; nome: string }[]>([])
+  useEffect(() => {
+    if (calendarOk === false) return
+    const ini = toLocalISO(weekStart)
+    const fim = toLocalISO(addDays(weekStart, 120))
+    eventosDoGoogle(ini, fim).then(evs => {
+      const out: { date: string; memberId: string | null; nome: string }[] = []
+      for (const e of evs) {
+        const a = detectarAusencia(e.summary, members)
+        if (a) out.push({ date: e.date, memberId: a.memberId, nome: a.nome })
+      }
+      setAusencias(out)
+    })
+  }, [weekStart, members, calendarOk])
+
+  /** Quem, dos escolhidos, está fora naquele dia. */
+  const foraNoDia = (dateISO: string, ids: string[]) => {
+    const noDia = ausencias.filter(a => a.date === dateISO)
+    if (!noDia.length) return []
+    return noDia.filter(a => a.memberId && ids.includes(a.memberId)).map(a => a.nome)
+  }
+
   const todayStr = toLocalISO(new Date())
 
   const upcomingCaptacoes = captacoes.filter(c => c.scheduled_date >= todayStr || c.status === 'agendada')
@@ -336,6 +392,17 @@ export default function AgendaPage() {
                         {date.getDate()}
                       </p>
                     </div>
+                    {/* Quem está fora aparece ANTES de a pessoa abrir o
+                        modal. Aviso que só surge depois de escolher a equipe
+                        chega tarde: a decisão de qual dia usar já foi tomada. */}
+                    {ausencias.filter(a => a.date === dateStr).length > 0 && (
+                      <span className="text-[10px] flex items-center gap-1 px-1.5 py-0.5 rounded-full"
+                        style={{ background: 'var(--ds-warning-bg, #fef3c7)', color: 'var(--ds-warning-text, #b45309)' }}
+                        title="Segundo o Google Agenda">
+                        <AlertTriangle size={9} />
+                        {ausencias.filter(a => a.date === dateStr).map(a => a.nome.split(' ')[0]).join(', ')} fora
+                      </span>
+                    )}
                     <button
                       onClick={() => { setEntryModal({ dayIndex }); setEntryClient(''); setEntryMembers([]); setEntryNotes('') }}
                       className="w-6 h-6 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] transition-colors">
@@ -460,6 +527,19 @@ export default function AgendaPage() {
                     </button>
                   ))}
                 </div>
+                {/* O calendário já sabia disso e o hub não perguntava: marcar
+                    captação em cima da folga de alguém só era descoberto depois,
+                    na conversa. Aviso, não bloqueio — às vezes a pessoa troca a
+                    folga de propósito, e o hub não é quem decide isso. */}
+                {(() => {
+                  const fora = foraNoDia(captForm.scheduled_date, captForm.team_member_ids)
+                  return fora.length > 0 ? (
+                    <p className="mt-2 text-[11px] flex items-start gap-1.5" style={{ color: 'var(--ds-warning-text, #b45309)' }}>
+                      <AlertTriangle size={12} className="flex-shrink-0 mt-px" />
+                      <span>{fora.join(' e ')} {fora.length > 1 ? 'estão' : 'está'} fora nesse dia, segundo o Google Agenda.</span>
+                    </p>
+                  ) : null
+                })()}
               </div>
 
               <div>
