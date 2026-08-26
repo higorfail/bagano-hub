@@ -6,6 +6,13 @@ import { ChevronLeft, ChevronRight, Camera, PenLine, Filter, Users, Laptop, Part
 import PostCard from '@/components/PostCard'
 import { fromActiveClients } from '@/lib/activeClients'
 import { eventosDoGoogle, type EventoGoogle } from '@/lib/calendarSync'
+import { diasDaSemana, segundaDe, ordenarDoDia, type CalItem } from '@/lib/calendarItems'
+import WeekView from '@/components/calendario/WeekView'
+import ListView from '@/components/calendario/ListView'
+import DayPanel from '@/components/calendario/DayPanel'
+import { ehBloqueio, identificarCliente } from '@/lib/googleEventos'
+import ItemChip from '@/components/calendario/ItemChip'
+import { useRouter } from 'next/navigation'
 
 const MONTHS   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const WEEKDAYS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
@@ -45,23 +52,31 @@ type HubEvent = {
 }
 
 type Client = { id: string; name: string; color_hex: string }
-type Member = { id: string; name: string }
 
 const EMPTY_FORM = { title: '', event_type: 'reuniao', date: '', start_time: '', end_time: '', description: '', location: '' }
 
+type Vista = 'mes' | 'semana' | 'dia' | 'lista'
+const VISTAS: { key: Vista; label: string }[] = [
+  { key: 'mes',    label: 'Mês' },
+  { key: 'semana', label: 'Semana' },
+  { key: 'dia',    label: 'Dia' },
+  { key: 'lista',  label: 'Lista' },
+]
+
 function pad(n: number) { return String(n).padStart(2, '0') }
 function toISO(d: Date)  { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` }
-// Iniciais pras tarjas do celular — na célula de ~50px não cabe nome nem título.
-function initials(name: string) {
-  return (name || '?').split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase()
-}
 
 export default function CalendarioPage() {
   useEffect(() => { document.title = 'Calendário · Bagano Hub' }, [])
+  const router = useRouter()
 
-  const now = new Date()
-  const [month, setMonth] = useState(now.getMonth() + 1)
-  const [year,  setYear]  = useState(now.getFullYear())
+  // Uma âncora só, e mês/ano derivados dela. Com quatro visões, guardar mês e
+  // ano soltos obrigaria cada uma a converter pra data e de volta — e a semana
+  // que atravessa a virada do mês não tem "um mês" pra guardar.
+  const [view,   setView]   = useState<Vista>('mes')
+  const [anchor, setAnchor] = useState<Date>(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d })
+  const month = anchor.getMonth() + 1
+  const year  = anchor.getFullYear()
 
   const [posts,          setPosts]          = useState<Post[]>([])
   const [captacoes,      setCaptacoes]      = useState<Captacao[]>([])
@@ -73,7 +88,6 @@ export default function CalendarioPage() {
   // daqui.
   const [googleEvents,   setGoogleEvents]   = useState<EventoGoogle[]>([])
   const [allClients,     setAllClients]     = useState<Client[]>([])
-  const [memberMap,      setMemberMap]      = useState<Record<string, Member>>({})
   const [loading,        setLoading]        = useState(true)
 
   const [filterClient,  setFilterClient]  = useState('')
@@ -98,20 +112,42 @@ export default function CalendarioPage() {
   const [calSyncStatus,  setCalSyncStatus]  = useState<'idle'|'syncing'|'ok'|'error'>('idle')
   const modalRef = useRef<HTMLDivElement>(null)
 
+  // O dia aberto no painel. É o que responde ao "+N mais", que até agora era
+  // um <span> sem nenhum caminho pra chegar no que ele contava.
+  const [diaAberto, setDiaAberto] = useState<string | null>(null)
+
+  // O período que a tela mostra, por visão. Na semana ele atravessa a virada do
+  // mês — que é justamente o que a consulta antiga não sabia fazer: ela pedia
+  // os posts por `month`/`year`, então a semana de 31/08 a 06/09 perdia setembro
+  // inteiro.
+  const periodo = useMemo(() => {
+    if (view === 'dia') {
+      const d = toISO(anchor)
+      return { inicio: d, fim: d }
+    }
+    if (view === 'semana') {
+      const dias = diasDaSemana(segundaDe(anchor))
+      return { inicio: toISO(dias[0]), fim: toISO(dias[6]) }
+    }
+    const ultimo = new Date(year, month, 0).getDate()
+    return { inicio: `${year}-${pad(month)}-01`, fim: `${year}-${pad(month)}-${pad(ultimo)}` }
+  }, [view, anchor, month, year])
+
   useEffect(() => {
     async function load() {
       setLoading(true)
       const supabase   = createClient()
-      const daysInM    = new Date(year, month, 0).getDate()
-      const startISO   = `${year}-${pad(month)}-01`
-      const endISO     = `${year}-${pad(month)}-${pad(daysInM)}`
-      const agStart    = toISO(new Date(new Date(year, month - 1, 1).getTime() - 7 * 86400000))
-      const agEnd      = toISO(new Date(new Date(year, month - 1, daysInM).getTime() + 7 * 86400000))
+      const startISO   = periodo.inicio
+      const endISO     = periodo.fim
+      // A agenda de criação é guardada pela SEGUNDA da semana, não pelo dia —
+      // então buscar só o intervalo perderia a semana que começou antes dele.
+      const agStart    = toISO(new Date(new Date(startISO + 'T12:00:00').getTime() - 7 * 86400000))
+      const agEnd      = toISO(new Date(new Date(endISO   + 'T12:00:00').getTime() + 7 * 86400000))
 
-      const [{ data: postsData }, { data: captData }, { data: criacaoData }, { data: eventsData }, { data: clientData }, { data: memberData }] = await Promise.all([
+      const [{ data: postsData }, { data: captData }, { data: criacaoData }, { data: eventsData }, { data: clientData }] = await Promise.all([
         supabase.from('schedules')
           .select('id, title, scheduled_date, post_type, approval_status, client_id, month, year, clients(name, color_hex)')
-          .eq('month', month).eq('year', year)
+          .gte('scheduled_date', startISO).lte('scheduled_date', endISO)
           .order('scheduled_date', { ascending: true }),
         supabase.from('captacoes')
           .select('id, client_id, scheduled_date, scheduled_time, status, notes, team_member_ids, clients(name, color_hex)')
@@ -124,7 +160,6 @@ export default function CalendarioPage() {
           .gte('date', startISO).lte('date', endISO)
           .order('date', { ascending: true }),
         supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name'),
-        supabase.from('team_members').select('id, name').order('name'),
       ])
 
       // Calendário busca por mês, nunca por cliente — então o recorte de
@@ -180,13 +215,10 @@ export default function CalendarioPage() {
       eventosDoGoogle(startISO, endISO, jaMostrados).then(setGoogleEvents)
 
       setAllClients(clientData || [])
-      const mm: Record<string, Member> = {}
-      ;(memberData || []).forEach((m: any) => { mm[m.id] = m })
-      setMemberMap(mm)
       setLoading(false)
     }
     load()
-  }, [month, year])
+  }, [periodo])
 
   // Close modal on outside click
   useEffect(() => {
@@ -197,8 +229,19 @@ export default function CalendarioPage() {
     return () => document.removeEventListener('mousedown', h)
   }, [showEventModal])
 
-  function prevMonth() { if (month === 1) { setMonth(12); setYear(y => y - 1) } else setMonth(m => m - 1) }
-  function nextMonth() { if (month === 12) { setMonth(1); setYear(y => y + 1) } else setMonth(m => m + 1) }
+  // Avançar quer dizer coisas diferentes em cada visão: um mês, uma semana, um
+  // dia. Na lista segue o mês, que é o período que ela mostra.
+  function andar(passo: number) {
+    setAnchor(a => {
+      const d = new Date(a)
+      if (view === 'semana')   d.setDate(d.getDate() + 7 * passo)
+      else if (view === 'dia') d.setDate(d.getDate() + passo)
+      else                     d.setMonth(d.getMonth() + passo)
+      return d
+    })
+  }
+  const prevMonth = () => andar(-1)
+  const nextMonth = () => andar(1)
 
   const firstDay   = (new Date(year, month - 1, 1).getDay() + 6) % 7 // semana começa na segunda
   const daysInMonth = new Date(year, month, 0).getDate()
@@ -210,18 +253,117 @@ export default function CalendarioPage() {
 
   function dayISO(day: number) { return `${year}-${pad(month)}-${pad(day)}` }
 
-  function itemsForDay(day: number) {
-    const d = dayISO(day)
-    return {
-      posts:     showPosts    ? posts.filter(p => p.scheduled_date === d && (!filterClient || p.client_id === filterClient)) : [],
-      captacoes: showCaptacao ? captacoes.filter(c => c.scheduled_date === d && (!filterClient || c.client_id === filterClient)) : [],
-      criacao:   showCriacao  ? criacaoEntries.filter(e => e.date === d && (!filterClient || e.client_id === filterClient)) : [],
-      eventos:   showEventos  ? hubEvents.filter(ev => ev.date === d) : [],
-      // Evento do Google não tem cliente, então o filtro por cliente o
-      // esconderia sempre. Fica de fora dele de propósito.
-      google:    showGoogle && !filterClient ? googleEvents.filter(ev => ev.date === d) : [],
+  // As cinco fontes viram uma lista só. Os filtros de tipo e de cliente entram
+  // AQUI, não em cada visão — do contrário mês, semana, dia e lista teriam
+  // quatro cópias da mesma regra pra discordarem entre si.
+  const itensDoPeriodo: CalItem[] = useMemo(() => {
+    const out: CalItem[] = []
+    const cabe = (cid: string | null) => !filterClient || cid === filterClient
+
+    if (showPosts) for (const p of posts) {
+      if (!p.scheduled_date || !cabe(p.client_id)) continue
+      out.push({ key: `post-${p.id}`, kind: 'post', id: p.id, title: p.title,
+        date: p.scheduled_date, startTime: null, endTime: null,
+        color: p.client_color, clientId: p.client_id, clientName: p.client_name, href: null, data: p })
     }
+
+    if (showCaptacao) for (const c of captacoes) {
+      if (!cabe(c.client_id)) continue
+      const ini = c.scheduled_time ? c.scheduled_time.slice(0, 5) : null
+      out.push({ key: `cap-${c.id}`, kind: 'captacao', id: c.id,
+        title: c.client_name || c.notes?.split('\n')[0] || 'Captação',
+        date: c.scheduled_date, startTime: ini, endTime: null,
+        color: '#8b5cf6', clientId: c.client_id, clientName: c.client_name, href: null, data: c })
+    }
+
+    if (showCriacao) for (const e of criacaoEntries) {
+      if (!cabe(e.client_id)) continue
+      out.push({ key: `cri-${e.id}`, kind: 'criacao', id: e.id, title: e.client_name,
+        date: e.date, startTime: null, endTime: null,
+        color: e.client_color, clientId: e.client_id, clientName: e.client_name, href: null, data: e })
+    }
+
+    if (showEventos) for (const ev of hubEvents) {
+      out.push({ key: `ev-${ev.id}`, kind: 'evento', id: ev.id, title: ev.title,
+        date: ev.date,
+        startTime: ev.start_time ? ev.start_time.slice(0, 5) : null,
+        endTime:   ev.end_time   ? ev.end_time.slice(0, 5)   : null,
+        color: EVENT_TYPES[ev.event_type]?.color || '#6b7280',
+        clientId: null, clientName: null, href: null, data: ev })
+    }
+
+    // O evento do Google não traz cliente nenhum no dado — mas traz no TÍTULO,
+    // que é onde a equipe sempre escreveu ("ZEBUÍNO + ISRA", "NIHAO", "N7").
+    // Reconhecer isso é o que faz o filtro por cliente valer também pro que vem
+    // de fora, e o que dá cor de cliente a um evento que antes era cinza
+    // anônimo. Medido nos 132 eventos reais: 36 identificados, e os que sobram
+    // ou são cliente inativo ou não são cliente — nenhum erro.
+    if (showGoogle) for (const g of googleEvents) {
+      const bloqueio = ehBloqueio(g.summary)
+      const cli = bloqueio ? null : identificarCliente(g.summary, allClients)
+      if (filterClient && cli?.id !== filterClient) continue
+      out.push({ key: `g-${g.id}`, kind: bloqueio ? 'bloqueio' : 'google', id: g.id,
+        title: g.summary, date: g.date,
+        startTime: g.allDay ? null : g.startTime, endTime: g.allDay ? null : g.endTime,
+        color: cli ? (allClients.find(c => c.id === cli.id)?.color_hex || '#64748b') : '#64748b',
+        clientId: cli?.id || null, clientName: cli?.name || null, href: g.htmlLink, data: g })
+    }
+
+    return out
+  }, [posts, captacoes, criacaoEntries, hubEvents, googleEvents, allClients,
+      showPosts, showCaptacao, showCriacao, showEventos, showGoogle, filterClient])
+
+  // O que a navegação anuncia muda com a visão: "Agosto 2026" não diz nada
+  // quando a tela mostra uma semana, e menos ainda um dia.
+  // Um caminho só pra abrir qualquer item, seja de que visão for. Sem isto,
+  // cada visão precisaria saber que post abre o PostCard, captação leva pra
+  // Agenda e evento abre o modal daqui — quatro cópias da mesma decisão.
+  function abrirItem(item: CalItem) {
+    if (item.kind === 'post') {
+      const p = item.data as Post
+      setEditingPostId(p.id)
+      setEditingPostCtx({ clientId: p.client_id, clientName: p.client_name, clientColor: p.client_color, month: p.month, year: p.year })
+      setShowPostCard(true)
+      setDiaAberto(null)
+      return
+    }
+    if (item.kind === 'evento') { openEditEvent(item.data as HubEvent); setDiaAberto(null); return }
+    if (item.kind === 'captacao') { router.push('/dashboard/agenda'); return }
+    if (item.kind === 'criacao')  { router.push('/dashboard/agenda'); return }
+    // google e bloqueio abrem no Google pelo próprio <a> do chip.
   }
+
+  // No celular a célula do mês tem ~50px de largura: o título vira uma letra e
+  // meia, e as iniciais do cliente pelo menos dizem de quem é.
+  const [estreito, setEstreito] = useState(false)
+  useEffect(() => {
+    const m = window.matchMedia('(max-width: 767px)')
+    const ler = () => setEstreito(m.matches)
+    ler()
+    m.addEventListener('change', ler)
+    return () => m.removeEventListener('change', ler)
+  }, [])
+
+  const rotuloPeriodo = useMemo(() => {
+    if (view === 'dia') {
+      return anchor.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })
+    }
+    if (view === 'semana') {
+      const d = diasDaSemana(segundaDe(anchor))
+      const fmt = (x: Date) => x.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })
+      return `${fmt(d[0])} – ${fmt(d[6])}`
+    }
+    return `${MONTHS[month - 1]} ${year}`
+  }, [view, anchor, month, year])
+
+  const itensPorDia = useMemo(() => {
+    const m = new Map<string, CalItem[]>()
+    for (const i of itensDoPeriodo) {
+      if (!m.has(i.date)) m.set(i.date, [])
+      m.get(i.date)!.push(i)
+    }
+    return m
+  }, [itensDoPeriodo])
 
   const legendClients = useMemo(() => {
     const map = new Map<string, { id: string; name: string; color: string }>()
@@ -409,12 +551,27 @@ export default function CalendarioPage() {
             ))}
           </div>
 
+          {/* Seletor de visão. Quatro, e não só mês, porque a célula do mês tem
+              teto de espaço: em agosto são 5,2 itens por dia e pico de 10, num
+              lugar que mostra 3. */}
+          <div className="flex bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-0.5 gap-0.5">
+            {VISTAS.map(v => (
+              <button key={v.key} onClick={() => setView(v.key)}
+                className={`h-7 px-2.5 text-xs font-semibold rounded-lg transition-colors ${
+                  view === v.key
+                    ? 'bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)]'
+                    : 'text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)]'}`}>
+                {v.label}
+              </button>
+            ))}
+          </div>
+
           {/* Month nav */}
           <div className="flex items-center justify-between md:justify-start gap-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-1">
             <button onClick={prevMonth} className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
               <ChevronLeft size={14} className="text-[var(--color-text-secondary)]" />
             </button>
-            <span className="text-xs font-semibold text-[var(--color-text-primary)] min-w-[110px] text-center">{MONTHS[month-1]} {year}</span>
+            <span className="text-xs font-semibold text-[var(--color-text-primary)] min-w-[110px] text-center">{rotuloPeriodo}</span>
             <button onClick={nextMonth} className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
               <ChevronRight size={14} className="text-[var(--color-text-secondary)]" />
             </button>
@@ -442,138 +599,89 @@ export default function CalendarioPage() {
         </div>
       )}
 
-      {/* Calendar grid */}
-      <div className="flex-1 flex flex-col bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden shadow-card">
-        <div className="grid grid-cols-7 border-b border-[var(--color-border)]">
-          {WEEKDAYS.map(d => (
-            <div key={d} className="py-2 text-center text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">{d}</div>
-          ))}
-        </div>
+      {/* As quatro visões. Todas leem a MESMA lista de itens — o mês não tem
+          mais o seu próprio jeito de desenhar uma captação, nem a semana o
+          dela. Era assim que a mesma coisa aparecia diferente em cada canto. */}
 
-        <div className="grid grid-cols-7 flex-1">
-          {cells.map((day, i) => {
-            const { posts: dp, captacoes: dc, criacao: dr, eventos: dev, google: dg } = day ? itemsForDay(day) : { posts: [], captacoes: [], criacao: [], eventos: [], google: [] }
-            const totalItems = dp.length + dc.length + dr.length + dev.length + dg.length
-            const todayCell  = day ? isToday(day) : false
-            const maxShow = 3
+      {view === 'mes' && (
+        <div className="flex-1 flex flex-col bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden shadow-sm">
+          <div className="grid grid-cols-7 border-b border-[var(--color-border)]">
+            {WEEKDAYS.map(d => (
+              <div key={d} className="py-2 text-center text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">{d}</div>
+            ))}
+          </div>
 
-            const allItems = [
-              ...dev.map(ev => ({ type: 'evento'  as const, id: ev.id, label: ev.title, color: EVENT_TYPES[ev.event_type]?.color || '#6b7280', data: ev })),
-              ...dr.map(e  => ({ type: 'criacao'  as const, id: e.id,  label: e.client_name, color: e.client_color, notes: e.notes, members: e.member_ids, data: e })),
-              ...dc.map(c  => ({ type: 'captacao' as const, id: c.id,  label: c.client_name || c.notes?.split('\n')[0] || 'Captação', color: '#8b5cf6', notes: c.notes, time: c.scheduled_time, data: c })),
-              ...dp.map(p  => ({ type: 'post'     as const, id: p.id,  label: p.title, color: p.client_color, data: p })),
-              // Por último de propósito: o que vem do Google é contexto, não
-              // trabalho do hub. Se o dia estiver cheio, o que é nosso aparece
-              // primeiro e o do Google entra no "+N".
-              ...dg.map(ev => ({ type: 'google'   as const, id: ev.id,  label: ev.summary, color: '#64748b', data: ev })),
-            ]
+          <div className="grid grid-cols-7 flex-1">
+            {cells.map((day, i) => {
+              const iso = day ? dayISO(day) : ''
+              const doDia = day ? [...(itensPorDia.get(iso) || [])].sort(ordenarDoDia) : []
+              const todayCell = day ? isToday(day) : false
+              const maxShow = 3
 
-            return (
-              <div key={i}
-                className={`group/cell min-h-[74px] md:min-h-[110px] border-r border-b border-[var(--color-border)] p-0.5 md:p-1.5 flex flex-col gap-0.5 md:gap-1 last:border-r-0 ${!day ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
-                {day && (
-                  <div className="flex items-center justify-between mb-0.5 px-0.5">
-                    <span className={`text-[10px] md:text-xs font-semibold w-4 h-4 md:w-6 md:h-6 flex items-center justify-center rounded-full flex-shrink-0 ${todayCell ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-muted)]'}`}>
-                      {day}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {totalItems > 0 && <span className="text-[9px] text-[var(--color-text-faint)]">{totalItems}</span>}
-                      <button
-                        onClick={() => openNewEvent(dayISO(day))}
-                        className="hidden md:flex opacity-0 group-hover/cell:opacity-100 w-5 h-5 rounded-md items-center justify-center transition-all hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)]"
-                        title="Novo evento">
-                        <Plus size={10} />
-                      </button>
+              return (
+                <div key={i}
+                  className={`group/cell min-h-[74px] md:min-h-[110px] border-r border-b border-[var(--color-border)] p-0.5 md:p-1.5 flex flex-col gap-0.5 ${todayCell ? 'bg-[var(--color-bg-subtle)]' : ''}`}>
+                  {day && (
+                    <div className="flex items-center justify-between mb-0.5 px-0.5">
+                      <span className={`text-[10px] md:text-xs font-semibold w-4 h-4 md:w-6 md:h-6 flex items-center justify-center rounded-full flex-shrink-0 ${todayCell ? 'bg-[var(--color-accent)] text-white' : 'text-[var(--color-text-secondary)]'}`}>
+                        {day}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {doDia.length > 0 && <span className="text-[9px] text-[var(--color-text-faint)]">{doDia.length}</span>}
+                        <button onClick={() => openNewEvent(iso)}
+                          className="hidden md:flex opacity-0 group-hover/cell:opacity-100 w-5 h-5 rounded-md items-center justify-center transition-opacity text-[var(--color-text-faint)] hover:bg-[var(--color-bg-subtle)]"
+                          title="Novo evento">
+                          <Plus size={10} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {allItems.slice(0, maxShow).map(item => {
-                  if (item.type === 'evento') {
-                    const ev = item.data as HubEvent
-                    const et = EVENT_TYPES[ev.event_type] || EVENT_TYPES.outro
-                    return (
-                      <button key={`ev-${item.id}`}
-                        onClick={() => openEditEvent(ev)}
-                        className="rounded md:rounded-md px-1 md:px-1.5 py-px md:py-0.5 text-[9px] md:text-[10px] font-medium truncate border text-left w-full flex items-center gap-0.5 md:gap-1 hover:opacity-80 transition-opacity"
-                        style={{ background: et.color + '22', color: et.color, borderColor: et.color + '44' }}
-                        title={`${et.label}: ${ev.title}${ev.start_time ? ' · ' + ev.start_time.slice(0,5) : ''}`}>
-                        <et.Icon size={8} className="flex-shrink-0" />
-                        <span className="truncate md:hidden">{initials(ev.title)}</span>
-                        <span className="truncate hidden md:inline">{ev.start_time ? ev.start_time.slice(0,5) + ' ' : ''}{ev.title}</span>
-                      </button>
-                    )
-                  }
-                  if (item.type === 'criacao') {
-                    const e = item.data as CriacaoEntry
-                    const memberNames = (e.member_ids || []).map(mid => memberMap[mid]?.name.split(' ')[0]).filter(Boolean)
-                    return (
-                      <div key={`cr-${item.id}`}
-                        className="rounded md:rounded-md px-1 md:px-1.5 py-px md:py-0.5 text-[9px] md:text-[10px] font-medium truncate border flex items-center gap-0.5 md:gap-1"
-                        style={{ background: '#f59e0b22', color: '#b45309', borderColor: '#f59e0b44' }}
-                        title={`Criação: ${e.client_name}${memberNames.length ? ' · ' + memberNames.join(', ') : ''}`}>
-                        <PenLine size={8} className="flex-shrink-0" />
-                        <span className="truncate md:hidden">{initials(e.client_name)}</span>
-                        <span className="truncate hidden md:inline">{e.client_name}</span>
-                      </div>
-                    )
-                  }
-                  if (item.type === 'captacao') {
-                    const c = item.data as Captacao
-                    return (
-                      <div key={`cap-${item.id}`}
-                        className="rounded md:rounded-md px-1 md:px-1.5 py-px md:py-0.5 text-[9px] md:text-[10px] font-medium truncate border flex items-center gap-0.5 md:gap-1"
-                        style={{ background: '#8b5cf622', color: '#6d28d9', borderColor: '#8b5cf644' }}
-                        title={`Captação${c.scheduled_time ? ' ' + c.scheduled_time.slice(0,5) : ''}: ${item.label}`}>
-                        <Camera size={8} className="flex-shrink-0" />
-                        <span className="truncate md:hidden">{initials(item.label)}</span>
-                        <span className="truncate hidden md:inline">{c.scheduled_time ? c.scheduled_time.slice(0,5) + ' ' : ''}{item.label}</span>
-                      </div>
-                    )
-                  }
-                  if (item.type === 'google') {
-                    const g = item.data as EventoGoogle
-                    // Abre no Google, não aqui: o hub não é dono deste evento e
-                    // fingir que edita seria mentir — a edição não voltaria pro
-                    // Google. Cinza e sem preenchimento forte pelo mesmo motivo:
-                    // é contexto de fora, não item de trabalho do hub.
-                    return (
-                      <a key={`g-${item.id}`}
-                        href={g.htmlLink || undefined} target="_blank" rel="noopener noreferrer"
-                        className="rounded md:rounded-md px-1 md:px-1.5 py-px md:py-0.5 text-[9px] md:text-[10px] font-medium truncate border border-dashed flex items-center gap-0.5"
-                        style={{ background: 'transparent', color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}
-                        title={`Google Agenda${g.allDay ? '' : g.startTime ? ' ' + g.startTime : ''}: ${g.summary}`}>
-                        <CalendarDays size={8} className="flex-shrink-0" />
-                        <span className="truncate md:hidden">{initials(g.summary)}</span>
-                        <span className="truncate hidden md:inline">{!g.allDay && g.startTime ? g.startTime + ' ' : ''}{g.summary}</span>
-                      </a>
-                    )
-                  }
-                  // post
-                  const p = item.data as Post
-                  return (
-                    <button key={`p-${item.id}`}
-                      onClick={() => { setEditingPostId(p.id); setEditingPostCtx({ clientId: p.client_id, clientName: p.client_name, clientColor: p.client_color, month: p.month, year: p.year }); setShowPostCard(true) }}
-                      className="rounded md:rounded-md px-1 md:px-1.5 py-px md:py-0.5 text-[9px] md:text-[10px] font-medium truncate border text-left w-full hover:opacity-80 transition-opacity"
-                      style={{ background: p.client_color + '22', color: p.client_color, borderColor: p.client_color + '44' }}
-                      title={`${p.client_name} — ${p.title}`}>
-                      {/* No celular a célula tem ~50px: o título virava uma
-                          letra e meia. As iniciais do cliente pelo menos
-                          dizem de quem é; o toque abre o post. */}
-                      <span className="md:hidden">{initials(p.client_name)}</span>
-                      <span className="hidden md:inline">{p.title}</span>
+                  {doDia.slice(0, maxShow).map(item => (
+                    <ItemChip key={item.key} item={item} compacto={estreito}
+                      onClick={() => abrirItem(item)}
+                      className="!text-[9px] md:!text-[10px] !py-px md:!py-0.5" />
+                  ))}
+
+                  {/* Era um <span>. Não era botão, não abria nada, e não havia
+                      outro caminho: em agosto isso escondia 76 de 162 itens,
+                      46% do mês, sem NENHUMA forma de chegar neles. */}
+                  {doDia.length > maxShow && (
+                    <button onClick={() => setDiaAberto(iso)}
+                      className="text-[9px] text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] px-1 text-left transition-colors">
+                      +{doDia.length - maxShow} mais
                     </button>
-                  )
-                })}
-
-                {totalItems > maxShow && (
-                  <span className="text-[9px] text-[var(--color-text-faint)] px-1">+{totalItems - maxShow} mais</span>
-                )}
-              </div>
-            )
-          })}
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
+
+      {(view === 'semana' || view === 'dia') && (
+        <WeekView
+          dias={view === 'dia' ? [anchor] : diasDaSemana(segundaDe(anchor))}
+          itens={itensDoPeriodo}
+          hoje={todayISO}
+          onOpen={abrirItem}
+          onDia={setDiaAberto}
+        />
+      )}
+
+      {view === 'lista' && (
+        <ListView itens={itensDoPeriodo} hoje={todayISO} onOpen={abrirItem} />
+      )}
+
+      {diaAberto && (
+        <DayPanel
+          date={diaAberto}
+          items={[...(itensPorDia.get(diaAberto) || [])]}
+          onClose={() => setDiaAberto(null)}
+          onOpen={abrirItem}
+          onNovoEvento={d => { setDiaAberto(null); openNewEvent(d) }}
+        />
+      )}
 
       {loading && (
         <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
