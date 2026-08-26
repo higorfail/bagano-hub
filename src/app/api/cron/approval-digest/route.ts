@@ -53,25 +53,40 @@ export async function GET(req: NextRequest) {
       .gte('created_at', since)
 
     const approvedIds = new Set<string>()
+    const cronoIds    = new Set<string>()
     const rejectedIds = new Set<string>()
     for (const e of (events || []) as any[]) {
       // Um post que foi aprovado E teve ajuste pedido na mesma janela conta
       // como ajuste: é o estado em que ele terminou, e é o que exige ação.
-      if (e.action === 'client_rejected' || e.action === 'crono_rejected') { rejectedIds.add(e.record_id); approvedIds.delete(e.record_id) }
-      else if (!rejectedIds.has(e.record_id)) approvedIds.add(e.record_id)
+      if (e.action === 'client_rejected' || e.action === 'crono_rejected') {
+        rejectedIds.add(e.record_id); approvedIds.delete(e.record_id); cronoIds.delete(e.record_id)
+      } else if (!rejectedIds.has(e.record_id)) {
+        // Aprovar a ESTRATÉGIA e aprovar a ARTE são recados diferentes, e o
+        // resumo dizia "aprovou N conteúdos" pros dois. O primeiro pede uma
+        // decisão da estrategista (o post vai pra captação ou já pra produção?);
+        // o segundo não pede nada de ninguém. Somados, a decisão desaparecia no
+        // meio de um número que na maior parte das vezes não exige ação.
+        if (e.action === 'crono_approved') cronoIds.add(e.record_id)
+        else approvedIds.add(e.record_id)
+      }
     }
     // Sem eventos no activity_log (janela antiga), cai no contador de antes.
     const approvedN = events?.length ? approvedIds.size : row.approved_count
+    const cronoN    = events?.length ? cronoIds.size    : 0
     const rejectedN = events?.length ? rejectedIds.size : row.rejected_count
-    if (approvedN === 0 && rejectedN === 0) {
+    if (approvedN === 0 && cronoN === 0 && rejectedN === 0) {
       await supabase.from('approval_digest_queue').delete().eq('client_id', row.client_id)
       continue
     }
 
     const parts: string[] = []
     if (approvedN > 0) parts.push(`aprovou ${approvedN} conteúdo${approvedN !== 1 ? 's' : ''}`)
+    if (cronoN > 0)    parts.push(`aprovou a estratégia de ${cronoN} post${cronoN !== 1 ? 's' : ''}`)
     if (rejectedN > 0) parts.push(`pediu ajuste em ${rejectedN} conteúdo${rejectedN !== 1 ? 's' : ''}`)
-    const body = `${clientName} ${parts.join(', ')}.`
+    // A frase termina no que precisa ser feito, e não no que aconteceu — quem
+    // lê no celular costuma ler só o começo, mas nunca só o fim.
+    const pendencia = cronoN > 0 ? ' Falta definir captação ou produção.' : ''
+    const body = `${clientName} ${parts.join(', ')}.${pendencia}`
 
     const { data: team } = await supabase.from('client_team').select('member_id').eq('client_id', row.client_id)
     const memberIds = [...new Set((team || []).map((t: any) => t.member_id))]

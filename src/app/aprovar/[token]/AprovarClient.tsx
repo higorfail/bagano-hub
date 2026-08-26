@@ -628,11 +628,23 @@ export default function ApprovalPage({ token }: { token: string }) {
   }
 
   // ── Cronograma approval actions ────────────────────────────────────────────
+  //
+  // Aprovar a ESTRATÉGIA joga o post em Captação, não em Produção.
+  //
+  // Ia direto pra Produção, como se aprovar a pauta já significasse que há
+  // material pra trabalhar. Nem sempre há: parte dos posts precisa de foto e
+  // vídeo antes, parte segue direto. Quem sabe qual é qual é a estrategista, e
+  // ela precisa DECIDIR — mandando pra Produção o que já tem material.
+  //
+  // Captação é o estado honesto de "aprovado, e ainda não decidido". Produção
+  // é uma afirmação sobre o post que ninguém tinha feito ainda.
+  const APOS_APROVAR_CRONO = 'captacao'
+
   async function approveCrono(postId: string) {
     setSubmitting(postId)
-    const { error } = await supabase.from('schedules').update({ status: 'producao', approval_status: 'aprovado', approval_comment: null }).eq('id', postId)
+    const { error } = await supabase.from('schedules').update({ status: APOS_APROVAR_CRONO, approval_status: 'aprovado', approval_comment: null }).eq('id', postId)
     if (error) { showToast('Não deu pra aprovar agora — tenta de novo em instantes.', false); setSubmitting(null); return }
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'producao', approval_status: 'aprovado' } : p))
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: APOS_APROVAR_CRONO, approval_status: 'aprovado' } : p))
     await ensureWatchingFromAssigned('schedules', postId)
     await queueApprovalDigest(tokenData?.client_id, 'approved')
     await logActivity({ tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post', skipPush: true })
@@ -660,7 +672,7 @@ export default function ApprovalPage({ token }: { token: string }) {
     if (!pending.length) return
     setApprovingAll(true)
     const results = await Promise.all(
-      pending.map(p => supabase.from('schedules').update({ status: 'producao', approval_status: 'aprovado', approval_comment: null }).eq('id', p.id))
+      pending.map(p => supabase.from('schedules').update({ status: APOS_APROVAR_CRONO, approval_status: 'aprovado', approval_comment: null }).eq('id', p.id))
     )
     const okIds = new Set(pending.filter((_, i) => !results[i].error).map(p => p.id))
     const failedCount = pending.length - okIds.size
@@ -669,7 +681,7 @@ export default function ApprovalPage({ token }: { token: string }) {
       ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post', skipPush: true })),
     ])
     await queueApprovalDigest(tokenData?.client_id, 'approved', okIds.size)
-    setPosts(prev => prev.map(p => okIds.has(p.id) ? { ...p, status: 'producao', approval_status: 'aprovado' } : p))
+    setPosts(prev => prev.map(p => okIds.has(p.id) ? { ...p, status: APOS_APROVAR_CRONO, approval_status: 'aprovado' } : p))
     if (failedCount > 0) showToast(`${okIds.size} aprovados, ${failedCount} falharam — tenta de novo neles.`, false)
     else showToast(`${okIds.size} posts aprovados! 🎉`)
     setApprovingAll(false)

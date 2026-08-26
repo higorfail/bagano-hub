@@ -865,6 +865,14 @@ export default function DashboardPage() {
       // onde ela é a responsável mas não é da equipe do cliente.
       const assignedToMe = (s.assigned_members || []).includes(currentMember.id)
       if (s.status === CFG.S.revisaoInterna) return assignedToMe || myStrategistClients.has(s.client_id)
+      // Captação é onde o post cai quando o cliente aprova a estratégia, e é um
+      // estado que espera uma DECISÃO da estrategista: este precisa de foto e
+      // vídeo, ou já pode ir pra produção? Enquanto ela não decide, ninguém
+      // mais tem o que fazer com o card — e ele normalmente ainda não está
+      // atribuído a pessoa nenhuma, então não aparecia pra absolutamente
+      // ninguém. Mesmo acréscimo da revisão interna: quem está marcado continua
+      // vendo, a estrategista passa a ver também.
+      if (s.status === CFG.S.captacao) return assignedToMe || myStrategistClients.has(s.client_id)
       // Pedido de alteração do cliente vai pra quem faz aquele tipo de peça:
       // reels pro editor, carrossel/post/story pro designer, e só a legenda
       // pro social — mesma lógica de acréscimo da revisão interna, quem está
