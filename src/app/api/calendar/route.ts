@@ -32,12 +32,32 @@ function getAuth() {
 const TZ = 'America/Sao_Paulo'
 const NAO_CONFIGURADO = { error: 'Google Calendar não configurado' }
 
+/**
+ * HH:MM, sempre.
+ *
+ * O banco guarda `scheduled_time` como TIME e devolve "17:00:00" — com os
+ * segundos. Concatenar `:00` nisso produzia "2026-08-26T17:00:00:00", que o
+ * Google recusa com 400. Era por isso que TODA captação com horário falhava em
+ * silêncio: das 8 no banco, as únicas duas que tinham evento no Google eram
+ * justamente as duas SEM hora marcada.
+ *
+ * O recorte mora aqui, no ponto por onde POST e PATCH passam, em vez de em cada
+ * quem chama — foi um chamador confiar no formato do banco que criou o problema.
+ */
+function hhmm(t?: string | null): string | null {
+  if (!t) return null
+  const m = /^(\d{1,2}):(\d{2})/.exec(t.trim())
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : null
+}
+
 /** Monta start/end no formato do Google: com hora quando há hora, dia inteiro quando não há. */
 function periodo(date: string, startTime?: string, endTime?: string) {
-  return startTime && endTime
+  const ini = hhmm(startTime)
+  const fim = hhmm(endTime)
+  return ini && fim
     ? {
-        start: { dateTime: `${date}T${startTime}:00`, timeZone: TZ },
-        end:   { dateTime: `${date}T${endTime}:00`,   timeZone: TZ },
+        start: { dateTime: `${date}T${ini}:00`, timeZone: TZ },
+        end:   { dateTime: `${date}T${fim}:00`, timeZone: TZ },
       }
     : { start: { date }, end: { date } }
 }

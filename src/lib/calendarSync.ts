@@ -22,6 +22,13 @@ export type CaptacaoSync = {
   google_calendar_event_id: string | null
 }
 
+/** HH:MM a partir do que o banco devolve ("17:00:00" numa coluna TIME). */
+function hhmm(t: string | null | undefined): string | null {
+  if (!t) return null
+  const m = /^(\d{1,2}):(\d{2})/.exec(t.trim())
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : null
+}
+
 /** Horário de término = início + duração, no mesmo formato HH:MM. */
 function fim(startTime: string, minutos: number): string {
   const [h, m] = startTime.split(':').map(Number)
@@ -30,7 +37,7 @@ function fim(startTime: string, minutos: number): string {
 }
 
 function corpo(capt: CaptacaoSync, clientName: string, teamNames: string) {
-  const hora = capt.scheduled_time || null
+  const hora = hhmm(capt.scheduled_time)
   return {
     summary: `📸 Captação — ${clientName || 'Cliente'}`,
     description: [capt.notes, teamNames ? `Equipe: ${teamNames}` : ''].filter(Boolean).join('\n'),
