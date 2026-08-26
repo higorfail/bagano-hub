@@ -19,6 +19,10 @@ const URL_BY_TABLE: Record<string, (recordId: string, clientId?: string | null) 
   extras:    id => `/dashboard/extras?post=${id}`,
   cronograma_status: (id, clientId) => `/dashboard/cronograma${clientId ? `?client=${clientId}` : ''}`,
   personal_tasks: id => `/dashboard/tarefas?task=${id}`,
+  // Captação e agenda de criação não são cards: não há o que abrir por id, o
+  // destino é a própria Agenda, onde a semana inteira está.
+  captacoes:      () => '/dashboard/agenda',
+  agenda_criacao: () => '/dashboard/agenda',
 }
 
 // ─── O que interrompe vs. o que só fica registrado ───────────────────────────
@@ -74,6 +78,19 @@ async function resolveCardMeta(tableName: string, recordId: string): Promise<Car
   // Cronograma finalizado não é um card e não tem título — sem isto a lista
   // mostrava "Card" genérico acima de "finalizou o cronograma de Julho".
   if (tableName === 'cronograma_status') return { title: 'Cronograma do mês', type: 'cronograma', number: null }
+  // Captação e criação se identificam pelo CLIENTE, não por um título próprio —
+  // é assim que a equipe fala delas ("a captação do Zebuino"), e é a única
+  // coisa que a tabela tem de identidade.
+  if (tableName === 'captacoes' || tableName === 'agenda_criacao') {
+    const { data } = await supabase.from(tableName).select('client_id').eq('id', recordId).maybeSingle()
+    let nome: string | null = null
+    if (data?.client_id) {
+      const { data: c } = await supabase.from('clients').select('name').eq('id', data.client_id).maybeSingle()
+      nome = c?.name || null
+    }
+    const rotulo = tableName === 'captacoes' ? 'Captação' : 'Criação'
+    return { title: nome ? `${rotulo} — ${nome}` : rotulo, type: rotulo.toLowerCase(), number: null }
+  }
   return empty
 }
 

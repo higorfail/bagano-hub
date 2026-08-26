@@ -4,10 +4,13 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
-import { Plus, ChevronLeft, ChevronRight, Calendar, Camera, X, Check, Loader2, CalendarPlus, AlertTriangle } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Camera, X, Check, Loader2, CalendarPlus, AlertTriangle } from 'lucide-react'
 import { fromActiveClients } from '@/lib/activeClients'
 import { detectarAusencia } from '@/lib/googleEventos'
-import { sincronizarCaptacao, sincronizarCriacao, dataDaCriacao, removerDoCalendario, eventosDoGoogle, type EventoGoogle } from '@/lib/calendarSync'
+import { sincronizarCaptacao, sincronizarCriacao, dataDaCriacao, removerDoCalendario, eventosDoGoogle } from '@/lib/calendarSync'
+import { ensureWatching } from '@/lib/watch'
+import { logActivity } from '@/lib/activity'
+import { useUser } from '@/lib/UserContext'
 
 type Client       = { id: string; name: string; color_hex: string; logo_url: string | null }
 type Member       = { id: string; name: string; role: string }
@@ -63,9 +66,11 @@ export default function AgendaPage() {
   useEffect(() => { document.title = 'Agenda · Bagano Hub' }, [])
   const supabase = createClient()
   const { toast } = useToast()
+  const { currentMember } = useUser()
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
   const [clients,      setClients]      = useState<Client[]>([])
   const [members,      setMembers]      = useState<Member[]>([])
+  const [clientTeam,   setClientTeam]   = useState<Record<string, string[]>>({})
   const [entries,      setEntries]      = useState<AgendaEntry[]>([])
   const [captacoes,    setCaptacoes]    = useState<Captacao[]>([])
   const [loading,      setLoading]      = useState(true)
@@ -120,11 +125,14 @@ export default function AgendaPage() {
     const start = toLocalISO(weekStart)
     const end   = toLocalISO(addDays(weekStart, 90)) // captações até 90 dias
 
-    const [{ data: cl }, { data: mb }, { data: en }, { data: cap }] = await Promise.all([
+    const [{ data: cl }, { data: mb }, { data: en }, { data: cap }, { data: ct }] = await Promise.all([
       supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
       supabase.from('team_members').select('id, name, role').order('name'),
       supabase.from('agenda_criacao').select('*').eq('week_start', start),
       supabase.from('captacoes').select('*').gte('scheduled_date', start).lte('scheduled_date', end).order('scheduled_date'),
+      // Quem é de cada cliente. É o que o Google não tem como saber: lá o
+      // evento é texto solto, sem vínculo com pessoa nenhuma.
+      supabase.from('client_team').select('client_id, member_id'),
     ])
     // Captação e agenda de criação são buscadas por semana, sem passar por
     // cliente. Sem este recorte, cliente desativado seguia ocupando dia na
@@ -134,6 +142,9 @@ export default function AgendaPage() {
     setMembers(mb || [])
     setEntries(fromActiveClients<any>(en, ativos))
     setCaptacoes(fromActiveClients<any>(cap, ativos))
+    const eq: Record<string, string[]> = {}
+    for (const t of (ct || [])) (eq[t.client_id] ||= []).push(t.member_id)
+    setClientTeam(eq)
     setLoading(false)
   }, [weekStart])
 
@@ -149,6 +160,38 @@ export default function AgendaPage() {
   }, [])
 
   // ── Agenda de criação ───────────────────────────────────────────────
+  // Quem precisa saber de uma captação: quem vai nela, mais a equipe do
+  // cliente. O hub já sabe as duas coisas — `team_member_ids` e `client_team` —
+  // e é justamente isso que o Google não sabe, porque lá é tudo texto solto.
+  async function avisarCaptacao(capt: any, descricao: string) {
+    const daEquipe = (clientTeam[capt.client_id] || [])
+    const ids = [...new Set([...(capt.team_member_ids || []), ...daEquipe])]
+    await ensureWatching('captacoes', capt.id, ids)
+    await logActivity({
+      tableName: 'captacoes', recordId: capt.id, clientId: capt.client_id,
+      action: 'created', actorName: currentMember?.name, actorId: currentMember?.id,
+      description: descricao,
+    })
+  }
+
+  // A criação avisa só quem foi marcado no dia — e não a equipe inteira do
+  // cliente, como a captação faz. São coisas diferentes: captação é o cliente
+  // inteiro se organizando em torno de um dia; dia de criação é a agenda de
+  // quem vai sentar e fazer.
+  async function avisarCriacao(entry: any) {
+    const ids = entry.member_ids || []
+    if (!ids.length) return
+    await ensureWatching('agenda_criacao', entry.id, ids)
+    await logActivity({
+      tableName: 'agenda_criacao', recordId: entry.id, clientId: entry.client_id,
+      action: 'created', actorName: currentMember?.name, actorId: currentMember?.id,
+      description: `${currentMember?.name || 'Alguém'} marcou você na criação do ${clientMap[entry.client_id]?.name || 'cliente'} · ${formatarData(dataDaCriacao(entry.week_start, entry.day_of_week))}`,
+    })
+  }
+
+  const formatarData = (iso: string) =>
+    new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+
   // Um caminho só pro Google, pras três operações da agenda de criação.
   const nomesDe = (ids: string[] | null | undefined) =>
     (ids || []).map(id => memberMap[id]?.name).filter(Boolean).join(', ')
@@ -182,6 +225,7 @@ export default function AgendaPage() {
       // captação pro Google, então metade do que ocupa a semana da equipe
       // ficava invisível pra quem olha o calendário.
       void criacaoPraGoogle(data)
+      void avisarCriacao(data)
     }
     setEntryModal(null)
     setEntryClient('')
@@ -237,6 +281,10 @@ export default function AgendaPage() {
       // esquecido: 5 das 7 captações nunca viraram evento, incluindo as 4 que
       // ainda estavam por acontecer.
       void enviarPraGoogle(data)
+      // E avisa quem vai. Assinar o calendário resolve pra quem assinou; o push
+      // é o que alcança todo mundo hoje, sem depender de configuração no Google
+      // de cada um. Observador ANTES do log — é o log que dispara o push.
+      void avisarCaptacao(data, `${currentMember?.name || 'Alguém'} marcou captação do ${clientMap[data.client_id]?.name || 'cliente'} pra ${formatarData(data.scheduled_date)}`)
     }
     setCaptModal(false)
     setCaptForm({ ...BLANK_CAPTACAO })
