@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import { withBase } from '@/lib/base'
 import {
   MapPin, Phone, AtSign, Globe, Truck, BookOpen,
   ChevronDown, ChevronRight, Sparkles, X, ExternalLink,
@@ -591,7 +592,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
     if (!genName.trim()) return
     setGenLoading(true); setGenError(''); setGenDraft('')
     try {
-      const res = await fetch('/api/ai-manual', {
+      const res = await fetch(withBase('/api/ai-manual'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name: genName, instagram: genInstagram, website: genWebsite }),

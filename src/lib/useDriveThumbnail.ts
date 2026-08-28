@@ -4,6 +4,7 @@
 // PostMiniCard (capa da pasta ou arquivo único), reaproveitada aqui pra
 // mostrar prévia nos cards/popover da página de Publicações.
 import { useEffect, useState } from 'react'
+import { withBase } from '@/lib/base'
 
 export function useDriveThumbnail(driveUrl?: string | null, driveFolderUrl?: string | null, isVideoType = false) {
   const [thumbUrl, setThumbUrl] = useState<string | null>(() => {
@@ -16,7 +17,7 @@ export function useDriveThumbnail(driveUrl?: string | null, driveFolderUrl?: str
     if (!driveFolderUrl) return
     const folderId = driveFolderUrl.match(/\/folders\/([-\w]{25,})/)?.[1]
     if (!folderId) return
-    fetch(`/api/drive-folder?folderId=${folderId}`)
+    fetch(withBase(`/api/drive-folder?folderId=${folderId}`))
       .then(r => r.json())
       .then(d => {
         const files: { id: string; name: string; mimeType: string }[] = d.files || []

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Calendar, Paperclip, Copy, Package, Play, Zap, MessageSquare } from 'lucide-react'
 import { approvalShort } from '@/lib/approvalKind'
 import { STATUS as STATUS_META, STATUS_ORDER } from '@/lib/status'
+import { withBase } from '@/lib/base'
 
 const TYPE: Record<string, { label: string; color: string }> = {
   carrossel:         { label: 'Carrossel',         color: '#3b82f6' },
@@ -83,7 +84,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
     if (!post.drive_folder_url) return
     const folderId = post.drive_folder_url.match(/\/folders\/([-\w]{25,})/)?.[1]
     if (!folderId) return
-    fetch(`/api/drive-folder?folderId=${folderId}`)
+    fetch(withBase(`/api/drive-folder?folderId=${folderId}`))
       .then(r => r.json())
       .then(d => {
         const files: { id: string; name: string; mimeType: string }[] = d.files || []

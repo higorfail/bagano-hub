@@ -19,6 +19,7 @@ import LineChart from '@/components/ui/LineChart'
 import { brasiliaISOFromDate } from '@/lib/timezone'
 import { POST_DONE_STAGES, temMaterial, contaComoFolego } from '@/lib/postStages'
 import { fromActiveClients } from '@/lib/activeClients'
+import { withBase } from '@/lib/base'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
 const CFG = {
@@ -1061,7 +1062,7 @@ export default function DashboardPage() {
       postType: i.postType, labels: (i.labels || []).map(l => l.text),
       campaign: i.campaignType ? (campaignNameMap[`${i.clientId}:${i.campaignType}`] || null) : null,
     }))
-    fetch('/api/ai-daily-digest', {
+    fetch(withBase('/api/ai-daily-digest'), {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ memberName: currentMember.name?.split(' ')[0], items }),
     })
@@ -1154,7 +1155,7 @@ export default function DashboardPage() {
       }
     } catch {}
 
-    fetch('/api/ai-greeting', {
+    fetch(withBase('/api/ai-greeting'), {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         memberName: currentMember.name?.split(' ')[0],

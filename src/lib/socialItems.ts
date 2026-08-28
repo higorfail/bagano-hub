@@ -6,6 +6,7 @@ import { todayBrasiliaISO } from '@/lib/timezone'
 import { logActivity } from '@/lib/activity'
 import { statusColor } from './status'
 import { activeClientIds, fromActiveClients } from './activeClients'
+import { withBase } from '@/lib/base'
 
 export type SocialActor = { id?: string | null; name?: string | null }
 
@@ -276,7 +277,7 @@ export async function downloadDriveContent(driveUrl: string | null | undefined, 
   if (!id) return { ok: false, message: 'Não consegui identificar o arquivo do Drive nesse link.' }
 
   try {
-    const res = await fetch(`/api/drive-download?id=${id}`)
+    const res = await fetch(withBase(`/api/drive-download?id=${id}`))
     const contentType = res.headers.get('content-type') || ''
     if (res.ok && !contentType.includes('application/json')) {
       const blob = await res.blob()

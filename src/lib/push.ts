@@ -4,6 +4,7 @@
 // pede permissão e guarda a assinatura em push_subscriptions, vinculada ao membro.
 
 import { createClient } from './supabase'
+import { withBase } from '@/lib/base'
 
 export function pushSupported() {
   return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
@@ -63,7 +64,7 @@ export async function subscribeToPush(memberId: string): Promise<{ ok: boolean; 
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
     if (!vapidKey) return { ok: false, error: 'Chave VAPID não configurada no servidor.' }
 
-    const registration = await navigator.serviceWorker.register('/sw.js')
+    const registration = await navigator.serviceWorker.register(withBase('/sw.js'))
     await navigator.serviceWorker.ready
 
     // Se já existe uma inscrição no navegador, ela pode ter sido criada com
@@ -102,7 +103,7 @@ export async function subscribeToPush(memberId: string): Promise<{ ok: boolean; 
 
 export async function unsubscribeFromPush(): Promise<void> {
   if (!pushSupported()) return
-  const registration = await navigator.serviceWorker.getRegistration('/sw.js')
+  const registration = await navigator.serviceWorker.getRegistration(withBase('/sw.js'))
   const subscription = await registration?.pushManager.getSubscription()
   if (!subscription) return
   const endpoint = subscription.endpoint
@@ -113,7 +114,7 @@ export async function unsubscribeFromPush(): Promise<void> {
 
 export async function isSubscribedToPush(): Promise<boolean> {
   if (!pushSupported()) return false
-  const registration = await navigator.serviceWorker.getRegistration('/sw.js')
+  const registration = await navigator.serviceWorker.getRegistration(withBase('/sw.js'))
   const subscription = await registration?.pushManager.getSubscription()
   return !!subscription
 }

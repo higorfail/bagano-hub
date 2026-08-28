@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { SITE_URL } from '@/lib/base'
 
 // Faz o download de um arquivo do Drive sem o usuário sair da página (usado no
 // botão "Baixar" da página de Publicações). Mesmo truque de key+referrer do
 // drive-folder/drive-thumb — a chave é restrita por HTTP referrer, então o
 // servidor precisa declarar um referrer que bata com o domínio liberado.
-const REFERRER = 'https://bagano-hub.vercel.app/'
+const REFERRER = `${SITE_URL.replace(/\/$/, '')}/`
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')

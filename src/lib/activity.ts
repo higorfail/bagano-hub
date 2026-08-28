@@ -1,4 +1,5 @@
 import { createClient } from './supabase'
+import { withBase } from '@/lib/base'
 
 export async function logActivity(params: {
   tableName: string
@@ -39,7 +40,7 @@ export async function logActivity(params: {
   // notificação na caixa de entrada, e só o envio do push é que fica de fora.
   // Antes o skipPush saía aqui e a aprovação do cliente nunca chegava ao
   // sininho — era a maior fonte de "chegou no push mas não ficou salvo".
-  fetch('/api/push/notify', {
+  fetch(withBase('/api/push/notify'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(params),

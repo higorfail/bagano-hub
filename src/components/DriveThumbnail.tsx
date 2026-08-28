@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Folder, FileText, File as FileIcon } from 'lucide-react'
 import { extractDriveIds } from '@/lib/driveLinks'
+import { withBase } from '@/lib/base'
 
 type DriveFile = { id: string; name: string; mimeType: string }
 
@@ -47,7 +48,7 @@ export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
   useEffect(() => {
     const folderId = folderUrl.match(/\/folders\/([-\w]{25,})/)?.[1]
     if (!folderId) return
-    fetch(`/api/drive-folder?folderId=${folderId}`)
+    fetch(withBase(`/api/drive-folder?folderId=${folderId}`))
       .then(r => r.json())
       .then(d => {
         const files: DriveFile[] = d.files || []

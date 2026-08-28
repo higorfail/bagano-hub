@@ -1,4 +1,5 @@
 import { createClient } from './supabase'
+import { withBase } from '@/lib/base'
 
 // Mantém captação e evento do Google alinhados sem ninguém precisar lembrar.
 //
@@ -61,7 +62,7 @@ export async function enviarCaptacao(
   const payload = corpo(capt, clientName, teamNames)
   try {
     if (capt.google_calendar_event_id) {
-      const res = await fetch('/api/calendar', {
+      const res = await fetch(withBase('/api/calendar'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId: capt.google_calendar_event_id, ...payload }),
@@ -71,7 +72,7 @@ export async function enviarCaptacao(
       // mais; recria em vez de desistir, senão a captação fica órfã pra sempre.
       if (res.status !== 410) return null
     }
-    const res = await fetch('/api/calendar', {
+    const res = await fetch(withBase('/api/calendar'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -100,7 +101,7 @@ export async function sincronizarCaptacao(
 export async function removerDoCalendario(eventId: string | null | undefined) {
   if (!eventId) return
   try {
-    await fetch('/api/calendar', {
+    await fetch(withBase('/api/calendar'), {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ eventId }),
@@ -131,7 +132,7 @@ export async function eventosDoGoogle(
   start: string, end: string, ignorar: Set<string> = new Set(),
 ): Promise<EventoGoogle[]> {
   try {
-    const res = await fetch(`/api/calendar?start=${start}&end=${end}`)
+    const res = await fetch(withBase(`/api/calendar?start=${start}&end=${end}`))
     if (!res.ok) return []
     const { events } = await res.json()
     return (events as EventoGoogle[]).filter(e => !ignorar.has(e.id))
@@ -171,7 +172,7 @@ export async function sincronizarCriacao(
   let eventId: string | null = null
   try {
     if (entry.google_calendar_event_id) {
-      const res = await fetch('/api/calendar', {
+      const res = await fetch(withBase('/api/calendar'), {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId: entry.google_calendar_event_id, ...payload }),
       })
@@ -179,7 +180,7 @@ export async function sincronizarCriacao(
       else if (res.status !== 410) return { ok: false, eventId: null }
     }
     if (!eventId) {
-      const res = await fetch('/api/calendar', {
+      const res = await fetch(withBase('/api/calendar'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })

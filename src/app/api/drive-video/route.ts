@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { SITE_URL } from '@/lib/base'
 
 // Serve o vídeo do Drive PELO NOSSO SERVIDOR, em vez de o <video> chamar o
 // googleapis direto do navegador.
@@ -13,7 +14,7 @@ import { NextRequest, NextResponse } from 'next/server'
 //
 // Aqui o referrer é declarado pelo servidor, igual drive-thumb e drive-download
 // já fazem. É o mesmo truque, só que pra vídeo.
-const REFERRER = 'https://bagano-hub.vercel.app/'
+const REFERRER = `${SITE_URL.replace(/\/$/, '')}/`
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')

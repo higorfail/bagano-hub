@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import Button from '@/components/ui/Button'
+import { withBase } from '@/lib/base'
 
 type Client = {
   id: string
@@ -74,7 +75,7 @@ export default function ClientesPage() {
     if (!form.instagram_url.trim()) { toast('Preencha o link do Instagram primeiro'); return }
     setPullingIg(true)
     try {
-      const res = await fetch('/api/instagram-avatar', {
+      const res = await fetch(withBase('/api/instagram-avatar'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ instagram_url: form.instagram_url }),

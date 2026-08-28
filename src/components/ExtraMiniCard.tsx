@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Calendar, CheckSquare, AlertCircle, MessageSquare, Paperclip, Play, Archive } from 'lucide-react'
 import { cardDue } from '@/lib/cardDue'
+import { withBase } from '@/lib/base'
 
 interface ExtraLite {
   id: string
@@ -58,7 +59,7 @@ export default function ExtraMiniCard({
     if (!extra.drive_url || !/\/folders\//.test(extra.drive_url)) return
     const folderId = extra.drive_url.match(/\/folders\/([-\w]{25,})/)?.[1]
     if (!folderId) return
-    fetch(`/api/drive-folder?folderId=${folderId}`)
+    fetch(withBase(`/api/drive-folder?folderId=${folderId}`))
       .then(r => r.json())
       .then(d => {
         const files: { id: string; name: string; mimeType: string }[] = d.files || []

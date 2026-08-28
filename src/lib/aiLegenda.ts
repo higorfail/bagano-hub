@@ -1,4 +1,5 @@
 // Gera uma sugestão de legenda via Gemini, baseada no briefing/copy do post
+import { withBase } from '@/lib/base'
 // e no tom de voz do manual do cliente. Retorna null em qualquer falha —
 // nunca deve travar o fluxo de edição do campo.
 export async function generateAiLegenda(opts: {
@@ -12,7 +13,7 @@ export async function generateAiLegenda(opts: {
 }): Promise<string | null> {
   if (!opts.briefing?.trim() && !opts.copy?.trim()) return null
   try {
-    const res = await fetch('/api/ai-legenda', {
+    const res = await fetch(withBase('/api/ai-legenda'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(opts),

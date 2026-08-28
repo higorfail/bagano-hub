@@ -1,3 +1,4 @@
+import { SITE_URL } from '@/lib/base'
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -14,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://bagano-hub.vercel.app"),
+  metadataBase: new URL(SITE_URL),
   title: "Bagano Hub",
   description: "Hub interno Bagano",
   appleWebApp: {

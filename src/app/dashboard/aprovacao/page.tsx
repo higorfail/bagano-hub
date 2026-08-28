@@ -9,6 +9,7 @@ import ModalPortal from '@/components/ModalPortal'
 import CronoApprovals from '@/components/CronoApprovals'
 import { approvalKind, approvalLabel } from '@/lib/approvalKind'
 import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
+import { withBase } from '@/lib/base'
 
 // "Aprovado" nesta página significa APROVAÇÃO FINAL do conteúdo. O campo
 // approval_status vale 'aprovado' pros dois tipos (crono e final), então usar
@@ -74,7 +75,7 @@ function useDriveThumb(driveUrl?: string | null, driveFolderUrl?: string | null,
     if (!driveFolderUrl) return
     const folderId = driveFolderUrl.match(/\/folders\/([-\w]{25,})/)?.[1]
     if (!folderId) return
-    fetch(`/api/drive-folder?folderId=${folderId}`)
+    fetch(withBase(`/api/drive-folder?folderId=${folderId}`))
       .then(r => r.json())
       .then(d => {
         const files: { id: string; name: string; mimeType: string }[] = d.files || []

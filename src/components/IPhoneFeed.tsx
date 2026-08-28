@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { withBase } from '@/lib/base'
 import {
   Play, LayoutGrid, Image, CheckCircle2, Clock,
   AlertCircle, X, ExternalLink, Calendar, FileText,
@@ -182,7 +183,7 @@ function pickCoverOrVideo(files: DriveFile[]): { file?: DriveFile; isVideo: bool
 
 async function fetchFolderFiles(folderId: string): Promise<DriveFile[]> {
   try {
-    const res = await fetch(`/api/drive-folder?folderId=${folderId}`)
+    const res = await fetch(withBase(`/api/drive-folder?folderId=${folderId}`))
     if (!res.ok) return []
     return (await res.json()).files || []
   } catch { return [] }

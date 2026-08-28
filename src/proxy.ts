@@ -24,16 +24,32 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const authed = hasSupabaseSession(request)
 
+  // Os destinos saem de `nextUrl.clone()`, e não de `new URL(..., request.url)`.
+  //
+  // Motivo: `request.url` traz o caminho como veio do navegador, com o basePath
+  // dentro — e montar uma URL nova a partir dele DESCARTA esse prefixo. Servido
+  // em /hub, o guarda mandava quem não tinha sessão pra `/`, que ali não existe:
+  // a pessoa saía do hub e caía num 404, sem tela de login pra onde voltar.
+  // `nextUrl` conhece o basePath e o recoloca sozinho.
+  //
+  // `pathname` já vem SEM o basePath, então as comparações e o `redirect=`
+  // continuam valendo sem mudança.
+
   // Sem sessão no dashboard → login, guardando pra onde a pessoa queria ir.
   if (pathname.startsWith('/dashboard') && !authed) {
-    const url = new URL('/', request.url)
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
+    url.search = ''
     url.searchParams.set('redirect', pathname)
     return NextResponse.redirect(url)
   }
 
   // Já logado abrindo o login → vai direto pro dashboard.
   if (pathname === '/' && authed && !isConvite(request)) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    url.search = ''
+    return NextResponse.redirect(url)
   }
 
   return NextResponse.next()

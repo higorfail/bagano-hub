@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { SITE_URL } from '@/lib/base'
 
 // Busca o nome real de um link anexado, pra usar como rótulo curto em vez da
 // URL inteira. Drive é um caso à parte: ler o <title> da página de visualização
@@ -21,7 +22,7 @@ async function driveTitle(url: string): Promise<string | null> {
   try {
     const res = await fetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name&key=${key}`,
-      { headers: { Referer: 'https://bagano-hub.vercel.app/' } }
+      { headers: { Referer: `${SITE_URL.replace(/\/$/, '')}/` } }
     )
     if (!res.ok) return null
     const data = await res.json()

@@ -18,6 +18,7 @@ import ModalPortal from '@/components/ModalPortal'
 import ListCell from '@/components/ListCell'
 import { useIsWideScreen } from '@/lib/useMediaQuery'
 import { statusBadge } from '@/lib/status'
+import { withBase } from '@/lib/base'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -134,7 +135,7 @@ function CalendarChip({ post, members, dragging, otherCronograma, onDragStart, o
     if (thumbUrl || !post.drive_folder_url) return
     const folderId = post.drive_folder_url.match(/\/folders\/([-\w]{25,})/)?.[1]
     if (!folderId) return
-    fetch(`/api/drive-folder?folderId=${folderId}`)
+    fetch(withBase(`/api/drive-folder?folderId=${folderId}`))
       .then(r => r.json())
       .then(d => {
         const files: { id: string; name: string; mimeType: string }[] = d.files || []
@@ -356,7 +357,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
         ...(attachmentsByPost[p.id] || []),
       ],
     }))
-    const res = await fetch('/api/ai-preplist', {
+    const res = await fetch(withBase('/api/ai-preplist'), {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ clientName, monthLabel: `${CRONO_MONTHS[month - 1]} ${year}`, posts: postsPayload, manual: manualData }),
     })

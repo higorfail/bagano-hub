@@ -13,6 +13,7 @@ import DayPanel from '@/components/calendario/DayPanel'
 import { ehBloqueio, identificarCliente } from '@/lib/googleEventos'
 import ItemChip from '@/components/calendario/ItemChip'
 import { useRouter } from 'next/navigation'
+import { withBase } from '@/lib/base'
 
 const MONTHS   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const WEEKDAYS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
@@ -429,7 +430,7 @@ export default function CalendarioPage() {
         editingEvent.start_time !== (eventForm.start_time || null) ||
         editingEvent.end_time !== (eventForm.end_time || null)
       if (dateChanged && gcalId) {
-        await fetch('/api/calendar', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: gcalId }) })
+        await fetch(withBase('/api/calendar'), { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: gcalId }) })
         gcalId = null
       }
       await supabase.from('hub_events').update({ ...payload, google_calendar_event_id: gcalId }).eq('id', editingEvent.id)
@@ -444,7 +445,7 @@ export default function CalendarioPage() {
       const et = EVENT_TYPES[eventForm.event_type] || EVENT_TYPES.outro
       const descParts = [et.label, eventForm.location, eventForm.description].filter(Boolean)
       try {
-        const res = await fetch('/api/calendar', {
+        const res = await fetch(withBase('/api/calendar'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -496,7 +497,7 @@ export default function CalendarioPage() {
     setDeletingEvent(true)
     const supabase = createClient()
     if (editingEvent.google_calendar_event_id) {
-      await fetch('/api/calendar', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: editingEvent.google_calendar_event_id }) })
+      await fetch(withBase('/api/calendar'), { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: editingEvent.google_calendar_event_id }) })
     }
     await supabase.from('hub_events').delete().eq('id', editingEvent.id)
     setHubEvents(prev => prev.filter(e => e.id !== editingEvent.id))

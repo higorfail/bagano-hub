@@ -11,6 +11,7 @@ import { sincronizarCaptacao, sincronizarCriacao, dataDaCriacao, removerDoCalend
 import { ensureWatching } from '@/lib/watch'
 import { logActivity } from '@/lib/activity'
 import { useUser } from '@/lib/UserContext'
+import { withBase } from '@/lib/base'
 
 type Client       = { id: string; name: string; color_hex: string; logo_url: string | null }
 type Member       = { id: string; name: string; role: string }
@@ -154,7 +155,7 @@ export default function AgendaPage() {
   // que o POST vazio que existia aqui — e aquele virava uma tentativa de criar
   // evento sem título nem data, uma escrita fadada a falhar a cada abertura.
   useEffect(() => {
-    fetch('/api/calendar?start=2000-01-01&end=2000-01-01')
+    fetch(withBase('/api/calendar?start=2000-01-01&end=2000-01-01'))
       .then(r => setCalendarOk(r.status !== 503))
       .catch(() => setCalendarOk(false))
   }, [])

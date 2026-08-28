@@ -12,6 +12,7 @@
 // sequência do dia é o nome da subpasta, não sorteio.
 import { useEffect, useState } from 'react'
 import { folderIdOf, weekdayOfFolderName, parseISO } from '@/lib/recurrings'
+import { withBase } from '@/lib/base'
 
 export type DriveFile   = { id: string; name: string; mimeType: string; isVideo: boolean }
 export type DriveFolder = { id: string; name: string }
@@ -47,7 +48,7 @@ const cache = new Map<string, Promise<Listing>>()
 function list(folderId: string): Promise<Listing> {
   const hit = cache.get(folderId)
   if (hit) return hit
-  const p = fetch(`/api/drive-folder?folderId=${folderId}`)
+  const p = fetch(withBase(`/api/drive-folder?folderId=${folderId}`))
     .then(r => r.json())
     .then((d): Listing => {
       const raw: { id: string; name: string; mimeType: string }[] = d.files || []

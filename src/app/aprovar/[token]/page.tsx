@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase'
 import ApprovalPage from './AprovarClient'
+import { withBase } from '@/lib/base'
 
 type Props = { params: Promise<{ token: string }> }
 
@@ -31,7 +32,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       // este link é o cliente, não a equipe.
       images: client?.logo_url
         ? [{ url: client.logo_url }]
-        : [{ url: '/icons/icon-512.png', width: 512, height: 512 }],
+        : [{ url: withBase('/icons/icon-512.png'), width: 512, height: 512 }],
     },
   }
 }

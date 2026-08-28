@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { SITE_URL } from '@/lib/base'
 
 // Lista os arquivos de uma pasta do Google Drive (usado pra achar a "capa.*"/prévia
 // de posts sem arquivo direto). Roda no servidor em vez do navegador do usuário —
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
   try {
     const res = await fetch(
       `https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType,thumbnailLink,webViewLink)&orderBy=name&key=${key}`,
-      { headers: { Referer: 'https://bagano-hub.vercel.app/' } }
+      { headers: { Referer: `${SITE_URL.replace(/\/$/, '')}/` } }
     )
     if (!res.ok) return NextResponse.json({ files: [] })
     const data = await res.json()

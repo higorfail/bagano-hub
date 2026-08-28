@@ -8,6 +8,7 @@ import { extractDriveIds } from '@/lib/driveLinks'
 import { queueApprovalDigest } from '@/lib/approvalDigest'
 import { CheckCircle, MessageSquare, RotateCcw, AlertTriangle } from 'lucide-react'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
+import { withBase } from '@/lib/base'
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -129,7 +130,7 @@ function CarouselPreview({ folderId, folderUrl, ratio = '100%' }: { folderId: st
   )
 
   useEffect(() => {
-    fetch(`/api/drive-folder?folderId=${folderId}`)
+    fetch(withBase(`/api/drive-folder?folderId=${folderId}`))
       .then(r => r.json())
       .then(d => {
         const files: { id: string; name: string; mimeType: string }[] = d.files || []
@@ -256,7 +257,7 @@ function useFolderFiles(folderId: string) {
   const [files, setFiles] = useState<DriveFileInfo[]>([])
   const [ready, setReady] = useState(false)
   useEffect(() => {
-    fetch(`/api/drive-folder?folderId=${folderId}`)
+    fetch(withBase(`/api/drive-folder?folderId=${folderId}`))
       .then(r => r.json())
       .then(d => { setFiles(d.files || []); setReady(true) })
       .catch(() => setReady(true))
@@ -572,7 +573,7 @@ export default function ApprovalPage({ token }: { token: string }) {
   async function classificarAjuste(postId: string, comment: string) {
     try {
       const post = posts.find(p => p.id === postId)
-      const r = await fetch('/api/ai-ajuste-alvo', {
+      const r = await fetch(withBase('/api/ai-ajuste-alvo'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ comment, postType: post?.post_type, title: post?.title }),
