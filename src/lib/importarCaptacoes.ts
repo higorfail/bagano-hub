@@ -1,4 +1,7 @@
-import { identificarCliente, ehBloqueio } from './googleEventos'
+import { identificarCliente, ehBloqueio, normalizar } from './googleEventos'
+
+/** Palavras que marcam compromisso que não é captação. */
+const NAO_E_FILMAGEM = /\b(BRIEFING|REUNIAO|REUNIOES)\b/
 
 // Traz pro hub as captações que a equipe marca direto no Google.
 //
@@ -27,10 +30,12 @@ export type Decisao =
   | { acao: 'criar';    evento: EventoBruto; clientId: string; clientName: string }
   | { acao: 'atualizar'; evento: EventoBruto; captacaoId: string; de: string; para: string }
   | { acao: 'cancelar';  evento: EventoBruto; captacaoId: string }
+  | { acao: 'vincular';  evento: EventoBruto; captacaoId: string; clientName: string }
   | { acao: 'ignorar';   evento: EventoBruto; motivo: string }
 
 export type CaptacaoExistente = {
   id: string
+  client_id: string | null
   google_calendar_event_id: string | null
   scheduled_date: string
   scheduled_time: string | null
@@ -75,6 +80,14 @@ export function decidir(
     // "GEE OFF" e afins são ausência, não compromisso com cliente.
     if (ehBloqueio(e.summary)) return { acao: 'ignorar', evento: e, motivo: 'ausência' }
 
+    // Briefing e reunião são compromisso com cliente, mas NÃO são filmagem — e
+    // a lista do hub se chama Captações. Deixar entrar encheria de coisa que
+    // não é o que a tela promete: "BRIEFING BEM VIVER" e "REUNIÃO DE PRODUÇÃO
+    // ENTRE NÓS" apareceriam como captação e ninguém saberia que não são.
+    if (NAO_E_FILMAGEM.test(normalizar(e.summary))) {
+      return { acao: 'ignorar', evento: e, motivo: 'não é filmagem' }
+    }
+
     if (jaExiste) {
       const hora = e.allDay ? null : e.startTime
       const mesmaData = jaExiste.scheduled_date === e.date
@@ -92,6 +105,20 @@ export function decidir(
     // "TRATAMENTO" simplesmente não é captação de cliente nenhum.
     const cli = identificarCliente(e.summary, clientesAtivos)
     if (!cli) return { acao: 'ignorar', evento: e, motivo: 'sem cliente reconhecido' }
+
+    // Mesma filmagem, dos dois lados, sem ninguém saber.
+    //
+    // A captação criada no hub que NÃO chegou ao Google (o bug de horário
+    // derrubou todas as que tinham hora marcada) não tem event id — então o
+    // evento equivalente lá parece novidade, e importar criaria a mesma
+    // filmagem duas vezes. Cliente e dia iguais bastam pra reconhecer: ninguém
+    // filma o mesmo cliente duas vezes no mesmo dia.
+    //
+    // Vincular em vez de criar também CONSERTA o elo quebrado: dali em diante o
+    // hub volta a acompanhar as mudanças de data feitas no Google.
+    const orfa = captacoes.find(c =>
+      !c.google_calendar_event_id && c.client_id === cli.id && c.scheduled_date === e.date)
+    if (orfa) return { acao: 'vincular', evento: e, captacaoId: orfa.id, clientName: cli.name }
 
     return { acao: 'criar', evento: e, clientId: cli.id, clientName: cli.name }
   })
