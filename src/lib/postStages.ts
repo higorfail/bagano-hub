@@ -61,3 +61,21 @@ export function campaignProgress(args: {
     + checklist.filter(c => c.done).length
   return { done, total, pct: total > 0 ? (done / total) * 100 : 0 }
 }
+
+
+// Story não é fôlego.
+//
+// O fôlego mede quanto conteúdo de FEED o cliente ainda tem — é o que decide
+// quando produzir material novo. Story é efêmero: sai em 24h, não ocupa o
+// grid e não substitui um post que falta. Contar story como fôlego dizia que
+// havia conteúdo onde havia recado.
+//
+// Reels CONTA: ocupa o feed igual a post e carrossel, e é o formato mais usado
+// hoje (44 dos 95 posts futuros). Os híbridos (`carrossel_stories`,
+// `post_story`) também contam, porque cada um tem uma peça de feed dentro.
+const SO_STORY = ['story', 'stories']
+
+/** Este tipo de conteúdo ocupa o feed? (story sozinho não) */
+export function contaComoFolego(tipo: string | null | undefined) {
+  return !SO_STORY.includes((tipo || '').trim().toLowerCase())
+}

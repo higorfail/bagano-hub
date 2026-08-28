@@ -17,7 +17,7 @@ import IconBadge, { type BadgeTone } from '@/components/ui/IconBadge'
 import DonutChart from '@/components/ui/DonutChart'
 import LineChart from '@/components/ui/LineChart'
 import { brasiliaISOFromDate } from '@/lib/timezone'
-import { POST_DONE_STAGES, temMaterial } from '@/lib/postStages'
+import { POST_DONE_STAGES, temMaterial, contaComoFolego } from '@/lib/postStages'
 import { fromActiveClients } from '@/lib/activeClients'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
@@ -451,7 +451,7 @@ export default function DashboardPage() {
           // design, edição e social de cada cliente, não só a estrategista.
           supabase.from('client_team')
             .select('client_id, member_id, funcao'),
-          supabase.from('extras').select('client_id, status, client_approval_status, published_at').is('archived_at', null),
+          supabase.from('extras').select('client_id, type, status, client_approval_status, published_at').is('archived_at', null),
           supabase.from('materials').select('client_id, status').is('archived_at', null),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
@@ -611,7 +611,8 @@ export default function DashboardPage() {
       // `done` também não, porque no uso real ele já saiu — dos 10 extras
       // abertos hoje, os dois em `done` têm published_at preenchido.
       const extrasProntos = exs.filter(
-        x => ['feito', 'aguardando_aprovacao'].includes(x.status) && !(x as any).published_at).length
+        x => ['feito', 'aguardando_aprovacao'].includes(x.status) && !(x as any).published_at
+          && contaComoFolego((x as any).type)).length
       const per = byClient.get(c.id)
       const keys = per ? [...per.keys()].sort() : []
       // Fôlego: até quando ainda tem post marcado pra ir ao ar.
@@ -629,7 +630,7 @@ export default function DashboardPage() {
       // setembro num post em captação não cria conteúdo nenhum, e era assim que
       // o card prometia fôlego que não existia — o Big Poke dizia "até 10/set"
       // tendo um único post pronto, pro dia 29/ago.
-      const datas = todas.filter(s => temMaterial(s.status))
+      const datas = todas.filter(s => temMaterial(s.status) && contaComoFolego(s.post_type))
         .map(s => s.scheduled_date).filter(Boolean).sort() as string[]
       const restantes = datas.filter(d => d >= todayStr).length
       const ultima = datas.length ? datas[datas.length - 1] : null
@@ -638,7 +639,8 @@ export default function DashboardPage() {
       // só tem pauta datada passaria a dizer "sem datas marcadas", ou seja, que
       // nada foi programado — quando o cronograma existe e o que falta é fazer.
       const semMaterialFuturo = todas.filter(
-        s => !temMaterial(s.status) && s.scheduled_date && s.scheduled_date >= todayStr).length
+        s => !temMaterial(s.status) && contaComoFolego(s.post_type)
+          && s.scheduled_date && s.scheduled_date >= todayStr).length
       // Sem data marcada não é "acabou" — é "ainda não foi programado". Tratar
       // os dois igual mandaria a equipe correr atrás do cronograma errado.
       const runway: 'sem-data' | 'sem-material' | 'fim' | 'ok' =
