@@ -17,7 +17,7 @@ import IconBadge, { type BadgeTone } from '@/components/ui/IconBadge'
 import DonutChart from '@/components/ui/DonutChart'
 import LineChart from '@/components/ui/LineChart'
 import { brasiliaISOFromDate } from '@/lib/timezone'
-import { POST_DONE_STAGES } from '@/lib/postStages'
+import { POST_DONE_STAGES, temMaterial } from '@/lib/postStages'
 import { fromActiveClients } from '@/lib/activeClients'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
@@ -451,7 +451,7 @@ export default function DashboardPage() {
           // design, edição e social de cada cliente, não só a estrategista.
           supabase.from('client_team')
             .select('client_id, member_id, funcao'),
-          supabase.from('extras').select('client_id, status, client_approval_status').is('archived_at', null),
+          supabase.from('extras').select('client_id, status, client_approval_status, published_at').is('archived_at', null),
           supabase.from('materials').select('client_id, status').is('archived_at', null),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
@@ -602,6 +602,16 @@ export default function DashboardPage() {
       const mts = allMaterials.filter(x => x.client_id === c.id)
       const outros = { exTotal: exs.length, mtTotal: mts.length, exs, mts,
                        abertos: exs.filter(x => abertoEx(x.status)).length + mts.filter(x => abertoMt(x.status)).length }
+      // Extra pronto é conteúdo em mãos: dá pra encaixar num buraco do
+      // cronograma sem produzir nada novo. Por isso entra no fôlego, mesmo não
+      // tendo data de publicação — a pergunta aqui é "quanto temos", não
+      // "quando sai".
+      //
+      // `feito` e "com o cliente" contam; `backlog` não (nada feito ainda) e
+      // `done` também não, porque no uso real ele já saiu — dos 10 extras
+      // abertos hoje, os dois em `done` têm published_at preenchido.
+      const extrasProntos = exs.filter(
+        x => ['feito', 'aguardando_aprovacao'].includes(x.status) && !(x as any).published_at).length
       const per = byClient.get(c.id)
       const keys = per ? [...per.keys()].sort() : []
       // Fôlego: até quando ainda tem post marcado pra ir ao ar.
@@ -615,15 +625,29 @@ export default function DashboardPage() {
       // ciclo de PRODUÇÃO; scheduled_date é quando vai PRO AR. São coisas
       // diferentes, e quem responde sobre falta de conteúdo é a segunda.
       const todas = per ? [...per.values()].flat() : []
-      const datas = todas.map(s => s.scheduled_date).filter(Boolean).sort() as string[]
+      // Só entra no fôlego o post que TEM material. Data é barata: marcar 10 de
+      // setembro num post em captação não cria conteúdo nenhum, e era assim que
+      // o card prometia fôlego que não existia — o Big Poke dizia "até 10/set"
+      // tendo um único post pronto, pro dia 29/ago.
+      const datas = todas.filter(s => temMaterial(s.status))
+        .map(s => s.scheduled_date).filter(Boolean).sort() as string[]
       const restantes = datas.filter(d => d >= todayStr).length
       const ultima = datas.length ? datas[datas.length - 1] : null
+      // Quantos posts estão programados mas ainda sem material. Sem isto, tirar
+      // os sem-material do fôlego trocaria uma mentira por outra: o cliente que
+      // só tem pauta datada passaria a dizer "sem datas marcadas", ou seja, que
+      // nada foi programado — quando o cronograma existe e o que falta é fazer.
+      const semMaterialFuturo = todas.filter(
+        s => !temMaterial(s.status) && s.scheduled_date && s.scheduled_date >= todayStr).length
       // Sem data marcada não é "acabou" — é "ainda não foi programado". Tratar
       // os dois igual mandaria a equipe correr atrás do cronograma errado.
-      const runway: 'sem-data' | 'fim' | 'ok' = !datas.length ? 'sem-data' : restantes === 0 ? 'fim' : 'ok'
+      const runway: 'sem-data' | 'sem-material' | 'fim' | 'ok' =
+        !datas.length ? (semMaterialFuturo > 0 ? 'sem-material' : 'sem-data')
+        : restantes === 0 ? (semMaterialFuturo > 0 ? 'sem-material' : 'fim')
+        : 'ok'
       const diasAte = ultima ? Math.round((new Date(ultima + 'T12:00:00').getTime() - new Date(todayStr + 'T12:00:00').getTime()) / 86400000) : 0
       const runwayCurto = runway === 'ok' && (restantes <= 2 || diasAte <= 7)
-      const base = { client: c, restantes, ultima, runway, runwayCurto, outros }
+      const base = { client: c, restantes, ultima, runway, runwayCurto, semMaterialFuturo, extrasProntos, outros }
       if (!keys.length) return { ...base, state: 'nunca' as const, key: '', posts: [] as Schedule[] }
 
       // Ciclo SEM NENHUMA DATA marcada ainda está sendo montado — não é o
@@ -761,7 +785,12 @@ export default function DashboardPage() {
     // de programação — outro problema, outra conversa.
     for (const c of clientCycles) {
       if (c.state === 'nunca' || c.runway === 'sem-data') continue
-      if (c.runway === 'fim' || c.restantes < 3) postsAcabando.push(c.client)
+      // Extra pronto entra na conta: dá pra encaixar num buraco do cronograma
+      // sem produzir nada. Acusar de "acabando" quem tem dois extras na mão é
+      // o mesmo erro de antes, ao contrário — e alerta que erra é alerta que
+      // se aprende a ignorar.
+      const emMaos = c.restantes + c.extrasProntos
+      if ((c.runway === 'fim' && emMaos === 0) || emMaos < 3) postsAcabando.push(c.client)
     }
     return { semAgendada, vencida, postsAcabando }
   }, [clients, captacoes, clientCycles, todayStr])
@@ -1338,7 +1367,7 @@ export default function DashboardPage() {
                   virava uma rolagem interminável. O card encolhe junto (avatar,
                   fontes e espaçamentos) pra caber nos ~170px de cada coluna. */}
               <div className="grid grid-cols-2 xl:grid-cols-3 gap-2.5 md:gap-4">
-                {clientCycles.map(({ client, state, key, posts, restantes, ultima, runway, runwayCurto, outros }) => {
+                {clientCycles.map(({ client, state, key, posts, restantes, ultima, runway, runwayCurto, semMaterialFuturo, extrasProntos, outros }) => {
                   const [cy, cm] = key ? key.split('-').map(Number) : [0, 0]
                   const mesLabel = key ? `${MONTHS[cm - 1].slice(0, 3)}${cy !== year ? `/${String(cy).slice(2)}` : ''}` : null
                   // A barra é do CRONOGRAMA quando existe cronograma.
@@ -1395,11 +1424,13 @@ export default function DashboardPage() {
                     outros.exTotal > 0 ? `${outros.exTotal} ${pl(outros.exTotal, 'extra', 'extras')}` : '',
                     outros.mtTotal > 0 ? `${outros.mtTotal} ${pl(outros.mtTotal, 'material', 'materiais')}` : '',
                   ].filter(Boolean).join(' · ')
-                  const sub = state === 'nunca'
+                  const sub = (state === 'nunca'
                       ? (outrosTxt ? `só ${outrosTxt}` : 'sem cronograma')
                     : runway === 'sem-data' ? 'sem datas marcadas'
+                    : runway === 'sem-material' ? `${semMaterialFuturo} programado${semMaterialFuturo !== 1 ? 's' : ''} · nada pronto`
                     : runway === 'fim' ? 'sem post futuro'
-                    : `${restantes} a publicar · até ${fmtDia(ultima!)}`
+                    : `${restantes} a publicar · até ${fmtDia(ultima!)}`)
+                    + (extrasProntos > 0 ? ` · +${extrasProntos} extra${extrasProntos !== 1 ? 's' : ''} pronto${extrasProntos !== 1 ? 's' : ''}` : '')
                   const subTone = state === 'nunca' ? 'var(--color-text-muted)'
                     : runway === 'fim' ? 'var(--ds-error-text)'
                     : runwayCurto ? 'var(--ds-warn-text)'

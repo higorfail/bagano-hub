@@ -14,6 +14,28 @@ export function isPostDone(status: string | null | undefined) {
   return POST_DONE_STAGES.includes(status || '')
 }
 
+// Etapas em que o post AINDA NÃO TEM MATERIAL — não existe arte, foto nem
+// vídeo, só a ideia e (às vezes) uma data.
+//
+// `captacao` é literal: o post está esperando ser captado. `estrategia` é a
+// pauta antes de sair do papel. `producao` fica FORA desta lista de propósito —
+// ali o material está sendo feito, e a pergunta que isto serve é "precisamos
+// produzir material novo?", que pra um post em produção já está respondida.
+export const POST_SEM_MATERIAL = ['estrategia', 'captacao']
+
+/**
+ * Este post conta como conteúdo que a agência tem em mãos?
+ *
+ * Serve ao fôlego da "Situação dos clientes", que responde quando o conteúdo do
+ * cliente acaba. Antes o fôlego contava QUALQUER post com data, e uma data é
+ * barata: o Toit aparecia com "10 a publicar até 15/set" tendo 3 — os outros 7
+ * eram pauta em captação, sem nada feito. O card dizia que havia fôlego onde
+ * não havia, justamente na tela que existe pra avisar que está acabando.
+ */
+export function temMaterial(status: string | null | undefined) {
+  return !POST_SEM_MATERIAL.includes(status || '')
+}
+
 // Progresso de uma campanha. Post, extra do Kanban, material e item do
 // checklist contam JUNTO — cada um com o próprio nome pra "pronto".
 //
