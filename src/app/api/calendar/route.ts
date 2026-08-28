@@ -30,6 +30,11 @@ function getAuth() {
 }
 
 const TZ = 'America/Sao_Paulo'
+
+/** HH:MM como está escrito no dateTime do Google, sem conversão de fuso. */
+function horaLocal(dateTime: string | null | undefined): string | null {
+  return dateTime ? dateTime.slice(11, 16) : null
+}
 const NAO_CONFIGURADO = { error: 'Google Calendar não configurado' }
 
 /**
@@ -108,8 +113,16 @@ export async function GET(req: NextRequest) {
       // Dia inteiro vem em `date`; com hora vem em `dateTime`. Quem consome
       // precisa distinguir os dois pra não inventar 00:00 como horário real.
       date: e.start?.date || (e.start?.dateTime || '').slice(0, 10),
-      startTime: e.start?.dateTime ? new Date(e.start.dateTime).toTimeString().slice(0, 5) : null,
-      endTime:   e.end?.dateTime   ? new Date(e.end.dateTime).toTimeString().slice(0, 5)   : null,
+      // A hora sai da PRÓPRIA string, não de `new Date(...)`.
+      //
+      // O Google devolve "2026-08-26T15:00:00-03:00": a hora local do evento já
+      // está escrita ali. Passar isso por `new Date().toTimeString()` converte
+      // pro fuso de QUEM ESTÁ RODANDO — e quem roda é a Vercel, em UTC. Toda
+      // captação aparecia 3 horas adiantada em produção: 15:00 virava 18:00.
+      // Na minha máquina (UTC-3) o erro não aparecia, que é o que torna este
+      // tipo de bug traiçoeiro.
+      startTime: horaLocal(e.start?.dateTime),
+      endTime:   horaLocal(e.end?.dateTime),
       allDay: !!e.start?.date,
     }))
     return NextResponse.json({ events })
