@@ -2,6 +2,7 @@
   "crons": [
     { "path": "/api/cron/overdue-posts", "schedule": "0 12 * * *" },
     { "path": "/api/cron/archive-completed", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/approval-nudge", "schedule": "0 13 * * 1-5" }
+    { "path": "/api/cron/approval-nudge", "schedule": "0 13 * * 1-5" },
+    { "path": "/api/cron/approval-digest", "schedule": "*/5 * * * *" }
   ]
 }

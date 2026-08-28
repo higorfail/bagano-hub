@@ -42,6 +42,11 @@ export async function GET(req: NextRequest) {
       headers: {
         'Content-Type': fileRes.headers.get('content-type') || 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${filename}"`,
+        // Sem cache, cada download atravessava o servidor inteiro de novo — e
+        // baixar a mesma pasta de vídeos três vezes era três vezes a banda. O
+        // arquivo é buscado por id do Drive, então a resposta é a mesma pra
+        // todo mundo; mesmo prazo do drive-video e do drive-thumb.
+        'Cache-Control': 'public, max-age=3600',
       },
     })
   } catch {

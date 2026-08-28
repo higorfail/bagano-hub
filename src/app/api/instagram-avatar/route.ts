@@ -65,11 +65,16 @@ export async function POST(req: NextRequest) {
     const buf = Buffer.from(await imgRes.arrayBuffer())
     const dataUrl = `data:${contentType};base64,${buf.toString('base64')}`
 
+    // A foto vem embutida em base64 — é a resposta mais pesada do hub por
+    // chamada. Meia hora: a foto de perfil quase nunca muda, e o número de
+    // seguidores desatualizado por 30 min não muda decisão nenhuma.
     return NextResponse.json({
       dataUrl,
       contentType,
       followers: user?.edge_followed_by?.count ?? null,
       following: user?.edge_follow?.count ?? null,
+    }, {
+      headers: { 'Cache-Control': 'public, max-age=1800' },
     })
   } catch {
     return NextResponse.json({ error: 'Erro ao consultar o Instagram' }, { status: 500 })

@@ -24,7 +24,15 @@ export async function GET(req: NextRequest) {
     )
     if (!res.ok) return NextResponse.json({ files: [] })
     const data = await res.json()
-    return NextResponse.json({ files: data.files || [] })
+    // Prazo curto de propósito, ao contrário das outras rotas do Drive: isto é
+    // uma LISTAGEM, e ela muda no instante em que alguém sobe um arquivo na
+    // pasta. Guardar por uma hora esconderia material novo da equipe — trocaria
+    // banda por confusão. Um minuto já corta a repetição (a listagem é pedida a
+    // cada card de carrossel que aparece na tela), e o `stale-while-revalidate`
+    // faz a atualização acontecer em segundo plano, sem ninguém esperar.
+    return NextResponse.json({ files: data.files || [] }, {
+      headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
+    })
   } catch {
     return NextResponse.json({ files: [] })
   }
