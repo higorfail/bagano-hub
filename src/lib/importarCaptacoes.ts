@@ -18,6 +18,8 @@ const NAO_E_FILMAGEM = /\b(BRIEFING|REUNIAO|REUNIOES)\b/
 
 export type EventoBruto = {
   id: string
+  /** E-mails dos convidados — é daí que sai quem vai na captação. */
+  emails?: string[]
   summary: string
   date: string
   startTime: string | null
@@ -31,11 +33,13 @@ export type Decisao =
   | { acao: 'atualizar'; evento: EventoBruto; captacaoId: string; de: string; para: string }
   | { acao: 'cancelar';  evento: EventoBruto; captacaoId: string }
   | { acao: 'vincular';  evento: EventoBruto; captacaoId: string; clientName: string }
+  | { acao: 'equipe';    evento: EventoBruto; captacaoId: string; memberIds: string[]; nomes: string[] }
   | { acao: 'ignorar';   evento: EventoBruto; motivo: string }
 
 export type CaptacaoExistente = {
   id: string
   client_id: string | null
+  team_member_ids?: string[] | null
   google_calendar_event_id: string | null
   scheduled_date: string
   scheduled_time: string | null
@@ -56,10 +60,44 @@ export function duracao(ini: string | null, fim: string | null, padrao = 120): n
  * coisa. Importar em cima de dado de produção sem saber o que vai entrar é o
  * tipo de coisa que só se descobre depois.
  */
+// Endereços que a equipe usa no calendário e que não estão no cadastro do hub.
+//
+// Sem isto, quem vai na captação sai errado por um detalhe de e-mail: o Otávio
+// aparece 43 vezes como `otavio@nouzlab.com` contra 8 como o `baganomkt` que
+// está no cadastro — ficaria de fora de quase todas.
+//
+// O outlook do Franz foi confirmado por comportamento, não por palpite: em 29
+// eventos ele aparece SEMPRE junto do gmail dele, e nenhuma vez sozinho — é a
+// mesma pessoa convidada nos dois endereços.
+//
+// Endereço de cliente (criativapadaria@) e de quem saiu da equipe não entram
+// aqui de propósito: o que não bate com o cadastro simplesmente é ignorado.
+export const APELIDOS_EMAIL: Record<string, string> = {
+  'otavio@nouzlab.com': 'baganomkt@gmail.com',
+  'lucaspasetti@outlook.com': 'luquinhaspasetti@gmail.com',
+}
+
+/** Quem, dos convidados, é da equipe. Devolve ids do hub. */
+export function equipeDoEvento(
+  emails: string[] | undefined,
+  membros: { id: string; name: string; email: string | null }[],
+): { ids: string[]; nomes: string[] } {
+  const porEmail = new Map(membros.filter(m => m.email).map(m => [m.email!.toLowerCase(), m]))
+  const achados = new Map<string, string>()
+  for (const bruto of emails || []) {
+    const e = (bruto || '').trim().toLowerCase()
+    if (!e) continue
+    const m = porEmail.get(APELIDOS_EMAIL[e] || e)
+    if (m) achados.set(m.id, m.name)
+  }
+  return { ids: [...achados.keys()], nomes: [...achados.values()] }
+}
+
 export function decidir(
   eventos: EventoBruto[],
   clientesAtivos: { id: string; name: string }[],
   captacoes: CaptacaoExistente[],
+  membros: { id: string; name: string; email: string | null }[] = [],
 ): Decisao[] {
   const porEvento = new Map<string, CaptacaoExistente>()
   for (const c of captacoes) {
@@ -92,7 +130,16 @@ export function decidir(
       const hora = e.allDay ? null : e.startTime
       const mesmaData = jaExiste.scheduled_date === e.date
       const mesmaHora = (jaExiste.scheduled_time || '').slice(0, 5) === (hora || '')
-      if (mesmaData && mesmaHora) return { acao: 'ignorar', evento: e, motivo: 'já em dia' }
+      if (mesmaData && mesmaHora) {
+        // Data certa, mas ninguém marcado: preenche a equipe a partir dos
+        // convidados. É o que faz a captação importada alcançar as pessoas —
+        // sem isso ela existe no hub e não avisa ninguém.
+        const eq = equipeDoEvento(e.emails, membros)
+        if (eq.ids.length && !(jaExiste.team_member_ids || []).length) {
+          return { acao: 'equipe', evento: e, captacaoId: jaExiste.id, memberIds: eq.ids, nomes: eq.nomes }
+        }
+        return { acao: 'ignorar', evento: e, motivo: 'já em dia' }
+      }
       return {
         acao: 'atualizar', evento: e, captacaoId: jaExiste.id,
         de:   `${jaExiste.scheduled_date} ${(jaExiste.scheduled_time || '').slice(0, 5) || '(dia inteiro)'}`,
@@ -125,8 +172,13 @@ export function decidir(
 }
 
 /** Como a captação nasce a partir do evento. */
-export function linhaNova(d: Extract<Decisao, { acao: 'criar' }>, hojeISO: string) {
+export function linhaNova(
+  d: Extract<Decisao, { acao: 'criar' }>,
+  hojeISO: string,
+  membros: { id: string; name: string; email: string | null }[] = [],
+) {
   const e = d.evento
+  const eq = equipeDoEvento(e.emails, membros)
   const hora = e.allDay ? null : e.startTime
   return {
     client_id: d.clientId,
@@ -139,9 +191,11 @@ export function linhaNova(d: Extract<Decisao, { acao: 'criar' }>, hojeISO: strin
     // O título inteiro vira observação — é onde mora o que o nome do cliente
     // não diz ("HAPPY HOUR + PIZZA DO MÊS", "+ ISRA", "(BRAVA)").
     notes: e.summary,
-    // Quem vai fica em branco: o Google não sabe, e chutar seria pior que
-    // deixar a pessoa preencher. Fica visível na Agenda pra ser completado.
-    team_member_ids: null,
+    // Quem vai sai dos CONVIDADOS do evento. O Google sabe, sim — só não no
+    // corpo do evento, e sim na lista de convidados, que a conta de serviço
+    // consegue LER (convidar é que ela não pode). Vazio quando ninguém da
+    // equipe está convidado.
+    team_member_ids: eq.ids.length ? eq.ids : null,
     months_covered: 1,
     google_calendar_event_id: e.id,
   }
