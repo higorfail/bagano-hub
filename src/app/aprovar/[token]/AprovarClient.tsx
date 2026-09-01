@@ -6,7 +6,7 @@ import { logActivity } from '@/lib/activity'
 import { ensureWatchingFromAssigned } from '@/lib/watch'
 import { extractDriveIds } from '@/lib/driveLinks'
 import { queueApprovalDigest } from '@/lib/approvalDigest'
-import { CheckCircle, MessageSquare, RotateCcw, AlertTriangle } from 'lucide-react'
+import { CheckCircle, MessageSquare, RotateCcw, AlertTriangle, Camera } from 'lucide-react'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
 import { withBase } from '@/lib/base'
 
@@ -322,6 +322,25 @@ function mapType(t: string): FeedPost['type'] {
   if (t === 'story') return 'story'
   return 'photo'
 }
+// O que o cliente lê em cada etapa do cronograma. Nome interno não serve:
+// "revisao_interna" e "producao" não dizem nada pra quem está de fora, e
+// "captacao" lido cru parece cobrança ao cliente quando é trabalho nosso.
+// null = ainda espera resposta dele, e aí os botões de decidir continuam.
+function etapaParaCliente(status: string): { texto: string; cor: string } | null {
+  switch (status) {
+    case 'aguardando_aprovacao_crono': return null
+    case 'captacao':             return { texto: 'Aprovado · vamos captar', cor: '#0ea5e9' }
+    case 'producao':
+    case 'revisao_interna':      return { texto: 'Em produção',             cor: '#8b5cf6' }
+    case 'aguardando_aprovacao':
+    case 'ajuste':               return { texto: 'Arte em aprovação',       cor: '#ec4899' }
+    case 'aprovado':             return { texto: 'Arte aprovada',           cor: '#3b82f6' }
+    case 'agendado':             return { texto: 'Agendado',                cor: '#14b8a6' }
+    case 'publicado':            return { texto: 'No ar',                   cor: '#22c55e' }
+    default:                     return { texto: 'Aprovado',                cor: '#0ea5e9' }
+  }
+}
+
 function mapStatus(s: Post): FeedPost['status'] {
   // Agendado/publicado é sempre "decidido" pro feed, mesmo que approval_status
   // nunca tenha sido setado (post movido direto pelo time, sem passar pela
@@ -351,6 +370,15 @@ export default function ApprovalPage({ token }: { token: string }) {
   const [error,        setError]        = useState<string | null>(null)
   const [tokenData,    setTokenData]    = useState<any>(null)
   const [client,       setClient]       = useState<any>(null)
+  // Ações internas (captado, observação) só com ?equipe=1 na URL. O MESMO link
+  // vai pro cliente — botão de trabalho interno na tela dele é convite pra
+  // clique errado, além de expor processo que não é assunto dele.
+  const [modoEquipe, setModoEquipe] = useState(false)
+  useEffect(() => {
+    setModoEquipe(new URLSearchParams(window.location.search).get('equipe') === '1')
+  }, [])
+  const [obsAberta, setObsAberta] = useState<Set<string>>(new Set())
+  const [obsTexto,  setObsTexto]  = useState<Record<string, string>>({})
   const [posts,        setPosts]        = useState<Post[]>([])
   const [uploadsByPost,     setUploadsByPost]     = useState<Record<string, ScheduleUpload[]>>({})
   const [attachmentsByPost, setAttachmentsByPost] = useState<Record<string, ScheduleAttachment[]>>({})
@@ -519,8 +547,13 @@ export default function ApprovalPage({ token }: { token: string }) {
     // (schedules) — Extras não entra nessa lógica, continua só "aguardando".
     // O cronograma (aprovação de estratégia, tk.type === 'cronograma') já
     // muda de tela ao decidir, então continua só mostrando o pendente mesmo.
+    // O cronograma mostra TUDO que já saiu do rascunho — não só o que espera
+    // resposta. Antes o post sumia no instante em que era aprovado, e o cliente
+    // perdia de vista o que acabou de combinar: sobrava tela vazia no lugar do
+    // mês. E o link só servia enquanto houvesse pendência, então não dava pra
+    // mandar depois "olha o mês fechado".
     const schedulesQuery = tk.type === 'cronograma'
-      ? baseQuery.eq('status', 'aguardando_aprovacao_crono')
+      ? baseQuery.neq('status', 'estrategia')
       : baseQuery.in('status', ['aguardando_aprovacao', 'aprovado', 'ajuste', 'agendado', 'publicado'])
 
     const [{ data: sc }, { data: ex }] = await Promise.all([schedulesQuery, extrasQuery])
@@ -626,6 +659,48 @@ export default function ApprovalPage({ token }: { token: string }) {
     if (failedCount > 0) showToast(`${okIds.size} aprovados, ${failedCount} falharam — tenta de novo neles.`, false)
     else showToast(`${okIds.size} posts aprovados! 🎉`)
     setApprovingAll(false)
+  }
+
+  // ── Ações de quem está na captação ────────────────────────────────────────
+  //
+  // Resolvidas pelo celular, sem abrir o hub e sem login: o link já está na
+  // mão, e a decisão acontece no lugar onde ela é tomada.
+
+  /** Material captado → o post segue pra produção. */
+  async function marcarCaptado(postId: string) {
+    setSubmitting(postId)
+    const { error } = await supabase.from('schedules').update({ status: 'producao' }).eq('id', postId)
+    if (error) { showToast('Não deu pra marcar agora — tenta de novo.', false); setSubmitting(null); return }
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'producao' } : p))
+    // Sem o registro o designer não fica sabendo que o material chegou — e
+    // esperar sem saber que já dá pra começar é o mesmo que não ter captado.
+    await logActivity({
+      tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id,
+      action: 'status_changed', actorName: 'Equipe (captação)',
+      description: 'Material captado — post liberado pra produção',
+    })
+    showToast('Marcado como captado ✓')
+    setSubmitting(null)
+  }
+
+  /** Observação da captação vira comentário no post, igual ao do hub. */
+  async function salvarObservacao(postId: string) {
+    const texto = (obsTexto[postId] || '').trim()
+    if (!texto) return
+    setSubmitting(postId)
+    const { error } = await supabase.from('schedule_comments').insert({
+      schedule_id: postId, author_name: 'Equipe (captação)', body: texto,
+    })
+    if (error) { showToast('Não deu pra salvar a observação.', false); setSubmitting(null); return }
+    await logActivity({
+      tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id,
+      action: 'commented', actorName: 'Equipe (captação)',
+      description: `Observação da captação: ${texto.slice(0, 80)}`,
+    })
+    setObsAberta(x => { const n = new Set(x); n.delete(postId); return n })
+    setObsTexto(x => ({ ...x, [postId]: '' }))
+    showToast('Observação salva ✓')
+    setSubmitting(null)
   }
 
   // ── Cronograma approval actions ────────────────────────────────────────────
@@ -971,6 +1046,9 @@ export default function ApprovalPage({ token }: { token: string }) {
     // approval_status preenchido — sem incluir esses dois aqui, ele aparecia
     // pro cliente com botão de "Aprovar" um conteúdo que já foi ao ar.
     const isApproved = post.approval_status === 'aprovado' || post.status === 'agendado' || post.status === 'publicado'
+    // Etapa em que o post está, na linguagem do cliente. Existir = já foi
+    // decidido por ele, e aí a tela vira acompanhamento em vez de decisão.
+    const etapa = etapaParaCliente(post.status)
     const isChanged  = post.approval_status === 'não aprovado'
     const isComm     = commenting.has(post.id)
     const comment    = comments[post.id] || ''
@@ -1063,15 +1141,52 @@ export default function ApprovalPage({ token }: { token: string }) {
             </div>
           )}
 
-          {isApproved ? (
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: '#f0fdf4', border: '1.5px solid #86efac', fontSize: 15, fontWeight: 700, color: '#16a34a' }}>
-                <CheckCircle size={17} strokeWidth={2.5} /> Aprovado
+          {etapa ? (
+            /* Já decidido: o cliente só ACOMPANHA. Sem aprovar e sem pedir
+               ajuste — a decisão dele já foi tomada, e repetir o botão convida
+               a desfazer sem querer o que já virou trabalho. "Desfazer" só
+               sobrevive enquanto o post está em captação: dali em diante
+               alguém já começou a produzir, e voltar apagaria trabalho real. */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: etapa.cor + '18', color: etapa.cor, fontSize: 14, fontWeight: 700 }}>
+                  <CheckCircle size={17} strokeWidth={2.5} /> {etapa.texto}
+                </div>
+                {post.status === 'captacao' && !modoEquipe && (
+                  <button onClick={() => { supabase.from('schedules').update({ status: 'aguardando_aprovacao_crono', approval_status: null }).eq('id', post.id).then(() => setPosts(prev => prev.map(x => x.id === post.id ? { ...x, status: 'aguardando_aprovacao_crono', approval_status: undefined } : x))) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 16px', borderRadius: 16, background: '#fff', border: '1.5px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#6b7280', cursor: 'pointer' }}>
+                    <RotateCcw size={13} /> Desfazer
+                  </button>
+                )}
               </div>
-              <button onClick={() => { supabase.from('schedules').update({ status: 'aguardando_aprovacao_crono', approval_status: null }).eq('id', post.id); setPosts(prev => prev.map(p => p.id === post.id ? { ...p, status: 'aguardando_aprovacao_crono', approval_status: undefined } : p)) }}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 16px', borderRadius: 16, background: '#fff', border: '1.5px solid #e5e7eb', fontSize: 13, fontWeight: 600, color: '#9ca3af', cursor: 'pointer', flexShrink: 0 }}>
-                <RotateCcw size={13} /> Desfazer
-              </button>
+
+              {modoEquipe && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {post.status === 'captacao' && (
+                      <button onClick={() => marcarCaptado(post.id)} disabled={!!isLoading}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '13px 0', borderRadius: 14, background: '#0ea5e9', border: 'none', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
+                        <Camera size={16} /> {isLoading ? '…' : 'Captado'}
+                      </button>
+                    )}
+                    <button onClick={() => setObsAberta(x => { const n = new Set(x); if (n.has(post.id)) n.delete(post.id); else n.add(post.id); return n })}
+                      style={{ flex: post.status === 'captacao' ? '0 0 auto' : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '13px 18px', borderRadius: 14, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 14, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                      <MessageSquare size={15} /> Observação
+                    </button>
+                  </div>
+                  {obsAberta.has(post.id) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <textarea value={obsTexto[post.id] || ''} onChange={e => setObsTexto(x => ({ ...x, [post.id]: e.target.value }))}
+                        placeholder="O que aconteceu na captação?" rows={3}
+                        style={{ width: '100%', background: '#fff', border: '2px solid #e5e7eb', borderRadius: 14, padding: '13px 16px', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', outline: 'none' }} />
+                      <button onClick={() => salvarObservacao(post.id)} disabled={!(obsTexto[post.id] || '').trim() || !!isLoading}
+                        style={{ padding: '12px 0', borderRadius: 14, background: '#111', border: 'none', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer', opacity: (obsTexto[post.id] || '').trim() ? 1 : 0.4 }}>
+                        Salvar observação
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : isComm ? (
             <div style={{ display: 'flex', gap: 10 }}>
@@ -1365,7 +1480,7 @@ export default function ApprovalPage({ token }: { token: string }) {
 
   // ── Visão unificada (geral) — tudo pendente do cliente numa página só ───────
   if (tokenData?.type === 'geral') {
-    const cronoList = posts.filter(p => p.status === 'aguardando_aprovacao_crono')
+    const cronoList = posts.filter(p => p.status !== 'estrategia')
     const finalList = posts.filter(p => p.status === 'aguardando_aprovacao')
     // Tudo que o cliente já decidiu, ou que o time já levou adiante. Continua
     // na página em vez de sumir no clique — mais recente primeiro, que é o que
@@ -1581,16 +1696,25 @@ export default function ApprovalPage({ token }: { token: string }) {
               <p style={{ fontSize: 16, fontWeight: 700, color: '#111', margin: '0 0 8px' }}>Nenhum post para revisar</p>
               <p style={{ fontSize: 14, color: '#9ca3af', margin: 0 }}>Todos os posts já foram processados.</p>
             </div>
-          ) : allCronoDone ? (
-            <div style={{ textAlign: 'center', padding: '32px 20px 28px', background: '#fff', borderRadius: 24, border: '1.5px solid #86efac', boxShadow: '0 2px 16px rgba(34,197,94,0.1)' }}>
-              <div style={{ fontSize: 56, marginBottom: 14, lineHeight: 1 }}>🎉</div>
-              <h2 style={{ fontSize: 22, fontWeight: 900, color: '#111', margin: '0 0 10px', letterSpacing: '-0.03em' }}>Cronograma aprovado!</h2>
-              <p style={{ fontSize: 14, color: '#6b7280', margin: 0, lineHeight: 1.65 }}>
-                Obrigado! Nossa equipe já vai para a produção das artes e vídeos.
-              </p>
-            </div>
           ) : (
             <>
+              {/* Tudo aprovado vira FAIXA, não tela.
+                  Antes esta mensagem SUBSTITUÍA a lista inteira: no instante em
+                  que o último post era aprovado, o cliente perdia de vista o mês
+                  que acabou de combinar e sobrava um 🎉 sozinho. E o link ficava
+                  inútil dali em diante — não dava pra mandar depois "olha o mês
+                  fechado", que é justamente quando ele seria mais útil. */}
+              {allCronoDone ? (
+                <div style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', marginBottom: 20, border: '1.5px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ fontSize: 28, lineHeight: 1 }}>🎉</div>
+                  <div>
+                    <p style={{ fontSize: 15, fontWeight: 800, color: '#111', margin: '0 0 3px', letterSpacing: '-0.02em' }}>Cronograma aprovado!</p>
+                    <p style={{ fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.55 }}>
+                      Obrigado! Nossa equipe já vai para a produção. Abaixo, o mês inteiro e em que pé está cada post.
+                    </p>
+                  </div>
+                </div>
+              ) : (
               <div style={{ background: '#fff', borderRadius: 18, padding: '14px 18px', marginBottom: 20, border: '1px solid #ebebeb', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{ width: 40, height: 40, borderRadius: 12, background: cc + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 20 }}>📋</div>
                 <div>
@@ -1600,6 +1724,7 @@ export default function ApprovalPage({ token }: { token: string }) {
                   </p>
                 </div>
               </div>
+              )}
 
               {byCampaign.map(({ name, posts: cposts }) => (
                 <div key={name} style={{ marginBottom: 24 }}>
