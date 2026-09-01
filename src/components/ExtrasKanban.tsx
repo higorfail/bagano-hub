@@ -12,6 +12,7 @@ import { dbError } from '@/lib/dbError'
 import { logActivity } from '@/lib/activity'
 import { getOrCreateExtrasApprovalToken, sendFeitoExtrasToClient } from '@/lib/approvalLinks'
 import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
+import { linkPublico } from '@/lib/linkAprovacao'
 
 type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post' | 'carrossel' | 'post_story'
 // 'feito' entrou entre "a fazer" e "com o cliente": o designer termina a arte
@@ -165,7 +166,7 @@ export default function ExtrasKanban({ clientId, globalMode = false, members = [
       enviados = await sendFeitoExtrasToClient(clientId)
       const token = await getOrCreateExtrasApprovalToken(clientId)
       if (!token) throw new Error('sem token')
-      return `${window.location.origin}/aprovar/${token}`
+      return `${window.location.origin}${await linkPublico(supabase, token)}`
     })
     if (!ok) return
     if (enviados > 0) {

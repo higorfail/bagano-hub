@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { use } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOrCreateGeneralApprovalToken } from '@/lib/approvalLinks'
+import { linkPublico } from '@/lib/linkAprovacao'
+import { createClient } from '@/lib/supabase'
 
 // Link fixo por cliente — sempre aponta pro token "geral" (tudo pendente:
 // crono + final + extras, numa página só), buscando ou criando se ainda não
@@ -20,7 +22,9 @@ export default function ClientApprovalRedirect({ params }: { params: Promise<{ c
     (async () => {
       const token = await getOrCreateGeneralApprovalToken(clientId)
       if (!token) { setError('Não foi possível gerar o link de aprovação para este cliente.'); return }
-      router.replace(`/aprovar/${token}`)
+      // Manda pro endereço legível, não pro antigo: quem chega por aqui é
+      // redirecionado, e é essa URL que fica na barra do cliente depois.
+      router.replace(await linkPublico(createClient(), token))
     })()
   }, [clientId, router])
 

@@ -27,6 +27,7 @@ import TaskMiniCard from '@/components/TaskMiniCard'
 import TaskCard from '@/components/TaskCard'
 import { Plus, ChevronLeft, Pencil, Link as LinkIcon } from 'lucide-react'
 import { useIsWideScreen } from '@/lib/useMediaQuery'
+import { linkPublico } from '@/lib/linkAprovacao'
 
 type Client = {
   id: string; name: string; color_hex: string; logo_url: string
@@ -360,7 +361,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
                 const ok = await copyTextAsync(async () => {
                   const generalToken = await getOrCreateGeneralApprovalToken(client.id)
                   if (!generalToken) throw new Error('sem token')
-                  return `${window.location.origin}/aprovar/${generalToken}`
+                  return `${window.location.origin}${await linkPublico(createClient(), generalToken)}`
                 })
                 toast(ok ? 'Link da Central de aprovação copiado!' : 'Erro ao gerar link')
               }} className={`hidden md:flex items-center justify-center gap-1.5 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl h-9 font-medium hover:bg-[var(--color-bg-subtle)] transition-colors whitespace-nowrap ${inline ? 'w-9' : 'px-3 text-sm'}`} title="Copia o link com tudo que está pendente de aprovação (crono + final + extras)">
@@ -379,7 +380,7 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
             const ok = await copyTextAsync(async () => {
               const generalToken = await getOrCreateGeneralApprovalToken(client.id)
               if (!generalToken) throw new Error('sem token')
-              return `${window.location.origin}/aprovar/${generalToken}`
+              return `${window.location.origin}${await linkPublico(createClient(), generalToken)}`
             })
             toast(ok ? 'Link da Central de aprovação copiado!' : 'Erro ao gerar link')
           }} className="md:hidden flex items-center justify-center gap-1.5 mt-2 w-full border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg py-2 text-xs font-semibold">

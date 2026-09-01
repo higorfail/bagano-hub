@@ -19,6 +19,7 @@ import ListCell from '@/components/ListCell'
 import { useIsWideScreen } from '@/lib/useMediaQuery'
 import { statusBadge } from '@/lib/status'
 import { withBase } from '@/lib/base'
+import { linkPublico } from '@/lib/linkAprovacao'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -313,7 +314,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
         await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type }).select('token').single()
       ).data?.token
       if (!token) throw new Error('sem token')
-      return `${window.location.origin}/aprovar/${token}`
+      return `${window.location.origin}${await linkPublico(supabase, token)}`
     })
     if (!ok) { toast('Erro ao gerar link'); return }
     setCopiedLinkType(type)
@@ -641,7 +642,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
       await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type }).select('token').single()
     ).data?.token
 
-    const link = `${window.location.origin}/aprovar/${token}`
+    const link = `${window.location.origin}${await linkPublico(supabase, token)}`
     setApprovalLink(link)
     setAiMessage(`Olá! 👋 O ${typeLabel} de ${monthLabel} para ${clientName || 'vocês'} está pronto para aprovação.\n\nAcesse o link abaixo para revisar e aprovar:\n${link}`)
     setGeneratingLink(false)

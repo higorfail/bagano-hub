@@ -24,6 +24,7 @@ import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
+import { linkPublico } from '@/lib/linkAprovacao'
 import {
   X, Calendar, CheckSquare, Paperclip,
   Trash2, Link2, Check, Upload,
@@ -446,7 +447,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
       await sendFeitoExtrasToClient(cid)
       const token = await getOrCreateExtrasApprovalToken(cid)
       if (!token) throw new Error('sem token')
-      return `${window.location.origin}/aprovar/${token}`
+      return `${window.location.origin}${await linkPublico(supabase, token)}`
     })
     if (!ok) return
     setApprovalLinkCopied(true)

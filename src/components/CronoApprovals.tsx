@@ -6,6 +6,7 @@ import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
 import { Link2, Check, ChevronDown, ChevronRight, Clock } from 'lucide-react'
 import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
+import { linkPublico } from '@/lib/linkAprovacao'
 
 // Acompanhamento das aprovações de CRONOGRAMA — separado da aprovação de arte
 // final de propósito.
@@ -133,7 +134,7 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
           .select('token').single()
       ).data?.token
       if (!token) throw new Error('sem token')
-      return `${window.location.origin}/aprovar/${token}`
+      return `${window.location.origin}${await linkPublico(supabase, token)}`
     })
     if (!ok) { toast('Não consegui copiar o link.'); return }
     setCopied(r.clientId)
