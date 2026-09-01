@@ -7,6 +7,7 @@ import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import Button from '@/components/ui/Button'
 import { withBase } from '@/lib/base'
+import { caminhoCliente } from '@/lib/clienteSlug'
 
 type Client = {
   id: string
@@ -203,7 +204,7 @@ export default function ClientesPage() {
         {filtered.map(client => (
           <a
             key={client.id}
-            href={'/dashboard/clientes/' + client.id}
+            href={caminhoCliente(client)}
             className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 block shadow-card hover:shadow-pop hover:-translate-y-0.5 hover:border-[var(--color-border-hover)] transition-all group relative"
             style={{ borderLeftWidth: 3, borderLeftColor: client.color_hex }}
           >
@@ -242,7 +243,7 @@ export default function ClientesPage() {
               {archivedClients.map(client => (
                 <a
                   key={client.id}
-                  href={'/dashboard/clientes/' + client.id}
+                  href={caminhoCliente(client)}
                   className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 block hover:border-[var(--color-border-hover)] transition-all group relative grayscale"
                   style={{ borderLeftWidth: 3, borderLeftColor: client.color_hex }}
                 >

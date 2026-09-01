@@ -20,6 +20,7 @@ import { brasiliaISOFromDate } from '@/lib/timezone'
 import { POST_DONE_STAGES, temMaterial, contaComoFolego } from '@/lib/postStages'
 import { fromActiveClients } from '@/lib/activeClients'
 import { withBase } from '@/lib/base'
+import { caminhoCliente } from '@/lib/clienteSlug'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
 const CFG = {
@@ -430,7 +431,7 @@ export default function DashboardPage() {
         const ago45Str = new Date(now.getTime() - 45 * 86400000).toISOString().split('T')[0]
         const [{ data: cls, error: e1 }, { data: sch }, { data: sd }, { data: cap }, { data: ct }, { data: ex }, { data: mt }] = await Promise.all([
           supabase.from(CFG.t.clients)
-            .select('id, name, color_hex, logo_url')
+            .select('id, name, color_hex, logo_url, slug')
             .eq('status', 'active')
             .order('name'),
           // Uma consulta só, sem where de período. São colunas leves e o
@@ -544,6 +545,14 @@ export default function DashboardPage() {
   // rodam antes de `clients` chegar — então o recorte de cliente ativo não cabe
   // na consulta e é feito aqui, onde as duas coisas já existem.
   const clientesAtivos = useMemo(() => new Set(clients.map(c => c.id)), [clients])
+
+  // O endereço do cliente sai do apelido quando existe. Aqui a maioria dos
+  // links tem só o `client_id` na mão, então a tradução passa pelo mapa.
+  const linkCliente = (cid: string | null | undefined) => {
+    if (!cid) return null
+    const c = clients.find(x => x.id === cid)
+    return caminhoCliente(c ? { id: c.id, slug: (c as any).slug } : { id: cid })
+  }
 
   const clientMap = useMemo(() => {
     const m: Record<string, Client> = {}
@@ -960,7 +969,7 @@ export default function DashboardPage() {
       // post/m/y — sem isso o clique só caía na aba de cronograma do cliente,
       // sem abrir o post específico (o CronogramaTab já sabe abrir direto
       // quando recebe esses 3 parâmetros, só não estavam sendo passados).
-      href: `/dashboard/clientes/${s.client_id}?tab=cronograma&post=${s.id}&m=${s.month}&y=${s.year}`,
+      href: `${linkCliente(s.client_id)}?tab=cronograma&post=${s.id}&m=${s.month}&y=${s.year}`,
       postType: s.post_type, campaignType: (s as any).campaign_type || null,
       labels: openLabels(asLabels((s as any).labels), s.legenda),
       ajusteAlvo: ajusteAlvos[s.id] || null,
@@ -970,7 +979,7 @@ export default function DashboardPage() {
       dueDate: e.due_date, ajuste: e.client_approval_status === 'recusado',
       waitingClient: e.client_approval_status === 'aguardando' && !stillOwesWork(asLabels(e.labels)),
       entregue: e.status === 'feito',
-      href: e.client_id ? `/dashboard/clientes/${e.client_id}?tab=extras` : '/dashboard/kanban',
+      href: e.client_id ? `${linkCliente(e.client_id)}?tab=extras` : '/dashboard/kanban',
       postType: e.type, campaignType: e.campaign_type || null,
       labels: asLabels(e.labels),
     })),
@@ -979,7 +988,7 @@ export default function DashboardPage() {
       dueDate: m.due_date, ajuste: m.status === 'ajuste',
       waitingClient: m.status === 'aguardando_aprovacao' && !stillOwesWork(asLabels(m.labels)),
       entregue: m.status === 'feito',
-      href: m.client_id ? `/dashboard/clientes/${m.client_id}?tab=materiais` : '/dashboard/materiais',
+      href: m.client_id ? `${linkCliente(m.client_id)}?tab=materiais` : '/dashboard/materiais',
       labels: asLabels(m.labels),
     })),
     ...fromActiveClients(myTasks, clientesAtivos).map((t): ParaVoceItem => ({
@@ -1442,8 +1451,8 @@ export default function DashboardPage() {
                     <Card key={client.id} hover padded
                       className={`cursor-pointer${state === 'nunca' && !outrosTxt ? ' opacity-60' : ''}`}
                       onClick={() => router.push(key
-                        ? `/dashboard/clientes/${client.id}?tab=cronograma&m=${cm}&y=${cy}`
-                        : `/dashboard/clientes/${client.id}`)}>
+                        ? `${caminhoCliente(client)}?tab=cronograma&m=${cm}&y=${cy}`
+                        : caminhoCliente(client))}>
                       <div className="flex items-center gap-2 md:gap-3 mb-2.5 md:mb-3">
                         {client.logo_url
                           ? <img src={client.logo_url} alt={client.name} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
@@ -1582,7 +1591,7 @@ export default function DashboardPage() {
                     const soAjuste = pending.every(s => s.status === CFG.S.ajuste)
                     return (
                       <button key={`${cid}:${gm}:${gy}`}
-                        onClick={() => router.push(`/dashboard/clientes/${cid}?tab=cronograma&m=${gm}&y=${gy}`)}
+                        onClick={() => router.push(`${linkCliente(cid)}?tab=cronograma&m=${gm}&y=${gy}`)}
                         className="w-full text-left rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4 hover:border-[var(--color-border-hover)] hover:shadow-card transition-all">
                         <div className="flex items-center gap-3">
                           <ClientAvatar clientId={cid} size={40} />

@@ -28,6 +28,7 @@ import TaskCard from '@/components/TaskCard'
 import { Plus, ChevronLeft, Pencil, Link as LinkIcon } from 'lucide-react'
 import { useIsWideScreen } from '@/lib/useMediaQuery'
 import { linkPublico } from '@/lib/linkAprovacao'
+import { useClienteDaURL } from '@/lib/clienteSlug'
 
 type Client = {
   id: string; name: string; color_hex: string; logo_url: string
@@ -49,8 +50,7 @@ const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel'
 const FUNCAO_LABEL: Record<string,string> = { videos:'Editor', posts:'Designer', estrategia:'Estratégia', social:'Social Media', acompanha:'Acompanha', outro:'Outro' }
 function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }
 
-function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+function ClientePageInner({ id }: { id: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -911,5 +911,33 @@ function ClientePageInner({ params }: { params: Promise<{ id: string }> }) {
 }
 
 export default function ClientePage({ params }: { params: Promise<{ id: string }> }) {
-  return <Suspense><ClientePageInner params={params} /></Suspense>
+  return <Suspense><ResolveCliente params={params} /></Suspense>
+}
+
+// O endereço aceita apelido ou UUID: /dashboard/clientes/piastro-cucina e
+// /dashboard/clientes/dbb7cfc7-… abrem a mesma tela.
+//
+// A tradução vem antes de montar o miolo porque ele usa esse valor como
+// `client_id` em sete consultas — com apelido no lugar do id elas não dariam
+// erro, dariam VAZIO, e a tela abriria como se o cliente não tivesse nada.
+function ResolveCliente({ params }: { params: Promise<{ id: string }> }) {
+  const { id: param } = use(params)
+  const r = useClienteDaURL(param)
+
+  if (r === 'carregando') {
+    return (
+      <div className="flex items-center justify-center h-full py-24">
+        <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[var(--color-text-primary)] rounded-full animate-spin" />
+      </div>
+    )
+  }
+  if (r === 'nao-encontrado') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-24 gap-2">
+        <p className="text-sm font-semibold text-[var(--color-text-primary)]">Cliente não encontrado</p>
+        <p className="text-xs text-[var(--color-text-muted)]">O endereço <code>{param}</code> não corresponde a nenhum cliente.</p>
+      </div>
+    )
+  }
+  return <ClientePageInner id={r.id} />
 }

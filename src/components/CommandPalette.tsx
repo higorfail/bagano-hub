@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Search, Users, FileText, Package, X, LayoutList } from 'lucide-react'
+import { caminhoCliente } from '@/lib/clienteSlug'
 
 const STATUS_LABEL: Record<string,string> = {
   producao: 'Produção', revisao_interna: 'Revisão', aguardando_aprovacao: 'Com cliente',
@@ -59,7 +60,7 @@ export default function CommandPalette() {
       const q = query.trim()
 
       const [clientsRes, postsRes, materialsRes, extrasRes] = await Promise.all([
-        supabase.from('clients').select('id, name, color_hex').ilike('name', `%${q}%`).limit(5),
+        supabase.from('clients').select('id, name, color_hex, slug').ilike('name', `%${q}%`).limit(5),
         supabase.from('schedules').select('id, title, copy, post_type, status, client_id, month, year, clients(name, color_hex)').or(`title.ilike.%${q}%,copy.ilike.%${q}%`).limit(6),
         supabase.from('materials').select('id, title, client_id, clients(name)').ilike('title', `%${q}%`).limit(4),
         supabase.from('extras').select('id, title, type, status, client_id, clients(name)').or(`title.ilike.%${q}%,description.ilike.%${q}%`).limit(4),
@@ -68,7 +69,7 @@ export default function CommandPalette() {
       const out: Result[] = []
       clientsRes.data?.forEach((c: any) => out.push({
         type: 'cliente', id: c.id, title: c.name, subtitle: 'Cliente',
-        href: `/dashboard/clientes/${c.id}`, color: c.color_hex,
+        href: caminhoCliente(c), color: c.color_hex,
       }))
       postsRes.data?.forEach((p: any) => {
         const parts = [p.clients?.name, TYPE_LABEL[p.post_type] || p.post_type, STATUS_LABEL[p.status] || p.status, `${MONTHS[(p.month||1)-1]} ${p.year}`].filter(Boolean)

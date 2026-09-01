@@ -11,6 +11,7 @@ import { campaignDaysUntil, campaignPeriod } from '@/lib/campaignPeriod'
 import { campaignProgress } from '@/lib/postStages'
 import { useCampaignDates, campaignTheme, campaignDateLabel, orderByProximity, slugifyCampaignType, createCampaignDate, updateCampaignDate, setCampaignDateActive, deleteCampaignDate } from '@/lib/campaigns'
 import { statusBadge, statusShort } from '@/lib/status'
+import { caminhoCliente } from '@/lib/clienteSlug'
 
 // Ver src/lib/campaignPeriod.ts: a campanha só vira de ano depois da janela de
 // encerramento, então `days` pode vir negativo enquanto ainda há trabalho.
@@ -143,7 +144,7 @@ export default function CampanhasPage() {
   async function load() {
     const [{ data: camps }, { data: cls }, { data: ps }, { data: ke }, { data: mats }] = await Promise.all([
       supabase.from('campaigns').select('*, campaign_extras(*)').eq('active', true),
-      supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
+      supabase.from('clients').select('id, name, color_hex, logo_url, slug').eq('status', 'active').order('name'),
       supabase.from('schedules').select('id, client_id, post_number, title, post_type, status, campaign_type, month, year').not('campaign_type', 'is', null),
       supabase.from('extras').select('id, client_id, title, status, campaign_type').not('campaign_type', 'is', null).is('archived_at', null),
       supabase.from('materials').select('id, client_id, title, status, campaign_type').not('campaign_type', 'is', null).is('archived_at', null),
@@ -617,7 +618,7 @@ export default function CampanhasPage() {
                         )}
                       </div>
 
-                      <a href={`/dashboard/clientes/${client.id}?tab=campanhas&camp=${selected}`} className="text-xs hover:underline" style={{ color: 'var(--ds-info-text)' }}>Abrir página do cliente →</a>
+                      <a href={`${caminhoCliente(client)}?tab=campanhas&camp=${selected}`} className="text-xs hover:underline" style={{ color: 'var(--ds-info-text)' }}>Abrir página do cliente →</a>
                     </div>
                   )}
                 </div>
@@ -633,7 +634,7 @@ export default function CampanhasPage() {
           <p className="text-sm font-semibold text-[var(--color-text-muted)] mb-3">{inactiveClients.length} clientes sem esta campanha</p>
           <div className="flex flex-wrap gap-2">
             {inactiveClients.map(client => (
-              <a key={client.id} href={`/dashboard/clientes/${client.id}?tab=campanhas&camp=${selected}`} className="flex items-center gap-2 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 hover:border-[var(--color-border-hover)] transition-colors">
+              <a key={client.id} href={`${caminhoCliente(client)}?tab=campanhas&camp=${selected}`} className="flex items-center gap-2 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 hover:border-[var(--color-border-hover)] transition-colors">
                 <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-semibold overflow-hidden" style={{ background: client.color_hex }}>{client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}</div>
                 <span className="text-xs text-[var(--color-text-secondary)]">{client.name}</span>
               </a>
