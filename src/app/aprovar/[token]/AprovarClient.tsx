@@ -363,20 +363,21 @@ interface Post {
   funil?: string; campaign_type?: string
 }
 
-export default function ApprovalPage({ token }: { token: string }) {
+export default function ApprovalPage({ token, equipe = false }: { token: string; equipe?: boolean }) {
   const supabase  = createClient()
 
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState<string | null>(null)
   const [tokenData,    setTokenData]    = useState<any>(null)
   const [client,       setClient]       = useState<any>(null)
-  // Ações internas (captado, observação) só com ?equipe=1 na URL. O MESMO link
-  // vai pro cliente — botão de trabalho interno na tela dele é convite pra
-  // clique errado, além de expor processo que não é assunto dele.
-  const [modoEquipe, setModoEquipe] = useState(false)
-  useEffect(() => {
-    setModoEquipe(new URLSearchParams(window.location.search).get('equipe') === '1')
-  }, [])
+  // Ações internas (captado, observação) só no endereço /equipe. O MESMO
+  // token serve os dois: botão de trabalho interno na tela do cliente é
+  // convite pra clique errado, além de expor processo que não é assunto dele.
+  //
+  // Vem por rota, e não por `?equipe=1`, porque este link é ditado, colado no
+  // WhatsApp e digitado no celular no meio de uma filmagem — e ponto de
+  // interrogação em endereço é o que mais se perde no caminho.
+  const modoEquipe = equipe
   const [obsAberta, setObsAberta] = useState<Set<string>>(new Set())
   const [obsTexto,  setObsTexto]  = useState<Record<string, string>>({})
   const [posts,        setPosts]        = useState<Post[]>([])
