@@ -618,7 +618,7 @@ export default function CampanhasPage() {
                         )}
                       </div>
 
-                      <a href={`${caminhoCliente(client)}?tab=campanhas&camp=${selected}`} className="text-xs hover:underline" style={{ color: 'var(--ds-info-text)' }}>Abrir página do cliente →</a>
+                      <a href={`${caminhoCliente(client, 'campanhas')}?camp=${selected}`} className="text-xs hover:underline" style={{ color: 'var(--ds-info-text)' }}>Abrir página do cliente →</a>
                     </div>
                   )}
                 </div>
@@ -634,7 +634,7 @@ export default function CampanhasPage() {
           <p className="text-sm font-semibold text-[var(--color-text-muted)] mb-3">{inactiveClients.length} clientes sem esta campanha</p>
           <div className="flex flex-wrap gap-2">
             {inactiveClients.map(client => (
-              <a key={client.id} href={`${caminhoCliente(client)}?tab=campanhas&camp=${selected}`} className="flex items-center gap-2 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 hover:border-[var(--color-border-hover)] transition-colors">
+              <a key={client.id} href={`${caminhoCliente(client, 'campanhas')}?camp=${selected}`} className="flex items-center gap-2 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg px-3 py-1.5 hover:border-[var(--color-border-hover)] transition-colors">
                 <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-semibold overflow-hidden" style={{ background: client.color_hex }}>{client.logo_url ? <img src={client.logo_url} alt={client.name} className="w-full h-full object-cover" /> : getInitials(client.name)}</div>
                 <span className="text-xs text-[var(--color-text-secondary)]">{client.name}</span>
               </a>

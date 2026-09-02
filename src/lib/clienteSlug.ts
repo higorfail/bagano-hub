@@ -51,6 +51,8 @@ export function useClienteDaURL(param: string): Resolucao {
  * preencher o slug, por exemplo. Melhor um endereço feio que funciona do que
  * um bonito que abre em branco.
  */
-export function caminhoCliente(c: { id: string; slug?: string | null }): string {
-  return `/dashboard/clientes/${c.slug || c.id}`
+export function caminhoCliente(c: { id: string; slug?: string | null }, aba?: string): string {
+  // A aba entra no CAMINHO, não em `?tab=`: aba é lugar, e o botão voltar do
+  // navegador precisa sair dela em vez de pular a tela do cliente inteira.
+  return `/dashboard/clientes/${c.slug || c.id}${aba ? `/${aba}` : ''}`
 }

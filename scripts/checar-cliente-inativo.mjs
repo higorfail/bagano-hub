@@ -20,7 +20,7 @@ const RECORTE  = /activeClientIds|fromActiveClients/
 // Telas que já leem de um cliente só. O recorte veio do próprio `eq`, e cobrar
 // o filtro aqui seria pedir para filtrar o que já está filtrado.
 const POR_CLIENTE = [
-  'src/app/dashboard/clientes/[id]/page.tsx',
+  'src/app/dashboard/clientes/[id]/[[...aba]]/page.tsx',
   'src/app/dashboard/feed/page.tsx',
   'src/app/aprovar/[token]/AprovarClient.tsx',
   'src/app/aprovar/[token]/page.tsx',

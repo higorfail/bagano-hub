@@ -50,7 +50,12 @@ const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel'
 const FUNCAO_LABEL: Record<string,string> = { videos:'Editor', posts:'Designer', estrategia:'Estratégia', social:'Social Media', acompanha:'Acompanha', outro:'Outro' }
 function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }
 
-function ClientePageInner({ id }: { id: string }) {
+// As abas que existem. Serve de validador do caminho: sem isto,
+// /dashboard/clientes/piastro-cucina/qualquercoisa abriria a tela com uma aba
+// que não existe e nenhum conteúdo — vazio silencioso em vez de erro.
+const ABAS_VALIDAS = new Set(['cronograma', 'extras', 'recorrentes', 'materiais', 'tarefas', 'campanhas', 'feed', 'drive', 'onboarding', 'manual', 'historico', 'time'])
+
+function ClientePageInner({ id, slug, abaInicial }: { id: string; slug: string | null; abaInicial: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -59,7 +64,7 @@ function ClientePageInner({ id }: { id: string }) {
   const { currentMember, showOnlyMine } = useUser()
   const [client, setClient] = useState<Client | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
-  const [tab, setTab] = useState(() => searchParams.get('tab') || 'cronograma')
+  const [tab, setTab] = useState(abaInicial)
   // Faixa encolhida. Basta o primeiro gesto de rolagem: 16px pra encolher, e
   // volta ao topo de verdade (4px). Os dois limiares são diferentes de propósito
   // — com um só, parar de rolar exatamente em cima dele faz o cabeçalho piscar
@@ -159,15 +164,25 @@ function ClientePageInner({ id }: { id: string }) {
     if (error) setMyClientTasks(prev)
   }
 
-  // Mantém aba/mês/ano na URL, pra dar pra copiar e colar o link e cair direto na mesma view
+  // A ABA vira caminho; mês e ano continuam parâmetro.
+  //
+  // A diferença não é estética. Aba é LUGAR — "os extras do Piastro" é uma
+  // página, e o botão voltar do navegador tem que sair dela. Com `?tab=` o
+  // caminho nunca mudava, então voltar pulava a tela do cliente inteira em vez
+  // de voltar uma aba.
+  //
+  // Mês e ano ficam em parâmetro porque são FILTRO da mesma página, não outro
+  // lugar — e porque quase toda aba os ignora.
   useEffect(() => {
     saveLastPeriod(selectedMonth, selectedYear)
+    const base = `/dashboard/clientes/${slug || id}/${tab}`
     const params = new URLSearchParams(searchParams.toString())
-    params.set('tab', tab)
+    params.delete('tab')            // o endereço antigo não sobrevive à troca
     params.set('m', String(selectedMonth))
     params.set('y', String(selectedYear))
-    if (params.toString() !== searchParams.toString()) {
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    const destino = `${base}?${params.toString()}`
+    if (destino !== `${pathname}?${searchParams.toString()}`) {
+      router.replace(destino, { scroll: false })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, selectedMonth, selectedYear])
@@ -910,7 +925,7 @@ function ClientePageInner({ id }: { id: string }) {
   )
 }
 
-export default function ClientePage({ params }: { params: Promise<{ id: string }> }) {
+export default function ClientePage({ params }: { params: Promise<{ id: string; aba?: string[] }> }) {
   return <Suspense><ResolveCliente params={params} /></Suspense>
 }
 
@@ -920,9 +935,17 @@ export default function ClientePage({ params }: { params: Promise<{ id: string }
 // A tradução vem antes de montar o miolo porque ele usa esse valor como
 // `client_id` em sete consultas — com apelido no lugar do id elas não dariam
 // erro, dariam VAZIO, e a tela abriria como se o cliente não tivesse nada.
-function ResolveCliente({ params }: { params: Promise<{ id: string }> }) {
-  const { id: param } = use(params)
+function ResolveCliente({ params }: { params: Promise<{ id: string; aba?: string[] }> }) {
+  const { id: param, aba } = use(params)
   const r = useClienteDaURL(param)
+  const busca = useSearchParams()
+
+  // A aba sai do caminho. O `?tab=` antigo continua sendo aceito na leitura —
+  // esses links estão em conversa de WhatsApp e no histórico de todo mundo — e
+  // some do endereço na primeira troca de aba.
+  const abaInicial = ABAS_VALIDAS.has(aba?.[0] || '')
+    ? aba![0]
+    : (busca.get('tab') && ABAS_VALIDAS.has(busca.get('tab')!) ? busca.get('tab')! : 'cronograma')
 
   if (r === 'carregando') {
     return (
@@ -939,5 +962,5 @@ function ResolveCliente({ params }: { params: Promise<{ id: string }> }) {
       </div>
     )
   }
-  return <ClientePageInner id={r.id} />
+  return <ClientePageInner id={r.id} slug={r.slug} abaInicial={abaInicial} />
 }
