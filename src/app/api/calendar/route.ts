@@ -13,9 +13,25 @@ import { usuarioLogado } from '@/lib/apiAuth'
 // resolução de conflito: quem criou o evento manda nele. Evento nascido no hub
 // tem `google_calendar_event_id` guardado e é o hub que o mantém; evento
 // nascido no Google o hub mostra e não toca.
-function getAuth() {
+// Dois calendários, porque são dois compromissos diferentes: captação é a
+// filmagem no cliente, criação é o dia em que designer e editor sentam pra
+// fazer. Ficavam no mesmo lugar e só o título separava — o que já custou um
+// laço, com criação voltando do Google virada em captação.
+//
+// Sem o de criação configurado, tudo cai no de captação (o comportamento de
+// antes). Assim nada quebra enquanto a variável não estiver na Vercel.
+export type QualCalendario = 'captacao' | 'criacao'
+
+function idDoCalendario(qual: QualCalendario): string | undefined {
+  if (qual === 'criacao') {
+    return process.env.GOOGLE_CALENDAR_CRIACAO_ID || process.env.GOOGLE_CALENDAR_ID
+  }
+  return process.env.GOOGLE_CALENDAR_ID
+}
+
+function getAuth(qual: QualCalendario = 'captacao') {
   const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-  const calendarId = process.env.GOOGLE_CALENDAR_ID
+  const calendarId = idDoCalendario(qual)
   if (!key || !calendarId) return null
   try {
     const credentials = JSON.parse(key)
@@ -68,11 +84,16 @@ function periodo(date: string, startTime?: string, endTime?: string) {
 }
 
 /** Devolve o acesso ao calendário, ou a resposta de recusa pronta pra retornar. */
-async function comAcesso(): Promise<NonNullable<ReturnType<typeof getAuth>> | NextResponse> {
+async function comAcesso(qual: QualCalendario = 'captacao'): Promise<NonNullable<ReturnType<typeof getAuth>> | NextResponse> {
   if (!(await usuarioLogado())) {
     return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
   }
-  return getAuth() ?? NextResponse.json(NAO_CONFIGURADO, { status: 503 })
+  return getAuth(qual) ?? NextResponse.json(NAO_CONFIGURADO, { status: 503 })
+}
+
+/** Qual calendário a chamada quer. Ausente = captação, como sempre foi. */
+function qualDaQuery(p: URLSearchParams): QualCalendario {
+  return p.get('cal') === 'criacao' ? 'criacao' : 'captacao'
 }
 
 /**
@@ -84,7 +105,7 @@ async function comAcesso(): Promise<NonNullable<ReturnType<typeof getAuth>> | Ne
  * tela. Perguntar lendo custa o mesmo e não escreve nada.
  */
 export async function GET(req: NextRequest) {
-  const acesso = await comAcesso()
+  const acesso = await comAcesso(qualDaQuery(req.nextUrl.searchParams))
   if (acesso instanceof NextResponse) return acesso
   const { calendar, calendarId } = acesso
 
@@ -132,11 +153,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const acesso = await comAcesso()
+  const body = await req.json()
+  const acesso = await comAcesso(body?.cal === 'criacao' ? 'criacao' : 'captacao')
   if (acesso instanceof NextResponse) return acesso
   const { calendar, calendarId } = acesso
 
-  const { summary, description, date, startTime, endTime, location } = await req.json()
+  const { summary, description, date, startTime, endTime, location } = body
   if (!date) return NextResponse.json({ error: 'date obrigatório' }, { status: 400 })
 
   try {
@@ -161,11 +183,12 @@ export async function POST(req: NextRequest) {
  * errado. Só era possível criar e apagar.
  */
 export async function PATCH(req: NextRequest) {
-  const acesso = await comAcesso()
+  const body = await req.json()
+  const acesso = await comAcesso(body?.cal === 'criacao' ? 'criacao' : 'captacao')
   if (acesso instanceof NextResponse) return acesso
   const { calendar, calendarId } = acesso
 
-  const { eventId, summary, description, date, startTime, endTime, location } = await req.json()
+  const { eventId, summary, description, date, startTime, endTime, location } = body
   if (!eventId) return NextResponse.json({ error: 'eventId obrigatório' }, { status: 400 })
   if (!date)    return NextResponse.json({ error: 'date obrigatório' },    { status: 400 })
 
@@ -196,11 +219,12 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const acesso = await comAcesso()
+  const body = await req.json()
+  const acesso = await comAcesso(body?.cal === 'criacao' ? 'criacao' : 'captacao')
   if (acesso instanceof NextResponse) return acesso
   const { calendar, calendarId } = acesso
 
-  const { eventId } = await req.json()
+  const { eventId } = body
   if (!eventId) return NextResponse.json({ error: 'eventId obrigatório' }, { status: 400 })
 
   try {

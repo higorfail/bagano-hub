@@ -98,19 +98,27 @@ export async function sincronizarCaptacao(
 }
 
 /** Tira o evento do Google. Silencioso: apagar o que já não existe é sucesso. */
-export async function removerDoCalendario(eventId: string | null | undefined) {
+export async function removerDoCalendario(
+  eventId: string | null | undefined,
+  qual: 'captacao' | 'criacao' = 'captacao',
+) {
   if (!eventId) return
   try {
     await fetch(withBase('/api/calendar'), {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventId }),
+      // Apagar no calendário errado não dá erro: o Google responde 404, o hub
+      // trata como sucesso (apagar o que não existe É sucesso) e o evento
+      // continua lá, no outro calendário, pra sempre.
+      body: JSON.stringify({ eventId, cal: qual }),
     })
   } catch { /* o evento fica; não vale travar a tela por isso */ }
 }
 
 export type EventoGoogle = {
   id: string
+  /** De qual calendário veio — filmagem ou dia de criação. */
+  origem?: 'captacao' | 'criacao'
   summary: string
   description: string | null
   location: string | null
@@ -130,15 +138,32 @@ export type EventoGoogle = {
  */
 export async function eventosDoGoogle(
   start: string, end: string, ignorar: Set<string> = new Set(),
+  qual: 'captacao' | 'criacao' = 'captacao',
 ): Promise<EventoGoogle[]> {
   try {
-    const res = await fetch(withBase(`/api/calendar?start=${start}&end=${end}`))
+    const res = await fetch(withBase(`/api/calendar?start=${start}&end=${end}&cal=${qual}`))
     if (!res.ok) return []
     const { events } = await res.json()
-    return (events as EventoGoogle[]).filter(e => !ignorar.has(e.id))
+    // `origem` viaja junto com o evento: depois de misturar as duas listas, o
+    // id não diz mais de qual calendário veio, e quem desenha precisa saber
+    // separar filmagem de dia de criação.
+    return (events as EventoGoogle[])
+      .filter(e => !ignorar.has(e.id))
+      .map(e => ({ ...e, origem: qual }))
   } catch {
     return []
   }
+}
+
+/** Os dois calendários de uma vez, cada evento sabendo de onde veio. */
+export async function todosEventosDoGoogle(
+  start: string, end: string, ignorar: Set<string> = new Set(),
+): Promise<EventoGoogle[]> {
+  const [cap, cri] = await Promise.all([
+    eventosDoGoogle(start, end, ignorar, 'captacao'),
+    eventosDoGoogle(start, end, ignorar, 'criacao'),
+  ])
+  return [...cap, ...cri]
 }
 
 
@@ -167,6 +192,11 @@ export async function sincronizarCriacao(
     summary: `✏️ Criação — ${clientName || 'Cliente'}`,
     description: [entry.notes, teamNames ? `Equipe: ${teamNames}` : ''].filter(Boolean).join('\n'),
     date: entry.date,
+    // Calendário próprio: captação é a filmagem no cliente, criação é o dia em
+    // que designer e editor sentam pra fazer. Compartilhar o mesmo calendário
+    // deixava só o título separando os dois — e foi assim que criação voltou do
+    // Google virada em captação.
+    cal: 'criacao' as const,
   }
 
   let eventId: string | null = null

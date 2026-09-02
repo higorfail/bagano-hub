@@ -255,7 +255,7 @@ export default function AgendaPage() {
 
   async function removeEntry(id: string) {
     const alvo = entries.find(e => e.id === id)
-    await removerDoCalendario((alvo as any)?.google_calendar_event_id)
+    await removerDoCalendario((alvo as any)?.google_calendar_event_id, 'criacao')
     const { error } = await supabase.from('agenda_criacao').delete().eq('id', id)
     if (dbError(error, toast, 'remover da agenda')) return
     setEntries(prev => prev.filter(e => e.id !== id))
@@ -345,6 +345,8 @@ export default function AgendaPage() {
     if (calendarOk === false) return
     const ini = toLocalISO(weekStart)
     const fim = toLocalISO(addDays(weekStart, 120))
+    // Só o calendário de captação: é onde a filmaker marca "GEE OFF", e
+    // ausência é o único dado que esta tela busca aqui.
     eventosDoGoogle(ini, fim).then(evs => {
       const out: { date: string; memberId: string | null; nome: string }[] = []
       for (const e of evs) {

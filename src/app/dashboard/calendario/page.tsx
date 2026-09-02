@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { ChevronLeft, ChevronRight, Camera, PenLine, Filter, Users, Laptop, PartyPopper, CalendarDays, Plus, X, Loader2, Trash2, Check } from 'lucide-react'
 import PostCard from '@/components/PostCard'
 import { fromActiveClients } from '@/lib/activeClients'
-import { eventosDoGoogle, type EventoGoogle } from '@/lib/calendarSync'
+import { todosEventosDoGoogle, type EventoGoogle } from '@/lib/calendarSync'
 import { diasDaSemana, segundaDe, ordenarDoDia, type CalItem } from '@/lib/calendarItems'
 import WeekView from '@/components/calendario/WeekView'
 import ListView from '@/components/calendario/ListView'
@@ -218,7 +218,7 @@ export default function CalendarioPage() {
         ...(eventsData || []).map((d: any) => d.google_calendar_event_id),
         ...(captData   || []).map((d: any) => d.google_calendar_event_id),
       ].filter(Boolean) as string[])
-      eventosDoGoogle(startISO, endISO, jaMostrados).then(setGoogleEvents)
+      todosEventosDoGoogle(startISO, endISO, jaMostrados).then(setGoogleEvents)
 
       setAllClients(clientData || [])
       setLoading(false)
@@ -308,10 +308,18 @@ export default function CalendarioPage() {
       const bloqueio = ehBloqueio(g.summary)
       const cli = bloqueio ? null : identificarCliente(g.summary, allClients)
       if (filterClient && cli?.id !== filterClient) continue
-      out.push({ key: `g-${g.id}`, kind: bloqueio ? 'bloqueio' : 'google', id: g.id,
+      // Evento do calendário de CRIAÇÃO entra como criação, não como "google"
+      // genérico: é o mesmo compromisso que a Agenda de criação mostra, e
+      // pintá-lo de cinza anônimo ao lado do que o hub criou faria a mesma
+      // coisa aparecer de dois jeitos na mesma tela.
+      const tipo = bloqueio ? 'bloqueio' as const
+        : g.origem === 'criacao' ? 'criacao' as const
+        : 'google' as const
+      out.push({ key: `g-${g.id}`, kind: tipo, id: g.id,
         title: g.summary, date: g.date,
         startTime: g.allDay ? null : g.startTime, endTime: g.allDay ? null : g.endTime,
-        color: cli ? (allClients.find(c => c.id === cli.id)?.color_hex || '#64748b') : '#64748b',
+        color: cli ? (allClients.find(c => c.id === cli.id)?.color_hex || '#64748b')
+             : g.origem === 'criacao' ? '#f59e0b' : '#64748b',
         clientId: cli?.id || null, clientName: cli?.name || null, href: g.htmlLink, data: g })
     }
 

@@ -25,7 +25,10 @@ export default function ItemChip({ item, compacto, onClick, style, className = '
   const Icon = ICONE[item.kind] || CalendarDays
   // O que veio do Google não é do hub: fica tracejado e sem preenchimento, e
   // abre lá em vez de fingir que edita aqui.
-  const deFora = item.kind === 'google' || item.kind === 'bloqueio'
+  // "De fora" é sobre QUEM MANDA no evento, não sobre o tipo: o que tem `href`
+  // vive no Google e é lá que se edita. Criação nascida no hub não tem href e
+  // continua sólida; a que veio do Google entra tracejada, como as outras.
+  const deFora = !!item.href || item.kind === 'bloqueio'
   const cor = item.color
 
   const conteudo = (
