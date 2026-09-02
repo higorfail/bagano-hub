@@ -20,6 +20,7 @@ import { useIsWideScreen } from '@/lib/useMediaQuery'
 import { statusBadge } from '@/lib/status'
 import { withBase } from '@/lib/base'
 import { linkPublico } from '@/lib/linkAprovacao'
+import { renumerarPosts } from '@/lib/renumerarPosts'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -444,9 +445,14 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     setCampaigns(campaignsData || [])
     onPostsChange?.(loaded.length)
 
-    if (postParam && postParam !== handledPostParam.current && loaded.some((p: any) => p.id === postParam)) {
+    // `postParam` aceita as DUAS formas: o número do post, que é como o
+    // endereço novo o identifica (/cronograma/2026-09/11), e o UUID, que é o
+    // que as centenas de notificações já guardadas no sino carregam.
+    const achado = loaded.find((p: any) =>
+      p.id === postParam || (postParam && String(p.post_number) === postParam))
+    if (postParam && postParam !== handledPostParam.current && achado) {
       handledPostParam.current = postParam
-      setEditingPostId(postParam)
+      setEditingPostId(achado.id)
       setShowPostCard(true)
     }
     if (!opts.silent) setLoading(false)
@@ -610,10 +616,11 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     const renumbered = arr.map((p, i) => ({ ...p, post_number: i + 1 }))
     const prev = posts
     setPosts(renumbered)
-    const changed = renumbered.filter(p => prev.find(o => o.id === p.id)?.post_number !== p.post_number)
-    const results = await Promise.all(changed.map(p => supabase.from('schedules').update({ post_number: p.post_number }).eq('id', p.id)))
-    const err = results.find(r => r.error)?.error
-    if (err) { setPosts(prev); dbError(err, toast, 'reordenar') }
+    // Uma chamada só: reordenar passa por estados com número repetido, e N
+    // updates paralelos são N transações — a restrição adiável do banco não
+    // teria como cobrir.
+    const r = await renumerarPosts(renumbered.map(p => ({ id: p.id, post_number: p.post_number })))
+    if (!r.ok) { setPosts(prev); toast('Erro ao reordenar: ' + (r.erro || '')) }
   }
 
   async function generateApprovalLink(type: 'cronograma' | 'final') {

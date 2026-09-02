@@ -67,6 +67,8 @@ type Schedule = {
   status: string; approval_status: string; post_type: string
   scheduled_date: string | null; funil: string | null
   month: number; year: number; created_at?: string | null
+  /** É o que o endereço do post usa: /cronograma/2026-09/11 */
+  post_number?: number | null
   assigned_members?: string[] | null
   legenda?: string | null
 }
@@ -438,7 +440,7 @@ export default function DashboardPage() {
           // Kanban já carrega a tabela inteira do mesmo jeito — o custo é
           // menor que o de mais um recorte pra esquecer de manter.
           supabase.from(CFG.t.schedules)
-            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, created_at, assigned_members, campaign_type, labels, legenda, ajuste_alvo'),
+            .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, post_number, created_at, assigned_members, campaign_type, labels, legenda, ajuste_alvo'),
           supabase.from(CFG.t.specialDates)
             .select('id, name, date')
             .gte('date', todayStr)
@@ -969,7 +971,9 @@ export default function DashboardPage() {
       // post/m/y — sem isso o clique só caía na aba de cronograma do cliente,
       // sem abrir o post específico (o CronogramaTab já sabe abrir direto
       // quando recebe esses 3 parâmetros, só não estavam sendo passados).
-      href: `${linkCliente(s.client_id)?.('cronograma')}?post=${s.id}&m=${s.month}&y=${s.year}`,
+      // Sem número, para no período: abre o mês certo em vez de um endereço
+      // terminado em barra, que cairia na aba sem post nenhum aberto.
+      href: `${linkCliente(s.client_id)?.('cronograma')}/${s.year}-${String(s.month).padStart(2, '0')}${s.post_number ? `/${s.post_number}` : ''}`,
       postType: s.post_type, campaignType: (s as any).campaign_type || null,
       labels: openLabels(asLabels((s as any).labels), s.legenda),
       ajusteAlvo: ajusteAlvos[s.id] || null,
@@ -1451,7 +1455,7 @@ export default function DashboardPage() {
                     <Card key={client.id} hover padded
                       className={`cursor-pointer${state === 'nunca' && !outrosTxt ? ' opacity-60' : ''}`}
                       onClick={() => router.push(key
-                        ? `${caminhoCliente(client, 'cronograma')}?m=${cm}&y=${cy}`
+                        ? `${caminhoCliente(client, 'cronograma')}/${cy}-${String(cm).padStart(2, '0')}`
                         : caminhoCliente(client))}>
                       <div className="flex items-center gap-2 md:gap-3 mb-2.5 md:mb-3">
                         {client.logo_url
@@ -1591,7 +1595,7 @@ export default function DashboardPage() {
                     const soAjuste = pending.every(s => s.status === CFG.S.ajuste)
                     return (
                       <button key={`${cid}:${gm}:${gy}`}
-                        onClick={() => router.push(`${linkCliente(cid)?.('cronograma')}?m=${gm}&y=${gy}`)}
+                        onClick={() => router.push(`${linkCliente(cid)?.('cronograma')}/${gy}-${String(gm).padStart(2, '0')}`)}
                         className="w-full text-left rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4 hover:border-[var(--color-border-hover)] hover:shadow-card transition-all">
                         <div className="flex items-center gap-3">
                           <ClientAvatar clientId={cid} size={40} />

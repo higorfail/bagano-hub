@@ -39,6 +39,7 @@ const POR_CLIENTE = [
   'src/app/api/cron/archive-completed/route.ts', // arquiva o que já fechou
   'src/lib/queries.ts',
   'src/lib/calendarSync.ts',        // grava numa captação por id, não lê em bloco
+  'src/lib/renumerarPosts.ts',      // grava em posts por id, não lê em bloco
 ]
 
 const arquivos = []

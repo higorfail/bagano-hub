@@ -5,6 +5,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import IPhoneFeed, { FeedPost } from '@/components/IPhoneFeed'
 import { Search, ChevronDown } from 'lucide-react'
+import { renumerarPosts } from '@/lib/renumerarPosts'
 
 interface Client {
   id: string
@@ -91,7 +92,8 @@ function FeedPageInner() {
   }, [selected, month, year])
 
   const handleReorder = async (reordered: FeedPost[]) => {
-    await Promise.all(reordered.map(p => supabase.from('schedules').update({ post_number: p.post_number }).eq('id', p.id)))
+    // Uma chamada só — ver src/lib/renumerarPosts.ts.
+    await renumerarPosts(reordered.map(p => ({ id: p.id, post_number: p.post_number })))
   }
 
   const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))

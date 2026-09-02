@@ -29,6 +29,7 @@ import { Plus, ChevronLeft, Pencil, Link as LinkIcon } from 'lucide-react'
 import { useIsWideScreen } from '@/lib/useMediaQuery'
 import { linkPublico } from '@/lib/linkAprovacao'
 import { useClienteDaURL } from '@/lib/clienteSlug'
+import { renumerarPosts } from '@/lib/renumerarPosts'
 
 type Client = {
   id: string; name: string; color_hex: string; logo_url: string
@@ -53,9 +54,18 @@ function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join(''
 // As abas que existem. Serve de validador do caminho: sem isto,
 // /dashboard/clientes/piastro-cucina/qualquercoisa abriria a tela com uma aba
 // que não existe e nenhum conteúdo — vazio silencioso em vez de erro.
+// Abas cujo conteúdo é de um MÊS. Só nelas o período entra no caminho.
+const ABAS_COM_MES = new Set(['cronograma', 'feed'])
+
 const ABAS_VALIDAS = new Set(['cronograma', 'extras', 'recorrentes', 'materiais', 'tarefas', 'campanhas', 'feed', 'drive', 'onboarding', 'manual', 'historico', 'time'])
 
-function ClientePageInner({ id, slug, abaInicial }: { id: string; slug: string | null; abaInicial: string }) {
+function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
+  id: string; slug: string | null; abaInicial: string
+  /** {m,y} vindos do caminho (/cronograma/2026-09), quando houver. */
+  periodoURL: { m: number; y: number } | null
+  /** Número do post vindo do caminho (/cronograma/2026-09/11), quando houver. */
+  postURL: string | null
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -100,12 +110,16 @@ function ClientePageInner({ id, slug, abaInicial }: { id: string; slug: string |
   // mês atual. Sem o meio, abrir um cliente jogava sempre no mês atual, mesmo
   // com a pessoa trabalhando no cronograma do mês seguinte.
   const [selectedMonth, setSelectedMonth] = useState(() => {
+    // O caminho manda mais que o parâmetro: /cronograma/2026-09 é onde a
+    // pessoa está, `?m=9` é resquício do formato antigo.
+    if (periodoURL) return periodoURL.m
     const mParam = searchParams.get('m')
     const m = mParam ? parseInt(mParam) : NaN
     if (!isNaN(m) && m >= 1 && m <= 12) return m
     return readLastPeriod()?.m ?? new Date().getMonth() + 1
   })
   const [selectedYear, setSelectedYear] = useState(() => {
+    if (periodoURL) return periodoURL.y
     const yParam = searchParams.get('y')
     const y = yParam ? parseInt(yParam) : NaN
     if (!isNaN(y) && y > 2000) return y
@@ -175,12 +189,17 @@ function ClientePageInner({ id, slug, abaInicial }: { id: string; slug: string |
   // lugar — e porque quase toda aba os ignora.
   useEffect(() => {
     saveLastPeriod(selectedMonth, selectedYear)
-    const base = `/dashboard/clientes/${slug || id}/${tab}`
+    // O período entra no caminho só nas abas que têm mês. Nas outras ele não
+    // significa nada, e /piastro-cucina/manual/2026-09 seria um endereço
+    // dizendo uma coisa que a tela ignora.
+    const comMes = ABAS_COM_MES.has(tab)
+    const periodo = comMes ? `/${selectedYear}-${String(selectedMonth).padStart(2, '0')}` : ''
+    const base = `/dashboard/clientes/${slug || id}/${tab}${periodo}`
     const params = new URLSearchParams(searchParams.toString())
-    params.delete('tab')            // o endereço antigo não sobrevive à troca
-    params.set('m', String(selectedMonth))
-    params.set('y', String(selectedYear))
-    const destino = `${base}?${params.toString()}`
+    // Os três saem do endereço: viraram caminho.
+    params.delete('tab'); params.delete('m'); params.delete('y')
+    const qs = params.toString()
+    const destino = qs ? `${base}?${qs}` : base
     if (destino !== `${pathname}?${searchParams.toString()}`) {
       router.replace(destino, { scroll: false })
     }
@@ -495,7 +514,7 @@ function ClientePageInner({ id, slug, abaInicial }: { id: string; slug: string |
                 clientColor={client?.color_hex}
                 month={selectedMonth}
                 year={selectedYear}
-                postParam={searchParams.get('post')}
+                postParam={postURL ?? searchParams.get('post')}
                 showViewToggle
               />
             </div>
@@ -532,7 +551,8 @@ function ClientePageInner({ id, slug, abaInicial }: { id: string; slug: string |
                 instagramUrl={client.instagram_url || undefined}
                 logoUrl={client.logo_url || undefined}
                 onReorder={async (reordered) => {
-                  await Promise.all(reordered.map(p => createClient().from('schedules').update({ post_number: p.post_number }).eq('id', p.id)))
+                  // Uma chamada só — ver src/lib/renumerarPosts.ts.
+                  await renumerarPosts(reordered.map(p => ({ id: p.id, post_number: p.post_number })))
                 }}
               />
             </div>
@@ -947,6 +967,14 @@ function ResolveCliente({ params }: { params: Promise<{ id: string; aba?: string
     ? aba![0]
     : (busca.get('tab') && ABAS_VALIDAS.has(busca.get('tab')!) ? busca.get('tab')! : 'cronograma')
 
+  // /clientes/piastro-cucina/cronograma/2026-09/11
+  //                          └ aba     └ período └ post
+  const mPeriodo = /^(\d{4})-(\d{2})$/.exec(aba?.[1] || '')
+  const periodoURL = mPeriodo
+    ? { y: Number(mPeriodo[1]), m: Number(mPeriodo[2]) }
+    : null
+  const postURL = /^\d+$/.test(aba?.[2] || '') ? aba![2] : null
+
   if (r === 'carregando') {
     return (
       <div className="flex items-center justify-center h-full py-24">
@@ -962,5 +990,5 @@ function ResolveCliente({ params }: { params: Promise<{ id: string; aba?: string
       </div>
     )
   }
-  return <ClientePageInner id={r.id} slug={r.slug} abaInicial={abaInicial} />
+  return <ClientePageInner id={r.id} slug={r.slug} abaInicial={abaInicial} periodoURL={periodoURL} postURL={postURL} />
 }
