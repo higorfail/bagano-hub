@@ -93,6 +93,11 @@ export function equipeDoEvento(
   return { ids: [...achados.keys()], nomes: [...achados.values()] }
 }
 
+// Os prefixos que o hub usa ao escrever no Google (ver src/lib/calendarSync.ts).
+// Se mudarem lá, mudam aqui — são o único sinal de "isto é nosso" que não
+// depende de coluna nenhuma no banco.
+const NOSSOS_PREFIXOS = ['📸 Captação —', '✏️ Criação —']
+
 export function decidir(
   eventos: EventoBruto[],
   clientesAtivos: { id: string; name: string }[],
@@ -106,6 +111,21 @@ export function decidir(
 
   return eventos.map((e): Decisao => {
     const jaExiste = porEvento.get(e.id)
+
+    // Evento que o PRÓPRIO HUB escreveu no Google não volta como novidade.
+    //
+    // Era um laço: a agenda de criação era enviada pro Google como
+    // "✏️ Criação — Piastro Cucina", o importador lia esse evento, reconhecia o
+    // cliente pelo nome no título e criava uma CAPTAÇÃO com ele. Criação virava
+    // filmagem, num tipo de compromisso que nem é o mesmo. Oito entraram assim.
+    //
+    // O reconhecimento vai pelo TÍTULO e não pelo id guardado de propósito: o
+    // id só existe quando a coluna `google_calendar_event_id` está lá pra
+    // recebê-lo, e foi justamente a falta dela que deixou o laço aberto. Título
+    // o hub controla sempre, porque é ele quem escreve.
+    if (NOSSOS_PREFIXOS.some(p => (e.summary || '').trim().startsWith(p))) {
+      return { acao: 'ignorar', evento: e, motivo: 'nasceu no hub' }
+    }
 
     if (e.cancelado) {
       // Apagado no Google. Não apagamos a captação: viramos o status, que
