@@ -400,8 +400,8 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
     const body = newComment
     setNewComment('')
     requestAnimationFrame(() => { if (mentions.textareaRef.current) autoGrow(mentions.textareaRef.current) })
-    await ensureWatchingFromMentions('personal_tasks', tid, body, members)
-    await logActivity({ tableName: 'personal_tasks', recordId: tid, action: 'commented', actorName: author, description: `${author} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
+    const mencionados = await ensureWatchingFromMentions('personal_tasks', tid, body, members)
+    await logActivity({ tableName: 'personal_tasks', recordId: tid, action: 'commented', mencionados, actorName: author, description: `${author} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
     await autoAttachLinks(body)
   }

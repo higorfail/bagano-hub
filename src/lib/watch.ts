@@ -65,9 +65,16 @@ export async function ensureWatchingFromMentions(
   members: { id: string; name: string }[],
 ) {
   const mentioned = extractMentionedFirstNames(commentBody)
-  if (!mentioned.length) return
+  if (!mentioned.length) return []
   const ids = members
     .filter(m => mentioned.includes(m.name.split(' ')[0].toLowerCase()))
     .map(m => m.id)
   await ensureWatching(tableName, recordId, ids)
+  // Devolve os mencionados: virar observador não basta mais.
+  //
+  // Comentário passou a avisar só quem está NA CONVERSA ou marcado no card
+  // (igual Trello). Sem esta lista, quem foi @mencionado e não é nenhum dos
+  // dois deixaria de ser avisado — justamente a pessoa a quem o comentário
+  // foi endereçado.
+  return ids
 }

@@ -562,8 +562,8 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     if (data) setComments(c => [...c, data])
     setNewComment('')
     requestAnimationFrame(() => { if (mentions.textareaRef.current) autoGrow(mentions.textareaRef.current) })
-    await ensureWatchingFromMentions('extras', eid, body, members)
-    await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action: 'commented', actorName: authorName, description: `${authorName} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
+    const mencionados = await ensureWatchingFromMentions('extras', eid, body, members)
+    await logActivity({ tableName: 'extras', recordId: eid, clientId: fixedClientId || clientId || null, action: 'commented', mencionados, actorName: authorName, description: `${authorName} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
     await autoAttachLinks(body)
   }

@@ -29,6 +29,10 @@ export type Evento = {
   atribuidos?: string[]
   /** Quem observa o card (o comportamento antigo usava só isto). */
   observadores?: string[]
+  /** Quem já comentou nesse card — "está na conversa". */
+  comentaristas?: string[]
+  /** Quem foi @mencionado no comentário que acabou de ser escrito. */
+  mencionados?: string[]
   equipeDoCliente?: { member_id: string; funcao: Funcao }[]
   atorId?: string | null
 }
@@ -124,9 +128,23 @@ function decidir(e: Evento): Decisao {
   // ── A bola chegou em você ─────────────────────────────────────────────
   if (e.action === 'member_assigned') return { ids: marcados, motivo: 'foi marcado no card' }
 
-  // Comentário é conversa, não mudança de estado — vai pra quem está na
-  // conversa, e é dos poucos avisos que a equipe pediu pra manter.
-  if (e.action === 'commented') return { ids: observa, motivo: 'comentário no card' }
+  // Comentário vai pra quem está NA CONVERSA ou marcado no card — igual
+  // Trello, e não pra todo observador.
+  //
+  // Observador acumula sozinho: quem criou o card, quem foi adicionado por
+  // roteamento de ajuste, quem já foi mencionado uma vez meses atrás. Receber
+  // comentário de um card com o qual você não tem mais nada é o tipo de aviso
+  // que ensina a ignorar todos os outros.
+  //
+  // Os @mencionados entram explicitamente, e não por serem observadores: é a
+  // pessoa a quem o comentário foi ENDEREÇADO, e ela pode nunca ter tocado no
+  // card antes.
+  if (e.action === 'commented') {
+    return {
+      ids: [...marcados, ...(e.comentaristas || []), ...(e.mencionados || [])],
+      motivo: 'está na conversa, marcado no card ou foi mencionado',
+    }
+  }
 
   // ── Resposta do cliente ───────────────────────────────────────────────
   //

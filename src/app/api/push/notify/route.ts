@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   if (!body?.tableName || !body?.recordId) return NextResponse.json({ skipped: 'invalid body' })
 
-  const { tableName, recordId, clientId, actorId, actorName, description, skipPush, action, field } = body
+  const { tableName, recordId, clientId, actorId, actorName, description, skipPush, action, field, mencionados } = body
   const buildUrl = URL_BY_TABLE[tableName]
   if (!buildUrl) return NextResponse.json({ skipped: 'unsupported table' })
 
@@ -153,6 +153,31 @@ export async function POST(req: NextRequest) {
     atribuidos = (data as any)?.assigned_members || []
   }
 
+  // Quem já comentou nesse card. Só buscado em comentário — nas outras ações
+  // seria uma ida ao banco pra nada.
+  //
+  // As tabelas de comentário de post e extra guardam só `author_name` (a de
+  // material tem author_id), então o casamento é por NOME. Funciona numa
+  // equipe de oito pessoas com nomes distintos, e quem não bater simplesmente
+  // não é avisado — que é melhor que avisar a pessoa errada.
+  let comentaristas: string[] = []
+  if (action === 'commented') {
+    const tabelaCom = { schedules: 'schedule_comments', extras: 'extra_comments',
+                        materials: 'material_comments', personal_tasks: 'personal_task_comments' }[tableName as string]
+    const coluna = { schedules: 'schedule_id', extras: 'extra_id',
+                     materials: 'material_id', personal_tasks: 'task_id' }[tableName as string]
+    if (tabelaCom && coluna) {
+      const [{ data: coms }, { data: todos }] = await Promise.all([
+        supabase.from(tabelaCom).select('author_name').eq(coluna, recordId),
+        supabase.from('team_members').select('id, name'),
+      ])
+      const porNome = new Map((todos || []).map((m: any) => [m.name, m.id]))
+      comentaristas = [...new Set((coms || [])
+        .map((c: any) => porNome.get(c.author_name))
+        .filter(Boolean) as string[])]
+    }
+  }
+
   const decisao = quemAvisar({
     tabela: tableName,
     action,
@@ -162,6 +187,8 @@ export async function POST(req: NextRequest) {
     observadores: [...new Set((watchers || []).map((w: any) => w.member_id))],
     equipeDoCliente: (equipe || []) as { member_id: string; funcao: string }[],
     papeis,
+    comentaristas,
+    mencionados,
     atorId: actorId,
   })
 

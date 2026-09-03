@@ -423,8 +423,8 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
     const commentBody = newComment
     setNewComment('')
     requestAnimationFrame(() => { if (mentions.textareaRef.current) autoGrow(mentions.textareaRef.current) })
-    await ensureWatchingFromMentions('materials', mid, commentBody, members)
-    await logActivity({ tableName: 'materials', recordId: mid, action: 'commented', actorName: author, description: `${author} comentou: "${commentBody.slice(0, 80)}${commentBody.length > 80 ? '…' : ''}"` })
+    const mencionados = await ensureWatchingFromMentions('materials', mid, commentBody, members)
+    await logActivity({ tableName: 'materials', recordId: mid, action: 'commented', mencionados, actorName: author, description: `${author} comentou: "${commentBody.slice(0, 80)}${commentBody.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
     await autoAttachLinks(commentBody)
   }

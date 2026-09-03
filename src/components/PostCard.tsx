@@ -552,8 +552,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (data) setComments(c => [...c, data])
     setNewComment('')
     requestAnimationFrame(() => { if (commentTextareaRef.current) autoGrow(commentTextareaRef.current) })
-    await ensureWatchingFromMentions('schedules', pid, body, members)
-    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'commented', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
+    const mencionados = await ensureWatchingFromMentions('schedules', pid, body, members)
+    await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'commented', mencionados, actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} comentou: "${body.slice(0, 80)}${body.length > 80 ? '…' : ''}"` })
     setActivityKey(k => k + 1)
     await autoAttachLinks(body)
   }

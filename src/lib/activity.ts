@@ -9,6 +9,8 @@ export async function logActivity(params: {
   actorName?: string | null
   actorId?: string | null
   field?: string | null
+  /** Ids de quem foi @mencionado no comentário — ver quemAvisar. */
+  mencionados?: string[]
   oldValue?: string | null
   newValue?: string | null
   description: string
