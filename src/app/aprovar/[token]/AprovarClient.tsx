@@ -341,6 +341,15 @@ function etapaParaCliente(status: string): { texto: string; cor: string } | null
   }
 }
 
+// As perguntas que só dá pra fazer no lugar, com o cliente na frente.
+//
+// Vem como texto pronto e não como campos separados de propósito: é uma
+// anotação de captação, escrita correndo, muitas vezes com o celular numa mão.
+// Formulário rígido faria a pessoa desistir e escrever nada.
+const FICHA_PRATO = `Nome exato do prato:
+Ingredientes:
+Observações (montagem, acompanhamento, preço):`
+
 function mapStatus(s: Post): FeedPost['status'] {
   // Agendado/publicado é sempre "decidido" pro feed, mesmo que approval_status
   // nunca tenha sido setado (post movido direto pelo time, sem passar pela
@@ -1180,6 +1189,15 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                   </div>
                   {obsAberta.has(post.id) && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {/* Atalho, não formulário: quem está anotando outra
+                          coisa nem repara; quem precisa da ficha economiza a
+                          digitação. Some depois de usado. */}
+                      {!(obsTexto[post.id] || '').includes('Ingredientes:') && (
+                        <button onClick={() => setObsTexto(x => ({ ...x, [post.id]: ((x[post.id] || '') + (x[post.id] ? '\n' : '') + FICHA_PRATO) }))}
+                          style={{ alignSelf: 'flex-start', fontSize: 12, fontWeight: 600, color: '#c2410c', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
+                          usar ficha do prato
+                        </button>
+                      )}
                       <textarea value={obsTexto[post.id] || ''} onChange={e => setObsTexto(x => ({ ...x, [post.id]: e.target.value }))}
                         placeholder="O que aconteceu na captação?" rows={3}
                         style={{ width: '100%', background: '#fff', border: '2px solid #e5e7eb', borderRadius: 14, padding: '13px 16px', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', outline: 'none' }} />
@@ -1655,9 +1673,20 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     // `auto-fill` + `minmax` dá 3 colunas no desktop e 1 no celular sem media
     // query nenhuma — e esta página é toda estilo inline, sem folha de estilo
     // onde escrever uma.
+    // Masonry de verdade (colunas CSS), e não grade: os cards têm alturas
+    // muito diferentes — um post com copy de 5 linhas e outro com uma — e a
+    // grade deixava buracos enormes embaixo dos curtos.
+    //
+    // Colunas preenchem coluna a coluna, o que embaralharia a prioridade se
+    // tudo estivesse numa lista só. Por isso o agrupamento por etapa vem
+    // ANTES: dentro de "Precisa captar" a ordem entre os cards não importa,
+    // entre os grupos importa muito.
     const gradeCards: React.CSSProperties = modoEquipe
-      ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 14, alignItems: 'start' }
+      ? { columnCount: 3, columnGap: 14, columnWidth: 330 }
       : { display: 'flex', flexDirection: 'column', gap: 14 }
+    const semQuebra: React.CSSProperties = modoEquipe
+      ? { breakInside: 'avoid', marginBottom: 14 }
+      : {}
 
     const cronoPending  = posts.filter(p => p.status === 'aguardando_aprovacao_crono').length
     const cronoApproved = posts.filter(p => p.approval_status === 'aprovado').length
@@ -1665,6 +1694,26 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     const pctCrono      = posts.length > 0 ? (cronoApproved / posts.length) * 100 : 0
 
     const campaigns  = [...new Set(posts.map(p => p.campaign_type).filter(Boolean))] as string[]
+    // No modo equipe o agrupamento é por ETAPA, não por campanha.
+    //
+    // Quem está na filmagem tem uma pergunta só: o que falta captar? Campanha
+    // é recorte de estratégia, útil pro cliente entender o mês — inútil de pé
+    // no salão do restaurante. E o que já foi ao ar vai pro fim: não some,
+    // porque serve de referência do que já existe, mas não disputa o topo.
+    const ETAPAS: { chave: string; titulo: string; status: string[]; cor: string }[] = [
+      { chave: 'captar',   titulo: 'Precisa captar',   status: ['captacao'],                                          cor: '#0ea5e9' },
+      { chave: 'produzir', titulo: 'Em produção',      status: ['producao', 'revisao_interna'],                       cor: '#8b5cf6' },
+      { chave: 'cliente',  titulo: 'Com o cliente',    status: ['aguardando_aprovacao', 'aguardando_aprovacao_crono', 'ajuste'], cor: '#ec4899' },
+      { chave: 'aprovado', titulo: 'Aprovado',         status: ['aprovado'],                                          cor: '#3b82f6' },
+      { chave: 'agendado', titulo: 'Agendado',         status: ['agendado'],                                          cor: '#14b8a6' },
+      { chave: 'noar',     titulo: 'Já no ar',         status: ['publicado'],                                         cor: '#22c55e' },
+    ]
+    const porEtapa = ETAPAS
+      // `posts` aqui já vem sem rascunho e sem descartado — a consulta do
+      // cronograma exclui os dois.
+      .map(e => ({ ...e, posts: posts.filter(p => e.status.includes(p.status)) }))
+      .filter(e => e.posts.length > 0)
+
     const byCampaign = campaigns.map(ct => ({ name: ct, posts: posts.filter(p => p.campaign_type === ct) }))
     const noCampaign = posts.filter(p => !p.campaign_type)
 
@@ -1742,23 +1791,50 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
               </div>
               )}
 
-              {byCampaign.map(({ name, posts: cposts }) => (
-                <div key={name} style={{ marginBottom: 24 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    <div style={{ flex: 1, height: 1, background: '#ebebeb' }} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: cc + '15', border: `1px solid ${cc}33`, borderRadius: 100, padding: '4px 12px' }}>
-                      <span style={{ fontSize: 12 }}>📣</span>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: cc, margin: 0 }}>Mini campanha: {name}</p>
-                      <span style={{ fontSize: 11, color: cc + 'aa', fontWeight: 600 }}>{cposts.length} posts</span>
-                    </div>
+              {/* Modo equipe agrupa por ETAPA; o cliente segue vendo por
+                  campanha. São duas perguntas diferentes na mesma tela: "o que
+                  falta captar" e "como o mês está organizado". */}
+              {modoEquipe ? porEtapa.map(({ chave, titulo, posts: eposts, cor }) => (
+                <div key={chave} style={{ marginBottom: 26 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 4, background: cor, flexShrink: 0 }} />
+                    <p style={{ fontSize: 13, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.01em' }}>{titulo}</p>
+                    <span style={{ fontSize: 12, color: '#9ca3af', fontWeight: 600 }}>{eposts.length}</span>
                     <div style={{ flex: 1, height: 1, background: '#ebebeb' }} />
                   </div>
-                  <div style={gradeCards}>{cposts.map(p => renderCronoCard(p))}</div>
+                  {/* O lembrete fica AQUI, uma vez, e não num botão por card.
+                      Nem todo post é prato — 12 botões "ficha do prato" numa
+                      captação de bebida viram ruído e sugerem obrigação. Uma
+                      linha na seção que importa lembra sem mandar. */}
+                  {chave === 'captar' && (
+                    <p style={{ fontSize: 12, color: '#9a6b3f', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 12, padding: '9px 12px', margin: '0 0 12px', lineHeight: 1.5 }}>
+                      🍽️ Se for prato, pergunte o <strong>nome exato</strong> e os <strong>ingredientes</strong> agora — depois só ligando pro cliente. Anote na observação do post.
+                    </p>
+                  )}
+                  <div style={gradeCards}>
+                    {eposts.map(p => <div key={p.id} style={semQuebra}>{renderCronoCard(p)}</div>)}
+                  </div>
                 </div>
-              ))}
-
-              {noCampaign.length > 0 && (
-                <div style={gradeCards}>{noCampaign.map(p => renderCronoCard(p))}</div>
+              )) : (
+                <>
+                  {byCampaign.map(({ name, posts: cposts }) => (
+                    <div key={name} style={{ marginBottom: 24 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                        <div style={{ flex: 1, height: 1, background: '#ebebeb' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: cc + '15', border: `1px solid ${cc}33`, borderRadius: 999, padding: '5px 12px' }}>
+                          <span style={{ fontSize: 12 }}>📣</span>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: cc, margin: 0 }}>Mini campanha: {name}</p>
+                          <span style={{ fontSize: 11, color: cc + 'aa', fontWeight: 600 }}>{cposts.length} posts</span>
+                        </div>
+                        <div style={{ flex: 1, height: 1, background: '#ebebeb' }} />
+                      </div>
+                      <div style={gradeCards}>{cposts.map(p => renderCronoCard(p))}</div>
+                    </div>
+                  ))}
+                  {noCampaign.length > 0 && (
+                    <div style={gradeCards}>{noCampaign.map(p => renderCronoCard(p))}</div>
+                  )}
+                </>
               )}
             </>
           )}
