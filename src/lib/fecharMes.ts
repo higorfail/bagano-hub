@@ -40,11 +40,22 @@ export type PostAberto = {
 
 /** O que fazer com um post que não terminou dentro do mês. */
 export type Saida =
-  /** Vai pro cronograma do mês seguinte — segue vivo, muda de lugar. */
+  /** Vai pro cronograma do mês em que se está trabalhando — segue vivo. */
   | 'mover'
   /** Saiu por fora do hub (stories antigo, publicação manual). */
   | 'publicado'
-  /** Fica onde está: alguém ainda vai resolver este. */
+  /**
+   * Não vai acontecer. Vira `cancelado`: some das telas de trabalho, da fila
+   * de aprovação e do fôlego, mas a linha FICA — com os comentários, o
+   * histórico e o que o cliente respondeu. Apagar levaria tudo junto, e o
+   * motivo de um post ter morrido costuma valer mais que o post.
+   */
+  | 'descartar'
+  /**
+   * Não decidi. Fica exatamente como está e o mês NÃO fecha — este post volta
+   * na lista. É uma saída honesta pra quando falta informação, e é diferente
+   * de fingir que houve decisão.
+   */
   | 'manter'
 
 export async function postsAbertosDoMes(
@@ -88,11 +99,13 @@ export async function aplicarFechamento(
   year: number,
   decisoes: Record<string, Saida>,
   ator?: { id?: string | null; name?: string | null },
-): Promise<{ movidos: number; publicados: number; mantidos: number; erro?: string }> {
+): Promise<{ movidos: number; publicados: number; descartados: number; mantidos: number; erro?: string }> {
   const supabase = createClient()
   const prox = destinoDoMover(month, year)
-  const mover = Object.entries(decisoes).filter(([, s]) => s === 'mover').map(([id]) => id)
-  const pub   = Object.entries(decisoes).filter(([, s]) => s === 'publicado').map(([id]) => id)
+  const ids = (alvo: Saida) => Object.entries(decisoes).filter(([, s]) => s === alvo).map(([id]) => id)
+  const mover = ids('mover')
+  const pub = ids('publicado')
+  const descartar = ids('descartar')
   const manter = Object.values(decisoes).filter(s => s === 'manter').length
 
   if (mover.length) {
@@ -101,12 +114,20 @@ export async function aplicarFechamento(
     // O número do post pode colidir no mês de destino — a trava é adiável, mas
     // vale por transação, e esta é outra. Quem chama precisa saber pra não
     // dizer "fechado" com metade aplicada.
-    if (error) return { movidos: 0, publicados: 0, mantidos: manter, erro: error.message }
+    if (error) return { movidos: 0, publicados: 0, descartados: 0, mantidos: manter, erro: error.message }
   }
   if (pub.length) {
     const { error } = await supabase.from('schedules')
       .update({ status: 'publicado' }).in('id', pub)
-    if (error) return { movidos: mover.length, publicados: 0, mantidos: manter, erro: error.message }
+    if (error) return { movidos: mover.length, publicados: 0, descartados: 0, mantidos: manter, erro: error.message }
+  }
+  if (descartar.length) {
+    const { error } = await supabase.from('schedules')
+      // Só o status. `approval_status` e os comentários ficam: é neles que
+      // está escrito POR QUE o post morreu, e é isso que alguém vai procurar
+      // daqui a três meses.
+      .update({ status: 'cancelado' }).in('id', descartar)
+    if (error) return { movidos: mover.length, publicados: pub.length, descartados: 0, mantidos: manter, erro: error.message }
   }
 
   await logActivity({
@@ -117,8 +138,9 @@ export async function aplicarFechamento(
     action: 'closed', actorName: ator?.name, actorId: ator?.id,
     description: `${ator?.name || 'Alguém'} fechou o cronograma de ${String(month).padStart(2, '0')}/${year}`
       + (mover.length ? ` · ${mover.length} passaram pro mês seguinte` : '')
-      + (pub.length ? ` · ${pub.length} marcados como publicados` : ''),
+      + (pub.length ? ` · ${pub.length} marcados como publicados` : '')
+      + (descartar.length ? ` · ${descartar.length} descartados` : ''),
   })
 
-  return { movidos: mover.length, publicados: pub.length, mantidos: manter }
+  return { movidos: mover.length, publicados: pub.length, descartados: descartar.length, mantidos: manter }
 }

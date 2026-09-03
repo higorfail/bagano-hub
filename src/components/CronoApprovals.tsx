@@ -73,7 +73,9 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
       const [{ data: postsRaw }, { data: cronos }, ativos] = await Promise.all([
         supabase.from('schedules')
           .select('id, client_id, month, year, status, post_number, title, post_type, scheduled_date')
-          .neq('status', NOT_SENT),
+          // Descartado fora da fila de aprovação de crono, pelo mesmo motivo
+          // de não ir pro cliente: ninguém aprova o que foi cancelado.
+          .not('status', 'in', `(${NOT_SENT},cancelado)`),
         supabase.from('cronograma_status').select('client_id, month, year, finalized_at'),
         // Cronograma de cliente desativado não espera aprovação de ninguém.
         activeClientIds(supabase),

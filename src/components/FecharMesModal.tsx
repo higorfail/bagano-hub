@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, ArrowRight, CheckCircle, Pause, ImageOff, Maximize2, type LucideIcon } from 'lucide-react'
+import { X, ArrowRight, CheckCircle, Pause, Ban, ImageOff, Maximize2, type LucideIcon } from 'lucide-react'
 import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
 import PostCard from '@/components/PostCard'
 import ModalPortal from '@/components/ModalPortal'
@@ -48,14 +48,17 @@ export default function FecharMesModal({ clientId, clientName, clientColor, mont
       { id: currentMember?.id, name: currentMember?.name })
     setSalvando(false)
     if (r.erro) { toast('Não deu pra fechar: ' + r.erro); return }
-    toast(`${MESES[month - 1]} fechado · ${r.movidos} movidos, ${r.publicados} publicados`)
+    toast(r.mantidos > 0
+      ? `${r.movidos + r.publicados + r.descartados} resolvidos · ${r.mantidos} ficaram pra depois`
+      : `${MESES[month - 1]} fechado ✓`)
     onDone()
   }
 
-  const OPCOES: { v: Saida; label: string; Icon: LucideIcon; cor: string }[] = [
-    { v: 'mover',     label: `Vai pra ${MESES[prox.month - 1].slice(0, 3)}`, Icon: ArrowRight,  cor: '#3b82f6' },
-    { v: 'publicado', label: 'Já saiu',                                       Icon: CheckCircle, cor: '#22c55e' },
-    { v: 'manter',    label: 'Fica aqui',                                     Icon: Pause,       cor: '#6b7280' },
+  const OPCOES: { v: Saida; label: string; ajuda: string; Icon: LucideIcon; cor: string }[] = [
+    { v: 'mover',     label: `Vai pra ${MESES[prox.month - 1].slice(0, 3)}`, ajuda: `entra no cronograma de ${MESES[prox.month - 1]}, no estado em que está`, Icon: ArrowRight,  cor: '#3b82f6' },
+    { v: 'publicado', label: 'Já saiu',    ajuda: 'foi publicado por fora do hub', Icon: CheckCircle, cor: '#22c55e' },
+    { v: 'descartar', label: 'Descartar',  ajuda: 'não vai acontecer — sai das telas, mas o histórico fica', Icon: Ban, cor: '#94a3b8' },
+    { v: 'manter',    label: 'Depois',     ajuda: 'não decidi — volta na próxima', Icon: Pause, cor: '#6b7280' },
   ]
 
   return (
@@ -102,12 +105,13 @@ export default function FecharMesModal({ clientId, clientName, clientColor, mont
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-1.5">
-                  {OPCOES.map(({ v, label, Icon, cor }) => {
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {OPCOES.map(({ v, label, ajuda, Icon, cor }) => {
                     const ativo = saidas[p.id] === v
                     return (
                       <button key={v} onClick={() => setSaidas(s => ({ ...s, [p.id]: v }))}
-                        className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold py-1.5 rounded-lg border transition-all"
+                        title={ajuda}
+                        className="flex items-center justify-center gap-1 text-[11px] font-semibold py-1.5 rounded-lg border transition-all"
                         style={ativo
                           ? { background: cor + '1a', color: cor, borderColor: cor + '55' }
                           : { color: 'var(--color-text-faint)', borderColor: 'var(--color-border)' }}>
@@ -121,9 +125,18 @@ export default function FecharMesModal({ clientId, clientName, clientColor, mont
           </div>
 
           <div className="px-5 py-4 border-t border-[var(--color-border)] flex items-center justify-between gap-3 bg-[var(--color-bg-alt)] rounded-b-2xl">
-            <p className="text-[11px] text-[var(--color-text-muted)]">
-              {conta('mover')} vão pra {MESES[prox.month - 1]} · {conta('publicado')} já saíram · {conta('manter')} ficam
-            </p>
+            {/* O rodapé diz o que vai acontecer E o que fica pendente — sem
+                isso, "fechar mês" com 5 em "Depois" pareceria ter fechado. */}
+            <div className="min-w-0">
+              <p className="text-[11px] text-[var(--color-text-muted)]">
+                {conta('mover')} pra {MESES[prox.month - 1]} · {conta('publicado')} já saíram · {conta('descartar')} descartados
+              </p>
+              {conta('manter') > 0 && (
+                <p className="text-[11px] font-semibold mt-0.5" style={{ color: 'var(--ds-warning-text, #b45309)' }}>
+                  {conta('manter')} sem decisão — {MESES[month - 1]} continua aberto
+                </p>
+              )}
+            </div>
             <button onClick={confirmar} disabled={salvando}
               className="px-4 py-2 text-sm font-semibold text-[var(--color-brand-fg)] bg-[var(--color-brand)] rounded-lg disabled:opacity-50">
               {salvando ? 'Fechando…' : 'Fechar mês'}

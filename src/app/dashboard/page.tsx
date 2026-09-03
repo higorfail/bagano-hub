@@ -77,7 +77,7 @@ type Schedule = {
 const ABERTO_NO_MES = [
   'estrategia', 'aguardando_aprovacao_crono', 'captacao', 'producao',
   'revisao_interna', 'aguardando_aprovacao', 'ajuste', 'aprovado', 'agendado',
-]
+]  // 'publicado' e 'cancelado' ficam de fora: os dois são fim.
 
 type SpecialDate = { id: string; name: string; date: string }
 type Captacao    = { id: string; client_id: string; scheduled_date: string; status: string; months_covered: number }
@@ -931,7 +931,10 @@ export default function DashboardPage() {
     // ainda não feito e atribuído a você caía fora da SUA lista. Se está
     // atribuído a você e não está fechado, é seu — em qualquer mês.
     return allSchedules.filter(s => {
-      if ([CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado].includes(s.status)) return false
+      // Descartado entra na lista dos fechados: post cancelado não é pendência
+      // de ninguém, e sem isto ele continuaria cobrando quem estava marcado —
+      // exatamente o problema que o descarte existe pra resolver.
+      if ([CFG.S.aprovado, CFG.S.agendado, CFG.S.publicado, 'cancelado'].includes(s.status)) return false
       // Em "Revisão interna" a estrategista do cliente vê o card MESMO sem
       // estar marcada nele — é etapa dela. Mas isso é um acréscimo, não uma
       // troca: quem está marcado continua vendo. Escrito como troca (um

@@ -554,7 +554,10 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     // mês. E o link só servia enquanto houvesse pendência, então não dava pra
     // mandar depois "olha o mês fechado".
     const schedulesQuery = tk.type === 'cronograma'
-      ? baseQuery.neq('status', 'estrategia')
+      // Descartado sai junto com rascunho: os dois são post que o cliente não
+      // precisa ver — um porque ainda não foi pensado, o outro porque não vai
+      // acontecer. Mostrá-lo seria pedir opinião sobre algo cancelado.
+      ? baseQuery.not('status', 'in', '(estrategia,cancelado)')
       : baseQuery.in('status', ['aguardando_aprovacao', 'aprovado', 'ajuste', 'agendado', 'publicado'])
 
     const [{ data: sc }, { data: ex }] = await Promise.all([schedulesQuery, extrasQuery])

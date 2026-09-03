@@ -21,7 +21,10 @@ export function isPostDone(status: string | null | undefined) {
 // pauta antes de sair do papel. `producao` fica FORA desta lista de propósito —
 // ali o material está sendo feito, e a pergunta que isto serve é "precisamos
 // produzir material novo?", que pra um post em produção já está respondida.
-export const POST_SEM_MATERIAL = ['estrategia', 'captacao']
+// `cancelado` entra aqui não por falta de material, mas porque não vai ao ar:
+// contar um post descartado como fôlego prometeria conteúdo que não existe,
+// que é o erro que esta lista existe pra evitar.
+export const POST_SEM_MATERIAL = ['estrategia', 'captacao', 'cancelado']
 
 /**
  * Este post conta como conteúdo que a agência tem em mãos?

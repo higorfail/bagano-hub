@@ -15,7 +15,7 @@
 export type StatusKey =
   | 'estrategia' | 'aguardando_aprovacao_crono' | 'captacao' | 'producao'
   | 'revisao_interna' | 'aguardando_aprovacao' | 'ajuste'
-  | 'aprovado' | 'agendado' | 'publicado' | 'pendente'
+  | 'aprovado' | 'agendado' | 'publicado' | 'pendente' | 'cancelado'
   | 'backlog' | 'feito' | 'finalizado' | 'done'
 
 type Meta = { label: string; short: string; color: string }
@@ -32,6 +32,11 @@ export const STATUS: Record<StatusKey, Meta> = {
   agendado:                   { label: 'Agendado',             short: 'Agendado',   color: '#14b8a6' },
   publicado:                  { label: 'Publicado',            short: 'Publicado',  color: '#22c55e' },
   pendente:                   { label: 'Pendente',             short: 'Pendente',   color: '#6b7280' },
+  // Fim que não é entrega. Ardósia apagada de propósito: não é o cinza de
+  // "ainda não começou" (esse é o `pendente`, e a diferença importa — um
+  // espera trabalho, o outro não espera nada), nem o verde de publicado, que
+  // celebraria um post que não aconteceu.
+  cancelado:                  { label: 'Descartado',           short: 'Descartado', color: '#94a3b8' },
 
   // Materiais e Extras têm um fluxo próprio, mais curto — não é o do
   // Cronograma e não deve ser forçado a ser. Mas as etapas que se chamam igual
@@ -54,6 +59,9 @@ export const STATUS_ORDER: StatusKey[] = [
   'revisao_interna', 'aguardando_aprovacao', 'ajuste',
   'aprovado', 'agendado', 'publicado',
 ]
+
+/** Etapas em que o post ACABOU — não espera mais ninguém. */
+export const POST_ENCERRADO: StatusKey[] = ['publicado', 'cancelado']
 
 export function statusColor(s: string | null | undefined): string {
   return STATUS[(s || '') as StatusKey]?.color || '#6b7280'
