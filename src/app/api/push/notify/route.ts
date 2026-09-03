@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
+import { quemAvisar } from '@/lib/quemAvisar'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   if (!body?.tableName || !body?.recordId) return NextResponse.json({ skipped: 'invalid body' })
 
-  const { tableName, recordId, clientId, actorId, actorName, description, skipPush, action } = body
+  const { tableName, recordId, clientId, actorId, actorName, description, skipPush, action, field } = body
   const buildUrl = URL_BY_TABLE[tableName]
   if (!buildUrl) return NextResponse.json({ skipped: 'unsupported table' })
 
@@ -111,51 +112,57 @@ export async function POST(req: NextRequest) {
   // sininho ficava vazio junto com o push.
   const canPush = !!(vapidPublic && vapidPrivate) && !skipPush
 
-  const { data: watchers } = await supabase.from('card_watchers')
-    .select('member_id').eq('table_name', tableName).eq('record_id', recordId)
-  let memberIds = [...new Set((watchers || []).map((w: any) => w.member_id))].filter(id => id && id !== actorId)
-
-  // Post de cronograma: precisa do estágio pra decidir quem mais avisar, e do
-  // month/year pro link abrir no mês certo (o Cronograma filtra por essas
-  // colunas, diferentes de scheduled_date — sem elas o deep-link abria o
-  // cliente certo mas no mês atual, sem o post).
-  let sched: { month?: number; year?: number; status?: string } | null = null
-  if (tableName === 'schedules') {
-    const { data } = await supabase.from('schedules').select('month, year, status').eq('id', recordId).maybeSingle()
-    sched = data
-  }
-
-  // Depois de aprovado o post é responsabilidade da Social Media — é ela quem
-  // agenda e publica. Qualquer mexida dali em diante (principalmente TROCAR A
-  // DATA) precisa chegar nela, mesmo que nunca tenha aberto o card. Sem isso
-  // ela só descobria a mudança ao procurar o post no dia e não achar — caso
-  // real com um post do Satō. Não basta virar watcher ao aprovar: quando quem
-  // aprova é o cliente pelo link público, esse caminho nem passa pelo Hub.
-  const isLiveStage = ['aprovado', 'agendado', 'publicado'].includes(sched?.status || '')
-  if (isLiveStage && clientId) {
-    const { data: social } = await supabase.from('client_team')
-      .select('member_id').eq('client_id', clientId).eq('funcao', 'social')
-    const socialIds = (social || []).map((s: any) => s.member_id).filter((id: string) => id && id !== actorId)
-    memberIds = [...new Set([...memberIds, ...socialIds])]
-  }
-
-  // Resposta do cliente (aprovou ou pediu ajuste) vai pra EQUIPE DO CLIENTE
-  // inteira, não só pra quem observa aquele card.
+  // ── Quem precisa saber ────────────────────────────────────────────────
   //
-  // Observar um card é escolha individual; atender um cliente é
-  // responsabilidade. Um pedido de ajuste que chega e não encontra nenhum
-  // observador simplesmente não avisava ninguém — e é o tipo de recado que
-  // não pode depender de alguém ter clicado em "observar" antes. Foi o que
-  // aconteceu com um ajuste do Entre Nós.
-  const CLIENT_REPLY = ['client_approved', 'client_rejected', 'crono_approved', 'crono_rejected']
-  if (CLIENT_REPLY.includes(action) && clientId) {
-    const { data: team } = await supabase.from('client_team')
-      .select('member_id').eq('client_id', clientId)
-    const teamIds = (team || []).map((t: any) => t.member_id).filter((id: string) => id && id !== actorId)
-    memberIds = [...new Set([...memberIds, ...teamIds])]
+  // Antes: TODOS os observadores do card, em qualquer mudança. Resultado
+  // medido em 4 dias: Yasmim 61 avisos/dia, Franz 50, Higor 49, Gabi 44 — e a
+  // equipe desligando o push, que é a reação sã e faz o hub perder junto os
+  // avisos que importam.
+  //
+  // Agora a regra é uma só, em src/lib/quemAvisar.ts: avisa quem RECEBE a
+  // bola. Fica num arquivo à parte porque é regra de negócio, não de
+  // transporte — e porque assim dá pra testar sem subir servidor.
+  const [{ data: watchers }, { data: equipe }] = await Promise.all([
+    supabase.from('card_watchers')
+      .select('member_id').eq('table_name', tableName).eq('record_id', recordId),
+    clientId
+      ? supabase.from('client_team').select('member_id, funcao').eq('client_id', clientId)
+      : Promise.resolve({ data: [] as { member_id: string; funcao: string }[] }),
+  ])
+
+  // Status e mês/ano do card. O status é o que decide o destinatário; o
+  // mês/ano faz o link abrir no cronograma certo (o Cronograma filtra por
+  // essas colunas, diferentes de scheduled_date — sem elas o deep-link abria
+  // o cliente certo no mês atual, sem o post).
+  let sched: { month?: number; year?: number; status?: string } | null = null
+  let atribuidos: string[] = []
+  if (tableName === 'schedules') {
+    const { data } = await supabase.from('schedules')
+      .select('month, year, status, assigned_members').eq('id', recordId).maybeSingle()
+    sched = data
+    atribuidos = (data as any)?.assigned_members || []
+  } else if (tableName === 'extras' || tableName === 'materials') {
+    const { data } = await supabase.from(tableName)
+      .select('status, assigned_members').eq('id', recordId).maybeSingle()
+    sched = data ? { status: (data as any).status } : null
+    atribuidos = (data as any)?.assigned_members || []
   }
 
-  if (memberIds.length === 0) return NextResponse.json({ sent: 0 })
+  const decisao = quemAvisar({
+    tabela: tableName,
+    action,
+    field,
+    statusNovo: sched?.status,
+    atribuidos,
+    observadores: [...new Set((watchers || []).map((w: any) => w.member_id))],
+    equipeDoCliente: (equipe || []) as { member_id: string; funcao: string }[],
+    atorId: actorId,
+  })
+
+  // Quem fez não é avisado do que fez.
+  const memberIds = [...new Set(decisao.ids)].filter(id => id && id !== actorId)
+
+  if (memberIds.length === 0) return NextResponse.json({ sent: 0, motivo: decisao.motivo })
 
   // Com vários clientes, "Gee moveu de X pra Y" sozinho não diz de qual —
   // antepõe o nome do cliente no título quando o card pertence a um.

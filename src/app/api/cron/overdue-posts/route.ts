@@ -131,6 +131,20 @@ export async function GET(req: NextRequest) {
   const clientNameById = new Map((clientsData || []).map(c => [c.id, c.name]))
 
   let sent = 0
+  // Não repetir a mesma cobrança todo dia.
+  //
+  // Medido: 91 dos 219 pares pessoa+post eram repetição, e achei o mesmo post
+  // cobrando a mesma pessoa 15 VEZES. Lembrete que se repete 15 vezes não é
+  // lembrete — é ruído com cara de urgência, e ensina a ignorar todos os
+  // outros. Uma semana de silêncio antes de cobrar de novo.
+  const JANELA_DIAS = 7
+  const desde = new Date(Date.now() - JANELA_DIAS * 86400000).toISOString()
+  const { data: jaAvisados } = await supabase.from('hub_notifications')
+    .select('member_id, card_id').eq('kind', 'overdue').gte('created_at', desde)
+  const cobradoRecente = new Set((jaAvisados || []).map(n => `${n.card_id}:${n.member_id}`))
+
+  let repetidosEvitados = 0
+
   for (const item of reminders) {
     const key = `${item.table}:${item.id}:${item.stage}`
     if (alreadySent.has(key)) continue
@@ -160,6 +174,16 @@ export async function GET(req: NextRequest) {
     const { data: subs } = await supabase.from('push_subscriptions')
       .select('id, endpoint, p256dh, auth').in('member_id', memberIds)
     if (!subs || subs.length === 0) continue
+
+    // "Vence hoje" e "vence em 2 dias" continuam avisando todo dia: são o
+    // aviso ANTES do estrago, e a repetição ali é o ponto. Só o "já atrasou"
+    // cala, porque a pessoa já sabe.
+    if (item.stage === 'overdue') {
+      const antes = memberIds.length
+      memberIds = memberIds.filter(id => !cobradoRecente.has(`${item.id}:${id}`))
+      repetidosEvitados += antes - memberIds.length
+      if (memberIds.length === 0) continue
+    }
 
     const daysLate = Math.max(1, Math.round((Date.now() - new Date(item.date + 'T00:00:00').getTime()) / 86400000))
     const { title, body } = MESSAGES[item.stage](item.title, daysLate)
