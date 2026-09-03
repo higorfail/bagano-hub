@@ -40,6 +40,7 @@ const POR_CLIENTE = [
   'src/lib/queries.ts',
   'src/lib/calendarSync.ts',        // grava numa captação por id, não lê em bloco
   'src/lib/renumerarPosts.ts',      // grava em posts por id, não lê em bloco
+  'src/lib/fecharMes.ts',           // lê os posts de UM cliente/mês
 ]
 
 const arquivos = []
