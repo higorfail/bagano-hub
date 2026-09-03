@@ -48,9 +48,10 @@ export async function GET(req: NextRequest) {
   const limite = new Date(Date.now() - PARADO_DIAS * 86400000).toISOString()
   const ativos = await activeClientIds(supabase)
 
-  const [{ data: scRaw }, { data: clientesRaw }] = await Promise.all([
+  const [{ data: scRaw }, { data: clientesRaw }, { data: equipes }] = await Promise.all([
     supabase.from('schedules').select('client_id, status, month, year, scheduled_date, updated_at'),
     supabase.from('clients').select('id, name').eq('status', 'active'),
+    supabase.from('client_team').select('client_id, funcao'),
   ])
   const sc = fromActiveClients(scRaw, ativos)
   const nome = new Map((clientesRaw || []).map(c => [c.id, c.name]))
@@ -72,6 +73,22 @@ export async function GET(req: NextRequest) {
     ABERTO.includes(s.status) && s.year * 12 + (s.month - 1) < mesAtual)
   const mesesAbertos = new Set(encalhados.map(s => `${s.client_id}:${s.year}-${s.month}`))
 
+  // 4. Cliente sem função definida.
+  //
+  // Isto não é organização, é buraco de AVISO: as regras de notificação leem
+  // client_team por cliente, então um cliente sem social é um cliente onde
+  // ninguém é avisado de post aprovado nem de material pronto. E o silêncio
+  // não se anuncia — descobre-se semanas depois, quando algo não foi feito.
+  const funcoesPorCliente = new Map<string, Set<string>>()
+  for (const t of equipes || []) {
+    if (!funcoesPorCliente.has(t.client_id)) funcoesPorCliente.set(t.client_id, new Set())
+    funcoesPorCliente.get(t.client_id)!.add(t.funcao)
+  }
+  const semFuncao = [...nome.keys()].filter(cid => {
+    const f = funcoesPorCliente.get(cid) || new Set()
+    return !f.has('estrategia') || !f.has('social') || !(f.has('videos') || f.has('posts'))
+  })
+
   const partes: string[] = []
   if (atrasados.length) partes.push(`${atrasados.length} ${atrasados.length === 1 ? 'post atrasado' : 'posts atrasados'}`)
   if (parados.length) {
@@ -79,6 +96,10 @@ export async function GET(req: NextRequest) {
     partes.push(`${parados.length} parados com ${clientesParados.length === 1 ? top : `${clientesParados.length} clientes`}${clientesParados.length > 1 ? ` (${top}…)` : ''}`)
   }
   if (mesesAbertos.size) partes.push(`${mesesAbertos.size} ${mesesAbertos.size === 1 ? 'mês não fechou' : 'meses não fecharam'}`)
+  if (semFuncao.length) {
+    const quais = semFuncao.slice(0, 2).map(c => nome.get(c) || 'cliente').join(' e ')
+    partes.push(`${semFuncao.length} sem equipe completa (${quais}${semFuncao.length > 2 ? '…' : ''}) — não recebem aviso`)
+  }
 
   // Dia sem nada a relatar não gera aviso. Resumo que chega todo dia dizendo
   // "tudo bem" é o mesmo ruído que ele veio substituir — e o silêncio passa a
@@ -116,6 +137,9 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     sent: enviados, gerentes: gerentes.length, body,
-    detalhe: { atrasados: atrasados.length, parados: parados.length, mesesAbertos: mesesAbertos.size },
+    detalhe: {
+      atrasados: atrasados.length, parados: parados.length,
+      mesesAbertos: mesesAbertos.size, semEquipe: semFuncao.map(c => nome.get(c)),
+    },
   })
 }
