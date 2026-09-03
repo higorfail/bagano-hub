@@ -39,10 +39,12 @@ export default function FecharMesModal({ clientId, clientName, clientColor, mont
     () => Object.fromEntries(posts.map(p => [p.id, 'mover' as Saida])))
   const [salvando, setSalvando] = useState(false)
   const [abrindo, setAbrindo] = useState<PostAberto | null>(null)
+  const [confirmando, setConfirmando] = useState(false)
 
   const conta = (s: Saida) => Object.values(saidas).filter(x => x === s).length
 
   async function confirmar() {
+    setConfirmando(false)
     setSalvando(true)
     const r = await aplicarFechamento(clientId, month, year, saidas,
       { id: currentMember?.id, name: currentMember?.name })
@@ -137,13 +139,62 @@ export default function FecharMesModal({ clientId, clientName, clientColor, mont
                 </p>
               )}
             </div>
-            <button onClick={confirmar} disabled={salvando}
+            <button onClick={() => setConfirmando(true)} disabled={salvando}
               className="px-4 py-2 text-sm font-semibold text-[var(--color-brand-fg)] bg-[var(--color-brand)] rounded-lg disabled:opacity-50">
               {salvando ? 'Fechando…' : 'Fechar mês'}
             </button>
           </div>
         </div>
       </div>
+
+      {/* Confirmação, porque isto mexe em muitos posts de uma vez e não tem
+          desfazer na tela. Um fechamento errado do Satō moveu 29 posts com um
+          clique — e o único jeito de voltar foi eu mexer no banco. */}
+      {confirmando && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4"
+          onClick={e => { if (e.target === e.currentTarget) setConfirmando(false) }}>
+          <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-sm p-5 shadow-pop">
+            <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+              Fechar {MESES[month - 1]} do {clientName}?
+            </p>
+
+            <div className="mt-3 flex flex-col gap-1.5 text-xs text-[var(--color-text-secondary)]">
+              {conta('mover') > 0 && (
+                <p><strong className="text-[var(--color-text-primary)]">{conta('mover')}</strong> {conta('mover') === 1 ? 'post vai' : 'posts vão'} pro cronograma de <strong className="text-[var(--color-text-primary)]">{MESES[prox.month - 1]}</strong>, no mesmo estado — quem espera o cliente continua esperando.</p>
+              )}
+              {conta('publicado') > 0 && (
+                <p><strong className="text-[var(--color-text-primary)]">{conta('publicado')}</strong> {conta('publicado') === 1 ? 'passa' : 'passam'} a constar como <strong className="text-[var(--color-text-primary)]">publicado</strong>. Some das telas de trabalho e entra no que já foi ao ar.</p>
+              )}
+              {conta('descartar') > 0 && (
+                <p><strong className="text-[var(--color-text-primary)]">{conta('descartar')}</strong> {conta('descartar') === 1 ? 'vira' : 'viram'} <strong className="text-[var(--color-text-primary)]">descartado</strong>. Sai das telas e da fila de aprovação; comentários e histórico ficam.</p>
+              )}
+              {conta('manter') > 0 && (
+                <p style={{ color: 'var(--ds-warning-text, #b45309)' }}>
+                  <strong>{conta('manter')}</strong> {conta('manter') === 1 ? 'fica' : 'ficam'} sem mexer, então {MESES[month - 1]} continua na lista.
+                </p>
+              )}
+            </div>
+
+            {/* Dizer que não há desfazer é mais honesto que oferecer um que
+                não existe. E é a informação que muda o comportamento. */}
+            <p className="mt-3 text-[11px] text-[var(--color-text-faint)] leading-relaxed">
+              Não há como desfazer daqui. Nada é apagado — dá pra corrigir post
+              a post depois, mudando o mês ou o status de cada um.
+            </p>
+
+            <div className="mt-4 flex gap-2 justify-end">
+              <button onClick={() => setConfirmando(false)}
+                className="px-3 py-2 text-xs font-semibold rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">
+                Voltar
+              </button>
+              <button onClick={confirmar}
+                className="px-4 py-2 text-xs font-semibold rounded-lg bg-[var(--color-brand)] text-[var(--color-brand-fg)]">
+                Sim, fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* O card por cima do fechamento, sem fechá-lo: quem abre um post aqui
           está conferindo pra decidir, e perder as outras 11 decisões já

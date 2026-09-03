@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { fromActiveClients } from '@/lib/activeClients'
-import { statusBadge, statusShort } from '@/lib/status'
+import { statusShort } from '@/lib/status'
 import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
 import { ABERTO } from '@/lib/fecharMes'
 import FecharMesModal from '@/components/FecharMesModal'
@@ -99,30 +99,56 @@ export default function FecharMesPage() {
         </div>
       )}
 
-      {grupos.map(g => {
-        const c = nome(g.clientId)
-        return (
-          <div key={`${g.clientId}-${g.year}-${g.month}`}
-            className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden">
-            <div className="px-4 py-3 flex items-center gap-3 border-b border-[var(--color-border)]">
-              <div className="w-1.5 h-9 rounded-full flex-shrink-0" style={{ background: c?.color_hex || '#94a3b8' }} />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-[var(--color-text-primary)] truncate">{c?.name || 'Cliente'}</p>
+      {/* Uma linha por mês, não uma galeria.
+          A versão anterior dava 5 prévias enormes por cliente e cortava o
+          resto — 63 posts em 7 meses viravam uma rolagem de imagens sem ação
+          nenhuma à vista. Aqui a linha é a unidade: quem é, quantos, e o que
+          fazer. A prévia entra pequena, só pra dar a cara do mês, e o detalhe
+          mora no modal, onde a decisão acontece. */}
+      <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl divide-y divide-[var(--color-border)] overflow-hidden">
+        {grupos.map(g => {
+          const c = nome(g.clientId)
+          return (
+            <div key={`${g.clientId}-${g.year}-${g.month}`} className="flex items-center gap-3 px-3 py-2.5">
+              <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ background: c?.color_hex || '#94a3b8' }} />
+
+              <div className="min-w-0 w-40 sm:w-52 flex-shrink-0">
+                <p className="text-[13px] font-semibold text-[var(--color-text-primary)] truncate">{c?.name || 'Cliente'}</p>
                 <p className="text-[11px] text-[var(--color-text-muted)]">
-                  {MESES[g.month - 1]} {g.year} · {g.posts.length} {g.posts.length === 1 ? 'post aberto' : 'posts abertos'}
+                  {MESES[g.month - 1].slice(0, 3)} {g.year} · {g.posts.length} {g.posts.length === 1 ? 'post' : 'posts'}
                 </p>
               </div>
-              <button onClick={() => setFechando(g)}
-                className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-[var(--color-brand)] text-[var(--color-brand-fg)] flex-shrink-0">
-                Fechar mês
-              </button>
+
+              {/* Fila de miniaturas: dá pra reconhecer o mês de relance sem
+                  transformar a tela em mural. O "+N" diz que há mais, em vez
+                  de deixar a fila cortada no meio fingindo que acabou. */}
+              <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
+                {g.posts.slice(0, 8).map(p => (
+                  <Previa key={p.id} post={p} onAbrir={() => setAbrindo(p)} />
+                ))}
+                {g.posts.length > 8 && (
+                  <span className="text-[11px] text-[var(--color-text-faint)] pl-1 flex-shrink-0">
+                    +{g.posts.length - 8}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {/* Os status resumidos: um mês inteiro em "Ag. cliente" é uma
+                    conversa com o cliente; um misturado é trabalho nosso. A
+                    decisão muda, então o dado aparece antes de decidir. */}
+                <span className="hidden md:inline text-[10px] text-[var(--color-text-faint)] mr-1">
+                  {resumoStatus(g.posts)}
+                </span>
+                <button onClick={() => setFechando(g)}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                  Resolver
+                </button>
+              </div>
             </div>
-            <div className="p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-              {g.posts.map(p => <Previa key={p.id} post={p} onAbrir={() => setAbrindo(p)} />)}
-            </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
 
       {fechando && (
         <FecharMesModal
@@ -154,27 +180,25 @@ export default function FecharMesPage() {
 // que nunca saiu do papel se parecem MUITO numa lista de texto — e são decisões
 // opostas.
 function Previa({ post, onAbrir }: { post: Post; onAbrir: () => void }) {
-  const ehVideo = post.post_type === 'reels'
-  const { thumbUrl } = useDriveThumbnail(post.drive_url, post.drive_folder_url, ehVideo)
+  const { thumbUrl } = useDriveThumbnail(post.drive_url, post.drive_folder_url, post.post_type === 'reels')
   const [quebrou, setQuebrou] = useState(false)
-
   return (
-    <button onClick={onAbrir}
-      className="text-left rounded-xl border border-[var(--color-border)] overflow-hidden hover:border-[var(--color-border-hover)] transition-colors">
-      <div className="aspect-square bg-[var(--color-bg-subtle)] flex items-center justify-center overflow-hidden">
-        {thumbUrl && !quebrou
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={thumbUrl} alt="" className="w-full h-full object-cover" onError={() => setQuebrou(true)} />
-          : <ImageOff size={18} className="text-[var(--color-text-faint)]" />}
-      </div>
-      <div className="p-2 flex flex-col gap-1">
-        <p className="text-[11px] font-medium text-[var(--color-text-primary)] truncate">
-          <span className="text-[var(--color-text-faint)]">#{post.post_number ?? '—'}</span> {post.title || 'Sem título'}
-        </p>
-        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md self-start" style={statusBadge(post.status)}>
-          {statusShort(post.status)}
-        </span>
-      </div>
+    <button onClick={onAbrir} title={`#${post.post_number ?? '—'} ${post.title || 'Sem título'}`}
+      className="w-9 h-9 rounded-md overflow-hidden bg-[var(--color-bg-subtle)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0 hover:border-[var(--color-border-hover)] transition-colors">
+      {thumbUrl && !quebrou
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={thumbUrl} alt="" className="w-full h-full object-cover" onError={() => setQuebrou(true)} />
+        : <ImageOff size={12} className="text-[var(--color-text-faint)]" />}
     </button>
   )
+}
+
+/** "29 ag. cliente" ou "6 ag. crono · 4 produção" — o que o mês está esperando. */
+function resumoStatus(posts: Post[]): string {
+  const c = new Map<string, number>()
+  for (const p of posts) c.set(p.status, (c.get(p.status) || 0) + 1)
+  return [...c.entries()]
+    .sort((a, b) => b[1] - a[1]).slice(0, 2)
+    .map(([st, n]) => `${n} ${statusShort(st).toLowerCase()}`)
+    .join(' · ')
 }
