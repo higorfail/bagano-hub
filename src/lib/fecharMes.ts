@@ -5,10 +5,15 @@ import { logActivity } from './activity'
 
 // Fechar o mês de um cliente.
 //
-// O hub sabia marcar um cronograma como "finalizado", mas isso não fazia nada
-// com os posts que continuavam abertos — e é por isso que 58 posts estavam
-// parados em cronograma de mês passado, sendo 29 de junho de um cliente só.
-// Finalizar era um carimbo; o trabalho seguia aberto embaixo dele.
+// NÃO confundir com "finalizar cronograma", que já existe e é outra coisa: ali
+// a estrategista diz que a PAUTA está pronta pra ir ao cliente, e o ciclo
+// COMEÇA — depois vem captação, produção, aprovação da arte. Finalizar é o
+// primeiro passo do mês; fechar é o último, e nunca existiu.
+//
+// É essa ausência que deixou 58 posts parados em cronograma de mês passado,
+// 29 deles de junho de um cliente só. Um mês nunca terminava; ele só parava de
+// receber atenção, e o que sobrava seguia contando como trabalho aberto pra
+// sempre.
 //
 // Um mês fecha quando cada post aberto tem um destino. Nunca automaticamente:
 // post parado esperando o cliente não é lixo a varrer, é conversa sem resposta.
@@ -90,7 +95,10 @@ export async function aplicarFechamento(
 
   await logActivity({
     tableName: 'cronograma_status', recordId: clientId, clientId,
-    action: 'finalized', actorName: ator?.name, actorId: ator?.id,
+    // `closed` e não `finalized`: finalizar é o começo do ciclo (pauta pronta
+    // pro cliente) e já usa aquele nome. Compartilhar a ação misturaria as
+    // duas pontas do mês no mesmo registro do histórico.
+    action: 'closed', actorName: ator?.name, actorId: ator?.id,
     description: `${ator?.name || 'Alguém'} fechou o cronograma de ${String(month).padStart(2, '0')}/${year}`
       + (mover.length ? ` · ${mover.length} passaram pro mês seguinte` : '')
       + (pub.length ? ` · ${pub.length} marcados como publicados` : ''),

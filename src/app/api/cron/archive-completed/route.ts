@@ -8,17 +8,25 @@ const supabase = createClient(
 
 const ARCHIVE_AFTER_DAYS = 7
 
-// Link de aprovação de mês passado não deveria abrir mais.
+// Link de aprovação morre quando não há mais o que aprovar.
 //
 // São 114 links públicos ativos, o mais antigo de 19/06 — cada um uma URL
-// permanente pro conteúdo de um cliente, sem login. O de junho não protege
-// nada: aquele cronograma acabou. Mantê-lo vivo é superfície aberta em troca
-// de zero utilidade.
+// permanente pro conteúdo de um cliente, sem login.
 //
-// Dois meses cheios de folga porque cronograma atrasa: o de agosto só é
-// desativado em novembro. Quem precisar de um link morto gera outro — o hub
-// cria sob demanda.
-const TOKEN_EXPIRA_APOS_MESES = 2
+// A primeira regra que escrevi era por TEMPO, e o ensaio mostrou que o tempo é
+// o sinal errado: 62 dos 114 são de julho, e julho ainda tem 13 posts
+// esperando resposta do cliente. Aqueles links estão vivos porque o trabalho
+// não acabou — matá-los por idade cortaria a conversa no meio.
+//
+// O sinal certo é o estado: se o cliente já respondeu tudo daquele mês, o
+// link cumpriu a função. A idade entra só como teto, pro caso do mês que
+// nunca fecha — senão um cronograma abandonado deixa a porta aberta pra
+// sempre.
+const TOKEN_IDADE_MINIMA_MESES = 1
+const TOKEN_TETO_MESES = 6
+
+/** Etapas em que o post ainda espera alguma resposta do cliente. */
+const ESPERANDO_CLIENTE = ['aguardando_aprovacao', 'aguardando_aprovacao_crono', 'ajuste']
 
 // Roda 1x/dia (ver vercel.json) e arquiva Extras/Materiais concluídos há mais
 // de ARCHIVE_AFTER_DAYS dias, pra eles pararem de ocupar espaço no board sem
@@ -51,25 +59,45 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: extrasError?.message || materialsError?.message }, { status: 500 })
   }
 
-  // Desativa link de aprovação de cronograma velho. `active = false` e não
-  // DELETE: o token é a chave de leitura do histórico de aprovação, e apagar
-  // a linha levaria junto o registro de que aquele link existiu.
+  // Desativa link de aprovação de cronograma que já não espera nada.
+  //
+  // `active = false` e não DELETE: o token é a chave de leitura do histórico
+  // de aprovação, e apagar a linha levaria junto o registro de que aquele link
+  // existiu. Quem precisar de um link morto gera outro — o hub cria sob
+  // demanda.
   const agora = new Date()
-  let limite = agora.getMonth() + 1 - TOKEN_EXPIRA_APOS_MESES
-  let anoLimite = agora.getFullYear()
-  while (limite <= 0) { limite += 12; anoLimite -= 1 }
+  const mesAbs = agora.getFullYear() * 12 + agora.getMonth()   // mês corrente em nº absoluto
 
-  const { data: tokens, error: tokenError } = await supabase.from('approval_tokens')
-    .update({ active: false })
-    .eq('active', true)
-    // Ano anterior sai inteiro; no ano corrente, só o que é anterior ao limite.
-    .or(`year.lt.${anoLimite},and(year.eq.${anoLimite},month.lt.${limite})`)
-    .select('id')
+  const { data: ativos } = await supabase.from('approval_tokens')
+    .select('id, client_id, month, year').eq('active', true)
+
+  // Um pedido só pra tudo: os pendentes por cliente+mês. Perguntar token a
+  // token seriam ~114 idas ao banco pra responder a mesma coisa.
+  const { data: pendentes } = await supabase.from('schedules')
+    .select('client_id, month, year').in('status', ESPERANDO_CLIENTE)
+  const temPendencia = new Set(
+    (pendentes || []).map(p => `${p.client_id}:${p.year}-${p.month}`))
+
+  const expirar = (ativos || []).filter(t => {
+    const idade = mesAbs - (t.year * 12 + (t.month - 1))
+    if (idade < TOKEN_IDADE_MINIMA_MESES) return false          // mês corrente nunca
+    if (idade >= TOKEN_TETO_MESES) return true                  // teto: mês que nunca fecha
+    return !temPendencia.has(`${t.client_id}:${t.year}-${t.month}`)
+  }).map(t => t.id)
+
+  let tokensExpirados = 0
+  let tokenError: string | undefined
+  if (expirar.length) {
+    const { data, error } = await supabase.from('approval_tokens')
+      .update({ active: false }).in('id', expirar).select('id')
+    tokensExpirados = data?.length || 0
+    tokenError = error?.message
+  }
 
   return NextResponse.json({
     extrasArchived: extras?.length || 0,
     materialsArchived: materials?.length || 0,
-    tokensExpirados: tokens?.length || 0,
-    ...(tokenError ? { tokenError: tokenError.message } : {}),
+    tokensExpirados,
+    ...(tokenError ? { tokenError } : {}),
   })
 }
