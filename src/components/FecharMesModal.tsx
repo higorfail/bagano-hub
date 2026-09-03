@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { X, ArrowRight, CheckCircle, Pause } from 'lucide-react'
+import { X, ArrowRight, CheckCircle, Pause, ImageOff, Maximize2, type LucideIcon } from 'lucide-react'
+import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
+import PostCard from '@/components/PostCard'
 import ModalPortal from '@/components/ModalPortal'
 import { statusBadge, statusShort } from '@/lib/status'
-import { aplicarFechamento, proximoMes, type PostAberto, type Saida } from '@/lib/fecharMes'
+import { aplicarFechamento, destinoDoMover, type PostAberto, type Saida } from '@/lib/fecharMes'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 
@@ -16,9 +18,10 @@ const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','ag
 // só estão todos "esperando o cliente", mas dentro disso há os que ele vai
 // aprovar e os que morreram. Quem fecha precisa ver o que está decidindo — por
 // isso a lista aparece, com um padrão sugerido e não imposto.
-export default function FecharMesModal({ clientId, clientName, month, year, posts, onClose, onDone }: {
+export default function FecharMesModal({ clientId, clientName, clientColor, month, year, posts, onClose, onDone }: {
   clientId: string
   clientName: string
+  clientColor?: string
   month: number
   year: number
   posts: PostAberto[]
@@ -27,7 +30,7 @@ export default function FecharMesModal({ clientId, clientName, month, year, post
 }) {
   const { toast } = useToast()
   const { currentMember } = useUser()
-  const prox = proximoMes(month, year)
+  const prox = destinoDoMover(month, year)
 
   // Padrão "mover": o que sobrou de um mês quase sempre continua valendo — o
   // conteúdo não some porque a folhinha virou. Publicado e manter são exceção,
@@ -35,6 +38,7 @@ export default function FecharMesModal({ clientId, clientName, month, year, post
   const [saidas, setSaidas] = useState<Record<string, Saida>>(
     () => Object.fromEntries(posts.map(p => [p.id, 'mover' as Saida])))
   const [salvando, setSalvando] = useState(false)
+  const [abrindo, setAbrindo] = useState<PostAberto | null>(null)
 
   const conta = (s: Saida) => Object.values(saidas).filter(x => x === s).length
 
@@ -48,7 +52,7 @@ export default function FecharMesModal({ clientId, clientName, month, year, post
     onDone()
   }
 
-  const OPCOES: { v: Saida; label: string; Icon: any; cor: string }[] = [
+  const OPCOES: { v: Saida; label: string; Icon: LucideIcon; cor: string }[] = [
     { v: 'mover',     label: `Vai pra ${MESES[prox.month - 1].slice(0, 3)}`, Icon: ArrowRight,  cor: '#3b82f6' },
     { v: 'publicado', label: 'Já saiu',                                       Icon: CheckCircle, cor: '#22c55e' },
     { v: 'manter',    label: 'Fica aqui',                                     Icon: Pause,       cor: '#6b7280' },
@@ -78,14 +82,25 @@ export default function FecharMesModal({ clientId, clientName, month, year, post
           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
             {posts.map(p => (
               <div key={p.id} className="border border-[var(--color-border)] rounded-xl p-3 flex flex-col gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[10px] font-semibold text-[var(--color-text-faint)] flex-shrink-0">#{p.post_number ?? '—'}</span>
-                  <span className="text-xs font-medium text-[var(--color-text-primary)] truncate flex-1">
-                    {p.title || 'Sem título'}
-                  </span>
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex-shrink-0" style={statusBadge(p.status)}>
-                    {statusShort(p.status)}
-                  </span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Miniatura post={p} onAbrir={() => setAbrindo(p)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[10px] font-semibold text-[var(--color-text-faint)] flex-shrink-0">#{p.post_number ?? '—'}</span>
+                      <span className="text-xs font-medium text-[var(--color-text-primary)] truncate">
+                        {p.title || 'Sem título'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md" style={statusBadge(p.status)}>
+                        {statusShort(p.status)}
+                      </span>
+                      <button onClick={() => setAbrindo(p)}
+                        className="text-[10px] font-semibold text-[var(--color-accent)] flex items-center gap-0.5 hover:underline">
+                        <Maximize2 size={9} /> abrir
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex gap-1.5">
                   {OPCOES.map(({ v, label, Icon, cor }) => {
@@ -116,6 +131,38 @@ export default function FecharMesModal({ clientId, clientName, month, year, post
           </div>
         </div>
       </div>
+
+      {/* O card por cima do fechamento, sem fechá-lo: quem abre um post aqui
+          está conferindo pra decidir, e perder as outras 11 decisões já
+          marcadas pra ver uma arte seria um preço absurdo. */}
+      {abrindo && (
+        <PostCard
+          postId={abrindo.id}
+          clientId={clientId}
+          clientName={clientName}
+          clientColor={clientColor}
+          month={month}
+          year={year}
+          onClose={() => setAbrindo(null)}
+          onSaved={() => setAbrindo(null)}
+        />
+      )}
     </ModalPortal>
+  )
+}
+
+// Miniatura da arte. Sem ela, "Pizza Doce" e "Detalhes" são a mesma coisa na
+// tela — e um pode ter arte pronta e o outro nunca ter saído do papel.
+function Miniatura({ post, onAbrir }: { post: PostAberto; onAbrir: () => void }) {
+  const { thumbUrl } = useDriveThumbnail(post.drive_url, post.drive_folder_url, post.post_type === 'reels')
+  const [quebrou, setQuebrou] = useState(false)
+  return (
+    <button onClick={onAbrir}
+      className="w-12 h-12 rounded-lg overflow-hidden bg-[var(--color-bg-subtle)] flex items-center justify-center flex-shrink-0 border border-[var(--color-border)]">
+      {thumbUrl && !quebrou
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={thumbUrl} alt="" className="w-full h-full object-cover" onError={() => setQuebrou(true)} />
+        : <ImageOff size={14} className="text-[var(--color-text-faint)]" />}
+    </button>
   )
 }

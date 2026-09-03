@@ -128,6 +128,7 @@ export default function FecharMesPage() {
         <FecharMesModal
           clientId={fechando.clientId}
           clientName={nome(fechando.clientId)?.name || 'Cliente'}
+          clientColor={nome(fechando.clientId)?.color_hex}
           month={fechando.month} year={fechando.year} posts={fechando.posts}
           onClose={() => setFechando(null)}
           onDone={() => { setFechando(null); recarregar() }}

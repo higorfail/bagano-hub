@@ -32,6 +32,10 @@ export type PostAberto = {
   status: string
   post_number: number | null
   post_type: string | null
+  // A prévia é o que faz decidir: post com arte pronta e post que nunca saiu
+  // do papel são idênticos numa lista de texto, e são decisões opostas.
+  drive_url?: string | null
+  drive_folder_url?: string | null
 }
 
 /** O que fazer com um post que não terminou dentro do mês. */
@@ -47,16 +51,28 @@ export async function postsAbertosDoMes(
   clientId: string, month: number, year: number,
 ): Promise<PostAberto[]> {
   const { data } = await createClient().from('schedules')
-    .select('id, title, status, post_number, post_type')
+    .select('id, title, status, post_number, post_type, drive_url, drive_folder_url')
     .eq('client_id', clientId).eq('month', month).eq('year', year)
     .in('status', ABERTO)
     .order('post_number')
   return (data || []) as PostAberto[]
 }
 
-/** Mês seguinte, virando o ano quando precisa. */
-export function proximoMes(month: number, year: number) {
-  return month === 12 ? { month: 1, year: year + 1 } : { month: month + 1, year }
+/**
+ * Pra onde o post vai quando o mês fecha.
+ *
+ * NÃO é o mês seguinte literal. Fechando julho em setembro, "mês seguinte" é
+ * agosto — que também já passou: o post sairia de um mês encalhado pra outro e
+ * voltaria pra lista no mesmo instante. O destino útil é o mês em que se está
+ * trabalhando.
+ *
+ * Fechando o mês passado, o seguinte JÁ É o corrente, e a regra não muda nada.
+ */
+export function destinoDoMover(month: number, year: number, hoje = new Date()) {
+  const seguinte = month === 12 ? { month: 1, year: year + 1 } : { month: month + 1, year }
+  const corrente = { month: hoje.getMonth() + 1, year: hoje.getFullYear() }
+  const abs = (d: { month: number; year: number }) => d.year * 12 + d.month
+  return abs(seguinte) >= abs(corrente) ? seguinte : corrente
 }
 
 /**
@@ -74,7 +90,7 @@ export async function aplicarFechamento(
   ator?: { id?: string | null; name?: string | null },
 ): Promise<{ movidos: number; publicados: number; mantidos: number; erro?: string }> {
   const supabase = createClient()
-  const prox = proximoMes(month, year)
+  const prox = destinoDoMover(month, year)
   const mover = Object.entries(decisoes).filter(([, s]) => s === 'mover').map(([id]) => id)
   const pub   = Object.entries(decisoes).filter(([, s]) => s === 'publicado').map(([id]) => id)
   const manter = Object.values(decisoes).filter(s => s === 'manter').length
