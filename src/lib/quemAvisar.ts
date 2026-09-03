@@ -18,6 +18,8 @@ export type Funcao = 'videos' | 'posts' | 'estrategia' | 'social' | 'acompanha' 
 
 export type Evento = {
   tabela: string
+  /** role de cada pessoa (team_members.role), pra saber quem é gerente. */
+  papeis?: Record<string, string>
   action: string
   /** Qual campo mudou, quando `action === 'updated'`. */
   field?: string | null
@@ -35,6 +37,9 @@ export type Decisao = { ids: string[]; motivo: string }
 
 const NINGUEM = (motivo: string): Decisao => ({ ids: [], motivo })
 
+/** Só quem foi marcado NELE — comentário e menção furam a regra do gerente. */
+const CONVERSA = ['commented']
+
 /** Quem tem uma função na equipe daquele cliente. */
 function porFuncao(e: Evento, ...funcoes: Funcao[]): string[] {
   return (e.equipeDoCliente || [])
@@ -49,7 +54,29 @@ function porFuncao(e: Evento, ...funcoes: Funcao[]): string[] {
  */
 const producao = (e: Evento) => porFuncao(e, 'videos', 'posts')
 
+/**
+ * Gerente não recebe aviso avulso.
+ *
+ * Não é sobre volume — o Otávio recebia 15/dia, longe do pior. É sobre o que
+ * a informação faz: gerente com stream operacional vira gerente que ignora
+ * tudo, e aí perde também o aviso que importava. O lugar dele é o resumo
+ * diário (/api/cron/resumo-gerente), que responde "como a agência está" em vez
+ * de "o que aconteceu agora".
+ */
+const GERENTE = 'gerente'
+
 export function quemAvisar(e: Evento): Decisao {
+  const bruto = decidir(e)
+  // Conversa direta continua chegando: se alguém comenta marcando o gerente,
+  // é uma pergunta pra ele, não um relatório de estado.
+  if (CONVERSA.includes(e.action)) return bruto
+  return {
+    ids: bruto.ids.filter(id => (e.papeis || {})[id] !== GERENTE),
+    motivo: bruto.motivo,
+  }
+}
+
+function decidir(e: Evento): Decisao {
   const social = () => porFuncao(e, 'social')
   const estrategia = () => porFuncao(e, 'estrategia')
   const marcados = e.atribuidos || []
@@ -67,6 +94,16 @@ export function quemAvisar(e: Evento): Decisao {
       return { ids: social(), motivo: 'data mudou num post já programado' }
     }
     return NINGUEM('edição de campo não avisa ninguém')
+  }
+
+  // ── Captação e agenda de criação ──────────────────────────────────────
+  //
+  // Vai pra quem está marcado, e não pra "quem recebe a bola": aqui não há
+  // próxima etapa, há um compromisso de agenda. Cancelar uma captação é o
+  // aviso mais caro de perder — a pessoa se organizou pro dia, às vezes viajou
+  // pra outra cidade, e descobrir no lugar é o pior desfecho.
+  if (e.tabela === 'captacoes' || e.tabela === 'agenda_criacao') {
+    return { ids: [...marcados, ...observa], motivo: 'compromisso de agenda de quem vai' }
   }
 
   // ── A bola chegou em você ─────────────────────────────────────────────

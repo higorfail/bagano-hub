@@ -122,13 +122,18 @@ export async function POST(req: NextRequest) {
   // Agora a regra é uma só, em src/lib/quemAvisar.ts: avisa quem RECEBE a
   // bola. Fica num arquivo à parte porque é regra de negócio, não de
   // transporte — e porque assim dá pra testar sem subir servidor.
-  const [{ data: watchers }, { data: equipe }] = await Promise.all([
+  const [{ data: watchers }, { data: equipe }, { data: papeisRaw }] = await Promise.all([
     supabase.from('card_watchers')
       .select('member_id').eq('table_name', tableName).eq('record_id', recordId),
     clientId
       ? supabase.from('client_team').select('member_id, funcao').eq('client_id', clientId)
       : Promise.resolve({ data: [] as { member_id: string; funcao: string }[] }),
+    // O `role` de cada um. É por ele que o gerente fica de fora do avulso —
+    // client_team.funcao não serve: lá o Otávio é 'acompanha', que também é a
+    // função do Felipe em dois clientes.
+    supabase.from('team_members').select('id, role'),
   ])
+  const papeis = Object.fromEntries((papeisRaw || []).map((m: any) => [m.id, m.role || '']))
 
   // Status e mês/ano do card. O status é o que decide o destinatário; o
   // mês/ano faz o link abrir no cronograma certo (o Cronograma filtra por
@@ -156,6 +161,7 @@ export async function POST(req: NextRequest) {
     atribuidos,
     observadores: [...new Set((watchers || []).map((w: any) => w.member_id))],
     equipeDoCliente: (equipe || []) as { member_id: string; funcao: string }[],
+    papeis,
     atorId: actorId,
   })
 

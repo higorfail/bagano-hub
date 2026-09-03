@@ -321,6 +321,17 @@ export default function AgendaPage() {
     setCaptacoes(p => p.map(c => c.id === id ? { ...c, status } : c))
     const { error } = await supabase.from('captacoes').update({ status }).eq('id', id)
     if (error) { setCaptacoes(prev); dbError(error, toast, 'mudar status'); return }
+    // Quem ia precisa saber. É o aviso mais caro de perder: a pessoa se
+    // organiza pro dia, às vezes viaja pra outra cidade, e descobrir no lugar
+    // que não tem filmagem é o pior desfecho possível.
+    if (capt && status === 'cancelada') {
+      await logActivity({
+        tableName: 'captacoes', recordId: capt.id, clientId: capt.client_id,
+        action: 'status_changed', actorName: currentMember?.name, actorId: currentMember?.id,
+        description: `${currentMember?.name || 'Alguém'} cancelou a captação do ${clientMap[capt.client_id]?.name || 'cliente'} de ${formatarData(capt.scheduled_date)}`,
+      })
+    }
+
     // Captação cancelada sai do Google. Deixar o evento de pé é pior que não
     // ter enviado: a equipe reserva o dia por causa de algo que não acontece.
     if (capt && status === 'cancelada' && capt.google_calendar_event_id) {
