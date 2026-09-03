@@ -33,7 +33,19 @@ export type Evento = {
   atorId?: string | null
 }
 
-export type Decisao = { ids: string[]; motivo: string }
+export type Decisao = {
+  ids: string[]
+  motivo: string
+  /**
+   * Os destinatários vieram de uma FUNÇÃO no cliente (social, estratégia,
+   * design), e não de "quem por acaso observa o card".
+   *
+   * A diferença decide se o gerente entra: ele fica fora do ruído genérico,
+   * mas quando ele É o estrategista de um cliente — o Otávio é, no Entre Nós —
+   * o aviso é responsabilidade dele, não relatório.
+   */
+  porFuncao?: boolean
+}
 
 const NINGUEM = (motivo: string): Decisao => ({ ids: [], motivo })
 
@@ -70,6 +82,9 @@ export function quemAvisar(e: Evento): Decisao {
   // Conversa direta continua chegando: se alguém comenta marcando o gerente,
   // é uma pergunta pra ele, não um relatório de estado.
   if (CONVERSA.includes(e.action)) return bruto
+  // Selecionado POR FUNÇÃO passa: ali ele não é gerente, é o estrategista
+  // daquele cliente. Silenciar isso apagava os avisos do Entre Nós inteiro.
+  if (bruto.porFuncao) return bruto
   return {
     ids: bruto.ids.filter(id => (e.papeis || {})[id] !== GERENTE),
     motivo: bruto.motivo,
@@ -91,7 +106,7 @@ function decidir(e: Evento): Decisao {
     const mexeuNaData = e.field === 'scheduled_date' || e.field === 'due_date'
     const jaProgramado = ['aprovado', 'agendado', 'publicado'].includes(e.statusNovo || '')
     if (mexeuNaData && jaProgramado) {
-      return { ids: social(), motivo: 'data mudou num post já programado' }
+      return { ids: social(), motivo: 'data mudou num post já programado', porFuncao: true }
     }
     return NINGUEM('edição de campo não avisa ninguém')
   }
@@ -119,10 +134,10 @@ function decidir(e: Evento): Decisao {
   // estrategista entra só quando a resposta é sobre a PAUTA, que é o trabalho
   // dela — não sobre a arte.
   if (e.action === 'client_approved' || e.action === 'client_rejected') {
-    return { ids: [...social(), ...producao(e)], motivo: 'cliente respondeu sobre a arte' }
+    return { ids: [...social(), ...producao(e)], motivo: 'cliente respondeu sobre a arte', porFuncao: true }
   }
   if (e.action === 'crono_approved' || e.action === 'crono_rejected') {
-    return { ids: [...estrategia(), ...social()], motivo: 'cliente respondeu sobre a pauta' }
+    return { ids: [...estrategia(), ...social()], motivo: 'cliente respondeu sobre a pauta', porFuncao: true }
   }
 
   // ── Atraso ────────────────────────────────────────────────────────────
@@ -135,15 +150,15 @@ function decidir(e: Evento): Decisao {
     if (e.tabela === 'schedules') {
       switch (s) {
         // Aprovado o crono, alguém precisa decidir captação ou produção.
-        case 'captacao':   return { ids: estrategia(), motivo: 'precisa decidir captação ou produção' }
-        case 'producao':   return { ids: [...marcados, ...producao(e)], motivo: 'material chegou, dá pra produzir' }
-        case 'revisao_interna': return { ids: estrategia(), motivo: 'arte pronta pra revisão' }
+        case 'captacao':   return { ids: estrategia(), motivo: 'precisa decidir captação ou produção', porFuncao: true }
+        case 'producao':   return { ids: [...marcados, ...producao(e)], motivo: 'material chegou, dá pra produzir', porFuncao: true }
+        case 'revisao_interna': return { ids: estrategia(), motivo: 'arte pronta pra revisão', porFuncao: true }
         // Foi pro cliente: internamente ninguém age, mas quem cobra precisa saber.
-        case 'aguardando_aprovacao': return { ids: social(), motivo: 'está com o cliente pra cobrar' }
-        case 'ajuste':     return { ids: [...marcados, ...producao(e)], motivo: 'cliente pediu ajuste' }
+        case 'aguardando_aprovacao': return { ids: social(), motivo: 'está com o cliente pra cobrar', porFuncao: true }
+        case 'ajuste':     return { ids: [...marcados, ...producao(e)], motivo: 'cliente pediu ajuste', porFuncao: true }
         // Aprovado → é a social que agenda. Este é o momento em que a bola
         // realmente muda de mão.
-        case 'aprovado':   return { ids: social(), motivo: 'aprovado, falta agendar' }
+        case 'aprovado':   return { ids: social(), motivo: 'aprovado, falta agendar', porFuncao: true }
         case 'agendado':
         case 'publicado':  return NINGUEM('já resolvido, ninguém precisa agir')
         case 'cancelado':  return NINGUEM('descartado')
@@ -154,8 +169,8 @@ function decidir(e: Evento): Decisao {
     // cliente" são dela. Foi o Higor quem apontou: é a Gabi que passa material
     // pro Felipe e depois cobra o cliente de tudo.
     if (e.tabela === 'extras' || e.tabela === 'materials') {
-      if (s === 'feito') return { ids: social(), motivo: 'pronto, a social entrega' }
-      if (s === 'aguardando_aprovacao') return { ids: social(), motivo: 'está com o cliente pra cobrar' }
+      if (s === 'feito') return { ids: social(), motivo: 'pronto, a social entrega', porFuncao: true }
+      if (s === 'aguardando_aprovacao') return { ids: social(), motivo: 'está com o cliente pra cobrar', porFuncao: true }
       return NINGUEM('etapa sem dono seguinte')
     }
     return NINGUEM('tabela sem regra de etapa')
