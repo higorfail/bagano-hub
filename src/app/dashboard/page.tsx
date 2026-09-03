@@ -21,7 +21,6 @@ import { POST_DONE_STAGES, temMaterial, contaComoFolego } from '@/lib/postStages
 import { fromActiveClients } from '@/lib/activeClients'
 import { withBase } from '@/lib/base'
 import { caminhoCliente } from '@/lib/clienteSlug'
-import FecharMesModal from '@/components/FecharMesModal'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
 const CFG = {
@@ -380,16 +379,8 @@ export default function DashboardPage() {
   const [allExtras,    setAllExtras]    = useState<{ client_id: string | null; status: string; client_approval_status?: string | null }[]>([])
   const [allMaterials, setAllMaterials] = useState<{ client_id: string | null; status: string }[]>([])
   const [myExtras,     setMyExtras]     = useState<any[]>([])
-  const [fechando, setFechando] = useState<{ clientId: string; month: number; year: number; posts: any[] } | null>(null)
 
-  // Só os posts, e não a tela inteira: fechar um mês muda month/year e status
-  // de alguns posts, e nada mais. Recarregar tudo piscaria o painel inteiro
-  // por causa de uma mudança pequena.
-  async function recarregarPosts() {
-    const { data } = await createClient().from(CFG.t.schedules)
-      .select('id, client_id, title, status, approval_status, post_type, scheduled_date, funil, month, year, post_number, created_at, assigned_members, campaign_type, labels, legenda')
-    if (data) setAllSchedules(fromActiveClients(data, clientesAtivos) as any)
-  }
+
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
   const [myTasks,      setMyTasks]      = useState<any[]>([])
   const [digestText,   setDigestText]   = useState('')
@@ -1411,37 +1402,6 @@ export default function DashboardPage() {
               </SectionCard>
             )}
 
-            {/* Meses que não fecharam. Fica ACIMA da situação dos clientes de
-                propósito: é dívida acumulada, e dívida que aparece embaixo do
-                trabalho de hoje é dívida que ninguém paga. */}
-            {mesesEmAberto.length > 0 && (
-              <SectionCard title={`${mesesEmAberto.length} ${pl(mesesEmAberto.length, 'mês que não fechou', 'meses que não fecharam')}`}
-                icon={CalendarClock} iconTone="amber" bodyClassName="px-4 pb-4 flex flex-col gap-1.5">
-                {mesesEmAberto.slice(0, 6).map(m => {
-                  const c = clientMap[m.clientId]
-                  return (
-                    <button key={`${m.clientId}-${m.year}-${m.month}`}
-                      onClick={() => setFechando(m)}
-                      className="flex items-center gap-2.5 w-full text-left px-2 py-2 rounded-xl hover:bg-[var(--color-bg-subtle)] transition-colors">
-                      <div className="w-1.5 h-8 rounded-full flex-shrink-0" style={{ background: c?.color_hex || '#94a3b8' }} />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{c?.name || 'Cliente'}</p>
-                        <p className="text-[11px] text-[var(--color-text-muted)]">
-                          {MONTHS[m.month - 1]} {m.year} · {m.posts.length} {pl(m.posts.length, 'post aberto', 'posts abertos')}
-                        </p>
-                      </div>
-                      <span className="text-[11px] font-semibold text-[var(--color-accent)] flex-shrink-0">Fechar</span>
-                    </button>
-                  )
-                })}
-                {mesesEmAberto.length > 6 && (
-                  <p className="text-[11px] text-[var(--color-text-faint)] px-2 pt-1">
-                    e mais {mesesEmAberto.length - 6}
-                  </p>
-                )}
-              </SectionCard>
-            )}
-
             {/* Situação dos clientes — o título mudou junto com a lógica: "do
                 mês" era a origem conceitual do problema. */}
             <div>
@@ -1716,6 +1676,27 @@ export default function DashboardPage() {
               )}
             </SectionCard>
 
+            {/* Meses que não fecharam — widget, não painel.
+                Aqui embaixo de "Aguardando aprovação" porque é vizinho de
+                assunto: os dois são coisa parada esperando decisão. Só o
+                NÚMERO, porque decidir isso exige ver a arte, e arte não cabe
+                no Início — cabe na página. */}
+            {mesesEmAberto.length > 0 && (
+              <button onClick={() => router.push('/dashboard/fechar-mes')}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:border-[var(--color-border-hover)] transition-colors text-left">
+                <CalendarClock size={16} className="flex-shrink-0" style={{ color: 'var(--ds-warning-text, #b45309)' }} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-[var(--color-text-primary)]">
+                    {mesesEmAberto.reduce((n, m) => n + m.posts.length, 0)} posts ficaram para trás
+                  </p>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    em {mesesEmAberto.length} {pl(mesesEmAberto.length, 'mês que não fechou', 'meses que não fecharam')}
+                  </p>
+                </div>
+                <span className="text-[11px] font-semibold text-[var(--color-accent)] flex-shrink-0">Ver</span>
+              </button>
+            )}
+
           </div>
         </div>
 
@@ -1777,17 +1758,6 @@ export default function DashboardPage() {
         </Card>
 
       </div>
-      {fechando && (
-        <FecharMesModal
-          clientId={fechando.clientId}
-          clientName={clientMap[fechando.clientId]?.name || 'Cliente'}
-          month={fechando.month}
-          year={fechando.year}
-          posts={fechando.posts}
-          onClose={() => setFechando(null)}
-          onDone={() => { setFechando(null); recarregarPosts() }}
-        />
-      )}
     </div>
   )
 }
