@@ -1647,6 +1647,18 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
 
   // ── Cronograma approval render ─────────────────────────────────────────────
   if (tokenData?.type === 'cronograma') {
+    // No modo equipe a tela é ferramenta de captação: quem está na filmagem
+    // quer ver o mês inteiro de relance e marcar "Captado" correndo, não rolar
+    // uma coluna de leitura. Para o cliente a coluna estreita continua —
+    // 560px é largura de LEITURA, e ele está lendo briefing, não trabalhando.
+    const largura = modoEquipe ? 1180 : 560
+    // `auto-fill` + `minmax` dá 3 colunas no desktop e 1 no celular sem media
+    // query nenhuma — e esta página é toda estilo inline, sem folha de estilo
+    // onde escrever uma.
+    const gradeCards: React.CSSProperties = modoEquipe
+      ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 14, alignItems: 'start' }
+      : { display: 'flex', flexDirection: 'column', gap: 14 }
+
     const cronoPending  = posts.filter(p => p.status === 'aguardando_aprovacao_crono').length
     const cronoApproved = posts.filter(p => p.approval_status === 'aprovado').length
     const allCronoDone  = posts.length > 0 && cronoPending === 0
@@ -1666,7 +1678,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
         )}
 
         <header style={{ background: '#fff', borderBottom: '1px solid #ebebeb', position: 'sticky', top: 0, zIndex: 30 }}>
-          <div style={{ maxWidth: 600, margin: '0 auto', padding: '14px 16px 12px' }}>
+          <div style={{ maxWidth: largura, margin: '0 auto', padding: '14px 16px 12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               {client?.logo_url
                 ? <img src={client.logo_url} alt={client.name} style={{ width: 44, height: 44, borderRadius: 14, objectFit: 'contain', flexShrink: 0, border: '1px solid #f0f0f0' }} />
@@ -1693,7 +1705,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
           </div>
         </header>
 
-        <main style={{ maxWidth: 560, margin: '0 auto', padding: '20px 16px 0' }}>
+        <main style={{ maxWidth: largura, margin: '0 auto', padding: '20px 16px 0' }}>
           {posts.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '48px 20px', background: '#fff', borderRadius: 24, border: '1px solid #ebebeb' }}>
               <p style={{ fontSize: 32, marginBottom: 12, lineHeight: 1 }}>📋</p>
@@ -1741,12 +1753,12 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                     </div>
                     <div style={{ flex: 1, height: 1, background: '#ebebeb' }} />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{cposts.map(p => renderCronoCard(p))}</div>
+                  <div style={gradeCards}>{cposts.map(p => renderCronoCard(p))}</div>
                 </div>
               ))}
 
               {noCampaign.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{noCampaign.map(p => renderCronoCard(p))}</div>
+                <div style={gradeCards}>{noCampaign.map(p => renderCronoCard(p))}</div>
               )}
             </>
           )}
@@ -1755,7 +1767,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
 
         {cronoPending > 0 && !allCronoDone && (
           <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '10px 16px 20px', background: 'rgba(248,248,246,0.95)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: '1px solid #ebebeb', zIndex: 20 }}>
-            <div style={{ maxWidth: 560, margin: '0 auto' }}>
+            <div style={{ maxWidth: largura, margin: '0 auto' }}>
               <button onClick={approveAllCrono} disabled={approvingAll}
                 style={{ width: '100%', padding: '17px 0', borderRadius: 18, background: cc, border: 'none', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: approvingAll ? 0.7 : 1, boxShadow: `0 8px 36px ${cc}55`, letterSpacing: '-0.02em' }}>
                 {approvingAll ? 'Aprovando…' : `Aprovar todos os ${cronoPending} posts pendentes`}
