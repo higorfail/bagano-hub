@@ -6,6 +6,7 @@ import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
 import { Copy, Check, Download, Loader2, CalendarClock, CheckCircle2, AlertTriangle, Clock3, BadgeCheck, Play } from 'lucide-react'
 import { useState } from 'react'
 import { statusColor } from '@/lib/status'
+import { usePublicavel } from '@/lib/usePublicavel'
 
 type Client = { id: string; name: string; color_hex: string }
 
@@ -42,6 +43,7 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
   const statusKey = overdue ? 'atrasado' : item.column
   const status = STATUS_META[statusKey]
   const { thumbUrl, isVideo } = useDriveThumbnail(item.driveUrl, item.driveFolderUrl, item.postType === 'reels')
+  const selo = usePublicavel(item.driveFolderUrl, item.postType)
 
   async function copyCaption(e: React.MouseEvent) {
     e.stopPropagation()
@@ -184,6 +186,21 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
             </span>
           )}
         </div>
+
+        {/* Aviso de arquivo que o Instagram não aceita.
+            Aparece aqui, na tela onde se AGENDA, porque o problema tem
+            conserto — reexportar em JPG — e conserto só acontece enquanto
+            alguém ainda está olhando o post. Descobrir na hora de subir, no
+            Business Suite ou pela API, é descobrir tarde.
+            Não aparece no publicado: já foi, e o aviso viraria cobrança de
+            uma coisa que não dá mais pra mudar. */}
+        {!publicado && selo && (
+          <p className="text-[10px] font-semibold flex items-start gap-1 leading-snug"
+            style={{ color: selo.impede ? 'var(--ds-error-text)' : 'var(--ds-warning-text, #b45309)' }}>
+            <AlertTriangle size={10} className="flex-shrink-0 mt-px" />
+            {selo.texto}
+          </p>
+        )}
 
         {!compact && !publicado && caption && (
           <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed line-clamp-2">{caption}</p>
