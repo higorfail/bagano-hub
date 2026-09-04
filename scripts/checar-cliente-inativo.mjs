@@ -26,6 +26,8 @@ const POR_CLIENTE = [
   'src/app/aprovar/[token]/page.tsx',
   'src/lib/pendingMonths.ts',
   'src/lib/approvalLinks.ts',
+  // Lê só do cliente de destino, pra saber que número o post recebe lá.
+  'src/lib/numeroNoDestino.ts',
   'src/components/CronogramaTab.tsx',
   'src/components/CampaignsTab.tsx',
   'src/components/PostCard.tsx',
