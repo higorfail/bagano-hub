@@ -12,6 +12,7 @@ import SocialPendingView from '@/components/social/SocialPendingView'
 import PostCard from '@/components/PostCard'
 import ExtraCard from '@/components/ExtraCard'
 import { LayoutGrid, Calendar, CalendarDays, AlertCircle, AlertTriangle, ListChecks } from 'lucide-react'
+import { usePublicavelEmLote } from '@/lib/usePublicavel'
 
 type Client = { id: string; name: string; color_hex: string; logo_url?: string | null }
 type View = 'board' | 'calendario' | 'semana' | 'pendencias'
@@ -44,6 +45,17 @@ export default function SocialPage() {
   function getClient(id: string | null) { return clients.find(c => c.id === id) }
 
   const visibleItems = filterSocialItems(items, filters)
+
+  // Checa o arquivo de tudo que ainda vai sair — publicado não entra: já foi,
+  // e avisar viraria cobrança de algo que não dá mais pra mudar.
+  const aVerificar = items.filter(i => i.column !== 'publicado')
+  const selos = usePublicavelEmLote(aVerificar)
+  const comProblema = Object.entries(selos).filter(([, s]) => s?.impede).map(([id]) => id)
+  const [soProblema, setSoProblema] = useState(false)
+
+  const itensNaTela = soProblema
+    ? visibleItems.filter(i => comProblema.includes(i.id))
+    : visibleItems
   const publishedToday = items.filter(i => i.column === 'publicado' && i.scheduledDate === new Date().toISOString().slice(0, 10)).length
   const scheduledCount = items.filter(i => i.column === 'agendado').length
   const missingDateCount = items.filter(i => i.column === 'aprovado' && !i.scheduledDate).length
@@ -72,6 +84,23 @@ export default function SocialPage() {
           <span className="underline ml-1">— resolver agora</span>
         </button>
       )}
+      {/* O total é a informação acionável — dá pra ver um post com problema
+          card a card, mas não "dezoito posts", que é o que faz alguém parar e
+          arrumar. Clicar filtra a tela pra eles. */}
+      {comProblema.length > 0 && (
+        <button onClick={() => setSoProblema(v => !v)}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl border text-left transition-colors"
+          style={soProblema
+            ? { background: 'var(--ds-error-bg)', borderColor: 'var(--ds-error-text)', color: 'var(--ds-error-text)' }
+            : { borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}>
+          <AlertTriangle size={14} className="flex-shrink-0" />
+          <span className="text-xs font-semibold">
+            {comProblema.length} {comProblema.length === 1 ? 'post não sobe' : 'posts não sobem'} no Instagram
+          </span>
+          <span className="text-[11px] opacity-70">{soProblema ? '· mostrando só eles' : '· ver quais'}</span>
+        </button>
+      )}
+
       <SocialFilterBar
         clients={clients}
         filters={filters}
@@ -124,7 +153,7 @@ export default function SocialPage() {
 
       {view === 'board' && (
         <SocialBoard
-          items={visibleItems}
+          items={itensNaTela}
           clients={clients}
           onOpenItem={setOpenItem}
           onItemsChange={updater => setItems(updater)}
@@ -132,7 +161,7 @@ export default function SocialPage() {
       )}
       {view === 'calendario' && (
         <SocialCalendarView
-          items={visibleItems}
+          items={itensNaTela}
           clients={clients}
           onOpenItem={setOpenItem}
           onItemsChange={updater => setItems(updater)}
@@ -140,7 +169,7 @@ export default function SocialPage() {
       )}
       {view === 'semana' && (
         <SocialWeekView
-          items={visibleItems}
+          items={itensNaTela}
           clients={clients}
           onOpenItem={setOpenItem}
           onItemsChange={updater => setItems(updater)}
@@ -148,7 +177,7 @@ export default function SocialPage() {
       )}
       {view === 'pendencias' && (
         <SocialPendingView
-          items={visibleItems}
+          items={itensNaTela}
           clients={clients}
           onOpenItem={setOpenItem}
           onItemsChange={updater => setItems(updater)}

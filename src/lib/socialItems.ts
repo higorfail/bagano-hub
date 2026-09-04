@@ -39,6 +39,7 @@ export type SocialItem = {
 }
 
 export type ScheduleRow = {
+  scheduled_time?: string | null
   id: string
   post_number: number
   title: string
@@ -90,7 +91,7 @@ export const SOCIAL_COLUMNS: { key: SocialColumn; label: string; color: string }
   { key: 'publicado', label: 'Publicado', color: statusColor('publicado') },
 ]
 
-const SCHEDULE_SELECT ='id, post_number, title, post_type, status, scheduled_date, client_id, month, year, approval_status, copy, legenda, drive_url, drive_folder_url'
+const SCHEDULE_SELECT ='id, post_number, title, post_type, status, scheduled_date, scheduled_time, client_id, month, year, approval_status, copy, legenda, drive_url, drive_folder_url'
 const EXTRA_SELECT = 'id, title, type, status, client_id, due_date, due_time, copy, legenda, drive_url, labels, assigned_members, assigned_member_id, client_approval_status, published_at, scheduled_at'
 
 export function scheduleToSocialItem(row: ScheduleRow): SocialItem | null {
@@ -109,7 +110,10 @@ export function scheduleToSocialItem(row: ScheduleRow): SocialItem | null {
     postNumber: row.post_number,
     column,
     scheduledDate: row.scheduled_date,
-    scheduledTime: null,
+    // A hora existia no banco e era jogada fora aqui. Sem ela, quem agenda não
+    // sabe se o post de terça é das 9h ou das 19h — e é o dado que qualquer
+    // agendamento, manual ou por API, precisa ter.
+    scheduledTime: row.scheduled_time || null,
     copy: row.copy,
     legenda: row.legenda,
     driveUrl: row.drive_url,
