@@ -269,15 +269,30 @@ function pickCover(images: DriveFileInfo[]) {
 }
 const SPINNER = <div style={{ width: 24, height: 24, border: '3px solid #e5e7eb', borderTopColor: '#374151', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
 
-function FolderThumb({ folderId, maxHeight = 220 }: { folderId: string; maxHeight?: number }) {
+// Altura natural da imagem, nunca recortada.
+//
+// Aqui havia `maxHeight: 220` com `objectFit: cover`: a arte era esticada pra
+// largura do card e depois CORTADA em 220px. Um post 4:5 aparecia pela metade —
+// e o cliente clicava "Aprovar" numa peça que não viu inteira. Foi assim que o
+// "Drink em Dobro" do Number Seven chegou com a mão cortada fora.
+//
+// O mesmo defeito já tinha sido corrigido no caminho de arquivo único do Drive
+// (o `thumbUrl` mais abaixo), e este — o caminho de PASTA — ficou pra trás. Os
+// dois agora mostram a peça inteira, na proporção em que foi feita.
+//
+// A altura só é fixa enquanto carrega, pro card não pular de tamanho quando a
+// imagem chega.
+const ALTURA_CARREGANDO = 220
+
+function FolderThumb({ folderId }: { folderId: string }) {
   const { files, ready } = useFolderFiles(folderId)
-  if (!ready) return <div style={{ height: maxHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f3' }}>{SPINNER}</div>
+  if (!ready) return <div style={{ height: ALTURA_CARREGANDO, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f3' }}>{SPINNER}</div>
   const img = pickCover(files.filter(f => f.mimeType.startsWith('image/')))
   if (!img) return null
   return (
-    <div style={{ background: '#f5f5f3', lineHeight: 0, maxHeight, overflow: 'hidden' }}>
+    <div style={{ background: '#f5f5f3', lineHeight: 0 }}>
       <img src={`/api/drive-thumb?id=${img.id}&sz=w800`} alt=""
-        style={{ width: '100%', objectFit: 'cover', display: 'block', maxHeight }}
+        style={{ width: '100%', display: 'block' }}
         onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
     </div>
   )
@@ -2265,7 +2280,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                 ) : isSheetReel && driveId ? (
                   <DriveVideo id={driveId} folderUrl={sheetPost.drive_folder_url || sheetPost.drive_url} />
                 ) : sheetFolder ? (
-                  <FolderThumb folderId={sheetFolder} maxHeight={300} />
+                  <FolderThumb folderId={sheetFolder} />
                 ) : sheetIsMultiFile ? (
                   <MultiFilePreview ids={sheetDriveIds} fallbackUrl={sheetPost.drive_url} />
                 ) : thumbUrl ? (
