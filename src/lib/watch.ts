@@ -37,8 +37,13 @@ export async function ensureWatching(tableName: string, recordId: string | undef
 // ensureWatching() (ex: atribuição feita antes de existir o ensureWatching,
 // migração de dados, etc.). Sem isso, um responsável pode ficar "invisível"
 // pro push mesmo aparecendo corretamente na UI como atribuído ao card.
-export async function ensureWatchingFromAssigned(tableName: 'schedules' | 'extras' | 'materials', recordId: string) {
-  const supabase = createClient()
+// O `db` opcional é como a página pública de aprovação passa o cliente que
+// carrega o cabeçalho `x-approval-token`. Sem ele, este helper criaria um
+// cliente sem cabeçalho — e a política do banco, que decide olhando o token,
+// não teria como reconhecer a requisição. Quem já chamava sem `db` continua
+// igual: no hub logado, quem manda é a sessão.
+export async function ensureWatchingFromAssigned(tableName: 'schedules' | 'extras' | 'materials', recordId: string, db?: any) {
+  const supabase = db || createClient()
   const { data } = await supabase.from(tableName).select('assigned_members, assigned_member_id').eq('id', recordId).maybeSingle()
   if (!data) return
   const ids = Array.isArray(data.assigned_members) && data.assigned_members.length > 0

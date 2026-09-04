@@ -1,7 +1,13 @@
 import { createClient } from './supabase'
 import { withBase } from '@/lib/base'
 
+// O `db` opcional é como a página pública de aprovação passa o cliente que
+// carrega o cabeçalho `x-approval-token`. Sem ele, este helper criaria um
+// cliente sem cabeçalho — e a política do banco, que decide olhando o token,
+// não teria como reconhecer a requisição. Quem já chamava sem `db` continua
+// igual: no hub logado, quem manda é a sessão.
 export async function logActivity(params: {
+  db?: any
   tableName: string
   recordId: string
   clientId?: string | null
@@ -20,7 +26,7 @@ export async function logActivity(params: {
   skipPush?: boolean
 }) {
   try {
-    const supabase = createClient()
+    const supabase = params.db || createClient()
     const { error } = await supabase.from('activity_log').insert({
       table_name: params.tableName,
       record_id: params.recordId,

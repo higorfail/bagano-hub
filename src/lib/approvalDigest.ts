@@ -4,9 +4,14 @@ import { createClient } from './supabase'
 // decide vários de uma vez), soma num contador por cliente — o cron
 // /api/cron/approval-digest manda UM resumo depois de alguns minutos sem
 // nenhuma ação nova ("Terras Altas aprovou 10 conteúdos, pediu ajuste em 2").
-export async function queueApprovalDigest(clientId: string | null | undefined, kind: 'approved' | 'rejected', count = 1) {
+// O `db` opcional é como a página pública de aprovação passa o cliente que
+// carrega o cabeçalho `x-approval-token`. Sem ele, este helper criaria um
+// cliente sem cabeçalho — e a política do banco, que decide olhando o token,
+// não teria como reconhecer a requisição. Quem já chamava sem `db` continua
+// igual: no hub logado, quem manda é a sessão.
+export async function queueApprovalDigest(clientId: string | null | undefined, kind: 'approved' | 'rejected', count = 1, db?: any) {
   if (!clientId || count <= 0) return
-  const supabase = createClient()
+  const supabase = db || createClient()
   const now = new Date().toISOString()
   const { data: existing } = await supabase.from('approval_digest_queue')
     .select('approved_count, rejected_count, window_start').eq('client_id', clientId).maybeSingle()
