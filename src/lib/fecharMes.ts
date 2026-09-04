@@ -2,6 +2,7 @@
 
 import { createClient } from './supabase'
 import { logActivity } from './activity'
+import { numerosNoDestino } from './numeroNoDestino'
 
 // Fechar o mês de um cliente.
 //
@@ -109,12 +110,16 @@ export async function aplicarFechamento(
   const manter = Object.values(decisoes).filter(s => s === 'manter').length
 
   if (mover.length) {
-    const { error } = await supabase.from('schedules')
-      .update({ month: prox.month, year: prox.year }).in('id', mover)
-    // O número do post pode colidir no mês de destino — a trava é adiável, mas
-    // vale por transação, e esta é outra. Quem chama precisa saber pra não
-    // dizer "fechado" com metade aplicada.
-    if (error) return { movidos: 0, publicados: 0, descartados: 0, mantidos: manter, erro: error.message }
+    // Cada um ganha número novo no mês de destino. Sem isso a trava
+    // `schedules_numero_unico_no_mes` derruba o fechamento inteiro assim que
+    // um dos números já existir lá — e como o update é em lote, basta UM
+    // colidir pra nada ser movido.
+    const numeros = await numerosNoDestino(supabase, clientId, prox.month, prox.year, mover.length)
+    for (let i = 0; i < mover.length; i++) {
+      const { error } = await supabase.from('schedules')
+        .update({ month: prox.month, year: prox.year, post_number: numeros[i] }).eq('id', mover[i])
+      if (error) return { movidos: i, publicados: 0, descartados: 0, mantidos: manter, erro: error.message }
+    }
   }
   if (pub.length) {
     const { error } = await supabase.from('schedules')

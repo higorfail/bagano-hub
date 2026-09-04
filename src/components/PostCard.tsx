@@ -27,6 +27,7 @@ import { useEnsureOnce } from '@/lib/ensureOnce'
 import { STATUS, STATUS_ORDER } from '@/lib/status'
 import DeliverySection from '@/components/DeliverySection'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
+import { numerosNoDestino } from '@/lib/numeroNoDestino'
 
 const POST_TYPES = [
   { value: 'carrossel',         label: 'Carrossel',         color: '#3b82f6' },
@@ -741,7 +742,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   async function moveToClientId(newClientId: string) {
     const pid = await ensurePostId(); if (!pid) return
-    const { error } = await supabase.from('schedules').update({ client_id: newClientId, campaign_type: null }).eq('id', pid)
+    // Número novo no destino: o #5 deste cliente não é o #5 do outro.
+    const [numero] = await numerosNoDestino(supabase, newClientId, month, year)
+    const { error } = await supabase.from('schedules')
+      .update({ client_id: newClientId, campaign_type: null, post_number: numero }).eq('id', pid)
     if (dbError(error, toast, 'mover')) return
     const name = clientList.find(c => c.id === newClientId)?.name
     await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `Movido para o cliente ${name || ''}` })
@@ -751,7 +755,9 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   async function moveToMonth() {
     const pid = await ensurePostId(); if (!pid) return
     if (moveMonth === month && moveYear === year) { setMoveOpen(false); return }
-    const { error } = await supabase.from('schedules').update({ month: moveMonth, year: moveYear }).eq('id', pid)
+    const [numero] = await numerosNoDestino(supabase, clientId, moveMonth, moveYear)
+    const { error } = await supabase.from('schedules')
+      .update({ month: moveMonth, year: moveYear, post_number: numero }).eq('id', pid)
     if (dbError(error, toast, 'mover')) return
     await logActivity({ tableName: 'schedules', recordId: pid, clientId, action: 'updated', actorName: currentMember?.name, actorId: currentMember?.id, description: `Movido para ${MESES[moveMonth - 1]} ${moveYear}` })
     toast('Post movido de mês'); onSaved(); onClose()
