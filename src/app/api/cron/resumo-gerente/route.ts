@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import webpush from 'web-push'
 import { storeNotifications } from '@/lib/storeNotifications'
 import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-)
 
 const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 const vapidPrivate = process.env.VAPID_PRIVATE_KEY

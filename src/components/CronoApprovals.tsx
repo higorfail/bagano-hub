@@ -6,7 +6,7 @@ import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
 import { Link2, Check, ChevronDown, ChevronRight, Clock } from 'lucide-react'
 import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
-import { linkPublico } from '@/lib/linkAprovacao'
+import { linkPublico, novoCodigo } from '@/lib/linkAprovacao'
 
 // Acompanhamento das aprovações de CRONOGRAMA — separado da aprovação de arte
 // final de propósito.
@@ -132,7 +132,7 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
         .eq('client_id', r.clientId).eq('month', r.month).eq('year', r.year).eq('type', 'cronograma').maybeSingle()
       const token = existing?.token || (
         await supabase.from('approval_tokens')
-          .insert({ client_id: r.clientId, month: r.month, year: r.year, type: 'cronograma' })
+          .insert({ client_id: r.clientId, month: r.month, year: r.year, type: 'cronograma', code: novoCodigo() })
           .select('token').single()
       ).data?.token
       if (!token) throw new Error('sem token')

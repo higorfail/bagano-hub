@@ -19,7 +19,7 @@ import ListCell from '@/components/ListCell'
 import { useIsWideScreen } from '@/lib/useMediaQuery'
 import { statusBadge } from '@/lib/status'
 import { withBase } from '@/lib/base'
-import { linkPublico } from '@/lib/linkAprovacao'
+import { linkPublico, novoCodigo } from '@/lib/linkAprovacao'
 import { renumerarPosts } from '@/lib/renumerarPosts'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -312,7 +312,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
       const { data: existing } = await supabase.from('approval_tokens').select('token')
         .eq('client_id', clientId).eq('month', month).eq('year', year).eq('type', type).maybeSingle()
       const token = existing?.token || (
-        await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type }).select('token').single()
+        await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type, code: novoCodigo() }).select('token').single()
       ).data?.token
       if (!token) throw new Error('sem token')
       return `${window.location.origin}${await linkPublico(supabase, token)}`
@@ -646,7 +646,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     const { data: existing } = await supabase.from('approval_tokens').select('token')
       .eq('client_id', clientId).eq('month', month).eq('year', year).eq('type', type).maybeSingle()
     const token = existing?.token || (
-      await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type }).select('token').single()
+      await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type, code: novoCodigo() }).select('token').single()
     ).data?.token
 
     const link = `${window.location.origin}${await linkPublico(supabase, token)}`

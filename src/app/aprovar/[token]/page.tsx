@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { createClient } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import ApprovalPage from './AprovarClient'
 import { withBase } from '@/lib/base'
 
@@ -7,7 +7,7 @@ type Props = { params: Promise<{ token: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { token } = await params
-  const supabase = createClient()
+  const supabase = supabaseAdmin
 
   const { data: tk } = await supabase
     .from('approval_tokens').select('client_id').eq('token', token).eq('active', true).single()

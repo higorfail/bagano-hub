@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase'
+import { novoCodigo } from '@/lib/linkAprovacao'
 
 // Token "geral" — mesmo padrão get-or-create do copyTypeApprovalLink
 // (CronogramaTab.tsx), mas atemporal: chaveia só por client_id, sem mês/ano,
@@ -6,15 +7,18 @@ import { createClient } from '@/lib/supabase'
 // um mês específico. Guarda o mês/ano atual só por completude do schema —
 // igual o tipo 'extras' já faz — a busca e a query de dados ignoram esse
 // valor.
-export async function getOrCreateGeneralApprovalToken(clientId: string): Promise<string | null> {
-  const supabase = createClient()
+// O `db` opcional existe pro servidor: a rota /api/aprovacao/link passa o
+// cliente de servidor, porque criar token é gravar em `approval_tokens` — e o
+// navegador deslogado não pode mais fazer isso.
+export async function getOrCreateGeneralApprovalToken(clientId: string, db?: any): Promise<string | null> {
+  const supabase = db || createClient()
   const { data: existing } = await supabase.from('approval_tokens').select('token')
     .eq('client_id', clientId).eq('type', 'geral').eq('active', true).maybeSingle()
   if (existing?.token) return existing.token
 
   const now = new Date()
   const { data } = await supabase.from('approval_tokens')
-    .insert({ client_id: clientId, month: now.getMonth() + 1, year: now.getFullYear(), type: 'geral' })
+    .insert({ client_id: clientId, month: now.getMonth() + 1, year: now.getFullYear(), type: 'geral', code: novoCodigo() })
     .select('token').single()
   return data?.token || null
 }
@@ -61,7 +65,7 @@ export async function getOrCreateExtrasApprovalToken(clientId: string): Promise<
 
   const now = new Date()
   const { data } = await supabase.from('approval_tokens')
-    .insert({ client_id: clientId, month: now.getMonth() + 1, year: now.getFullYear(), type: 'extras' })
+    .insert({ client_id: clientId, month: now.getMonth() + 1, year: now.getFullYear(), type: 'extras', code: novoCodigo() })
     .select('token').single()
   return data?.token || null
 }

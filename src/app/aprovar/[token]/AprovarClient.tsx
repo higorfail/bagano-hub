@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { createClient } from '@/lib/supabase'
+import { useEffect, useState, useRef, useMemo } from 'react'
+import { createApprovalClient } from '@/lib/supabase'
 import { logActivity } from '@/lib/activity'
 import { ensureWatchingFromAssigned } from '@/lib/watch'
 import { extractDriveIds } from '@/lib/driveLinks'
@@ -373,7 +373,9 @@ interface Post {
 }
 
 export default function ApprovalPage({ token, equipe = false }: { token: string; equipe?: boolean }) {
-  const supabase  = createClient()
+  // Carrega o token em toda requisição — é assim que o banco sabe que esta
+  // aba tem direito ao conteúdo deste cliente, e só dele.
+  const supabase = useMemo(() => createApprovalClient(token), [token])
 
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState<string | null>(null)

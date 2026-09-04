@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import { google } from 'googleapis'
 import { decidir, linhaNova, type EventoBruto } from '@/lib/importarCaptacoes'
 import { fromActiveClients } from '@/lib/activeClients'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 // Traz pro hub as captações marcadas direto no Google Agenda.
 //

@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react'
 import { use } from 'react'
 import { useRouter } from 'next/navigation'
-import { getOrCreateGeneralApprovalToken } from '@/lib/approvalLinks'
-import { linkPublico } from '@/lib/linkAprovacao'
-import { createClient } from '@/lib/supabase'
+import { withBase } from '@/lib/base'
 
 // Link fixo por cliente — sempre aponta pro token "geral" (tudo pendente:
 // crono + final + extras, numa página só), buscando ou criando se ainda não
@@ -20,11 +18,16 @@ export default function ClientApprovalRedirect({ params }: { params: Promise<{ c
 
   useEffect(() => {
     (async () => {
-      const token = await getOrCreateGeneralApprovalToken(clientId)
-      if (!token) { setError('Não foi possível gerar o link de aprovação para este cliente.'); return }
+      // O servidor resolve e cria o token; o navegador só pergunta. Ver
+      // src/app/api/aprovacao/link/route.ts — criar token deixou de ser algo
+      // que o navegador deslogado pode fazer.
+      const r = await fetch(withBase(`/api/aprovacao/link?clientId=${encodeURIComponent(clientId)}`))
+      if (!r.ok) { setError('Não foi possível gerar o link de aprovação para este cliente.'); return }
+      const { path } = await r.json()
+      if (!path) { setError('Não foi possível gerar o link de aprovação para este cliente.'); return }
       // Manda pro endereço legível, não pro antigo: quem chega por aqui é
       // redirecionado, e é essa URL que fica na barra do cliente depois.
-      router.replace(await linkPublico(createClient(), token))
+      router.replace(path)
     })()
   }, [clientId, router])
 

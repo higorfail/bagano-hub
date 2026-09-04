@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import ApprovalPage from '../../../../../aprovar/[token]/AprovarClient'
 import { slugify } from '@/lib/linkAprovacao'
 import { withBase } from '@/lib/base'
@@ -18,7 +18,7 @@ type Props = { params: Promise<{ slug: string; periodo: string; code: string }> 
 
 /** Acha o token pelo código e confere que o nome no endereço é mesmo daquele cliente. */
 async function resolver(slug: string, code: string) {
-  const supabase = createClient()
+  const supabase = supabaseAdmin
   const { data: tk } = await supabase
     .from('approval_tokens')
     .select('token, client_id, type, month, year')
