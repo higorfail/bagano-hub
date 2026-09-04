@@ -690,6 +690,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     // Sem o registro o designer não fica sabendo que o material chegou — e
     // esperar sem saber que já dá pra começar é o mesmo que não ter captado.
     await logActivity({
+      db: supabase,
       tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id,
       action: 'status_changed', actorName: 'Equipe (captação)',
       description: 'Material captado — post liberado pra produção',
@@ -708,6 +709,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     })
     if (error) { showToast('Não deu pra salvar a observação.', false); setSubmitting(null); return }
     await logActivity({
+      db: supabase,
       tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id,
       action: 'commented', actorName: 'Equipe (captação)',
       description: `Observação da captação: ${texto.slice(0, 80)}`,
