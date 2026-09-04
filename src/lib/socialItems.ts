@@ -226,13 +226,30 @@ function startOfWeek(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), diff)
 }
 
+// Por quantos dias um post publicado continua na tela.
+//
+// A coluna "Publicado" tinha 185 dos 230 itens — 80% da tela era coisa que já
+// aconteceu. Publicado serve pra CONFERIR que saiu, e essa conferência tem
+// prazo: passadas duas semanas ninguém volta ali, mas o peso fica.
+//
+// Não é arquivamento: nada muda no banco, o post continua no cronograma e no
+// Feed do cliente. É só esta tela parando de carregar história.
+const DIAS_PUBLICADO_VISIVEL = 14
+
 export function filterSocialItems(items: SocialItem[], filters: SocialFilters): SocialItem[] {
   const todayStr = todayBrasiliaISO()
   const now = new Date(todayStr + 'T12:00:00') // ancorado no "hoje" de Brasília, não no fuso do dispositivo
   const weekStart = startOfWeek(now)
   const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6)
 
+  const corte = new Date(now); corte.setDate(corte.getDate() - DIAS_PUBLICADO_VISIVEL)
+  const corteISO = corte.toISOString().slice(0, 10)
+
   return items.filter(item => {
+    // Publicado antigo sai — a não ser que a pessoa tenha pedido um recorte de
+    // data explícito, e aí ela sabe o que está procurando.
+    if (item.column === 'publicado' && filters.dateFilter === 'todos' && !filters.monthFilter
+        && item.scheduledDate && item.scheduledDate < corteISO) return false
     if (filters.clientIds.size > 0 && (!item.clientId || !filters.clientIds.has(item.clientId))) return false
     if (filters.types.size > 0 && (!item.postType || !filters.types.has(item.postType))) return false
     if (filters.sources.size > 0 && !filters.sources.has(item.source)) return false

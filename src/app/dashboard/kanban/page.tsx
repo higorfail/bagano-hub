@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import PostCard from '@/components/PostCard'
 import { useToast } from '@/lib/ToastContext'
@@ -52,7 +52,19 @@ export default function KanbanPage() {
   const [dragging, setDragging] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
   // null = mostra todos os meses; senão filtra pelo mês/ano escolhido
-  const [filterPeriod, setFilterPeriod] = useState<{ month: number; year: number } | null>(null)
+  // Abre no MÊS CORRENTE, não em tudo.
+  //
+  // O quadro carregava 453 posts — 118 de julho, 29 de junho, que estão
+  // parados esperando cliente desde então. Trabalho de meses fechados não
+  // disputa espaço com o de hoje: quem precisa vê-los tem o painel "meses que
+  // não fecharam" no Início, que existe exatamente pra isso.
+  //
+  // O seletor continua ali, e "todos" segue a um clique — o que muda é o que
+  // aparece sem ninguém pedir.
+  const [filterPeriod, setFilterPeriod] = useState<{ month: number; year: number } | null>(() => {
+    const agora = new Date()
+    return { month: agora.getMonth() + 1, year: agora.getFullYear() }
+  })
   const [showPostCard, setShowPostCard] = useState(false)
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
   const [editingClientId, setEditingClientId] = useState<string | null>(null)
@@ -113,8 +125,21 @@ export default function KanbanPage() {
     if (error) { setPosts(prev); dbError(error, toast, 'mover cliente') }
   }
 
-  const visiblePosts = filterPeriod
-    ? posts.filter(p => p.month === filterPeriod.month && p.year === filterPeriod.year)
+  // No dia 1º de um mês novo ainda não há post nenhum nele, e o quadro abriria
+  // vazio num período que nem aparece no seletor. Aí vale o mês mais recente
+  // que TEM trabalho — que é o que a pessoa foi ver.
+  //
+  // Derivado, e não corrigido com setState: efeito que conserta estado no
+  // primeiro render é render em cascata, e o lint acusa com razão.
+  const periodoEfetivo = useMemo(() => {
+    if (!filterPeriod || !posts.length) return filterPeriod
+    if (posts.some(p => p.month === filterPeriod.month && p.year === filterPeriod.year)) return filterPeriod
+    const recente = posts.reduce((a, p) => (p.year * 12 + p.month) > (a.year * 12 + a.month) ? p : a, posts[0])
+    return { month: recente.month, year: recente.year }
+  }, [filterPeriod, posts])
+
+  const visiblePosts = periodoEfetivo
+    ? posts.filter(p => p.month === periodoEfetivo.month && p.year === periodoEfetivo.year)
     : posts
 
   // Opções de período disponíveis — derivadas do que existe nos posts carregados
@@ -188,7 +213,7 @@ export default function KanbanPage() {
           )}
           <div className="relative flex-1 min-w-[150px] md:flex-none">
             <select
-              value={filterPeriod ? `${filterPeriod.month}-${filterPeriod.year}` : 'all'}
+              value={periodoEfetivo ? `${periodoEfetivo.month}-${periodoEfetivo.year}` : 'all'}
               onChange={e => {
                 if (e.target.value === 'all') { setFilterPeriod(null); return }
                 const [m, y] = e.target.value.split('-').map(Number)
