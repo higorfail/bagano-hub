@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SITE_URL } from '@/lib/base'
+import { buscarNoDrive, ehLimiteDeTaxa } from '@/lib/driveFetch'
 
 // Serve o vídeo do Drive PELO NOSSO SERVIDOR, em vez de o <video> chamar o
 // googleapis direto do navegador.
@@ -31,11 +32,19 @@ export async function GET(req: NextRequest) {
   if (range) headers.Range = range
 
   try {
-    const res = await fetch(
+    const res = await buscarNoDrive(
       `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${key}`,
       { headers },
     )
     if (!res.ok && res.status !== 206) {
+      // Limite de taxa não é "deu erro", é "tenta daqui a pouco" — e a
+      // diferença decide o que o cliente vê. Com 503 + Retry-After o player do
+      // navegador volta sozinho; com 502 ele trata como fatal e deixa o quadro
+      // preto no meio da aprovação. Só chega aqui quem já falhou as 3
+      // tentativas de buscarNoDrive.
+      if (ehLimiteDeTaxa(res.status)) {
+        return NextResponse.json({ error: 'rate-limited' }, { status: 503, headers: { 'Retry-After': '3' } })
+      }
       return NextResponse.json({ error: 'upstream', status: res.status }, { status: 502 })
     }
 

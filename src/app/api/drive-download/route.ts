@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SITE_URL } from '@/lib/base'
+import { buscarNoDrive } from '@/lib/driveFetch'
 
 // Faz o download de um arquivo do Drive sem o usuário sair da página (usado no
 // botão "Baixar" da página de Publicações). Mesmo truque de key+referrer do
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!key) return NextResponse.json({ error: 'no api key configured' }, { status: 500 })
 
   try {
-    const metaRes = await fetch(
+    const metaRes = await buscarNoDrive(
       `https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType,webViewLink&key=${key}`,
       { headers: { Referer: REFERRER } }
     )
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ fallbackUrl: meta.webViewLink || null, reason: 'google-native' }, { status: 415 })
     }
 
-    const fileRes = await fetch(
+    const fileRes = await buscarNoDrive(
       `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${key}`,
       { headers: { Referer: REFERRER } }
     )

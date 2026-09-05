@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SITE_URL } from '@/lib/base'
+import { buscarNoDrive } from '@/lib/driveFetch'
 
 // Lista os arquivos de uma pasta do Google Drive (usado pra achar a "capa.*"/prévia
 // de posts sem arquivo direto). Roda no servidor em vez do navegador do usuário —
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
   if (!key) return NextResponse.json({ files: [] })
 
   try {
-    const res = await fetch(
+    const res = await buscarNoDrive(
       `https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27+in+parents&fields=files(id,name,mimeType,thumbnailLink,webViewLink)&orderBy=name&key=${key}`,
       { headers: { Referer: `${SITE_URL.replace(/\/$/, '')}/` } }
     )
