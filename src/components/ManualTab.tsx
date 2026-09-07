@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TextoEditavel, Etiquetas, CardsEditaveis, Salvo } from '@/components/manual/CamposEditaveis'
+import { TextoEditavel, Etiquetas, CardsEditaveis, CoresEditaveis, ParesEditaveis, Salvo } from '@/components/manual/CamposEditaveis'
 import { createClient } from '@/lib/supabase'
 import { withBase } from '@/lib/base'
 import {
@@ -16,7 +16,9 @@ type MenuItem     = { name: string; price: string; description: string }
 type MenuCategory = { category: string; items: MenuItem[] }
 type Promotion    = { title: string; description: string }
 type CalEvent     = { date: string; title: string; description: string }
-type Persona      = { name: string; age: string | number; profile: string; behaviors: string }
+// `age` é texto, não número: o rascunho da IA às vezes devolve 28, às vezes
+// "25–40", e o campo do manual precisa aceitar os dois. A leitura converte.
+type Persona      = { name: string; age: string; profile: string; behaviors: string }
 type ContentSeries = { name: string; description: string; frequency: string }
 
 type ManualData = {
@@ -81,318 +83,307 @@ function Empty({ text }: { text: string }) {
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
 
-function OverviewTab({ data }: { data: ManualData }) {
-  const hasContent = data.concept || data.history || data.pillars?.length || data.differentials?.length
-  if (!hasContent) return <Empty text="Visão geral não disponível ainda." />
+type Salvar = (p: Record<string, any>) => Promise<void>
 
+// As abas do manual, todas editáveis.
+//
+// Antes, só Tom de Voz era. As outras cinco desenhavam o que existia e, quando
+// não existia nada, mostravam "não disponível ainda" — um beco sem saída: a
+// única forma de preencher era gerar um rascunho com IA e corrigir o JSON cru
+// num textarea.
+//
+// Os números diziam isso alto. Nos 19 manuais: conceito e tom de voz em 19,
+// mas CORES em 2 e FONTES em 4 — os dois únicos blocos que nunca tiveram como
+// editar pela tela. Não é coincidência; é a tela.
+//
+// Por isso sumiram os `hasContent` que devolviam <Empty>. Campo vazio agora é
+// campo vazio clicável, não uma frase dizendo que não tem.
+
+function OverviewTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
   return (
     <div className="flex flex-col gap-6">
-      {data.concept && (
-        <SectionBlock title="Conceito">
-          <Card>
-            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{data.concept}</p>
-          </Card>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Tagline">
+        <Card>
+          <TextoEditavel valor={data.tagline} linhas={2}
+            placeholder="A frase que resume a marca…"
+            aoSalvar={v => salvar({ tagline: v })} />
+        </Card>
+      </SectionBlock>
 
-      {data.history && (
-        <SectionBlock title="História">
-          <Card>
-            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{data.history}</p>
-          </Card>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Conceito">
+        <Card>
+          <TextoEditavel valor={data.concept} linhas={4}
+            placeholder="O que a marca é, em poucas linhas…"
+            aoSalvar={v => salvar({ concept: v })} />
+        </Card>
+      </SectionBlock>
 
-      {data.pillars?.length > 0 && (
-        <SectionBlock title="Pilares da Marca">
-          <div className="grid grid-cols-2 gap-3">
-            {data.pillars.map((p, i) => (
-              <Card key={i}>
-                <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">{p.name}</p>
-                <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">{p.description}</p>
-              </Card>
-            ))}
-          </div>
-        </SectionBlock>
-      )}
+      <SectionBlock title="História">
+        <Card>
+          <TextoEditavel valor={data.history} linhas={5}
+            placeholder="De onde veio, quem começou, o que mudou…"
+            aoSalvar={v => salvar({ history: v })} />
+        </Card>
+      </SectionBlock>
 
-      {data.differentials?.length > 0 && (
-        <SectionBlock title="Diferenciais">
-          <Card>
-            <ul className="flex flex-col gap-2">
-              {data.differentials.map((d, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm text-[var(--color-text-secondary)]">
-                  <span className="mt-2 w-1.5 h-1.5 rounded-full bg-[var(--color-brand)] flex-shrink-0" />
-                  {d}
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Pilares da Marca">
+        <CardsEditaveis<Pillar>
+          itens={data.pillars}
+          campos={[
+            { chave: 'name', rotulo: 'Pilar', linhas: 1 },
+            { chave: 'description', rotulo: 'O que significa', linhas: 2 },
+          ]}
+          rotuloNovo="Adicionar pilar"
+          aoSalvar={v => salvar({ pillars: v })}
+        />
+      </SectionBlock>
+
+      <SectionBlock title="Diferenciais">
+        <Card>
+          <Etiquetas itens={data.differentials} placeholder="+ diferencial"
+            aoSalvar={v => salvar({ differentials: v })} />
+        </Card>
+      </SectionBlock>
     </div>
   )
 }
 
-function VisualTab({ data }: { data: ManualData }) {
-  const tov = data.tone_of_voice
-  const hasContent = data.colors?.length || data.fonts?.length || tov?.taglines?.length
-  if (!hasContent) return <Empty text="Identidade visual não definida ainda." />
-
+function VisualTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
+  const tov = data.tone_of_voice || {}
   return (
     <div className="flex flex-col gap-6">
-      {data.colors?.length > 0 && (
-        <SectionBlock title="Paleta de Cores">
-          <div className="flex flex-wrap gap-4">
-            {data.colors.map((c, i) => (
-              <div key={i} className="flex flex-col items-center gap-2">
-                <div className="w-16 h-16 rounded-2xl border border-[var(--color-border)] shadow-sm" style={{ background: c.hex }} />
-                <p className="text-xs font-medium text-[var(--color-text-primary)] text-center max-w-[72px] leading-tight">{c.name}</p>
-                <p className="text-[10px] font-mono text-[var(--color-text-muted)] uppercase">{c.hex}</p>
-              </div>
-            ))}
-          </div>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Paleta de Cores">
+        <CoresEditaveis cores={data.colors} aoSalvar={v => salvar({ colors: v })} />
+      </SectionBlock>
 
-      {data.fonts?.length > 0 && (
-        <SectionBlock title="Tipografia">
-          <Card>
-            <div className="flex flex-col gap-3">
-              {data.fonts.map((f, i) => (
-                <div key={i} className="flex items-center justify-between gap-4">
-                  <span className="text-xs text-[var(--color-text-muted)]">{f.role}</span>
-                  <span className="text-sm font-medium text-[var(--color-text-primary)]">{f.family}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Tipografia">
+        <CardsEditaveis<Font>
+          itens={data.fonts}
+          campos={[
+            { chave: 'role', rotulo: 'Uso', linhas: 1 },
+            { chave: 'family', rotulo: 'Fonte', linhas: 1 },
+          ]}
+          rotuloNovo="Adicionar fonte"
+          aoSalvar={v => salvar({ fonts: v })}
+        />
+      </SectionBlock>
 
-      {tov?.taglines && tov.taglines.length > 0 && (
-        <SectionBlock title="Taglines">
-          <div className="flex flex-col gap-2">
-            {tov.taglines.map((t, i) => (
-              <Card key={i} className="border-l-4" style={{ borderLeftColor: 'var(--color-brand)' }}>
-                <p className="text-sm font-medium text-[var(--color-text-primary)] italic">"{t}"</p>
-              </Card>
-            ))}
-          </div>
-        </SectionBlock>
-      )}
+      {/* Taglines moram dentro de tone_of_voice no banco, mas quem procura
+          "as frases da marca" olha aqui, no visual, junto de cor e fonte. */}
+      <SectionBlock title="Taglines">
+        <Card>
+          <Etiquetas itens={tov.taglines} placeholder="+ tagline"
+            aoSalvar={v => salvar({ tone_of_voice: { ...tov, taglines: v } })} />
+        </Card>
+      </SectionBlock>
     </div>
   )
 }
 
-function OperationalTab({ data }: { data: ManualData }) {
-  const hoursEntries = Object.entries(data.hours || {})
-  const hasContent = data.address || data.phone || hoursEntries.length || data.instagram || data.website || data.delivery_links?.length
-  if (!hasContent) return <Empty text="Informações operacionais não disponíveis." />
+function OperationalTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
+  const linha = (Icone: React.ElementType, chave: keyof ManualData, dica: string) => (
+    <div className="flex items-center gap-2.5">
+      <Icone size={13} className="text-[var(--color-text-muted)] flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <TextoEditavel umaLinha valor={data[chave] as string} placeholder={dica}
+          aoSalvar={v => salvar({ [chave]: v })} />
+      </div>
+    </div>
+  )
 
   return (
     <div className="flex flex-col gap-6">
-      {(data.address || data.phone || data.instagram || data.website) && (
-        <SectionBlock title="Contato">
-          <Card>
-            <div className="flex flex-col gap-3">
-              {data.address && (
-                <div className="flex items-start gap-2.5">
-                  <MapPin size={13} className="text-[var(--color-text-muted)] mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-[var(--color-text-secondary)]">{data.address}</p>
-                </div>
-              )}
-              {data.phone && (
-                <div className="flex items-center gap-2.5">
-                  <Phone size={13} className="text-[var(--color-text-muted)] flex-shrink-0" />
-                  <p className="text-sm text-[var(--color-text-secondary)]">{data.phone}</p>
-                </div>
-              )}
-              {data.instagram && (
-                <div className="flex items-center gap-2.5">
-                  <AtSign size={13} className="text-[var(--color-text-muted)] flex-shrink-0" />
-                  <p className="text-sm text-[var(--color-text-secondary)]">{data.instagram}</p>
-                </div>
-              )}
-              {data.website && (
-                <div className="flex items-center gap-2.5">
-                  <Globe size={13} className="text-[var(--color-text-muted)] flex-shrink-0" />
-                  <a
-                    href={data.website.startsWith('http') ? data.website : `https://${data.website}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="text-sm underline" style={{ color: 'var(--ds-info-text)' }}
-                  >
-                    {data.website}
-                  </a>
-                </div>
-              )}
-            </div>
-          </Card>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Contato">
+        <Card>
+          <div className="flex flex-col gap-1">
+            {linha(MapPin, 'address', 'Endereço')}
+            {linha(Phone, 'phone', 'Telefone')}
+            {linha(AtSign, 'instagram', '@ do Instagram')}
+            {linha(Globe, 'website', 'Site')}
+          </div>
+        </Card>
+      </SectionBlock>
 
-      {hoursEntries.length > 0 && (
-        <SectionBlock title="Horários de Funcionamento">
-          <Card>
-            <div className="flex flex-col gap-2">
-              {hoursEntries.map(([day, hours]) => (
-                <div key={day} className="flex items-center justify-between gap-4">
-                  <span className="text-sm text-[var(--color-text-muted)] capitalize">{day}</span>
-                  <span className={`text-sm font-medium ${hours === 'Fechado' ? 'text-[var(--color-text-faint)]' : 'text-[var(--color-text-primary)]'}`}>{hours}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Horários de Funcionamento">
+        <Card>
+          <ParesEditaveis pares={data.hours} rotuloChave="dia" rotuloValor="18h–23h"
+            aoSalvar={v => salvar({ hours: v })} />
+        </Card>
+      </SectionBlock>
 
-      {data.delivery_links?.length > 0 && (
-        <SectionBlock title="Delivery">
-          <Card>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Truck size={13} className="text-[var(--color-text-muted)]" />
-              {data.delivery_links.map((link, i) => (
-                <span key={i} className="text-xs font-medium px-2 py-1 rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]">{link}</span>
-              ))}
+      <SectionBlock title="Delivery">
+        <Card>
+          <div className="flex items-start gap-2.5">
+            <Truck size={13} className="text-[var(--color-text-muted)] mt-1.5 flex-shrink-0" />
+            <div className="flex-1">
+              <Etiquetas itens={data.delivery_links} placeholder="+ iFood, Rappi…"
+                aoSalvar={v => salvar({ delivery_links: v })} />
             </div>
-          </Card>
-        </SectionBlock>
-      )}
+          </div>
+        </Card>
+      </SectionBlock>
     </div>
   )
 }
 
-function MenuTab({ data }: { data: ManualData }) {
-  const [openCats, setOpenCats] = useState<Set<number>>(new Set([0]))
-  if (!data.menu?.length) return <Empty text="Cardápio não disponível." />
+function MenuTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
+  const menu = data.menu || []
+  // A categoria nova já abre: fechada, o botão "adicionar" some numa lista de
+  // títulos e ninguém acha onde escrever o primeiro item.
+  const [abertas, setAbertas] = useState<Set<number>>(new Set([0]))
 
-  function toggle(i: number) {
-    setOpenCats(prev => {
+  function alternar(i: number) {
+    setAbertas(prev => {
       const next = new Set(prev)
-      if (next.has(i)) next.delete(i)
-      else next.add(i)
+      if (next.has(i)) next.delete(i); else next.add(i)
       return next
     })
   }
+  const gravar = (m: MenuCategory[]) => salvar({ menu: m })
+  const mudarCat = (ci: number, patch: Partial<MenuCategory>) =>
+    gravar(menu.map((c, k) => (k === ci ? { ...c, ...patch } : c)))
+  const mudarItem = (ci: number, ii: number, campo: keyof MenuItem, v: string) =>
+    mudarCat(ci, { items: (menu[ci].items || []).map((it, k) => (k === ii ? { ...it, [campo]: v } : it)) })
 
   return (
     <div className="flex flex-col gap-2">
-      {data.menu.map((cat, ci) => {
-        const isOpen = openCats.has(ci)
+      {menu.map((cat, ci) => {
+        const aberta = abertas.has(ci)
+        const itens = cat.items || []
         return (
           <div key={ci} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden">
-            <button
-              onClick={() => toggle(ci)}
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--color-bg-subtle)] transition-colors text-left"
-            >
-              <span className="text-sm font-semibold text-[var(--color-text-primary)]">{cat.category}</span>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-xs text-[var(--color-text-muted)]">{cat.items?.length || 0} itens</span>
-                {isOpen
+            <div className="w-full flex items-center justify-between px-4 py-3 gap-3 group">
+              <button onClick={() => alternar(ci)} aria-label={aberta ? 'Fechar' : 'Abrir'} className="flex-shrink-0">
+                {aberta
                   ? <ChevronDown size={13} className="text-[var(--color-text-muted)]" />
-                  : <ChevronRight size={13} className="text-[var(--color-text-muted)]" />
-                }
-              </div>
-            </button>
+                  : <ChevronRight size={13} className="text-[var(--color-text-muted)]" />}
+              </button>
+              <input
+                value={cat.category || ''}
+                onChange={e => mudarCat(ci, { category: e.target.value })}
+                placeholder="Nome da categoria"
+                className="flex-1 min-w-0 text-sm font-semibold bg-transparent outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-faint)] border-b border-transparent focus:border-[var(--color-accent)]"
+              />
+              <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0">{itens.length} itens</span>
+              <button onClick={() => gravar(menu.filter((_, k) => k !== ci))} aria-label="Remover categoria"
+                className="opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity flex-shrink-0">
+                <X size={12} className="text-[var(--color-text-muted)]" />
+              </button>
+            </div>
 
-            {isOpen && cat.items?.length > 0 && (
+            {aberta && (
               <div className="border-t border-[var(--color-border)]">
-                {cat.items.map((item, ii) => (
-                  <div
-                    key={ii}
-                    className={`px-4 py-3 flex items-start justify-between gap-4 ${ii > 0 ? 'border-t border-[var(--color-border)]' : ''}`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[var(--color-text-primary)]">{item.name}</p>
-                      {item.description && (
-                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-relaxed">{item.description}</p>
-                      )}
+                {itens.map((item, ii) => (
+                  <div key={ii} className={`px-4 py-3 flex items-start gap-3 group/item ${ii > 0 ? 'border-t border-[var(--color-border)]' : ''}`}>
+                    <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                      <input value={item.name || ''} onChange={e => mudarItem(ci, ii, 'name', e.target.value)}
+                        placeholder="Nome do prato"
+                        className="text-sm font-medium bg-transparent outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-faint)] border-b border-transparent focus:border-[var(--color-accent)]" />
+                      <input value={item.description || ''} onChange={e => mudarItem(ci, ii, 'description', e.target.value)}
+                        placeholder="Descrição (opcional)"
+                        className="text-xs bg-transparent outline-none text-[var(--color-text-muted)] placeholder-[var(--color-text-faint)] border-b border-transparent focus:border-[var(--color-accent)]" />
                     </div>
-                    {item.price && (
-                      <span className="text-sm font-semibold text-[var(--color-text-primary)] flex-shrink-0">{item.price}</span>
-                    )}
+                    <input value={item.price || ''} onChange={e => mudarItem(ci, ii, 'price', e.target.value)}
+                      placeholder="R$"
+                      className="w-20 text-sm font-semibold text-right bg-transparent outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-faint)] border-b border-transparent focus:border-[var(--color-accent)] flex-shrink-0" />
+                    <button onClick={() => mudarCat(ci, { items: itens.filter((_, k) => k !== ii) })} aria-label="Remover item"
+                      className="opacity-0 group-hover/item:opacity-40 hover:!opacity-100 transition-opacity flex-shrink-0 mt-1">
+                      <X size={11} className="text-[var(--color-text-muted)]" />
+                    </button>
                   </div>
                 ))}
+                <button onClick={() => mudarCat(ci, { items: [...itens, { name: '', price: '', description: '' }] })}
+                  className="w-full px-4 py-2.5 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors border-t border-[var(--color-border)] text-left">
+                  + Item
+                </button>
               </div>
             )}
           </div>
         )
       })}
+      <button
+        onClick={() => { setAbertas(a => new Set([...a, menu.length])); gravar([...menu, { category: '', items: [] }]) }}
+        className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] border border-dashed border-[var(--color-border)] rounded-lg px-3 py-1.5 transition-colors">
+        + Categoria
+      </button>
     </div>
   )
 }
 
-function ContentTab({ data }: { data: ManualData }) {
-  const hasContent = data.editorial_pillars?.length || data.content_series?.length || data.promotions?.length || data.events?.length
-  if (!hasContent) return <Empty text="Estratégia de conteúdo não disponível ainda." />
-
+function ContentTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
   return (
     <div className="flex flex-col gap-6">
-      {data.editorial_pillars?.length > 0 && (
-        <SectionBlock title="Pilares Editoriais">
-          <div className="grid grid-cols-2 gap-3">
-            {data.editorial_pillars.map((p, i) => (
-              <Card key={i}>
-                <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">{p.name}</p>
-                <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">{p.description}</p>
-              </Card>
-            ))}
-          </div>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Pilares Editoriais">
+        <CardsEditaveis<Pillar>
+          itens={data.editorial_pillars}
+          campos={[
+            { chave: 'name', rotulo: 'Pilar', linhas: 1 },
+            { chave: 'description', rotulo: 'O que entra nele', linhas: 2 },
+          ]}
+          rotuloNovo="Adicionar pilar editorial"
+          aoSalvar={v => salvar({ editorial_pillars: v })}
+        />
+      </SectionBlock>
 
-      {data.content_series?.length > 0 && (
-        <SectionBlock title="Séries de Conteúdo">
-          <div className="flex flex-col gap-2">
-            {data.content_series.map((s, i) => (
-              <Card key={i}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-[var(--color-text-primary)]">{s.name}</p>
-                    <p className="text-xs text-[var(--color-text-muted)] mt-1 leading-relaxed">{s.description}</p>
-                  </div>
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] flex-shrink-0 mt-0.5">{s.frequency}</span>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Séries de Conteúdo">
+        <CardsEditaveis<ContentSeries>
+          itens={data.content_series}
+          campos={[
+            { chave: 'name', rotulo: 'Série', linhas: 1 },
+            { chave: 'description', rotulo: 'Do que se trata', linhas: 2 },
+            { chave: 'frequency', rotulo: 'Frequência', linhas: 1 },
+          ]}
+          rotuloNovo="Adicionar série"
+          aoSalvar={v => salvar({ content_series: v })}
+        />
+      </SectionBlock>
 
-      {data.promotions?.length > 0 && (
-        <SectionBlock title="Promoções & Ativações">
-          <div className="flex flex-col gap-2">
-            {data.promotions.map((p, i) => (
-              <Card key={i}>
-                <p className="text-sm font-semibold text-[var(--color-text-primary)]">{p.title}</p>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1 leading-relaxed">{p.description}</p>
-              </Card>
-            ))}
-          </div>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Personas">
+        <CardsEditaveis<Persona>
+          itens={data.personas?.map(p => ({ ...p, age: String(p.age ?? '') }))}
+          campos={[
+            { chave: 'name', rotulo: 'Quem é', linhas: 1 },
+            { chave: 'age', rotulo: 'Idade', linhas: 1 },
+            { chave: 'profile', rotulo: 'Perfil', linhas: 2 },
+            { chave: 'behaviors', rotulo: 'Como se comporta', linhas: 2 },
+          ]}
+          rotuloNovo="Adicionar persona"
+          aoSalvar={v => salvar({ personas: v })}
+        />
+      </SectionBlock>
 
-      {data.events?.length > 0 && (
-        <SectionBlock title="Datas & Eventos">
-          <div className="flex flex-col gap-2">
-            {data.events.map((e, i) => (
-              <Card key={i}>
-                <div className="flex items-start gap-3">
-                  <span className="text-[10px] font-bold text-[var(--color-brand)] bg-[var(--color-bg-subtle)] px-2 py-1 rounded-lg flex-shrink-0 mt-0.5 text-center leading-tight min-w-[52px]">
-                    {e.date}
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-[var(--color-text-primary)]">{e.title}</p>
-                    {e.description && (
-                      <p className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-relaxed">{e.description}</p>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Promoções & Ativações">
+        <CardsEditaveis<Promotion>
+          itens={data.promotions}
+          campos={[
+            { chave: 'title', rotulo: 'Promoção', linhas: 1 },
+            { chave: 'description', rotulo: 'Como funciona', linhas: 2 },
+          ]}
+          rotuloNovo="Adicionar promoção"
+          aoSalvar={v => salvar({ promotions: v })}
+        />
+      </SectionBlock>
+
+      <SectionBlock title="Datas & Eventos">
+        <CardsEditaveis<CalEvent>
+          itens={data.events}
+          campos={[
+            { chave: 'date', rotulo: 'Quando', linhas: 1 },
+            { chave: 'title', rotulo: 'O quê', linhas: 1 },
+            { chave: 'description', rotulo: 'Detalhes', linhas: 2 },
+          ]}
+          rotuloNovo="Adicionar data"
+          aoSalvar={v => salvar({ events: v })}
+        />
+      </SectionBlock>
+
+      <SectionBlock title="Notas de Produção">
+        <Card>
+          <TextoEditavel valor={data.production_notes} linhas={4}
+            placeholder="O que a equipe precisa saber pra produzir…"
+            aoSalvar={v => salvar({ production_notes: v })} />
+        </Card>
+      </SectionBlock>
     </div>
   )
 }
@@ -623,6 +614,20 @@ export default function ManualTab({ clientId }: { clientId: string }) {
     setTimeout(() => setSalvoAgora(false), 1800)
   }
 
+  // Cria a linha vazia e entra no manual editável. Sem isso, "Começar em
+  // branco" abriria uma tela onde cada campo tentaria gravar num registro que
+  // não existe — o upsert daria conta, mas a tela ainda estaria em `!data`.
+  const [criando, setCriando] = useState(false)
+  async function comecarEmBranco() {
+    setCriando(true)
+    const supabase = createClient()
+    const { error } = await supabase.from('client_manuals')
+      .upsert({ client_id: clientId }, { onConflict: 'client_id' })
+    if (error) { setCriando(false); alert('Não deu pra criar: ' + error.message); return }
+    await load()
+    setCriando(false)
+  }
+
   async function saveGeneratedManual() {
     let parsed: any
     try { parsed = JSON.parse(genDraft) }
@@ -655,11 +660,22 @@ export default function ManualTab({ clientId }: { clientId: string }) {
             Este cliente ainda não tem manual cadastrado.
           </p>
         </div>
-        <button onClick={openGenerator}
-          className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl text-white transition-opacity hover:opacity-90"
-          style={{ background: '#8b5cf6' }}>
-          <Sparkles size={14} /> Gerar rascunho com IA
-        </button>
+        {/* Duas portas, não uma.
+        
+            10 dos 29 clientes não têm manual, e até aqui a ÚNICA entrada era
+            "gerar rascunho com IA" — que devolve JSON cru num textarea pra
+            revisar. Quem quer só escrever o conceito à mão não tinha por onde. */}
+        <div className="flex items-center gap-2">
+          <button onClick={comecarEmBranco} disabled={criando}
+            className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors disabled:opacity-50">
+            {criando ? 'Criando…' : 'Começar em branco'}
+          </button>
+          <button onClick={openGenerator}
+            className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl text-white transition-opacity hover:opacity-90"
+            style={{ background: '#8b5cf6' }}>
+            <Sparkles size={14} /> Gerar rascunho com IA
+          </button>
+        </div>
       </div>
       {showGenerator && <ManualGeneratorModal
         genName={genName} setGenName={setGenName}
@@ -728,11 +744,11 @@ export default function ManualTab({ clientId }: { clientId: string }) {
       </div>
 
       {/* Content */}
-      {activeTab === 'overview'    && <OverviewTab    data={data} />}
-      {activeTab === 'visual'      && <VisualTab      data={data} />}
-      {activeTab === 'operational' && <OperationalTab data={data} />}
-      {activeTab === 'menu'        && <MenuTab        data={data} />}
-      {activeTab === 'content'     && <ContentTab     data={data} />}
+      {activeTab === 'overview'    && <OverviewTab    data={data} salvar={salvarCampo} />}
+      {activeTab === 'visual'      && <VisualTab      data={data} salvar={salvarCampo} />}
+      {activeTab === 'operational' && <OperationalTab data={data} salvar={salvarCampo} />}
+      {activeTab === 'menu'        && <MenuTab        data={data} salvar={salvarCampo} />}
+      {activeTab === 'content'     && <ContentTab     data={data} salvar={salvarCampo} />}
       {activeTab === 'voice'       && <VoiceTab       data={data} salvar={salvarCampo} />}
     </div>
   )
