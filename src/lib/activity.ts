@@ -1,5 +1,6 @@
 import { createClient } from './supabase'
 import { withBase } from '@/lib/base'
+import { gravarInsistindo } from './gravacaoDeFundo'
 
 // O `db` opcional é como a página pública de aprovação passa o cliente que
 // carrega o cabeçalho `x-approval-token`. Sem ele, este helper criaria um
@@ -30,25 +31,22 @@ export async function logActivity(params: {
   // entrada normalmente, só não dispara o push individual duplicado.
   skipPush?: boolean
 }) {
-  try {
-    const supabase = params.db || createClient()
-    const { error } = await supabase.from('activity_log').insert({
-      table_name: params.tableName,
-      record_id: params.recordId,
-      client_id: params.clientId || null,
-      action: params.action,
-      actor_name: params.actorName || null,
-      field: params.field || null,
-      old_value: params.oldValue || null,
-      new_value: params.newValue || null,
-      description: params.description,
-    })
-    // Registrar nunca pode travar a tela — mas silêncio total foi o que fez
-    // buracos no histórico demorarem a aparecer. Avisa e segue.
-    if (error) console.error('[historico] não gravou:', error)
-  } catch (e) {
-    console.error('[historico] não gravou:', e)
-  }
+  // Registrar nunca pode travar a tela — mas silêncio total foi o que fez
+  // buracos no histórico demorarem a aparecer. Insiste uma vez (quase toda
+  // falha aqui é passageira) e, se ainda assim não for, avisa na tela em vez
+  // de sumir num console que ninguém abre.
+  const supabase = params.db || createClient()
+  await gravarInsistindo('histórico do card', () => supabase.from('activity_log').insert({
+    table_name: params.tableName,
+    record_id: params.recordId,
+    client_id: params.clientId || null,
+    action: params.action,
+    actor_name: params.actorName || null,
+    field: params.field || null,
+    old_value: params.oldValue || null,
+    new_value: params.newValue || null,
+    description: params.description,
+  }))
   // A rota é chamada SEMPRE, inclusive com skipPush: é ela que grava a
   // notificação na caixa de entrada, e só o envio do push é que fica de fora.
   // Antes o skipPush saía aqui e a aprovação do cliente nunca chegava ao

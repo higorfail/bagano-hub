@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { gravarInsistindo } from './gravacaoDeFundo'
 
 /**
  * Grava notificações na caixa de entrada.
@@ -44,8 +45,9 @@ export async function storeNotifications(
     url: url || null,
   }))
 
-  const { error } = await supabase.from('hub_notifications').insert(payload)
   // Nunca derruba o cron por causa disso, mas também nunca some calado: foi o
-  // silêncio que fez esse problema demorar pra aparecer.
-  if (error) console.error('storeNotifications: falha ao gravar', error)
+  // silêncio que fez esse problema demorar pra aparecer. Insiste uma vez antes
+  // de desistir — quase toda falha aqui é passageira.
+  await gravarInsistindo('aviso na caixa de entrada', () =>
+    supabase.from('hub_notifications').insert(payload))
 }

@@ -1,4 +1,5 @@
 import { createClient } from './supabase'
+import { gravarInsistindo } from './gravacaoDeFundo'
 
 export async function getWatcherIds(tableName: string, recordId: string): Promise<string[]> {
   const supabase = createClient()
@@ -24,11 +25,10 @@ export async function ensureWatching(tableName: string, recordId: string | undef
   // Falhar aqui significa que a pessoa não vira observadora do card e nunca
   // recebe aviso dele. Foi assim que gente atribuída a dezenas de cards passou
   // meses sem push nenhum, sem nada indicando o problema.
-  const { error } = await supabase.from('card_watchers').upsert(
+  await gravarInsistindo('quem observa o card', () => supabase.from('card_watchers').upsert(
     ids.map(member_id => ({ table_name: tableName, record_id: recordId, member_id })),
     { onConflict: 'table_name,record_id,member_id', ignoreDuplicates: true }
-  )
-  if (error) console.error('[watchers] não registrou quem observa o card:', error)
+  ))
 }
 
 // Ressincroniza os watchers de um card a partir de quem está atribuído a ele

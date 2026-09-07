@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
+import { EVENTO_FALHA } from './gravacaoDeFundo'
 
 type ToastType = 'success' | 'error' | 'info'
 type Toast = { id: string; message: string; type: ToastType }
@@ -32,6 +33,26 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts(prev => [...prev, { id, message, type }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3200)
   }, [])
+
+  // Gravação de fundo que falhou vira aviso na tela.
+  //
+  // Registrar quem observa o card, gravar o histórico, gravar a notificação:
+  // nada disso tem botão pra ficar vermelho, porque ninguém clicou. Até então
+  // a falha virava `console.error` num console que ninguém abre — e o efeito
+  // aparecia semanas depois como "fulano não foi avisado" ou "sumiu do
+  // histórico", sem ninguém ligar uma coisa à outra.
+  //
+  // A lib avisa por evento porque não alcança este contexto do React. Aqui só
+  // se escuta; se esta tela não estiver montada (num cron, por exemplo), o
+  // evento cai no vazio sem custo.
+  useEffect(() => {
+    function aoFalhar(e: Event) {
+      const { onde } = (e as CustomEvent<{ onde: string; detalhe: string }>).detail || { onde: 'algo' }
+      toast(`Não consegui salvar: ${onde}. Recarregue e confira.`, 'error')
+    }
+    window.addEventListener(EVENTO_FALHA, aoFalhar)
+    return () => window.removeEventListener(EVENTO_FALHA, aoFalhar)
+  }, [toast])
 
   return (
     <ToastContext.Provider value={{ toast }}>
