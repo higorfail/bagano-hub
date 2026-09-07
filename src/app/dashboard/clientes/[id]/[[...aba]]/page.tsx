@@ -18,6 +18,7 @@ import CampaignsTab from '@/components/CampaignsTab'
 import CronogramaTab, { CRONO_MONTHS } from '@/components/CronogramaTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
 import ExtrasKanban from '@/components/ExtrasKanban'
+import PostsKanban from '@/components/PostsKanban'
 import ActivityLog from '@/components/ActivityLog'
 import OnboardingTab from '@/components/OnboardingTab'
 import ManualTab from '@/components/ManualTab'
@@ -57,7 +58,7 @@ function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join(''
 // Abas cujo conteúdo é de um MÊS. Só nelas o período entra no caminho.
 const ABAS_COM_MES = new Set(['cronograma', 'feed'])
 
-const ABAS_VALIDAS = new Set(['cronograma', 'extras', 'recorrentes', 'materiais', 'tarefas', 'campanhas', 'feed', 'drive', 'onboarding', 'manual', 'historico', 'time'])
+const ABAS_VALIDAS = new Set(['cronograma', 'kanban', 'extras', 'recorrentes', 'materiais', 'tarefas', 'campanhas', 'feed', 'drive', 'onboarding', 'manual', 'historico', 'time'])
 
 function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
   id: string; slug: string | null; abaInicial: string
@@ -88,7 +89,11 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
   // Ordem do fluxo, não alfabética nem histórica: o que se abre todo dia vem
   // primeiro e o que é consulta fica no fim.
   const TABS = [
-    { key: 'cronograma', label: 'Cronograma' }, { key: 'extras', label: 'Extras' },
+    { key: 'cronograma', label: 'Cronograma' },
+    // Mesmos posts do Cronograma, outra pergunta: lá é "o que sai e quando",
+    // aqui é "em que pé está".
+    { key: 'kanban', label: 'Kanban' },
+    { key: 'extras', label: 'Extras' },
     // Recorrentes ao lado de Extras: os dois são o que sai fora do cronograma.
     { key: 'recorrentes', label: 'Recorrentes' },
     { key: 'materiais', label: 'Materiais' },   { key: 'tarefas', label: 'Tarefas' },
@@ -744,6 +749,15 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {tab === 'kanban' && (
+            // h-full/min-h-0 pelo mesmo motivo do Extras: sem altura definida
+            // as colunas não rolam por dentro e o quadro inteiro cresce.
+            <div className="flex flex-col h-full min-h-0">
+              <PostsKanban clientId={client.id}
+                heading={<p className="text-sm font-medium text-[var(--color-text-primary)]">Quadro de {client.name}</p>} />
             </div>
           )}
 
