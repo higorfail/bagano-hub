@@ -12,6 +12,7 @@ import { dbError } from '@/lib/dbError'
 import { autoGrow } from '@/lib/autoGrow'
 import { fetchLinkTitle } from '@/lib/linkTitle'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
+import { PreviaDoPost, temConteudoEntregue } from '@/components/PreviaDrive'
 import AttachmentsGrid from '@/components/AttachmentsGrid'
 import { renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
@@ -777,6 +778,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     toast('Post movido de mês'); onSaved(); onClose()
   }
 
+  // Tem arte entregue? É o que decide se o card estica e mostra a prévia.
+  const temPrevia = temConteudoEntregue(form.drive_url, form.drive_folder_url)
   const typeObj   = POST_TYPES.find(t => t.value === form.post_type) || POST_TYPES[0]
   const statusObj = STATUSES.find(s => s.value === form.status) || STATUSES[0]
   const refLinks  = form.reference_notes.match(/https?:\/\/[^\s]+/g) || []
@@ -995,7 +998,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       onMouseUp={e => { if (backdropDown.current && e.target === e.currentTarget) { (document.activeElement as HTMLElement)?.blur(); onClose() }; backdropDown.current = false }}
       onPaste={handlePaste}>
       <div
-        className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
+        className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto ${temPrevia ? 'max-w-[1280px]' : 'max-w-[1040px]'} max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
         style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)',
           ...(sheetDrag.offset ? { transform: `translateY(${sheetDrag.offset}px)`, transition: 'none' } : {}) }}
         onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setCardDragOver(true) } }}
@@ -1351,6 +1354,27 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
           {/* LEFT — campos + referências + entrega */}
           <div className="min-w-0 flex flex-col md:flex-1 md:overflow-y-auto px-4 md:px-7 py-5 gap-5">
+
+              {/* A arte entregue, exatamente como o cliente vai ver.
+
+                  Antes o hub tinha um desenho de prévia e a página do cliente
+                  tinha outro — dois códigos pro mesmo quadro. Era assim que o
+                  mesmo bug de corte podia existir de um lado e não do outro.
+                  Agora os dois chamam o mesmo componente: o que a equipe
+                  confere internamente é literalmente o que o cliente recebe.
+
+                  Só aparece quando há conteúdo — post sem arte não ganha
+                  moldura vazia. */}
+              {temPrevia && (
+                <div className="rounded-2xl overflow-hidden border border-[var(--color-border)]">
+                  <PreviaDoPost
+                    driveUrl={form.drive_url}
+                    driveFolderUrl={form.drive_folder_url}
+                    postType={form.post_type}
+                    titulo={form.title}
+                  />
+                </div>
+              )}
 
             {textField('briefing', 'Briefing', '· instruções pro time (o que fazer)', 'O que precisa ser feito, direção criativa, referências de estilo…', 70)}
             {textField('copy', 'Copy', '· conceito / roteiro', 'Ideia central, roteiro do reels, texto das artes…', 70)}
