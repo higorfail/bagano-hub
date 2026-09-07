@@ -998,7 +998,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       onMouseUp={e => { if (backdropDown.current && e.target === e.currentTarget) { (document.activeElement as HTMLElement)?.blur(); onClose() }; backdropDown.current = false }}
       onPaste={handlePaste}>
       <div
-        className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto ${temPrevia ? 'max-w-[1280px]' : 'max-w-[1040px]'} max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
+        className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto ${temPrevia ? 'max-w-[1440px]' : 'max-w-[1040px]'} max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
         style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)',
           ...(sheetDrag.offset ? { transform: `translateY(${sheetDrag.offset}px)`, transition: 'none' } : {}) }}
         onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setCardDragOver(true) } }}
@@ -1056,6 +1056,21 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
         {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total (abas no mobile, lado a lado no desktop) */}
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden divide-y md:divide-y-0 md:divide-x divide-[var(--color-border)]">
+          {/* A arte entregue, numa coluna ao lado — o mesmo componente que
+              desenha a página do cliente.
+
+              Só existe quando há conteúdo, e é por isso que o card estica:
+              post sem arte fica com a largura de sempre, sem espaço morto. */}
+          {temPrevia && (
+            <div className="hidden md:flex md:w-[360px] flex-shrink-0 flex-col overflow-y-auto bg-[var(--color-bg-page)]">
+              <PreviaDoPost
+                driveUrl={form.drive_url}
+                driveFolderUrl={form.drive_folder_url}
+                postType={form.post_type}
+                titulo={form.title}
+              />
+            </div>
+          )}
         {/* No celular a coluna inteira rola: antes só o miolo rolava, e o
             cabeçalho (título, cliente, tipo/status/data, 11 membros e
             etiquetas) ficava travado ocupando quase metade da tela, deixando
@@ -1355,26 +1370,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           {/* LEFT — campos + referências + entrega */}
           <div className="min-w-0 flex flex-col md:flex-1 md:overflow-y-auto px-4 md:px-7 py-5 gap-5">
 
-              {/* A arte entregue, exatamente como o cliente vai ver.
-
-                  Antes o hub tinha um desenho de prévia e a página do cliente
-                  tinha outro — dois códigos pro mesmo quadro. Era assim que o
-                  mesmo bug de corte podia existir de um lado e não do outro.
-                  Agora os dois chamam o mesmo componente: o que a equipe
-                  confere internamente é literalmente o que o cliente recebe.
-
-                  Só aparece quando há conteúdo — post sem arte não ganha
-                  moldura vazia. */}
-              {temPrevia && (
-                <div className="rounded-2xl overflow-hidden border border-[var(--color-border)]">
-                  <PreviaDoPost
-                    driveUrl={form.drive_url}
-                    driveFolderUrl={form.drive_folder_url}
-                    postType={form.post_type}
-                    titulo={form.title}
-                  />
-                </div>
-              )}
 
             {textField('briefing', 'Briefing', '· instruções pro time (o que fazer)', 'O que precisa ser feito, direção criativa, referências de estilo…', 70)}
             {textField('copy', 'Copy', '· conceito / roteiro', 'Ideia central, roteiro do reels, texto das artes…', 70)}
@@ -1488,6 +1483,8 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             <DeliverySection
               value={form.drive_folder_url || form.drive_url}
               isVideo={form.post_type === 'reels'}
+                postType={form.post_type}
+                semPrevia={temPrevia}
               onCommit={v => {
                 // Mensagem distinta pra "acabou de entregar" — igual já existia em
                 // Extras/Materiais — em vez de um genérico "editou o link do Drive"

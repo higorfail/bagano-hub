@@ -6,16 +6,20 @@
 
 import { useRef, useState } from 'react'
 import { Package, Link2, ExternalLink } from 'lucide-react'
-import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import { extractDriveIds } from '@/lib/driveLinks'
+import { PreviaDoPost } from '@/components/PreviaDrive'
 
 type Props = {
   value: string
   isVideo?: boolean
+  /** O tipo do post, pra prévia escolher entre carrossel, reel e foto. */
+  postType?: string | null
+  /** Quem já mostra a arte em outro lugar da tela pede pra não repetir aqui. */
+  semPrevia?: boolean
   onCommit: (v: string) => void
 }
 
-export default function DeliverySection({ value, isVideo = false, onCommit }: Props) {
+export default function DeliverySection({ value, isVideo = false, postType, semPrevia = false, onCommit }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const discardRef = useRef(false)
@@ -67,7 +71,23 @@ export default function DeliverySection({ value, isVideo = false, onCommit }: Pr
               </a>
               <button onClick={startEdit} className="text-[11px] hover:underline flex-shrink-0" style={{ color: 'var(--ds-success-text)' }}>editar</button>
             </div>
-            {isFolder ? <FolderThumbnail folderUrl={value} /> : <DriveThumbnail driveUrl={value} isVideo={isVideo} />}
+              {/* A prévia, pelo MESMO componente que desenha a página do
+                  cliente. Antes aqui era `DriveThumbnail`, um desenho só do
+                  hub — e era justamente esse que carregava o bug de corte que
+                  o lado do cliente já não tinha.
+
+                  `semPrevia` existe pro card de post, que passou a mostrar a
+                  arte numa coluna ao lado: sem isso a mesma imagem apareceria
+                  duas vezes na mesma tela. */}
+              {!semPrevia && (
+                <div className="rounded-xl overflow-hidden border border-[var(--color-border)]">
+                  <PreviaDoPost
+                    driveUrl={isFolder ? null : value}
+                    driveFolderUrl={isFolder ? value : null}
+                    postType={postType || (isVideo ? 'reels' : null)}
+                  />
+                </div>
+              )}
           </>
         ) : (
           <button onClick={startEdit}

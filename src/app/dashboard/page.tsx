@@ -21,6 +21,7 @@ import { POST_DONE_STAGES, temMaterial, contaComoFolego } from '@/lib/postStages
 import { fromActiveClients } from '@/lib/activeClients'
 import { withBase } from '@/lib/base'
 import { caminhoCliente } from '@/lib/clienteSlug'
+import { fetchAgencyAlerts, type AgencyAlert } from '@/lib/agencyAlerts'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
 const CFG = {
@@ -385,6 +386,15 @@ export default function DashboardPage() {
   const [myTasks,      setMyTasks]      = useState<any[]>([])
   const [digestText,   setDigestText]   = useState('')
   const [greetingLine, setGreetingLine] = useState('')
+  // A fila do dia. `fetchAgencyAlerts` já existia e já calculava tudo isto —
+  // urgências, extras parados, captação chegando, post travado — mas morava só
+  // atrás do sininho, e ninguém clica no sininho pra saber por onde começar.
+  const [fila, setFila] = useState<AgencyAlert[]>([])
+  useEffect(() => {
+    let vivo = true
+    fetchAgencyAlerts().then(a => { if (vivo) setFila(a) }).catch(() => {})
+    return () => { vivo = false }
+  }, [])
   const [agingMap,     setAgingMap]     = useState<Record<string, string>>({})
   const [campaignNameMap, setCampaignNameMap] = useState<Record<string, string>>({})
   const [loading,      setLoading]      = useState(true)
