@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
   const mesAbs = agora.getFullYear() * 12 + agora.getMonth()   // mês corrente em nº absoluto
 
   const { data: ativos } = await supabase.from('approval_tokens')
-    .select('id, client_id, month, year').eq('active', true)
+    .select('id, client_id, month, year, type').eq('active', true)
 
   // Um pedido só pra tudo: os pendentes por cliente+mês. Perguntar token a
   // token seriam ~114 idas ao banco pra responder a mesma coisa.
@@ -75,6 +75,18 @@ export async function GET(req: NextRequest) {
     (pendentes || []).map(p => `${p.client_id}:${p.year}-${p.month}`))
 
   const expirar = (ativos || []).filter(t => {
+    // Link atemporal não expira, ponto.
+    //
+    // 'geral' e 'extras' não pertencem a um mês: eles mostram o que estiver
+    // pendente, quando estiver. O campo `month` existe neles só por completude
+    // do schema, e ninguém o lê — menos esta função, que lia e os matava.
+    //
+    // O estrago: 26 links atemporais desativados (16 'geral', 10 'extras'), e
+    // 5 clientes ativos sem NENHUM link válido. Do lado deles, o endereço
+    // guardado no WhatsApp simplesmente parou de abrir, sem aviso — e a
+    // aprovação que a equipe esperava nunca chegava.
+    if (t.type === 'geral' || t.type === 'extras') return false
+
     const idade = mesAbs - (t.year * 12 + (t.month - 1))
     if (idade < TOKEN_IDADE_MINIMA_MESES) return false          // mês corrente nunca
     if (idade >= TOKEN_TETO_MESES) return true                  // teto: mês que nunca fecha
