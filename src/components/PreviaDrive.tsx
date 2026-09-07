@@ -47,7 +47,7 @@ function DriveVideoMedia({ id, stage, setStage, style, onLoadedMetadata }: { id:
   return <video src={driveStreamUrl(id)} controls playsInline onError={() => setStage('iframe')} onLoadedMetadata={onLoadedMetadata} style={style} />
 }
 
-export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe = false }: { id: string; folderUrl?: string; ratio?: string; comecarNoIframe?: boolean }) {
+export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe = false, semRodape = false }: { id: string; folderUrl?: string; ratio?: string; comecarNoIframe?: boolean; semRodape?: boolean }) {
   // Começar pelo iframe do Drive é o padrão da EQUIPE, no computador: o player
   // do Google funciona ali e não custa nada pra gente. O nosso streaming existe
   // pro CLIENTE, no celular — no iOS o iframe fica preto porque o Safari bloqueia
@@ -62,10 +62,15 @@ export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe =
         <DriveVideoMedia id={id} stage={stage} setStage={setStage}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
       </div>
-      <a href={driveLink} target="_blank" rel="noopener noreferrer"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 700, color: '#374151', textDecoration: 'none' }}>
-        🎬 Abrir conteúdo no Drive
-      </a>
+      {/* Dentro da simulação, quem mostra o link do Drive é o cartão inteiro,
+          uma vez só, embaixo. Aqui ele apareceria entre o vídeo e o coração —
+          e post de verdade não tem isso. */}
+      {!semRodape && (
+        <a href={driveLink} target="_blank" rel="noopener noreferrer"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 700, color: '#374151', textDecoration: 'none' }}>
+          🎬 Abrir conteúdo no Drive
+        </a>
+      )}
     </div>
   )
 }
@@ -180,34 +185,31 @@ export function CarouselPreview({ folderId, folderUrl, ratio = '100%', semRodape
           />
         )}
       </div>
-      {items.length > 1 && (
-        <>
-          <button onClick={prev} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>‹</button>
-          <button onClick={next} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>›</button>
-        </>
-      )}
-      {/* Indicador em faixa própria, entre a mídia e o rodapé. Antes ele era
-          absoluto no container de fora — que inclui o rodapé — então as
-          bolinhas caíam em cima do texto "Abrir pasta no Drive", e ainda
-          repetiam o "3/4" escrito ali do lado.
-          Fora da mídia também evita brigar com os controles nativos do player
-          quando o slide é um vídeo. Bolinha só até 8 itens: acima disso vira
-          um enxame ilegível e o número informa melhor. */}
-      {items.length > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0 8px', background: '#f5f5f3' }}>
-          {items.length <= 8 ? items.map((_, i) => (
-            <button key={i} onClick={() => setSlide(i)} aria-label={`Ir para ${i + 1} de ${items.length}`}
-              style={{ width: i === slide ? 18 : 7, height: 7, borderRadius: 4, border: 'none', padding: 0,
-                background: i === slide ? '#374151' : '#d1d5db', cursor: 'pointer', transition: 'width 0.2s, background 0.2s' }} />
-          )) : (
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#6b7280' }}>{slide + 1} / {items.length}</span>
+      {/* Contador e link do Drive na MESMA linha.
+          
+          Eram duas faixas empilhadas: uma só com "8 / 9" no meio, outra só com
+          "Abrir pasta no Drive". Duas alturas pra duas informações pequenas, e
+          o carrossel empurrado pra cima. Agora dividem uma faixa fina — as
+          bolinhas (ou o número) à esquerda, o link à direita. */}
+      {(items.length > 1 || !semRodape) && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '7px 12px', background: '#f5f5f3', borderTop: '1px solid #ebebeb' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+            {items.length > 1 && (items.length <= 8 ? items.map((_, i) => (
+              <button key={i} onClick={() => setSlide(i)} aria-label={`Ir para ${i + 1} de ${items.length}`}
+                style={{ width: i === slide ? 16 : 6, height: 6, borderRadius: 3, border: 'none', padding: 0,
+                  background: i === slide ? '#374151' : '#d1d5db', cursor: 'pointer', transition: 'width 0.2s, background 0.2s' }} />
+            )) : (
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#6b7280' }}>{slide + 1} / {items.length}</span>
+            ))}
+          </div>
+          {!semRodape && (
+            <a href={folderUrl} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: '#374151', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              📂 Abrir pasta no Drive
+            </a>
           )}
         </div>
       )}
-      <a href={folderUrl} target="_blank" rel="noopener noreferrer"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 12, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
-        📂 Abrir pasta no Drive
-      </a>
     </div>
   )
 }
@@ -305,7 +307,7 @@ export function ReelFolderPreview({ folderId, folderUrl, comecarNoIframe = false
   const video  = videos[0]
   // Mostra só o vídeo — a capa da pasta não entra aqui pra não sobrepor o player.
   return video ? (
-    <DriveVideo id={video.id} folderUrl={folderUrl} comecarNoIframe={comecarNoIframe} />
+    <DriveVideo id={video.id} folderUrl={folderUrl} comecarNoIframe={comecarNoIframe} semRodape={semRodape} />
   ) : (
     semRodape ? null : (
       <a href={folderUrl} target="_blank" rel="noopener noreferrer"
@@ -358,7 +360,7 @@ export function PreviaDoPost({
     return (
       <div>
         {pasta && <FolderThumb folderId={pasta} />}
-        <DriveVideo id={video} folderUrl={driveFolderUrl || driveUrl || ''} comecarNoIframe={contexto === 'equipe'} />
+        <DriveVideo id={video} folderUrl={driveFolderUrl || driveUrl || ''} comecarNoIframe={contexto === 'equipe'} semRodape={semRodape} />
       </div>
     )
   }

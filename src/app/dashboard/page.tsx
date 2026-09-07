@@ -1416,52 +1416,6 @@ export default function DashboardPage() {
               </SectionCard>
             )}
 
-        {/* ── Geral da Bagano ──────────────────────────────────────────────
-            O que está travado na AGÊNCIA — de todo mundo, não seu. O que é seu
-            está no "Para você", acima, e é por lá que a pessoa começa o dia.
-
-            Ficou embaixo por isso: a primeira versão nasceu no topo e empurrava
-            o "Para você" pra baixo, invertendo a prioridade. Duas listas
-            parecidas competindo, e a de fora ganhando da de dentro.
-
-            Nada aqui é conta nova — `fetchAgencyAlerts` já existia e já sabia
-            de tudo isso. Só que morava atrás do sininho, e ninguém abre o
-            sininho pra descobrir o que está pegando.
-
-            Some quando não há nada: silêncio também informa. */}
-        {fila.length > 0 && (
-          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] overflow-hidden">
-            <div className="px-4 md:px-5 py-3 border-b border-[var(--color-border)] flex items-baseline gap-2 flex-wrap">
-              <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-                Geral da Bagano
-              </p>
-              {fila.some(a => a.severity === 'alta') && (
-                <span className="text-xs font-semibold" style={{ color: 'var(--ds-error-accent)' }}>
-                  {fila.filter(a => a.severity === 'alta').length} urgente{fila.filter(a => a.severity === 'alta').length !== 1 ? 's' : ''}
-                </span>
-              )}
-              <span className="text-xs text-[var(--color-text-muted)] ml-auto">{fila.length} {fila.length === 1 ? 'item' : 'itens'}</span>
-            </div>
-            <div className="divide-y divide-[var(--color-border)]">
-              {fila.slice(0, 5).map(a => (
-                <button key={a.id} onClick={() => router.push(a.href)}
-                  className="w-full text-left flex items-center gap-3 px-4 md:px-5 py-3 hover:bg-[var(--color-bg-subtle)] transition-colors">
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ background: a.severity === 'alta' ? 'var(--ds-error-accent)' : 'var(--ds-warn-accent)' }} />
-                  <span className="text-sm text-[var(--color-text-primary)] min-w-0 flex-1">{a.label}</span>
-                  {a.detail && <span className="hidden sm:block text-xs text-[var(--color-text-muted)] truncate max-w-[38%]">{a.detail}</span>}
-                  <ChevronRight size={14} className="text-[var(--color-text-faint)] flex-shrink-0" />
-                </button>
-              ))}
-            </div>
-            {fila.length > 5 && (
-              <p className="px-4 md:px-5 py-2 text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)]">
-                e mais {fila.length - 5} — o sininho tem a lista inteira
-              </p>
-            )}
-          </div>
-        )}
-
             {/* Situação dos clientes — o título mudou junto com a lógica: "do
                 mês" era a origem conceitual do problema. */}
             <div>
@@ -1660,6 +1614,52 @@ export default function DashboardPage() {
             </SectionCard>
 
             {/* Aguardando aprovação por cliente — mês inteiro, não só a semana */}
+            {/* ── Geral da Bagano ──────────────────────────────────────────────
+                O que está travado na AGÊNCIA — de todo mundo, não seu. O que é seu
+                está no "Para você", acima, e é por lá que a pessoa começa o dia.
+
+                Ficou embaixo por isso: a primeira versão nasceu no topo e empurrava
+                o "Para você" pra baixo, invertendo a prioridade. Duas listas
+                parecidas competindo, e a de fora ganhando da de dentro.
+
+                Nada aqui é conta nova — `fetchAgencyAlerts` já existia e já sabia
+                de tudo isso. Só que morava atrás do sininho, e ninguém abre o
+                sininho pra descobrir o que está pegando.
+
+                Some quando não há nada: silêncio também informa. */}
+            {fila.length > 0 && (
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] overflow-hidden">
+                <div className="px-4 md:px-5 py-3 border-b border-[var(--color-border)] flex items-baseline gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                    Geral da Bagano
+                  </p>
+                  {fila.some(a => a.severity === 'alta') && (
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ds-error-accent)' }}>
+                      {fila.filter(a => a.severity === 'alta').length} urgente{fila.filter(a => a.severity === 'alta').length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  <span className="text-xs text-[var(--color-text-muted)] ml-auto">{fila.length} {fila.length === 1 ? 'item' : 'itens'}</span>
+                </div>
+                <div className="divide-y divide-[var(--color-border)]">
+                  {fila.slice(0, 5).map(a => (
+                    <button key={a.id} onClick={() => router.push(a.href)}
+                      className="w-full text-left flex items-center gap-3 px-4 md:px-5 py-3 hover:bg-[var(--color-bg-subtle)] transition-colors">
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                        style={{ background: a.severity === 'alta' ? 'var(--ds-error-accent)' : 'var(--ds-warn-accent)' }} />
+                      <span className="text-sm text-[var(--color-text-primary)] min-w-0 flex-1">{a.label}</span>
+                      {a.detail && <span className="hidden sm:block text-xs text-[var(--color-text-muted)] truncate max-w-[38%]">{a.detail}</span>}
+                      <ChevronRight size={14} className="text-[var(--color-text-faint)] flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+                {fila.length > 5 && (
+                  <p className="px-4 md:px-5 py-2 text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)]">
+                    e mais {fila.length - 5} — o sininho tem a lista inteira
+                  </p>
+                )}
+              </div>
+            )}
+
             <SectionCard
               title="Aguardando aprovação"
               action={<span className="text-xs text-[var(--color-text-muted)]">{pendingApprovalByClient.reduce((n, g) => n + g.pendingCount, 0)} {pl(pendingApprovalByClient.reduce((n, g) => n + g.pendingCount, 0), 'post', 'posts')}</span>}

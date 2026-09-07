@@ -26,7 +26,9 @@ export function arrobaDoCliente(instagramUrl?: string | null, nome?: string | nu
 function comDestaques(texto: string) {
   return texto.split(/(@[A-Za-z0-9._]+|#[\wÀ-ÿ]+)/g).map((parte, i) =>
     /^[@#]/.test(parte)
-      ? <span key={i} style={{ color: '#00376b' }}>{parte}</span>
+      // Azul do Instagram no claro; no escuro ele desaparece no fundo, então
+      // vai o azul de link do próprio hub.
+      ? <span key={i} className="text-[var(--color-accent)]">{parte}</span>
       : <span key={i}>{parte}</span>,
   )
 }
@@ -63,32 +65,31 @@ export default function SimulacaoInstagram({
 
   return (
     <>
-    {/* O cartão é branco sempre, porque o Instagram é branco — no modo escuro
-        do hub ele continua branco de propósito: a simulação vale pelo que o
-        cliente vai ver, não pelo tema de quem confere.
+    {/* O cartão segue o tema do hub.
 
-        O que muda no escuro é a MOLDURA. Antes o branco preenchia o painel
-        inteiro e virava um bloco de luz colado no card escuro; agora ele
-        flutua sobre o fundo do hub, com respiro e canto arredondado — lê como
-        "isto é uma prévia", não como "esta metade da tela quebrou". */}
-    <div className="bg-white text-[#262626] rounded-xl overflow-hidden shadow-sm border border-black/5">
+        Insisti no branco fixo por achar que "o Instagram é branco" — mas o
+        Instagram tem modo escuro, e quem confere às 23h no tema escuro levava
+        um bloco de luz na cara. Simular no escuro continua sendo simular o
+        Instagram; o que a simulação precisa acertar é o ENQUADRAMENTO e a
+        ordem, não a cor de fundo do app. */}
+    <div className="bg-[var(--color-bg-card)] text-[var(--color-text-primary)] rounded-xl overflow-hidden border border-[var(--color-border)]">
       {/* Cabeçalho: avatar com o anel do Instagram, @ e a data */}
       <div className="flex items-center gap-2.5 px-3 py-2.5">
         <div
           className="w-8 h-8 rounded-full flex-shrink-0 p-[2px]"
           style={{ background: 'linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)' }}
         >
-          <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+          <div className="w-full h-full rounded-full overflow-hidden bg-[var(--color-bg-card)] flex items-center justify-center">
             {clienteLogo
               ? <img src={clienteLogo} alt={clienteNome || ''} className="w-full h-full object-cover" />
-              : <span className="text-[10px] font-bold" style={{ color: clienteCor || '#262626' }}>{iniciais}</span>}
+              : <span className="text-[10px] font-bold" style={{ color: clienteCor || 'var(--color-text-primary)' }}>{iniciais}</span>}
           </div>
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-semibold leading-tight truncate">{arroba}</p>
-          {quando && <p className="text-[11px] text-[#737373] leading-tight mt-0.5">{quando}</p>}
+          {quando && <p className="text-[11px] text-[var(--color-text-muted)] leading-tight mt-0.5">{quando}</p>}
         </div>
-        <span className="text-[#262626] text-lg leading-none tracking-tight select-none">···</span>
+        <span className="text-[var(--color-text-muted)] text-lg leading-none tracking-tight select-none">···</span>
       </div>
 
       {/* A peça */}
@@ -119,7 +120,7 @@ export default function SimulacaoInstagram({
             {comDestaques(legenda)}
           </p>
         ) : (
-          <p className="text-[13px] text-[#8e8e8e] italic">Sem legenda ainda — é assim que vai sair.</p>
+          <p className="text-[13px] text-[var(--color-text-faint)] italic">Sem legenda ainda — é assim que vai sair.</p>
         )}
       </div>
     </div>
