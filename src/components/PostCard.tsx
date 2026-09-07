@@ -817,6 +817,39 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const isImportantActivity = (f: FeedItem) => f.id === '__created__' || /criou|ajuste|alterações|aprov/i.test(f.body)
   const visibleFeed = showDetails ? feed : feed.filter(f => f.kind === 'comment' || isImportantActivity(f))
 
+  // Qual aba abrir: a conversa ou a arte.
+  //
+  // "Franz moveu de Estratégia para Aguardando aprovação" não é conversa — é
+  // rastro. Abrir nos comentários por causa disso faz a pessoa clicar duas
+  // vezes toda vez pra chegar no que importa. Já um ajuste pedido pelo cliente
+  // tem que estar na frente: é o motivo de o card estar aberto.
+  //
+  // Duas coisas trazem a conversa pra frente, e só duas:
+  //
+  //   1. o post ESTÁ esperando resposta — o cliente pediu ajuste e ele não saiu
+  //      disso. É literalmente o motivo do card estar aberto.
+  //   2. alguém escreveu nos últimos dias — conversa viva.
+  //
+  // Comentário de três semanas atrás, já resolvido, não conta. Medido contra os
+  // 25 posts mexidos por último: exigir só "tem comentário" mandava 2 pra arte;
+  // com esta regra são 11, e os 4 que continuam nos comentários são todos de
+  // conversa recente. A diferença é a pessoa clicar duas vezes ou nenhuma.
+  const DIAS_CONVERSA_VIVA = 3
+  const esperandoCliente = form.status === 'ajuste' || approvalStatus === 'não aprovado'
+  const conversaViva = comments.some(c =>
+    (Date.now() - new Date(c.created_at).getTime()) / 86400000 <= DIAS_CONVERSA_VIVA)
+  const conversaImporta = esperandoCliente || conversaViva
+
+  // Decide UMA vez, quando o card termina de carregar. Depois disso a escolha é
+  // de quem está usando — trocar a aba embaixo da pessoa é pior que abrir na
+  // errada.
+  const abaDecidida = useRef(false)
+  useEffect(() => {
+    if (abaDecidida.current || loading) return
+    abaDecidida.current = true
+    if (!conversaImporta && temPrevia) setAbaPainel('arte')
+  }, [loading, conversaImporta, temPrevia])
+
   const dueDateLabel = (() => {
     if (!form.scheduled_date) return null
     const now = new Date()
@@ -1484,7 +1517,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             <DeliverySection
               value={form.drive_folder_url || form.drive_url}
               isVideo={form.post_type === 'reels'}
-                postType={form.post_type}
               onCommit={v => {
                 // Mensagem distinta pra "acabou de entregar" — igual já existia em
                 // Extras/Materiais — em vez de um genérico "editou o link do Drive"
