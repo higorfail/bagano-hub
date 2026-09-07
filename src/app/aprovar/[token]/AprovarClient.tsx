@@ -388,6 +388,36 @@ interface Post {
   funil?: string; campaign_type?: string
 }
 
+// Quantos o cliente já resolveu, e quantos faltam.
+//
+// Sem isso a tela é uma lista: o cliente não sabe se falta um ou oito, nem se
+// já terminou. Quem abre no celular, decide três e é interrompido, não tem
+// como saber que parou no meio — e não volta. A barra é o que transforma
+// "uma lista de posts" em "uma tarefa com fim".
+function ProgressoAprovacao({ feitos, total, cor }: { feitos: number; total: number; cor: string }) {
+  if (total <= 0) return null
+  const faltam = Math.max(0, total - feitos)
+  const tudo = faltam === 0
+  const pct = Math.round((feitos / total) * 100)
+  return (
+    <div style={{ marginTop: 11 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 5 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: tudo ? '#15803d' : '#374151', letterSpacing: '-0.01em' }}>
+          {tudo ? 'Tudo aprovado' : `${feitos} de ${total} aprovados`}
+        </span>
+        {!tudo && (
+          <span style={{ fontSize: 11.5, color: '#9ca3af', whiteSpace: 'nowrap' }}>
+            {faltam} esperando você
+          </span>
+        )}
+      </div>
+      <div style={{ height: 5, borderRadius: 3, background: '#ececec', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: tudo ? '#22c55e' : cor, borderRadius: 3, transition: 'width .35s ease' }} />
+      </div>
+    </div>
+  )
+}
+
 export default function ApprovalPage({ token, equipe = false }: { token: string; equipe?: boolean }) {
   // Carrega o token em toda requisição — é assim que o banco sabe que esta
   // aba tem direito ao conteúdo deste cliente, e só dele.
@@ -853,9 +883,9 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     // — sem isso, o extra volta a parecer um pendente qualquer.
     const isAdjustedPending = !isApproved && !isChanges && extra.client_approval_status === 'aguardando' && !!extra.client_approval_comment
     const cardBorder = isApproved ? '#86efac' : isChanges ? '#fcd34d' : isAdjustedPending ? '#fcd34d' : '#ebebeb'
-    const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : isAdjustedPending ? '#fffbeb' : '#fafafa'
-    const statusClr  = isApproved ? '#16a34a'  : isChanges ? '#b45309' : isAdjustedPending ? '#b45309' : '#9ca3af'
-    const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : isAdjustedPending ? '🟡 Ajustado — revisar' : '● Pendente'
+    const statusBg   = isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : isAdjustedPending ? '#fffbeb' : '#eff6ff'
+    const statusClr  = isApproved ? '#16a34a'  : isChanges ? '#b45309' : isAdjustedPending ? '#b45309' : '#1d4ed8'
+    const statusTxt  = isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : isAdjustedPending ? '🟡 Ajustado — revisar' : '⏳ Aguardando você'
 
     // Mesma lógica de mídia do post final: pasta (reel/carrossel/capa) ou arquivo único (vídeo/imagem)
     const isFolder    = /\/folders\//.test(extra.drive_url || '')
@@ -1102,8 +1132,8 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
             {post.scheduled_date && <span style={{ fontSize: 11, color: '#9ca3af' }}>{new Date(post.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>}
             {post.funil && <span style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', padding: '1px 7px', borderRadius: 100 }}>{post.funil.split(' ')[0]}</span>}
           </div>
-          <span style={{ fontSize: 11, fontWeight: 700, color: isApproved ? '#16a34a' : isChanged ? '#b45309' : '#9ca3af' }}>
-            {isApproved ? '✓ Aprovado' : isChanged ? '⚠ Revisar' : '● Pendente'}
+          <span style={{ fontSize: 11, fontWeight: 700, color: isApproved ? '#16a34a' : isChanged ? '#b45309' : '#1d4ed8' }}>
+            {isApproved ? '✓ Aprovado' : isChanged ? '⚠ Revisar' : '⏳ Aguardando você'}
           </span>
         </div>
 
@@ -1367,11 +1397,17 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     // cheio). O publicado leva o preenchimento mais forte de propósito: é o
     // estado final, e é o que o cliente procura quando abre a página.
     const cardBorder = isPublicado ? '#34d399' : isAgendado ? '#5eead4' : isApproved ? '#86efac' : isChanges ? '#fcd34d' : isAdjustedPending ? '#fcd34d' : '#ebebeb'
-    const statusBg   = isPublicado ? '#d1fae5' : isAgendado ? '#f0fdfa' : isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : isAdjustedPending ? '#fffbeb' : '#fafafa'
-    const statusClr  = isPublicado ? '#065f46' : isAgendado ? '#0f766e' : isApproved ? '#15803d'  : isChanges ? '#b45309' : isAdjustedPending ? '#b45309' : '#9ca3af'
+    // "Aguardando você" e não "Pendente".
+    //
+    // Pendente é um estado do sistema; aguardando você é uma instrução. E o
+    // cinza claro fazia dele a coisa mais apagada do card — justamente a única
+    // que depende do cliente. O azul não colide: verde é aprovado, âmbar é
+    // ajuste, verde-água é agendado.
+    const statusBg   = isPublicado ? '#d1fae5' : isAgendado ? '#f0fdfa' : isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : isAdjustedPending ? '#fffbeb' : '#eff6ff'
+    const statusClr  = isPublicado ? '#065f46' : isAgendado ? '#0f766e' : isApproved ? '#15803d'  : isChanges ? '#b45309' : isAdjustedPending ? '#b45309' : '#1d4ed8'
     const statusTxt  = isPublicado ? '🚀 Publicado'
       : isAgendado ? (quando ? `📅 Agendado · ${quando}` : '📅 Agendado')
-      : isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : isAdjustedPending ? '🟡 Ajustado — revisar' : '● Pendente'
+      : isApproved ? '✓ Aprovado' : isChanges ? '⚠ Pediu ajuste' : isAdjustedPending ? '🟡 Ajustado — revisar' : '⏳ Aguardando você'
 
     return (
       <div key={post.id} style={{ background: '#fff', borderRadius: 22, border: `1.5px solid ${cardBorder}`, overflow: 'hidden', boxShadow: isApproved ? '0 2px 12px rgba(34,197,94,0.08)' : '0 1px 4px rgba(0,0,0,0.06)', transition: 'border-color 0.35s' }}>
@@ -1557,6 +1593,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{client?.name}</p>
                 <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Central de aprovação</p>
+                  <ProgressoAprovacao feitos={decididos.length} total={decididos.length + totalPendingGeral} cor={cc} />
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <p style={{ margin: 0, lineHeight: 1 }}>
@@ -1648,6 +1685,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{client?.name}</p>
                 <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovação de conteúdos extras</p>
+                  <ProgressoAprovacao feitos={extras.filter(e => e.client_approval_status && e.client_approval_status !== 'aguardando').length} total={extras.length} cor={cc} />
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <p style={{ margin: 0, lineHeight: 1 }}>
@@ -1762,6 +1800,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{client?.name}</p>
                 <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovação do Cronograma · {MONTHS[(tokenData?.month ?? 1) - 1]} {tokenData?.year}</p>
+                  <ProgressoAprovacao feitos={posts.length - posts.filter(p => p.status === 'aguardando_aprovacao_crono').length} total={posts.length} cor={cc} />
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <p style={{ margin: 0, lineHeight: 1 }}>
@@ -1907,6 +1946,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 16, fontWeight: 800, color: '#111', margin: 0, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{client?.name}</p>
               <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovação Final · {MONTHS[(tokenData?.month ?? 1) - 1]} {tokenData?.year}</p>
+              <ProgressoAprovacao feitos={reviewPosts.length - pendingCount} total={reviewPosts.length} cor={cc} />
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <p style={{ margin: 0, lineHeight: 1 }}>
@@ -2217,8 +2257,8 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                           <p style={{ fontSize: 13, fontWeight: 700, color: '#111', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</p>
                           <p style={{ fontSize: 11, color: '#9ca3af', margin: '1px 0 0' }}>{TYPE_LABELS[p.post_type]}</p>
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: isApproved ? '#16a34a' : isChanges ? '#b45309' : '#9ca3af', flexShrink: 0 }}>
-                          {isApproved ? '✓ Aprovado' : isChanges ? '⚠ Revisar' : '● Pendente'}
+                        <span style={{ fontSize: 11, fontWeight: 700, color: isApproved ? '#16a34a' : isChanges ? '#b45309' : '#1d4ed8', flexShrink: 0 }}>
+                          {isApproved ? '✓ Aprovado' : isChanges ? '⚠ Revisar' : '⏳ Aguardando você'}
                         </span>
                       </button>
                     )
