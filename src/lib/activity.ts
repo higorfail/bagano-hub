@@ -8,6 +8,11 @@ import { withBase } from '@/lib/base'
 // igual: no hub logado, quem manda é a sessão.
 export async function logActivity(params: {
   db?: any
+  // O link de aprovação que a aba tem, quando quem age é o cliente. É por
+  // ele que /api/push/notify sabe que a chamada é legítima — o cliente não
+  // tem sessão, e sem isso a rota (agora fechada) recusaria e a equipe
+  // deixaria de ser avisada de aprovação e pedido de ajuste.
+  token?: string
   tableName: string
   recordId: string
   clientId?: string | null
@@ -50,7 +55,10 @@ export async function logActivity(params: {
   // sininho — era a maior fonte de "chegou no push mas não ficou salvo".
   fetch(withBase('/api/push/notify'), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(params.token ? { 'x-approval-token': params.token } : {}),
+    },
     body: JSON.stringify(params),
     // keepalive: a requisição sobrevive se a pessoa fechar a aba ou navegar
     // logo depois da ação. Sem isso o navegador cancela em trânsito e a

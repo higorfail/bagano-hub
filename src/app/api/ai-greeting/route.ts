@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripAiTells, NO_AI_TELLS } from '@/lib/aiText'
+import { usuarioLogado } from '@/lib/apiAuth'
 
 // Frase do dia que acompanha o "Bom dia, Fulano" no topo do Hub — escrita
 // como um colega de equipe comentaria, usando o que a pessoa realmente tem
@@ -66,6 +67,9 @@ Exemplos do humor esperado (não copie, use como calibragem de tom):
 "A fila de aprovações sumiu. Milagre."`
 
 export async function POST(req: NextRequest) {
+  // Sem isto a rota respondia a qualquer requisição da internet — a chave do
+  // Gemini é nossa, e a cota também.
+  if (!await usuarioLogado()) return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return NextResponse.json({ greeting: '' })
 

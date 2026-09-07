@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripAiTells, NO_AI_TELLS } from '@/lib/aiText'
+import { usuarioLogado } from '@/lib/apiAuth'
 
 export async function POST(req: NextRequest) {
+  // Sem isto a rota respondia a qualquer requisição da internet — a chave do
+  // Gemini é nossa, e a cota também.
+  if (!await usuarioLogado()) return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 503 })
 

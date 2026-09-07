@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { usuarioLogado } from '@/lib/apiAuth'
 
 // Extrai o @username de uma URL/handle do Instagram
 function parseUsername(input: string): string | null {
@@ -13,6 +14,9 @@ function parseUsername(input: string): string | null {
 }
 
 export async function POST(req: NextRequest) {
+  // Sem isto a rota respondia a qualquer requisição da internet — a chave do
+  // Gemini é nossa, e a cota também.
+  if (!await usuarioLogado()) return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
   const { instagram_url } = await req.json()
   const username = parseUsername(instagram_url || '')
   if (!username) {

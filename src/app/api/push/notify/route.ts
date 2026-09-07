@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import webpush from 'web-push'
 import { quemAvisar } from '@/lib/quemAvisar'
+import { chamadaAutorizada } from '@/lib/apiAuth'
 
 
 const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
@@ -96,6 +97,9 @@ async function resolveCardMeta(tableName: string, recordId: string): Promise<Car
 // sessão de usuário), então push_subscriptions/card_watchers precisam de GRANT
 // pro anon (ver push_subscriptions_setup.sql).
 export async function POST(req: NextRequest) {
+  // Vale sessão do hub OU link de aprovação válido: esta rota é usada pelas
+  // duas telas, e o cliente não tem conta.
+  if (!await chamadaAutorizada(req)) return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
   const body = await req.json().catch(() => null)
   if (!body?.tableName || !body?.recordId) return NextResponse.json({ skipped: 'invalid body' })
 

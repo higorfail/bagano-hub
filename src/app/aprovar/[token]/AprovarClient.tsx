@@ -617,7 +617,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p))
     await ensureWatchingFromAssigned('schedules', postId, supabase)
     await queueApprovalDigest(tokenData?.client_id, 'approved', 1, supabase)
-    await logActivity({ db: supabase, tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post`, skipPush: true })
+    await logActivity({ db: supabase, token, tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post`, skipPush: true })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setSheetPost(null); setSheetComment('')
     showToast('Post aprovado! ✓')
@@ -638,7 +638,8 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
       const post = posts.find(p => p.id === postId)
       const r = await fetch(withBase('/api/ai-ajuste-alvo'), {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        // O cliente não tem sessão; o link é a credencial dele.
+        headers: { 'content-type': 'application/json', 'x-approval-token': token },
         body: JSON.stringify({ comment, postType: post?.post_type, title: post?.title }),
       })
       const { alvo } = await r.json()
@@ -655,7 +656,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     await classificarAjuste(postId, c)
     await ensureWatchingFromAssigned('schedules', postId, supabase)
     await queueApprovalDigest(tokenData?.client_id, 'rejected', 1, supabase)
-    await logActivity({ db: supabase, tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente solicitou ajuste: "${c}"`, skipPush: true })
+    await logActivity({ db: supabase, token, tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente solicitou ajuste: "${c}"`, skipPush: true })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setComments(cc => { const n = { ...cc }; delete n[postId]; return n })
     setSheetPost(null); setSheetComment('')
@@ -682,7 +683,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     const failedCount = pending.length - okIds.size
     await Promise.all([
       ...pending.filter(p => okIds.has(p.id)).map(p => ensureWatchingFromAssigned('schedules', p.id, supabase)),
-      ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ db: supabase, tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post`, skipPush: true })),
+      ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ db: supabase, token, tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post`, skipPush: true })),
     ])
     await queueApprovalDigest(tokenData?.client_id, 'approved', okIds.size, supabase)
     setPosts(prev => prev.map(p => okIds.has(p.id) ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p))
@@ -705,7 +706,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     // Sem o registro o designer não fica sabendo que o material chegou — e
     // esperar sem saber que já dá pra começar é o mesmo que não ter captado.
     await logActivity({
-      db: supabase,
+      db: supabase, token,
       tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id,
       action: 'status_changed', actorName: 'Equipe (captação)',
       description: 'Material captado — post liberado pra produção',
@@ -724,7 +725,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     })
     if (error) { showToast('Não deu pra salvar a observação.', false); setSubmitting(null); return }
     await logActivity({
-      db: supabase,
+      db: supabase, token,
       tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id,
       action: 'commented', actorName: 'Equipe (captação)',
       description: `Observação da captação: ${texto.slice(0, 80)}`,
@@ -755,7 +756,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: APOS_APROVAR_CRONO, approval_status: 'aprovado' } : p))
     await ensureWatchingFromAssigned('schedules', postId, supabase)
     await queueApprovalDigest(tokenData?.client_id, 'approved', 1, supabase)
-    await logActivity({ db: supabase, tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post', skipPush: true })
+    await logActivity({ db: supabase, token, tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post', skipPush: true })
     showToast('Post aprovado! ✓')
     setSubmitting(null)
   }
@@ -768,7 +769,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'estrategia', approval_status: 'não aprovado', approval_comment: c } : p))
     await ensureWatchingFromAssigned('schedules', postId, supabase)
     await queueApprovalDigest(tokenData?.client_id, 'rejected', 1, supabase)
-    await logActivity({ db: supabase, tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste na estratégia: "${c}"`, skipPush: true })
+    await logActivity({ db: supabase, token, tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'crono_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste na estratégia: "${c}"`, skipPush: true })
     setCommenting(s => { const n = new Set(s); n.delete(postId); return n })
     setComments(cc => { const n = { ...cc }; delete n[postId]; return n })
     showToast('Solicitação enviada!', false)
@@ -786,7 +787,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     const failedCount = pending.length - okIds.size
     await Promise.all([
       ...pending.filter(p => okIds.has(p.id)).map(p => ensureWatchingFromAssigned('schedules', p.id, supabase)),
-      ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ db: supabase, tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post', skipPush: true })),
+      ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ db: supabase, token, tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'crono_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou a estratégia do post', skipPush: true })),
     ])
     await queueApprovalDigest(tokenData?.client_id, 'approved', okIds.size, supabase)
     setPosts(prev => prev.map(p => okIds.has(p.id) ? { ...p, status: APOS_APROVAR_CRONO, approval_status: 'aprovado' } : p))
@@ -806,7 +807,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aprovado', client_approval_comment: null, status: 'done' } : e))
     await ensureWatchingFromAssigned('extras', extraId, supabase)
     await queueApprovalDigest(tokenData?.client_id, 'approved', 1, supabase)
-    await logActivity({ db: supabase, tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou o extra', skipPush: true })
+    await logActivity({ db: supabase, token, tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou o extra', skipPush: true })
     showToast('Extra aprovado! ✓')
     setExtraSubmitting(null)
   }
@@ -827,7 +828,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'recusado', client_approval_comment: c, status: 'backlog' } : e))
     await ensureWatchingFromAssigned('extras', extraId, supabase)
     await queueApprovalDigest(tokenData?.client_id, 'rejected', 1, supabase)
-    await logActivity({ db: supabase, tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste: "${c}"`, skipPush: true })
+    await logActivity({ db: supabase, token, tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_rejected', actorName: client?.name || 'Cliente', description: `Cliente pediu ajuste: "${c}"`, skipPush: true })
     setExtraCommenting(s => { const n = new Set(s); n.delete(extraId); return n })
     setExtraComments(cc => { const n = { ...cc }; delete n[extraId]; return n })
     showToast('Pedido de ajuste enviado!', false)

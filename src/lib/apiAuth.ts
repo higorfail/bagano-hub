@@ -27,3 +27,31 @@ export async function usuarioLogado() {
   const { data } = await supabase.auth.getUser()
   return data.user ?? null
 }
+
+/**
+ * A chamada tem direito de estar aqui?
+ *
+ * Duas credenciais valem, porque duas telas legítimas chamam estas rotas:
+ * o hub (pessoa logada) e a página pública de aprovação (cliente sem conta,
+ * que prova quem é pelo `x-approval-token`, o mesmo cabeçalho que as políticas
+ * do banco conferem).
+ *
+ * Por que passou a existir: onze rotas de API não tinham guarda nenhuma.
+ * `/api/push/notify` aceitava qualquer requisição da internet — dava pra
+ * disparar notificação no celular da equipe inteira, com o texto que quisesse.
+ * As oito rotas de IA rodavam o Gemini com a nossa chave pra quem pedisse:
+ * cota queimada, e prompt escolhido por estranho.
+ */
+export async function chamadaAutorizada(req: Request): Promise<boolean> {
+  if (await usuarioLogado()) return true
+
+  const token = req.headers.get('x-approval-token')
+  if (!token) return false
+
+  // Import tardio: `supabaseAdmin` é `server-only` e falha alto se alguém
+  // arrastar este arquivo pro navegador sem querer.
+  const { supabaseAdmin } = await import('./supabaseAdmin')
+  const { data } = await supabaseAdmin
+    .from('approval_tokens').select('token').eq('token', token).eq('active', true).maybeSingle()
+  return !!data
+}

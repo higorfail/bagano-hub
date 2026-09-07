@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SITE_URL } from '@/lib/base'
+import { usuarioLogado } from '@/lib/apiAuth'
 
 // Busca o nome real de um link anexado, pra usar como rótulo curto em vez da
 // URL inteira. Drive é um caso à parte: ler o <title> da página de visualização
@@ -68,6 +69,9 @@ async function htmlTitle(url: string): Promise<string | null> {
 }
 
 export async function GET(req: NextRequest) {
+  // Sem isto a rota respondia a qualquer requisição da internet — a chave do
+  // Gemini é nossa, e a cota também.
+  if (!await usuarioLogado()) return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
   const url = req.nextUrl.searchParams.get('url')
   if (!url) return NextResponse.json({ title: null })
 

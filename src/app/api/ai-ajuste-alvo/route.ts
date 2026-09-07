@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { chamadaAutorizada } from '@/lib/apiAuth'
 
 /**
  * Lê o pedido de alteração do cliente e responde UMA coisa: esse pedido mexe na
@@ -14,6 +15,9 @@ import { NextRequest, NextResponse } from 'next/server'
  * a peça — o comportamento de sempre. O pior caso da IA é o presente.
  */
 export async function POST(req: NextRequest) {
+  // Vale sessão do hub OU link de aprovação válido: esta rota é usada pelas
+  // duas telas, e o cliente não tem conta.
+  if (!await chamadaAutorizada(req)) return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return NextResponse.json({ alvo: null })
 

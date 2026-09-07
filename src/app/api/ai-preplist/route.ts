@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { usuarioLogado } from '@/lib/apiAuth'
 
 const SYSTEM_PROMPT = `Você é um Diretor de Produção especializado em produção de conteúdo para restaurantes, montando o guia do dia de gravação pra equipe de captação.
 
@@ -60,6 +61,9 @@ const FORMAT_LABEL: Record<string, string> = {
 }
 
 export async function POST(req: NextRequest) {
+  // Sem isto a rota respondia a qualquer requisição da internet — a chave do
+  // Gemini é nossa, e a cota também.
+  if (!await usuarioLogado()) return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 503 })
