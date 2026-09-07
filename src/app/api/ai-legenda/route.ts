@@ -91,6 +91,31 @@ export async function POST(req: NextRequest) {
   // e é delas que o bloco vai ser copiado.
   const signature = detectSignature(voiceSamples)
 
+  // O tamanho que esta marca escreve, medido nas legendas dela.
+  //
+  // Medido em 2026-09-07 com 4 posts do Number Seven: a IA entregava 522
+  // caracteres onde a equipe escrevia 369 — 40% a mais, em todos. E a gordura
+  // não estava no fim: estava no começo, duas frases de aquecimento antes de
+  // dizer qualquer coisa. No Instagram é exatamente esse trecho que some atrás
+  // do "... mais", então a legenda chega ao leitor sem a parte que importa.
+  //
+  // Mediana e não média: uma legenda gigante entre oito não pode puxar o alvo
+  // da marca inteira.
+  //
+  // FAIXA COM PISO, e não "cerca de N". Medido em dois clientes, duas peças
+  // cada, contra a legenda real da equipe:
+  //
+  //   sem instrução        +134% / +32%   (uma saiu com 1002 caracteres)
+  //   "cerca de N"          -25% / -21%   o modelo lê número como teto
+  //   faixa com piso        -14% /  -9%   ← escolhido
+  //   faixa + "não aqueça"  +16% / +10%
+  //
+  // O piso é o que impede o encolhimento: sem ele o modelo para bem antes do
+  // alvo. E errar pra menos é mais seguro que pra mais — o excedente do
+  // Instagram some atrás do "... mais" de qualquer jeito.
+  const tamanhos = voiceSamples.map(t => t.length).sort((a, b) => a - b)
+  const alvoTamanho = tamanhos.length >= 3 ? tamanhos[Math.floor(tamanhos.length / 2)] : null
+
   const tov = manual?.tone_of_voice
   const manualContext = manual ? `
 Contexto da marca (manual do cliente):
@@ -124,7 +149,8 @@ horário no final.
   const prompt = `Você é um social media escrevendo a legenda de um post de Instagram para uma marca.
 Escreva uma sugestão de legenda em português, natural, no tom da marca descrito abaixo. Pode incluir emojis com moderação e uma chamada pra ação no final, se fizer sentido. Não use hashtags a menos que o briefing peça. ${NO_AI_TELLS} Não invente informações que não estão no briefing/copy.
 
-Tipo de post: ${post_type || 'não especificado'}
+${alvoTamanho ? `Tamanho: entre ${Math.round(alvoTamanho * 0.85)} e ${Math.round(alvoTamanho * 1.15)} caracteres — não escreva menos que ${Math.round(alvoTamanho * 0.85)}. É o tamanho que esta marca usa de verdade.
+` : ''}Tipo de post: ${post_type || 'não especificado'}
 Título/tema do post: ${title || 'sem título'}
 Briefing: ${briefing || 'não informado'}
 Copy/roteiro de referência: ${copy || 'não informado'}
