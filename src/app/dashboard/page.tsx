@@ -1335,6 +1335,49 @@ export default function DashboardPage() {
           </p>
         </div>
 
+        {/* ── A fila do dia ────────────────────────────────────────────────
+            Número é diagnóstico; fila é instrução. O painel dizia "15 posts
+            atrasados" e deixava a pessoa decidir sozinha o que fazer com isso.
+            Aqui o primeiro item já é a resposta: comece por este.
+
+            Nada aqui é conta nova — `fetchAgencyAlerts` já existia e já sabia
+            de tudo isso. Só que morava atrás do sininho, e ninguém abre o
+            sininho pra descobrir por onde começar.
+
+            Some quando não há nada: silêncio também informa. */}
+        {fila.length > 0 && (
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] overflow-hidden">
+            <div className="px-4 md:px-5 py-3 border-b border-[var(--color-border)] flex items-baseline gap-2 flex-wrap">
+              <p className="text-sm font-semibold text-[var(--color-text-primary)]">
+                {fila.length === 1 ? '1 coisa precisa de você hoje' : `${fila.length} coisas precisam de você hoje`}
+              </p>
+              {fila.some(a => a.severity === 'alta') && (
+                <span className="text-xs font-semibold" style={{ color: 'var(--ds-error-accent)' }}>
+                  {fila.filter(a => a.severity === 'alta').length} urgente{fila.filter(a => a.severity === 'alta').length !== 1 ? 's' : ''}
+                </span>
+              )}
+              <span className="text-xs text-[var(--color-text-muted)] ml-auto">comece pelo topo</span>
+            </div>
+            <div className="divide-y divide-[var(--color-border)]">
+              {fila.slice(0, 5).map(a => (
+                <button key={a.id} onClick={() => router.push(a.href)}
+                  className="w-full text-left flex items-center gap-3 px-4 md:px-5 py-3 hover:bg-[var(--color-bg-subtle)] transition-colors">
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: a.severity === 'alta' ? 'var(--ds-error-accent)' : 'var(--ds-warn-accent)' }} />
+                  <span className="text-sm text-[var(--color-text-primary)] min-w-0 flex-1">{a.label}</span>
+                  {a.detail && <span className="hidden sm:block text-xs text-[var(--color-text-muted)] truncate max-w-[38%]">{a.detail}</span>}
+                  <ChevronRight size={14} className="text-[var(--color-text-faint)] flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+            {fila.length > 5 && (
+              <p className="px-4 md:px-5 py-2 text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)]">
+                e mais {fila.length - 5} — o sininho tem a lista inteira
+              </p>
+            )}
+          </div>
+        )}
+
         {/* ── Atalhos (celular) ─────────────────────────────────────────────
             No lugar da faixa de métricas: números de panorama não levam a
             lugar nenhum, e aqui em cima o que vale é chegar rápido na tela de
