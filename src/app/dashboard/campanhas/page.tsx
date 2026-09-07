@@ -12,6 +12,7 @@ import { campaignProgress } from '@/lib/postStages'
 import { useCampaignDates, campaignTheme, campaignDateLabel, orderByProximity, slugifyCampaignType, createCampaignDate, updateCampaignDate, setCampaignDateActive, deleteCampaignDate } from '@/lib/campaigns'
 import { statusBadge, statusShort } from '@/lib/status'
 import { caminhoCliente } from '@/lib/clienteSlug'
+import { numerosNoDestino } from '@/lib/numeroNoDestino'
 
 // Ver src/lib/campaignPeriod.ts: a campanha só vira de ano depois da janela de
 // encerramento, então `days` pode vir negativo enquanto ainda há trabalho.
@@ -134,10 +135,13 @@ export default function CampanhasPage() {
   async function openCreatePost(clientId: string, campType: string) {
     const s = SEASONAL.find(x => x.type === campType)
     const period = s ? campaignPeriod(s.month, s.day) : { month: new Date().getMonth() + 1, year: new Date().getFullYear() }
-    const { count } = await supabase.from('schedules').select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId).eq('month', period.month).eq('year', period.year)
+    // "contagem + 1" colide sempre que a numeração tem buraco: [1,2,4] são 3
+    // posts e devolve 4, que já existe. Medido em 2026-09-07 — Number Seven e
+    // Piastro tinham exatamente isso, e criar post ali quebrava. O número vem
+    // do MAIOR, não da contagem.
+    const [proximo] = await numerosNoDestino(supabase, clientId, period.month, period.year)
     setCreatePeriod(period)
-    setCreatePostNumber((count || 0) + 1)
+    setCreatePostNumber(proximo)
     setCreatingPost({ clientId, campType })
   }
 

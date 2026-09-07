@@ -76,9 +76,12 @@ export default function LixeiraPage() {
 
   async function clearAll() {
     const supabase = createClient()
-    await supabase.from('trash').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-    setItems([])
+    const { error } = await supabase.from('trash').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     setConfirmClear(false)
+    // Sem conferir, a tela ficava vazia e o toast dizia "esvaziada" mesmo
+    // quando nada foi apagado — e tudo voltava no próximo carregamento.
+    if (error) { toast('Não deu pra esvaziar: ' + error.message); return }
+    setItems([])
     toast('Lixeira esvaziada')
   }
 

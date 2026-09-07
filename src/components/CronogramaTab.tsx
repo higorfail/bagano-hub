@@ -21,6 +21,7 @@ import { statusBadge } from '@/lib/status'
 import { withBase } from '@/lib/base'
 import { linkPublico, novoCodigo } from '@/lib/linkAprovacao'
 import { renumerarPosts } from '@/lib/renumerarPosts'
+import { numerosNoDestino } from '@/lib/numeroNoDestino'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -539,7 +540,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     const { data: full } = await supabase.from('schedules').select('*').eq('id', post.id).single()
     if (!full) { toast('Erro ao duplicar post'); return }
     const { data, error } = await supabase.from('schedules').insert({
-      client_id: clientId, month, year, post_number: posts.length + 1,
+      client_id: clientId, month, year, post_number: (await numerosNoDestino(supabase, clientId, month, year))[0],
       title: `${full.title} (cópia)`, briefing: full.briefing, copy: full.copy, legenda: full.legenda,
       post_type: full.post_type, status: full.status, scheduled_date: full.scheduled_date, scheduled_time: full.scheduled_time,
       drive_url: full.drive_url, drive_folder_url: full.drive_folder_url,

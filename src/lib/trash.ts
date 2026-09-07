@@ -25,18 +25,23 @@ export async function moveToTrash(
   id: string,
   label: string,
   deletedBy?: string | null
-): Promise<void> {
+  // Devolve o id da cópia na lixeira. Quem chama precisa dele pra desfazer:
+  // copiar pra lixeira e falhar ao apagar o original deixa o item DUPLICADO —
+  // um na lixeira, o outro no lugar de sempre — e restaurar depois criaria uma
+  // terceira. Sem o id não há como limpar a cópia.
+): Promise<string | null> {
   const supabase = createClient()
   const table = ITEM_TABLES[type]
   const { data } = await supabase.from(table).select('*').eq('id', id).single()
-  if (!data) return
-  const { error } = await supabase.from('trash').insert({
+  if (!data) return null
+  const { data: copia, error } = await supabase.from('trash').insert({
     item_type: type,
     item_data: data,
     label,
     deleted_by: deletedBy || null,
-  })
+  }).select('id').single()
   if (error) throw new Error(error.message)
+  return copia?.id || null
 }
 
 export async function restoreFromTrash(item: TrashItem): Promise<void> {

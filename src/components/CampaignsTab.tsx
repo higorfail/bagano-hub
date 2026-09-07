@@ -10,6 +10,7 @@ import MaterialCard from '@/components/MaterialCard'
 import { campaignDaysUntil, campaignPeriod } from '@/lib/campaignPeriod'
 import { useCampaignDates, campaignTheme, campaignDateLabel, orderByProximity, slugifyCampaignType, createCampaignDate } from '@/lib/campaigns'
 import { statusBadge, statusShort } from '@/lib/status'
+import { numerosNoDestino } from '@/lib/numeroNoDestino'
 
 // `days` negativo = data passou, campanha ainda em encerramento (ver
 // campaignPeriod.ts). Antes isso era impossível e o ramo abaixo dizia
@@ -72,10 +73,13 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
   async function openCreatePost(campType: string) {
     const s = SEASONAL.find(x => x.type === campType)
     const period = s ? campaignPeriod(s.month, s.day) : { month: new Date().getMonth() + 1, year: new Date().getFullYear() }
-    const { count } = await supabase.from('schedules').select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId).eq('month', period.month).eq('year', period.year)
+    // "contagem + 1" colide sempre que a numeração tem buraco: [1,2,4] são 3
+    // posts e devolve 4, que já existe. Medido em 2026-09-07 — Number Seven e
+    // Piastro tinham exatamente isso, e criar post ali quebrava. O número vem
+    // do MAIOR, não da contagem.
+    const [proximo] = await numerosNoDestino(supabase, clientId, period.month, period.year)
     setCreatePeriod(period)
-    setCreatePostNumber((count || 0) + 1)
+    setCreatePostNumber(proximo)
     setCreatingPost(campType)
   }
 
@@ -212,14 +216,23 @@ export default function CampaignsTab({ clientId, clientColor, members, initialTy
       : `Excluir "${camp.name}"? Ela não tem nada vinculado.`
     if (!confirm(aviso)) return
 
+    // A campanha sai PRIMEIRO, e só depois os vínculos.
+    //
+    // Na ordem inversa, falhar aqui deixava posts, extras e materiais já
+    // desvinculados de uma campanha que continuava existindo — o vínculo é
+    // perdido e ninguém sabe reconstruir qual post era de qual campanha.
+    // Agora, se a exclusão falhar, nada foi tocado.
+    const { error } = await supabase.from('campaigns').delete().eq('id', camp.id)
+    if (error) { alert(`Não deu pra excluir: ${error.message}`); return }
+
+    // O banco não tem chave estrangeira aqui (medido): apagar a campanha
+    // deixaria os vínculos apontando pro vazio. Por isso a limpeza é do código.
     await Promise.all([
       supabase.from('schedules').update({ campaign_type: null }).eq('campaign_type', camp.id),
       supabase.from('extras').update({ campaign_type: null }).eq('campaign_type', camp.id),
       supabase.from('materials').update({ campaign_type: null }).eq('campaign_type', camp.id),
       supabase.from('campaign_extras').delete().eq('campaign_id', camp.id),
     ])
-    const { error } = await supabase.from('campaigns').delete().eq('id', camp.id)
-    if (error) { alert(`Não deu pra excluir: ${error.message}`); return }
     setCampaigns(c => c.filter(x => x.id !== camp.id))
     setPosts(p => p.map(x => x.campaign_type === camp.id ? { ...x, campaign_type: null } : x))
     setKanbanExtras(k => k.map(x => x.campaign_type === camp.id ? { ...x, campaign_type: null } : x))

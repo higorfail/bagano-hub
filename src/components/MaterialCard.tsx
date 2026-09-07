@@ -6,7 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
-import { moveToTrash } from '@/lib/trash'
+import { moveToTrash, deleteFromTrash } from '@/lib/trash'
 import { useMentions, renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
@@ -622,14 +622,23 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
               <span className="text-xs font-medium" style={{ color: 'var(--ds-error-text)' }}>Confirmar exclusão?</span>
               <button onClick={() => setConfirmDelete(false)} className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)]">Cancelar</button>
               <button onClick={async () => {
-                try { await moveToTrash('material', materialId, title || 'Material sem título', currentMember?.name) } catch { /* trash table missing */ }
+                let copiaNaLixeira: string | null = null
+                try { copiaNaLixeira = await moveToTrash('material', materialId, title || 'Material sem título', currentMember?.name) } catch { /* trash table missing */ }
+
+                // Só o material. Checklist, comentários e anexos somem junto —
+                // o banco tem ON DELETE CASCADE (medido em 2026-09-07).
+                //
+                // Antes o código apagava os filhos À MÃO, ANTES do material, e
+                // sem conferir nada. Falhar na última linha deixava o material
+                // na tela com o conteúdo interno destruído: checklist vazio,
+                // comentários sumidos, anexos perdidos — e nenhum aviso.
+                const { error } = await supabase.from('materials').delete().eq('id', materialId)
+                if (error) {
+                  if (copiaNaLixeira) await deleteFromTrash(copiaNaLixeira).catch(() => {})
+                  toast('Não deu pra excluir o material: ' + error.message, 'error')
+                  return
+                }
                 await logActivity({ tableName: 'materials', recordId: materialId, action: 'deleted', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
-                await Promise.all([
-                  supabase.from('material_checklist').delete().eq('material_id', materialId),
-                  supabase.from('material_comments').delete().eq('material_id', materialId),
-                  supabase.from('material_attachments').delete().eq('material_id', materialId),
-                ])
-                await supabase.from('materials').delete().eq('id', materialId)
                 onDeleted?.(materialId)
                 onClose()
               }} className="text-xs font-semibold px-2.5 py-1 rounded-xl text-white" style={{ background: 'var(--ds-error-accent)' }}>

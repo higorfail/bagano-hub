@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { X, Calendar, Trash2, Link2, Upload, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles, Reply } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
-import { moveToTrash } from '@/lib/trash'
+import { moveToTrash, deleteFromTrash } from '@/lib/trash'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
 import { autoGrow } from '@/lib/autoGrow'
@@ -711,18 +711,32 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   async function handleDelete() {
     if (!postId) return
     setDeleting(true)
-    try { await moveToTrash('post', postId, form.title || 'Post sem título', currentMember?.name) }
+    let copiaNaLixeira: string | null = null
+    try { copiaNaLixeira = await moveToTrash('post', postId, form.title || 'Post sem título', currentMember?.name) }
     catch (err) { toast('Erro na lixeira: ' + (err instanceof Error ? err.message : String(err))); setDeleting(false); return }
-    await supabase.from('schedules').delete().eq('id', postId)
+
+    // A exclusão em si precisa ser conferida. Sem isso, falhar aqui deixava o
+    // post DUPLICADO — cópia na lixeira e original ainda na tela — e o card
+    // fechava dizendo que apagou. Restaurar depois criaria uma terceira cópia.
+    const { error } = await supabase.from('schedules').delete().eq('id', postId)
+    if (error) {
+      if (copiaNaLixeira) await deleteFromTrash(copiaNaLixeira).catch(() => {})
+      toast('Não deu pra excluir o post: ' + error.message, 'error')
+      setDeleting(false); return
+    }
     setDeleting(false); if (onDeleted) onDeleted(); onClose()
   }
 
   async function duplicatePost() {
     const pid = await ensurePostId(); if (!pid) { toast('Adicione um título primeiro'); return }
     const f = formRef.current
-    const { count } = await supabase.from('schedules').select('id', { count: 'exact', head: true }).eq('client_id', clientId).eq('month', month).eq('year', year)
+    // "contagem + 1" colide sempre que a numeração tem buraco: [1,2,4] são 3
+    // posts e devolve 4, que já existe. Medido em 2026-09-07 — Number Seven e
+    // Piastro tinham exatamente isso, e criar post ali quebrava. O número vem
+    // do MAIOR, não da contagem.
+    const [proximo] = await numerosNoDestino(supabase, clientId, month, year)
     const { data, error } = await supabase.from('schedules').insert({
-      client_id: clientId, month, year, post_number: (count || 0) + 1,
+      client_id: clientId, month, year, post_number: proximo,
       title: (f.title || 'Post') + ' (cópia)', briefing: f.briefing, copy: f.copy, legenda: f.legenda,
       post_type: f.post_type, status: f.status, scheduled_date: f.scheduled_date || null, scheduled_time: f.scheduled_time || null,
       drive_url: f.drive_url, drive_folder_url: f.drive_folder_url || null,
