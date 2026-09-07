@@ -327,6 +327,8 @@ function AprovacaoPageInner() {
   const [commentsCount, setCommentsCount] = useState<Record<string, number>>({})
   const [loading,   setLoading]   = useState(true)
   const [loadError, setLoadError] = useState(false)
+  /** Clientes que não têm nenhum link de aprovação vivo. */
+  const [semLink, setSemLink] = useState<Set<string>>(new Set())
   // Aceita ?filter= do link do alerta: mandar pra página e deixar no filtro
   // padrão faz a pessoa procurar de novo o que o alerta já tinha achado.
   const [filter,    setFilter]    = useState<'todos' | 'aguardando' | 'revisao' | 'aprovado'>(() => {
@@ -367,7 +369,7 @@ function AprovacaoPageInner() {
     async function load() {
       try {
         const supabase = createClient()
-        const [{ data: postRaw, error: e1 }, { data: clientData }, { data: extrasRaw }] = await Promise.all([
+        const [{ data: postRaw, error: e1 }, { data: clientData }, { data: extrasRaw }, { data: tokensAtivos }] = await Promise.all([
           supabase
             .from('schedules')
             .select('id, title, post_type, status, approval_status, approval_comment, scheduled_date, month, year, client_id, drive_url, drive_folder_url, funil, campaign_type')
@@ -382,6 +384,13 @@ function AprovacaoPageInner() {
           supabase.from('extras').select('id, client_id, title, type, drive_url, due_date')
             .eq('client_approval_status', 'aguardando')
             .is('archived_at', null),
+          // Quais clientes ainda têm link de aprovação vivo.
+          //
+          // O link expira sozinho (o cron desativa quando não há mais o que
+          // aprovar) e o cliente fica com um endereço morto no WhatsApp, sem
+          // ninguém saber. Aconteceu com 5 clientes ativos ao mesmo tempo, e só
+          // apareceu porque alguém estranhou uma aprovação que não chegava.
+          supabase.from('approval_tokens').select('client_id').eq('active', true),
         ])
         if (e1) { setLoadError(true); setLoading(false); return }
         // `clientData` já vem só com ativo, mas os posts e extras acima são
@@ -389,6 +398,12 @@ function AprovacaoPageInner() {
         // conteúdo de cliente desativado continuava na fila de aprovação, com
         // o nome em branco porque o mapa de clientes nem o tinha.
         const ativos = new Set((clientData || []).map((c: any) => c.id))
+
+        // Cliente ativo sem nenhum token vivo: o link que ele tem na mão
+        // devolve "Link vencido", e ele não tem como saber que existe um novo
+        // — a menos que alguém aqui repare e mande de novo.
+        const comLink = new Set((tokensAtivos || []).map((t: any) => t.client_id))
+        setSemLink(new Set([...ativos].filter(id => !comLink.has(id)) as string[]))
         const postData = fromActiveClients<any>(postRaw, ativos)
         const extrasData = fromActiveClients<any>(extrasRaw, ativos)
         // Esta página é sobre APROVAÇÃO DO CONTEÚDO. Um post com o cronograma
@@ -771,6 +786,15 @@ function AprovacaoPageInner() {
                   </div>
                   <div className="min-w-0">
                     <span className="font-semibold text-[var(--color-text-primary)] text-sm truncate">{client.name}</span>
+                    {semLink.has(clientId) && (
+                      <span
+                        title="Todo link de aprovação deste cliente venceu. O que ele tem na mão mostra 'Link vencido'. Copie o link e mande de novo."
+                        className="ml-2 align-middle inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                        style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)', border: '1px solid var(--ds-warn-border)' }}
+                      >
+                        link vencido
+                      </span>
+                    )}
                     {!isOpen && (
                       <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
                         {clientPosts.length > 0

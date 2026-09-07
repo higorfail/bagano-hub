@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripAiTells, NO_AI_TELLS } from '@/lib/aiText'
 import { usuarioLogado } from '@/lib/apiAuth'
+import { GEMINI } from '@/lib/gemini'
 
 // Frase do dia que acompanha o "Bom dia, Fulano" no topo do Hub — escrita
 // como um colega de equipe comentaria, usando o que a pessoa realmente tem
@@ -107,7 +108,7 @@ Escreva a frase (só ela, sem a saudação, máximo 75 caracteres):`
 
   try {
     const res = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent',
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI.FLASH_LITE}:generateContent`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },

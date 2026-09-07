@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripAiTells, NO_AI_TELLS } from '@/lib/aiText'
 import { usuarioLogado } from '@/lib/apiAuth'
+import { GEMINI } from '@/lib/gemini'
 
 export async function POST(req: NextRequest) {
   // Sem isto a rota respondia a qualquer requisição da internet — a chave do
@@ -48,7 +49,7 @@ ${itemsText}`
 
   try {
     const res = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent',
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI.FLASH_LITE}:generateContent`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },

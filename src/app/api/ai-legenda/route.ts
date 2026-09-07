@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import { stripAiTells, NO_AI_TELLS } from '@/lib/aiText'
 import { usuarioLogado } from '@/lib/apiAuth'
+import { GEMINI } from '@/lib/gemini'
 
 
 
@@ -148,8 +149,8 @@ Responda APENAS com o texto da legenda pronta, sem explicações, sem aspas, sem
   }
 
   try {
-    let res = await callGemini('gemini-flash-lite-latest')
-    if (res.status === 503) res = await callGemini('gemini-flash-lite-latest')
+    let res = await callGemini(GEMINI.FLASH_LITE)
+    if (res.status === 503) res = await callGemini(GEMINI.FLASH_LITE)
 
     if (!res.ok) {
       const err = await res.text()

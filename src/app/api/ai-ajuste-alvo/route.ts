@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { chamadaAutorizada } from '@/lib/apiAuth'
+import { GEMINI } from '@/lib/gemini'
 
 /**
  * Lê o pedido de alteração do cliente e responde UMA coisa: esse pedido mexe na
@@ -42,7 +43,7 @@ Pedido do cliente: "${String(comment).slice(0, 1500)}"
 Responda só a palavra, sem pontuação, sem explicação.`
 
   async function callGemini() {
-    return fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent', {
+    return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI.FLASH_LITE}:generateContent`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey as string },
       body: JSON.stringify({

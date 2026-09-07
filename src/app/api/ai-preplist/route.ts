@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { usuarioLogado } from '@/lib/apiAuth'
+import { GEMINI } from '@/lib/gemini'
 
 const SYSTEM_PROMPT = `Você é um Diretor de Produção especializado em produção de conteúdo para restaurantes, montando o guia do dia de gravação pra equipe de captação.
 
@@ -112,7 +113,7 @@ ${cronogramaText}`
   // o briefing quando não há contexto de referência disponível.
   async function callGemini(useSearch: boolean) {
     return fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI.FLASH}:generateContent`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
