@@ -7,6 +7,7 @@ import { copyTextAsync } from '@/lib/clipboard'
 import { Link2, Check, ChevronDown, ChevronRight, Clock } from 'lucide-react'
 import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
 import { linkPublico, novoCodigo } from '@/lib/linkAprovacao'
+import { avisarSeCortou } from '@/lib/limitePostgrest'
 
 // Acompanhamento das aprovações de CRONOGRAMA — separado da aprovação de arte
 // final de propósito.
@@ -80,7 +81,7 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
         // Cronograma de cliente desativado não espera aprovação de ninguém.
         activeClientIds(supabase),
       ])
-      const posts = fromActiveClients(postsRaw as any, ativos)
+      const posts = fromActiveClients(avisarSeCortou('aprovação de crono: posts', postsRaw) as any, ativos)
 
       const finalizedBy = new Map<string, string | null>()
       for (const c of (cronos || []) as any[]) finalizedBy.set(`${c.client_id}:${c.month}:${c.year}`, c.finalized_at)

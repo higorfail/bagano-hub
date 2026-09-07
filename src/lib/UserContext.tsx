@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { createClient } from '@/lib/supabase'
+import { withBase } from '@/lib/base'
 
 export type Member = {
   id: string
@@ -65,6 +66,25 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const { data: auth } = await supabase.auth.getUser()
       const email = auth?.user?.email?.toLowerCase() || null
       const me = email && data ? data.find(m => (m.email || '').toLowerCase() === email) || null : null
+
+      // Quem saiu da equipe perde a porta, não só a lista.
+      //
+      // "Remover pessoa" apagava a linha em `team_members` e pronto — o login
+      // no Supabase continuava existindo e a sessão seguia valendo. Pior depois
+      // das políticas novas: pro banco a pessoa ainda é `authenticated`, com
+      // acesso total às 47 tabelas. Bastava não fechar a aba.
+      //
+      // Só age quando dá pra ter certeza: a lista veio, e TODO MUNDO nela tem
+      // e-mail (os 8 têm, conferido em 2026-09-07). Se a consulta falhar, ou se
+      // um dia entrar alguém sem e-mail cadastrado, não trava ninguém — deixar
+      // gente de fora do próprio trabalho é pior que o risco que isto cobre.
+      const listaConfiavel = !!data && data.length > 0 && data.every(m => !!m.email)
+      if (email && listaConfiavel && !me) {
+        await supabase.auth.signOut()
+        window.location.href = withBase('/')
+        return
+      }
+
       setLoggedMember(me)
 
       // Trava só quando dá pra saber quem é a pessoa. Sem e-mail preenchido

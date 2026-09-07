@@ -10,6 +10,7 @@ import { approvalShort } from '@/lib/approvalKind'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { statusColor } from '@/lib/status'
 import { fromActiveClients } from '@/lib/activeClients'
+import { avisarSeCortou } from '@/lib/limitePostgrest'
 
 type Post = {
   id: string; post_number: number; title: string; post_type: string
@@ -89,7 +90,7 @@ export default function KanbanPage() {
       // coluna e cards no quadro.
       const ativos = new Set((clientData || []).map(c => c.id))
       setClients(clientData || [])
-      setPosts(fromActiveClients<any>(postData, ativos))
+      setPosts(fromActiveClients<any>(avisarSeCortou('kanban: posts', postData), ativos))
       const map: Record<string, string> = {}
       ;(cronoData || []).forEach(cs => { map[`${cs.client_id}-${cs.month}-${cs.year}`] = cs.status })
       setCronoStatuses(map)
