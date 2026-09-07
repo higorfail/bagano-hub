@@ -259,6 +259,9 @@ export function useFolderFiles(folderId: string) {
   const [files, setFiles] = useState<DriveFileInfo[]>([])
   const [ready, setReady] = useState(false)
   useEffect(() => {
+    // Sem pasta não há o que pedir. Sem esta linha, quem chama pra "saber se
+    // tem pasta" dispara uma consulta vazia por card aberto.
+    if (!folderId) { setFiles([]); setReady(true); return }
     fetch(withBase(`/api/drive-folder?folderId=${folderId}`))
       .then(r => r.json())
       .then(d => { setFiles(d.files || []); setReady(true) })

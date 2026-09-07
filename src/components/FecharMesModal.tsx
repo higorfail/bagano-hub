@@ -151,7 +151,7 @@ export default function FecharMesModal({ clientId, clientName, clientColor, mont
                 {conta('mover')} pra {MESES[prox.month - 1]} · {conta('publicado')} já saíram · {conta('descartar')} descartados
               </p>
               {conta('manter') > 0 && (
-                <p className="text-[11px] font-semibold mt-0.5" style={{ color: 'var(--ds-warning-text, #b45309)' }}>
+                <p className="text-[11px] font-semibold mt-0.5" style={{ color: 'var(--ds-caution-text, #b45309)' }}>
                   {conta('manter')} sem decisão — {MESES[month - 1]} continua aberto
                 </p>
               )}
@@ -186,7 +186,7 @@ export default function FecharMesModal({ clientId, clientName, clientColor, mont
                 <p><strong className="text-[var(--color-text-primary)]">{conta('descartar')}</strong> {conta('descartar') === 1 ? 'vira' : 'viram'} <strong className="text-[var(--color-text-primary)]">descartado</strong>. Sai das telas e da fila de aprovação; comentários e histórico ficam.</p>
               )}
               {conta('manter') > 0 && (
-                <p style={{ color: 'var(--ds-warning-text, #b45309)' }}>
+                <p style={{ color: 'var(--ds-caution-text, #b45309)' }}>
                   <strong>{conta('manter')}</strong> {conta('manter') === 1 ? 'fica' : 'ficam'} sem mexer, então {MESES[month - 1]} continua na lista.
                 </p>
               )}

@@ -465,7 +465,7 @@ export default function AgendaPage() {
                       const fora = foraNoDia(dateStr, marcados)
                       return fora.length > 0 ? (
                         <span className="text-[10px] flex items-center gap-1 px-1.5 py-0.5 rounded-full"
-                          style={{ background: 'var(--ds-warning-bg, #fef3c7)', color: 'var(--ds-warning-text, #b45309)' }}
+                          style={{ background: 'var(--ds-caution-bg, #fef3c7)', color: 'var(--ds-caution-text, #b45309)' }}
                           title="Segundo o Google Agenda">
                           <AlertTriangle size={9} />
                           {fora.map(n => n.split(' ')[0]).join(', ')} fora
@@ -603,7 +603,7 @@ export default function AgendaPage() {
                 {(() => {
                   const fora = foraNoDia(captForm.scheduled_date, captForm.team_member_ids)
                   return fora.length > 0 ? (
-                    <p className="mt-2 text-[11px] flex items-start gap-1.5" style={{ color: 'var(--ds-warning-text, #b45309)' }}>
+                    <p className="mt-2 text-[11px] flex items-start gap-1.5" style={{ color: 'var(--ds-caution-text, #b45309)' }}>
                       <AlertTriangle size={12} className="flex-shrink-0 mt-px" />
                       <span>{fora.join(' e ')} {fora.length > 1 ? 'estão' : 'está'} fora nesse dia, segundo o Google Agenda.</span>
                     </p>
@@ -700,7 +700,7 @@ export default function AgendaPage() {
                             : editingEntry ? dataDaCriacao(editingEntry.week_start, editingEntry.day_of_week) : ''
                   const fora = dia ? foraNoDia(dia, entryMembers) : []
                   return fora.length > 0 ? (
-                    <p className="mt-2 text-[11px] flex items-start gap-1.5" style={{ color: 'var(--ds-warning-text, #b45309)' }}>
+                    <p className="mt-2 text-[11px] flex items-start gap-1.5" style={{ color: 'var(--ds-caution-text, #b45309)' }}>
                       <AlertTriangle size={12} className="flex-shrink-0 mt-px" />
                       <span>{fora.join(' e ')} {fora.length > 1 ? 'estão' : 'está'} fora nesse dia, segundo o Google Agenda.</span>
                     </p>

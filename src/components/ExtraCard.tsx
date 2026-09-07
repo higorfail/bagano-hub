@@ -24,7 +24,8 @@ import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
 import SimulacaoInstagram from '@/components/SimulacaoInstagram'
-import { temConteudoEntregue } from '@/components/PreviaDrive'
+import { temConteudoEntregue, useFolderFiles } from '@/components/PreviaDrive'
+import { naturezaDaEntrega, nomeDoFormato } from '@/lib/naturezaDaEntrega'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 import { linkPublico } from '@/lib/linkAprovacao'
 import {
@@ -177,6 +178,10 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   const [clientApprovalStatus,  setClientApprovalStatus]  = useState('')
   const [clientApprovalComment, setClientApprovalComment] = useState('')
   const [approvalLinkCopied, setApprovalLinkCopied] = useState(false)
+  // Mover pra Materiais é de duas etapas: apaga o extra, e o que não cabe em
+  // material (checklist, aprovação do cliente) some junto.
+  const [confirmandoMudanca, setConfirmandoMudanca] = useState(false)
+  const [mudando, setMudando] = useState(false)
 
   const [checklist,      setChecklist]      = useState<any[]>([])
   const [newCheckText,   setNewCheckText]   = useState('')
@@ -539,6 +544,63 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     if (savedData) { toast('Extra salvo!'); onSaved(savedData) }
   }
 
+  // Extras e Materiais falam quase a mesma língua de status — as duas telas
+  // nasceram do mesmo quadro. Só o começo e o fim têm nomes diferentes.
+  const STATUS_EXTRA_PRA_MATERIAL: Record<string, string> = {
+    backlog: 'producao', feito: 'feito', aguardando_aprovacao: 'aguardando_aprovacao', done: 'finalizado',
+  }
+
+  /**
+   * Leva este extra pra Materiais.
+   *
+   * Material não tem checklist nem ciclo de aprovação do cliente, então o que
+   * não tem casa vira texto nas anotações em vez de sumir. Os comentários vão
+   * junto pelo mesmo motivo: são a conversa que explica por que a coisa
+   * existe, e reconstruir isso depois é impossível.
+   */
+  async function moverPraMateriais() {
+    if (!id) return
+    setMudando(true)
+    const cid = fixedClientId || clientId || null
+    const conversa = comments.length
+      ? '\n\n— Comentários trazidos do extra —\n' +
+        comments.map((c: any) => `${c.author_name || 'Alguém'}: ${c.body}`).join('\n')
+      : ''
+    const pendencias = checklist.filter((c: any) => !c.done)
+    const restante = pendencias.length
+      ? '\n\n— Checklist pendente no extra —\n' + pendencias.map((c: any) => `[ ] ${c.text}`).join('\n')
+      : ''
+    const { data, error } = await supabase.from('materials').insert({
+      title, client_id: cid,
+      // O tipo fica em aberto: só a equipe sabe se aquele PDF é cardápio,
+      // placa ou rodapé de revista. Chutar aqui é criar um dado errado que
+      // ninguém volta pra corrigir.
+      type: 'Outro',
+      status: STATUS_EXTRA_PRA_MATERIAL[status] || 'producao',
+      drive_url: driveUrl || null,
+      description: briefing || description || null,
+      notes: [copy, legenda].filter(Boolean).join('\n\n') + conversa + restante || null,
+      due_date: dueDate || null,
+      // `extras.due_time` é texto livre; `materials.due_time` é hora de
+      // verdade. Texto que não for hora derruba o insert inteiro — e perder a
+      // mudança por causa de um horário mal digitado seria absurdo.
+      due_time: /^\d{1,2}:\d{2}(:\d{2})?$/.test(dueTime) ? dueTime : null,
+      reference_notes: referenceNotes || null,
+      labels, assigned_members: assignedMembers,
+    }).select('id').single()
+    if (error || !data) {
+      setMudando(false); setConfirmandoMudanca(false)
+      toast(`Não deu pra mover: ${error?.message ?? 'resposta vazia'}`)
+      return
+    }
+    await logActivity({ tableName: 'materials', recordId: data.id, clientId: cid, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} moveu "${title}" de Extras pra Materiais` })
+    await logActivity({ tableName: 'extras', recordId: id, clientId: cid, action: 'deleted', actorName: currentMember?.name, actorId: currentMember?.id, description: `${who} moveu "${title}" pra Materiais` })
+    await supabase.from('extras').delete().eq('id', id)
+    toast('Movido pra Materiais')
+    if (onDeleted) onDeleted(id)
+    onClose()
+  }
+
   async function handleDelete() {
     if (!id) { onClose(); return }
     await logActivity({ tableName: 'extras', recordId: id, clientId: fixedClientId || clientId || null, action: 'deleted', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} excluiu "${title}"` })
@@ -756,7 +818,20 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   // é feita aqui — pela mesma regra que `DeliverySection` já usa logo abaixo.
   const previaPasta   = /\/folders\//.test(driveUrl) ? driveUrl : ''
   const previaArquivo = previaPasta ? '' : driveUrl
-  const temPrevia = temConteudoEntregue(previaArquivo, previaPasta)
+
+  // O que foi entregue é post, ou é material?
+  //
+  // Extras virou a caixa onde cai o que não tem caixa: o rodapé de revista
+  // impressa do Dom Leonello está aqui como "Post", com um PDF dentro. Quem
+  // responde isso sem depender de ninguém preencher certo é o tipo do arquivo.
+  // Ver `naturezaDaEntrega` — a régua é conservadora de propósito.
+  const { files: arquivosDaPasta } = useFolderFiles(previaPasta.match(/\/folders\/([-\w]{25,})/)?.[1] || '')
+  const natureza = naturezaDaEntrega(arquivosDaPasta)
+  const ehDocumento = natureza === 'documento'
+
+  // Simulação de Instagram em volta de um PDF é pior que nenhuma prévia: dá
+  // ares de post pra uma coisa que nunca vai pro Instagram.
+  const temPrevia = temConteudoEntregue(previaArquivo, previaPasta) && !ehDocumento
 
   // Qual aba abre. Mesma regra do cronograma: rastro de status não é conversa,
   // então só duas coisas trazem os comentários pra frente — o cliente estar
@@ -1265,6 +1340,50 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
                 persist({ drive_url: v || null }, logMsg)
               }}
             />
+
+            {/* A entrega não é conteúdo de Instagram.
+                
+                O aviso fica aqui, colado na entrega, e não numa lista de
+                pendências em outra tela: o momento de perceber que o PDF não
+                era post é o momento em que a pessoa está olhando pro PDF.
+                
+                É palpite, não trava — dá pra ignorar e seguir. `naturezaDaEntrega`
+                só abre a boca quando não tem NENHUMA imagem ou vídeo na pasta,
+                justamente pra não virar aviso que todo mundo aprende a fechar
+                sem ler. */}
+            {ehDocumento && (
+              <div className="mt-3 rounded-xl border p-3 flex flex-col gap-2"
+                style={{ borderColor: 'var(--ds-caution-border)', background: 'var(--ds-caution-bg)' }}>
+                <p className="text-xs leading-relaxed" style={{ color: 'var(--ds-caution-text)' }}>
+                  <strong>A entrega é um {nomeDoFormato(arquivosDaPasta)}</strong>, não imagem nem vídeo.
+                  Isso parece material — cardápio, placa, arte de impressão —, e não post pra Instagram.
+                </p>
+                {confirmandoMudanca ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px]" style={{ color: 'var(--ds-caution-text)' }}>
+                      Vai virar material. Checklist e aprovação do cliente não existem lá — viram texto nas anotações.
+                    </span>
+                    <div className="flex items-center gap-2 ml-auto">
+                      <button onClick={() => setConfirmandoMudanca(false)}
+                        className="text-xs font-medium px-2.5 py-1 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
+                        Deixa aqui
+                      </button>
+                      <button onClick={moverPraMateriais} disabled={mudando}
+                        className="text-xs font-semibold px-3 py-1 rounded-lg text-white disabled:opacity-50 transition-opacity"
+                        style={{ background: 'var(--color-accent)' }}>
+                        {mudando ? 'Movendo…' : 'Mover mesmo assim'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmandoMudanca(true)} disabled={!id}
+                    className="self-start text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80 disabled:opacity-50"
+                    style={{ borderColor: 'var(--ds-caution-border)', color: 'var(--ds-caution-text)' }}>
+                    Mover pra Materiais
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           {/* Rodapé rola junto no celular (ver footerBar) */}
           <div className="md:hidden mt-1">{footerBar}</div>

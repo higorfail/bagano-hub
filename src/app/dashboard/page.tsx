@@ -1744,7 +1744,7 @@ export default function DashboardPage() {
             {mesesEmAberto.length > 0 && (
               <button onClick={() => router.push('/dashboard/fechar-mes')}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:border-[var(--color-border-hover)] transition-colors text-left">
-                <CalendarClock size={16} className="flex-shrink-0" style={{ color: 'var(--ds-warning-text, #b45309)' }} />
+                <CalendarClock size={16} className="flex-shrink-0" style={{ color: 'var(--ds-caution-text, #b45309)' }} />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-[var(--color-text-primary)]">
                     {mesesEmAberto.reduce((n, m) => n + m.posts.length, 0)} posts ficaram para trás

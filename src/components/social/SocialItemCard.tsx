@@ -196,7 +196,7 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
             uma coisa que não dá mais pra mudar. */}
         {!publicado && selo && (
           <p className="text-[10px] font-semibold flex items-start gap-1 leading-snug"
-            style={{ color: selo.impede ? 'var(--ds-error-text)' : 'var(--ds-warning-text, #b45309)' }}>
+            style={{ color: selo.impede ? 'var(--ds-error-text)' : 'var(--ds-caution-text, #b45309)' }}>
             <AlertTriangle size={10} className="flex-shrink-0 mt-px" />
             {selo.texto}
           </p>
