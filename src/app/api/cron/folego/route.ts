@@ -4,6 +4,7 @@ import webpush from 'web-push'
 import { storeNotifications } from '@/lib/storeNotifications'
 import { calcularFolego, fraseFolego, type Folego } from '@/lib/folego'
 import { brasiliaISOFromDate } from '@/lib/timezone'
+import { activeClientIds } from '@/lib/activeClients'
 
 const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 const vapidPrivate = process.env.VAPID_PRIVATE_KEY
@@ -37,12 +38,18 @@ export async function GET(req: NextRequest) {
 
   const hoje = brasiliaISOFromDate(new Date())
 
-  const [{ data: clientes }, { data: equipe }, { data: gerentes }] = await Promise.all([
-    supabase.from('clients').select('id, name').eq('status', 'active'),
+  // `activeClientIds` e não um `.eq('status','active')` à mão: o recorte de
+  // cliente desativado mora num lugar só (ver src/lib/activeClients.ts), e é o
+  // que `scripts/checar-cliente-inativo.mjs` sabe reconhecer. Filtrar certo
+  // por um caminho que o verificador não enxerga deixa a próxima tela passar.
+  const [ativos, { data: todosClientes }, { data: equipe }, { data: gerentes }] = await Promise.all([
+    activeClientIds(supabase),
+    supabase.from('clients').select('id, name'),
     supabase.from('client_team').select('client_id, member_id, funcao').eq('funcao', 'estrategia'),
     supabase.from('team_members').select('id, name').eq('role', 'gerente'),
   ])
-  if (!clientes?.length) return NextResponse.json({ skipped: 'sem cliente ativo' })
+  const clientes = (todosClientes || []).filter(c => ativos.has(c.id))
+  if (!clientes.length) return NextResponse.json({ skipped: 'sem cliente ativo' })
 
   const ids = clientes.map(c => c.id)
   const [{ data: posts }, { data: extras }] = await Promise.all([
