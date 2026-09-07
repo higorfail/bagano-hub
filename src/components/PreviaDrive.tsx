@@ -31,9 +31,32 @@ function driveStreamUrl(id: string) {
 // travar dentro dele (só se a própria página falhar ao carregar), por isso a
 // partir da 2ª tentativa mostramos um botão fixo "Abrir conteúdo no Drive" —
 // sempre no mesmo lugar embaixo do player, nunca sobreposto ao vídeo.
-type DriveVideoStage = 'video' | 'iframe' | 'failed'
+// 'capa' é o estágio ZERO, e só existe quando a pasta do reel tem uma capa
+// desenhada. A capa é o que vai pro grid do Instagram — é ela que se aprova —,
+// e até agora ela aparecia EMPILHADA em cima do player: duas imagens seguidas,
+// a capa e o primeiro quadro do vídeo, uma embaixo da outra.
+//
+// Atrás do player do Drive era o pedido, e atrás do player do Drive não dá:
+// iframe é outro documento, não aceita `poster` e não deixa nada aparecer por
+// baixo. Na frente até clicar dá no mesmo, com um clique a mais — e de brinde o
+// iframe do Drive só carrega quando alguém quer ver o vídeo.
+//
+// No player NATIVO (o do cliente, iOS) não tem clique a mais: ali a capa é
+// `poster` de verdade.
+type DriveVideoStage = 'capa' | 'video' | 'iframe' | 'failed'
 
-function DriveVideoMedia({ id, stage, setStage, style, onLoadedMetadata }: { id: string; stage: DriveVideoStage; setStage: (s: DriveVideoStage) => void; style: React.CSSProperties; onLoadedMetadata?: (e: React.SyntheticEvent<HTMLVideoElement>) => void }) {
+function DriveVideoMedia({ id, stage, setStage, style, onLoadedMetadata, capaId }: { id: string; stage: DriveVideoStage; setStage: (s: DriveVideoStage) => void; style: React.CSSProperties; onLoadedMetadata?: (e: React.SyntheticEvent<HTMLVideoElement>) => void; capaId?: string }) {
+  const capa = capaId ? withBase(`/api/drive-thumb?id=${capaId}&sz=w800`) : undefined
+  if (stage === 'capa') return (
+    <button onClick={() => setStage('iframe')} aria-label="Tocar vídeo"
+      style={{ ...style, padding: 0, border: 'none', cursor: 'pointer', display: 'block', background: '#000' }}>
+      <img src={capa} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+      {/* O triângulo do Instagram: círculo translúcido, sem moldura. */}
+      <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+        <span style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 22, paddingLeft: 4 }}>▶</span>
+      </span>
+    </button>
+  )
   if (stage === 'failed') return (
     <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 20 }}>
       <span style={{ fontSize: 13, color: '#d1d5db', maxWidth: 240 }}>Não conseguimos carregar o vídeo aqui.</span>
@@ -44,7 +67,7 @@ function DriveVideoMedia({ id, stage, setStage, style, onLoadedMetadata }: { id:
       style={{ ...style, border: 'none' }}
       onError={() => setStage('failed')} />
   )
-  return <video src={driveStreamUrl(id)} controls playsInline onError={() => setStage('iframe')} onLoadedMetadata={onLoadedMetadata} style={style} />
+  return <video src={driveStreamUrl(id)} controls playsInline poster={capa} onError={() => setStage('iframe')} onLoadedMetadata={onLoadedMetadata} style={style} />
 }
 
 // A faixa embaixo da mídia — contador, bolinhas, link do Drive.
@@ -64,7 +87,7 @@ function coresDaFaixa(noHub: boolean) {
         pontoAtivo: '#374151', pontoInativo: '#d1d5db' }
 }
 
-export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe = false, semRodape = false, noHub = false }: { id: string; folderUrl?: string; ratio?: string; comecarNoIframe?: boolean; semRodape?: boolean; noHub?: boolean }) {
+export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe = false, semRodape = false, noHub = false, capaId }: { id: string; folderUrl?: string; ratio?: string; comecarNoIframe?: boolean; semRodape?: boolean; noHub?: boolean; capaId?: string }) {
   const cores = coresDaFaixa(noHub)
   // Começar pelo iframe do Drive é o padrão da EQUIPE, no computador: o player
   // do Google funciona ali e não custa nada pra gente. O nosso streaming existe
@@ -72,12 +95,14 @@ export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe =
   // o cookie de sessão do Drive. Sem essa escolha, todo vídeo que alguém do time
   // abre atravessa a nossa função: foi o que estourou em 05/09, com 136 MB por
   // arquivo e 74 falhas em 5 minutos.
-  const [stage, setStage] = useState<DriveVideoStage>(comecarNoIframe ? 'iframe' : 'video')
+  // Com capa, a capa vem primeiro no caminho do iframe. No caminho nativo ela
+  // é `poster` e não muda o estágio.
+  const [stage, setStage] = useState<DriveVideoStage>(comecarNoIframe ? (capaId ? 'capa' : 'iframe') : 'video')
   const driveLink = folderUrl || `https://drive.google.com/file/d/${id}/view`
   return (
     <div>
       <div style={{ background: '#000', lineHeight: 0, position: 'relative', paddingTop: ratio, maxHeight: '80vh', overflow: 'hidden' }}>
-        <DriveVideoMedia id={id} stage={stage} setStage={setStage}
+        <DriveVideoMedia id={id} stage={stage} setStage={setStage} capaId={capaId}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
       </div>
       {/* Dentro da simulação, quem mostra o link do Drive é o cartão inteiro,
@@ -337,14 +362,35 @@ export function FolderThumb({ folderId }: { folderId: string }) {
   )
 }
 
+/**
+ * Vídeo cujo arquivo já se conhece, mas cuja capa está na pasta ao lado.
+ *
+ * Existe só pra buscar a listagem da pasta: `PreviaDoPost` não pode chamar um
+ * hook dentro de um `if`.
+ */
+function VideoComCapaDaPasta({ videoId, folderId, folderUrl, comecarNoIframe, semRodape, noHub }: {
+  videoId: string; folderId: string; folderUrl: string
+  comecarNoIframe: boolean; semRodape: boolean; noHub: boolean
+}) {
+  const { files, ready } = useFolderFiles(folderId)
+  // Sem esperar a pasta o player abriria sem capa e ela apareceria depois,
+  // trocando a imagem embaixo do dedo de quem já ia clicar.
+  if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1c1a18' }}>{SPINNER}</div>
+  const capa = pickCover(files.filter(f => f.mimeType.startsWith('image/')))
+  return <DriveVideo id={videoId} folderUrl={folderUrl} comecarNoIframe={comecarNoIframe} semRodape={semRodape} noHub={noHub} capaId={capa?.id} />
+}
+
 export function ReelFolderPreview({ folderId, folderUrl, comecarNoIframe = false, semRodape = false, noHub = false }: { folderId: string; folderUrl: string; comecarNoIframe?: boolean; semRodape?: boolean; noHub?: boolean }) {
   const { files, ready } = useFolderFiles(folderId)
   if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1c1a18' }}>{SPINNER}</div>
   const videos = files.filter(f => f.mimeType.startsWith('video/'))
   const video  = videos[0]
-  // Mostra só o vídeo — a capa da pasta não entra aqui pra não sobrepor o player.
+  // A capa da pasta agora entra COMO capa do player, não empilhada em cima
+  // dele. Antes ela ficava de fora justamente pra não virar uma segunda imagem
+  // acima do vídeo — o problema era o empilhamento, não a capa.
+  const capa = pickCover(files.filter(f => f.mimeType.startsWith('image/')))
   return video ? (
-    <DriveVideo id={video.id} folderUrl={folderUrl} comecarNoIframe={comecarNoIframe} semRodape={semRodape} noHub={noHub} />
+    <DriveVideo id={video.id} folderUrl={folderUrl} comecarNoIframe={comecarNoIframe} semRodape={semRodape} noHub={noHub} capaId={capa?.id} />
   ) : (
     semRodape ? null : (
       <a href={folderUrl} target="_blank" rel="noopener noreferrer"
@@ -396,12 +442,11 @@ export function PreviaDoPost({
   // No hub a faixa segue o tema; na página do cliente ela é clara de propósito.
   const noHub = contexto === 'equipe'
   if (video) {
-    return (
-      <div>
-        {pasta && <FolderThumb folderId={pasta} />}
-        <DriveVideo id={video} folderUrl={driveFolderUrl || driveUrl || ''} comecarNoIframe={noHub} semRodape={semRodape} noHub={noHub} />
-      </div>
-    )
+    // Vídeo solto COM pasta ao lado: a pasta costuma guardar a capa desenhada.
+    // Ela ia empilhada acima do player — a capa inteira, e logo abaixo o
+    // primeiro quadro do vídeo. Agora vira a capa do próprio player.
+    if (pasta) return <VideoComCapaDaPasta videoId={video} folderId={pasta} folderUrl={driveFolderUrl || driveUrl || ''} comecarNoIframe={noHub} semRodape={semRodape} noHub={noHub} />
+    return <DriveVideo id={video} folderUrl={driveFolderUrl || driveUrl || ''} comecarNoIframe={noHub} semRodape={semRodape} noHub={noHub} />
   }
   if (ehVideo && pasta) return <ReelFolderPreview folderId={pasta} folderUrl={driveFolderUrl || ''} comecarNoIframe={noHub} semRodape={semRodape} noHub={noHub} />
   if (ehCarrossel && pasta) return <CarouselPreview folderId={pasta} folderUrl={driveFolderUrl || ''} semRodape={semRodape} noHub={noHub} />
