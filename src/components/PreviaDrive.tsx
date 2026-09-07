@@ -47,8 +47,14 @@ function DriveVideoMedia({ id, stage, setStage, style, onLoadedMetadata }: { id:
   return <video src={driveStreamUrl(id)} controls playsInline onError={() => setStage('iframe')} onLoadedMetadata={onLoadedMetadata} style={style} />
 }
 
-export function DriveVideo({ id, folderUrl, ratio = '177.78%' }: { id: string; folderUrl?: string; ratio?: string }) {
-  const [stage, setStage] = useState<DriveVideoStage>('video')
+export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe = false }: { id: string; folderUrl?: string; ratio?: string; comecarNoIframe?: boolean }) {
+  // Começar pelo iframe do Drive é o padrão da EQUIPE, no computador: o player
+  // do Google funciona ali e não custa nada pra gente. O nosso streaming existe
+  // pro CLIENTE, no celular — no iOS o iframe fica preto porque o Safari bloqueia
+  // o cookie de sessão do Drive. Sem essa escolha, todo vídeo que alguém do time
+  // abre atravessa a nossa função: foi o que estourou em 05/09, com 136 MB por
+  // arquivo e 74 falhas em 5 minutos.
+  const [stage, setStage] = useState<DriveVideoStage>(comecarNoIframe ? 'iframe' : 'video')
   const driveLink = folderUrl || `https://drive.google.com/file/d/${id}/view`
   return (
     <div>
@@ -292,14 +298,14 @@ export function FolderThumb({ folderId }: { folderId: string }) {
   )
 }
 
-export function ReelFolderPreview({ folderId, folderUrl }: { folderId: string; folderUrl: string }) {
+export function ReelFolderPreview({ folderId, folderUrl, comecarNoIframe = false }: { folderId: string; folderUrl: string; comecarNoIframe?: boolean }) {
   const { files, ready } = useFolderFiles(folderId)
   if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1c1a18' }}>{SPINNER}</div>
   const videos = files.filter(f => f.mimeType.startsWith('video/'))
   const video  = videos[0]
   // Mostra só o vídeo — a capa da pasta não entra aqui pra não sobrepor o player.
   return video ? (
-    <DriveVideo id={video.id} folderUrl={folderUrl} />
+    <DriveVideo id={video.id} folderUrl={folderUrl} comecarNoIframe={comecarNoIframe} />
   ) : (
     <a href={folderUrl} target="_blank" rel="noopener noreferrer"
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
@@ -323,11 +329,14 @@ export function PreviaDoPost({
   driveFolderUrl,
   postType,
   titulo,
+  contexto = 'cliente',
 }: {
   driveUrl?: string | null
   driveFolderUrl?: string | null
   postType?: string | null
   titulo?: string | null
+  /** 'equipe' abre o vídeo no player do Drive; 'cliente' usa o nosso (iOS). */
+  contexto?: 'equipe' | 'cliente'
 }) {
   const ids = extractDriveIds(driveUrl || '')
   const primeiro = ids[0]
@@ -344,11 +353,11 @@ export function PreviaDoPost({
     return (
       <div>
         {pasta && <FolderThumb folderId={pasta} />}
-        <DriveVideo id={video} folderUrl={driveFolderUrl || driveUrl || ''} />
+        <DriveVideo id={video} folderUrl={driveFolderUrl || driveUrl || ''} comecarNoIframe={contexto === 'equipe'} />
       </div>
     )
   }
-  if (ehVideo && pasta) return <ReelFolderPreview folderId={pasta} folderUrl={driveFolderUrl || ''} />
+  if (ehVideo && pasta) return <ReelFolderPreview folderId={pasta} folderUrl={driveFolderUrl || ''} comecarNoIframe={contexto === 'equipe'} />
   if (ehCarrossel && pasta) return <CarouselPreview folderId={pasta} folderUrl={driveFolderUrl || ''} />
   if (pasta) return <FolderThumb folderId={pasta} />
   if (varios) return <MultiFilePreview ids={ids} fallbackUrl={driveUrl} />

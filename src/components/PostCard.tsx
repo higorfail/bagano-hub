@@ -13,6 +13,7 @@ import { autoGrow } from '@/lib/autoGrow'
 import { fetchLinkTitle } from '@/lib/linkTitle'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import { PreviaDoPost, temConteudoEntregue } from '@/components/PreviaDrive'
+import SimulacaoInstagram from '@/components/SimulacaoInstagram'
 import AttachmentsGrid from '@/components/AttachmentsGrid'
 import { renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
@@ -138,6 +139,21 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   const [confirmDelete,setConfirmDelete]= useState(false)
   const [uploading,    setUploading]    = useState(false)
   const [cardDragOver, setCardDragOver] = useState(false)
+  // O painel da direita alterna entre a conversa e a arte.
+  //
+  // A arte não vira coluna própria de propósito: com imagem vertical sobrava
+  // metade da coluna vazia, e ela ficava solta na lateral. Como aba, ganha a
+  // largura e a altura inteiras do painel — e alternar entre "o que o cliente
+  // comentou" e "a peça que ele comentou" é o mesmo gesto.
+  const [abaPainel, setAbaPainel] = useState<'comentarios' | 'arte'>('comentarios')
+  // Logo e @ do cliente, só pra simulação. Buscado quando a aba Arte abre —
+  // não faz sentido pagar essa consulta em todo card que alguém abre.
+  const [clienteIG, setClienteIG] = useState<{ logo_url: string | null; instagram_url: string | null } | null>(null)
+  useEffect(() => {
+    if (abaPainel !== 'arte' || clienteIG || !clientId) return
+    supabase.from('clients').select('logo_url, instagram_url').eq('id', clientId).maybeSingle()
+      .then(({ data }) => setClienteIG(data || { logo_url: null, instagram_url: null }))
+  }, [abaPainel, clienteIG, clientId])
   const [uploads,      setUploads]      = useState<any[]>([])
   const [attachments,  setAttachments]  = useState<any[]>([])
   const [attachmentsLoaded, setAttachmentsLoaded] = useState(false)
@@ -998,7 +1014,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
       onMouseUp={e => { if (backdropDown.current && e.target === e.currentTarget) { (document.activeElement as HTMLElement)?.blur(); onClose() }; backdropDown.current = false }}
       onPaste={handlePaste}>
       <div
-        className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto ${temPrevia ? 'max-w-[1440px]' : 'max-w-[1040px]'} max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
+        className={`bg-[var(--color-bg-alt)] rounded-none md:rounded-2xl w-full h-full md:h-auto max-w-[1040px] max-h-full md:max-h-[92vh] flex flex-col shadow-pop overflow-hidden animate-scale-in relative ${cardDragOver ? 'ring-4 ring-[var(--color-accent)]' : ''}`}
         style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)',
           ...(sheetDrag.offset ? { transform: `translateY(${sheetDrag.offset}px)`, transition: 'none' } : {}) }}
         onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setCardDragOver(true) } }}
@@ -1056,21 +1072,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
         {/* CORPO — esquerda (header + props + conteúdo) | sidebar altura total (abas no mobile, lado a lado no desktop) */}
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden divide-y md:divide-y-0 md:divide-x divide-[var(--color-border)]">
-          {/* A arte entregue, numa coluna ao lado — o mesmo componente que
-              desenha a página do cliente.
-
-              Só existe quando há conteúdo, e é por isso que o card estica:
-              post sem arte fica com a largura de sempre, sem espaço morto. */}
-          {temPrevia && (
-            <div className="hidden md:flex md:w-[360px] flex-shrink-0 flex-col overflow-y-auto bg-[var(--color-bg-page)]">
-              <PreviaDoPost
-                driveUrl={form.drive_url}
-                driveFolderUrl={form.drive_folder_url}
-                postType={form.post_type}
-                titulo={form.title}
-              />
-            </div>
-          )}
         {/* No celular a coluna inteira rola: antes só o miolo rolava, e o
             cabeçalho (título, cliente, tipo/status/data, 11 membros e
             etiquetas) ficava travado ocupando quase metade da tela, deixando
@@ -1484,7 +1485,6 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               value={form.drive_folder_url || form.drive_url}
               isVideo={form.post_type === 'reels'}
                 postType={form.post_type}
-                semPrevia={temPrevia}
               onCommit={v => {
                 // Mensagem distinta pra "acabou de entregar" — igual já existia em
                 // Extras/Materiais — em vez de um genérico "editou o link do Drive"
@@ -1509,7 +1509,18 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           {/* RIGHT — comentários + atividade (feed único, tipo Trello) */}
           <div className={`${mobilePane === 'details' ? 'hidden md:flex' : 'flex'} w-full md:w-[380px] flex-1 md:flex-none bg-[var(--color-bg-card)] flex-col overflow-hidden`}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
-              <span className="text-xs font-bold text-[var(--color-text-primary)]">Comentários e atividade</span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setAbaPainel('comentarios')}
+                    className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${abaPainel === 'comentarios' ? 'text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
+                    Comentários
+                  </button>
+                  {temPrevia && (
+                    <button onClick={() => setAbaPainel('arte')}
+                      className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${abaPainel === 'arte' ? 'text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
+                      Arte
+                    </button>
+                  )}
+                </div>
               <div className="flex items-center gap-2">
                 <WatchButton tableName="schedules" recordId={currentId} />
                 <button onClick={() => setShowDetails(v => !v)} className="text-[11px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
@@ -1518,8 +1529,37 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
               </div>
             </div>
 
+            {/* Aba "Arte" — a peça como o cliente vai receber.
+
+                A legenda vem embaixo de propósito: separada da arte, ninguém
+                percebe que a primeira linha foi cortada, que o emoji quebrou o
+                parágrafo, ou que a chamada some atrás do "... mais". Junto,
+                isso aparece antes de o cliente ver.
+
+                É o mesmo componente que desenha a página de aprovação — o que
+                se confere aqui é literalmente o que chega lá. */}
+            {abaPainel === 'arte' && (
+              <div className="flex-1 overflow-y-auto bg-[#fafafa]">
+                <SimulacaoInstagram
+                  driveUrl={form.drive_url}
+                  driveFolderUrl={form.drive_folder_url}
+                  postType={form.post_type}
+                  legenda={form.legenda}
+                  titulo={form.title}
+                  clienteNome={clientName}
+                  clienteLogo={clienteIG?.logo_url}
+                  clienteInstagram={clienteIG?.instagram_url}
+                  clienteCor={clientColor}
+                  quando={form.scheduled_date
+                    ? new Date(form.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })
+                    : null}
+                />
+              </div>
+            )}
+
+
             {/* Campo de comentário — estilo Trello: avatar + caixa + botão "Comentar" abaixo */}
-            <div className="px-4 py-3 border-b border-[var(--color-border)] flex items-start gap-2.5">
+            <div className={`px-4 py-3 border-b border-[var(--color-border)] items-start gap-2.5 ${abaPainel === 'arte' ? 'hidden' : 'flex'}`}>
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5"
                 style={{ background: (currentMember as any)?.color || 'var(--color-brand)' }}>
                 {(currentMember?.name || '?').split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()}
@@ -1576,7 +1616,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             </div>
 
             {/* Feed */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+            <div className={`flex-1 overflow-y-auto px-4 py-3 flex-col gap-3 ${abaPainel === 'arte' ? 'hidden' : 'flex'}`}>
               {visibleFeed.length === 0 ? (
                 <p className="text-xs text-[var(--color-text-faint)] text-center py-8">
                   {currentId ? 'Nada ainda. Comente mudanças, dúvidas, ajustes…' : 'Comentários e atividade aparecem após salvar o post.'}
