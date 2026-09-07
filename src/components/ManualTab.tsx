@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { TextoEditavel, Etiquetas, CardsEditaveis, Salvo } from '@/components/manual/CamposEditaveis'
 import { createClient } from '@/lib/supabase'
 import { withBase } from '@/lib/base'
 import {
@@ -396,86 +397,71 @@ function ContentTab({ data }: { data: ManualData }) {
   )
 }
 
-function VoiceTab({ data }: { data: ManualData }) {
-  const tov = data.tone_of_voice
-  const hasContent = tov?.personality || tov?.use_words?.length || tov?.avoid_words?.length || data.personas?.length || data.production_notes
-  if (!hasContent) return <Empty text="Tom de voz não definido ainda." />
+function VoiceTab({ data, salvar }: { data: ManualData; salvar: (p: Record<string, any>) => Promise<void> }) {
+  const tov = data.tone_of_voice || {}
+
+  // Editar um pedaço do tom de voz sem apagar os outros: o campo é um objeto
+  // só no banco, e mandar `{ personality }` sozinho zeraria as palavras.
+  const salvarVoz = (patch: Record<string, any>) => salvar({ tone_of_voice: { ...tov, ...patch } })
 
   return (
     <div className="flex flex-col gap-6">
-      {tov?.personality && (
-        <SectionBlock title="Personalidade da Marca">
-          <Card>
-            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{tov.personality}</p>
-          </Card>
-        </SectionBlock>
-      )}
+      {/* Sem `if (vazio) return`: campo vazio é justamente onde alguém precisa
+          escrever. Esconder o que falta foi como 19 manuais ficaram sem cores. */}
+      <SectionBlock title="Personalidade da Marca">
+        <Card>
+          <TextoEditavel
+            valor={tov.personality}
+            linhas={4}
+            placeholder="Como esta marca fala? Ex.: acolhedora, sem formalidade, fala de comida como quem convida pra mesa."
+            aoSalvar={v => salvarVoz({ personality: v })}
+          />
+          <p className="text-[11px] text-[var(--color-text-faint)] mt-2">
+            É daqui que a IA tira o jeito de escrever a legenda.
+          </p>
+        </Card>
+      </SectionBlock>
 
-      {tov?.use_words && tov.use_words.length > 0 && (
-        <SectionBlock title="Palavras & Expressões para Usar">
-          <div className="flex flex-wrap gap-2">
-            {tov.use_words.map((w, i) => (
-              <span
-                key={i}
-                className="text-xs font-medium px-2.5 py-1 rounded-full"
-                style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}
-              >
-                {w}
-              </span>
-            ))}
-          </div>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Palavras & Expressões para Usar">
+        <Etiquetas itens={tov.use_words} cor="boa" placeholder="+ palavra"
+          aoSalvar={v => salvarVoz({ use_words: v })} />
+      </SectionBlock>
 
-      {tov?.avoid_words && tov.avoid_words.length > 0 && (
-        <SectionBlock title="Palavras & Expressões para Evitar">
-          <div className="flex flex-wrap gap-2">
-            {tov.avoid_words.map((w, i) => (
-              <span
-                key={i}
-                className="text-xs font-medium px-2.5 py-1 rounded-full"
-                style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}
-              >
-                {w}
-              </span>
-            ))}
-          </div>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Palavras & Expressões para Evitar">
+        <Etiquetas itens={tov.avoid_words} cor="ruim" placeholder="+ palavra"
+          aoSalvar={v => salvarVoz({ avoid_words: v })} />
+      </SectionBlock>
 
-      {data.personas?.length > 0 && (
-        <SectionBlock title="Personas">
-          <div className="grid grid-cols-2 gap-3">
-            {data.personas.map((p, i) => (
-              <Card key={i}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-full bg-[var(--color-bg-subtle)] border border-[var(--color-border)] flex items-center justify-center text-sm font-bold text-[var(--color-text-primary)] flex-shrink-0">
-                    {String(p.name)[0]?.toUpperCase() || '?'}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{p.name}</p>
-                    {p.age && <p className="text-xs text-[var(--color-text-muted)]">{p.age}</p>}
-                  </div>
-                </div>
-                {p.profile && (
-                  <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed mb-2">{p.profile}</p>
-                )}
-                {p.behaviors && (
-                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed italic">{p.behaviors}</p>
-                )}
-              </Card>
-            ))}
-          </div>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Taglines">
+        <Etiquetas itens={tov.taglines} placeholder="+ tagline"
+          aoSalvar={v => salvarVoz({ taglines: v })} />
+      </SectionBlock>
 
-      {data.production_notes && (
-        <SectionBlock title="Notas de Produção">
-          <Card className="border-l-4" style={{ borderLeftColor: 'var(--color-brand)' }}>
-            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{data.production_notes}</p>
-          </Card>
-        </SectionBlock>
-      )}
+      <SectionBlock title="Personas">
+        <CardsEditaveis
+          itens={data.personas as any}
+          rotuloNovo="Nova persona"
+          campos={[
+            { chave: 'name', rotulo: 'Nome', linhas: 1 },
+            { chave: 'age', rotulo: 'Idade', linhas: 1 },
+            { chave: 'profile', rotulo: 'Perfil' },
+            { chave: 'behaviors', rotulo: 'Comportamento' },
+          ]}
+          aoSalvar={v => salvar({ personas: v })}
+        />
+      </SectionBlock>
+
+      <SectionBlock title="Pilares Editoriais">
+        <CardsEditaveis
+          itens={data.editorial_pillars as any}
+          rotuloNovo="Novo pilar"
+          campos={[
+            { chave: 'name', rotulo: 'Pilar', linhas: 1 },
+            { chave: 'description', rotulo: 'O que é' },
+          ]}
+          aoSalvar={v => salvar({ editorial_pillars: v })}
+        />
+      </SectionBlock>
     </div>
   )
 }
@@ -612,6 +598,31 @@ export default function ManualTab({ clientId }: { clientId: string }) {
     setGenLoading(false)
   }
 
+  // Grava UM pedaço do manual e segue a vida.
+  //
+  // Sem botão de salvar global de propósito: o manual é consultado muito mais
+  // do que editado, e obrigar "entrar em modo edição → mexer → salvar → sair"
+  // transforma corrigir uma palavra em cerimônia. Foi parte do motivo de as
+  // cores estarem vazias nos 19 clientes.
+  //
+  // A tela atualiza antes da resposta do banco (o texto que a pessoa acabou de
+  // escrever não pode piscar), e volta atrás se a gravação falhar.
+  const [salvoAgora, setSalvoAgora] = useState(false)
+  async function salvarCampo(patch: Record<string, any>) {
+    const antes = data
+    setData(d => (d ? { ...d, ...patch } as ManualData : d))
+    const supabase = createClient()
+    const { error } = await supabase.from('client_manuals')
+      .upsert({ client_id: clientId, ...patch }, { onConflict: 'client_id' })
+    if (error) {
+      setData(antes)
+      alert('Não deu pra salvar: ' + error.message)
+      return
+    }
+    setSalvoAgora(true)
+    setTimeout(() => setSalvoAgora(false), 1800)
+  }
+
   async function saveGeneratedManual() {
     let parsed: any
     try { parsed = JSON.parse(genDraft) }
@@ -722,7 +733,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
       {activeTab === 'operational' && <OperationalTab data={data} />}
       {activeTab === 'menu'        && <MenuTab        data={data} />}
       {activeTab === 'content'     && <ContentTab     data={data} />}
-      {activeTab === 'voice'       && <VoiceTab       data={data} />}
+      {activeTab === 'voice'       && <VoiceTab       data={data} salvar={salvarCampo} />}
     </div>
   )
 }
