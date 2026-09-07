@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import ApprovalPage from '../../../../aprovar/[token]/AprovarClient'
 import { slugify } from '@/lib/linkAprovacao'
 import { withBase } from '@/lib/base'
+import LinkVencido from './LinkVencido'
 
 type Props = { params: Promise<{ slug: string; periodo: string; code: string }> }
 
@@ -19,10 +20,13 @@ type Props = { params: Promise<{ slug: string; periodo: string; code: string }> 
 /** Acha o token pelo código e confere que o nome no endereço é mesmo daquele cliente. */
 async function resolver(slug: string, code: string) {
   const supabase = supabaseAdmin
+  // Busca SEM filtrar por ativo, pra conseguir separar duas coisas que o
+  // cliente vive como a mesma: "este link venceu" e "este endereço não
+  // existe". A primeira tem saída — pedir um link novo —, a segunda não.
   const { data: tk } = await supabase
     .from('approval_tokens')
-    .select('token, client_id, type, month, year')
-    .eq('code', code).eq('active', true).maybeSingle()
+    .select('token, client_id, type, month, year, active')
+    .eq('code', code).maybeSingle()
   if (!tk) return null
 
   const { data: cliente } = await supabase
@@ -35,14 +39,16 @@ async function resolver(slug: string, code: string) {
   const esperado = cliente.slug || slugify(cliente.name)
   if (slug !== esperado) return null
 
-  return { token: tk.token, cliente }
+  return { token: tk.token, cliente, ativo: tk.active === true }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, code } = await params
   const r = await resolver(slug, code)
   const nome = r?.cliente?.name
-  const title = nome ? `Aprovação · ${nome}` : 'Aprovação de conteúdo'
+  const title = !r ? 'Aprovação de conteúdo'
+    : !r.ativo ? `Link vencido · ${nome}`
+    : `Aprovação · ${nome}`
   return {
     title,
     description: nome ? `Revise e aprove o conteúdo de ${nome} — Bagano Hub` : 'Revise e aprove o conteúdo — Bagano Hub',
@@ -61,6 +67,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function Page({ params }: Props) {
   const { slug, code } = await params
   const r = await resolver(slug, code)
+  // Endereço que nunca existiu (ou nome trocado na frente do código) segue
+  // 404: não há o que dizer, e responder qualquer outra coisa confirmaria pra
+  // quem está chutando código que aquele cliente existe.
   if (!r) notFound()
+  // Já um código de verdade que venceu merece explicação — o cliente não tem
+  // como adivinhar que existe link novo se a página não contar.
+  if (!r.ativo) return <LinkVencido cliente={r.cliente} />
   return <ApprovalPage token={r.token} />
 }
