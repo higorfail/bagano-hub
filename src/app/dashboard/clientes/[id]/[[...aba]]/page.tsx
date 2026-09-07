@@ -19,6 +19,7 @@ import CronogramaTab, { CRONO_MONTHS } from '@/components/CronogramaTab'
 import MaterialCardMini from '@/components/MaterialCardMini'
 import ExtrasKanban from '@/components/ExtrasKanban'
 import PostsKanban from '@/components/PostsKanban'
+import IdeiasView from '@/components/IdeiasView'
 import ActivityLog from '@/components/ActivityLog'
 import OnboardingTab from '@/components/OnboardingTab'
 import ManualTab from '@/components/ManualTab'
@@ -58,7 +59,7 @@ function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join(''
 // Abas cujo conteúdo é de um MÊS. Só nelas o período entra no caminho.
 const ABAS_COM_MES = new Set(['cronograma', 'feed'])
 
-const ABAS_VALIDAS = new Set(['cronograma', 'kanban', 'extras', 'recorrentes', 'materiais', 'tarefas', 'campanhas', 'feed', 'drive', 'onboarding', 'manual', 'historico', 'time'])
+const ABAS_VALIDAS = new Set(['cronograma', 'kanban', 'ideias', 'extras', 'recorrentes', 'materiais', 'tarefas', 'campanhas', 'feed', 'drive', 'onboarding', 'manual', 'historico', 'time'])
 
 function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
   id: string; slug: string | null; abaInicial: string
@@ -93,6 +94,9 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
     // Mesmos posts do Cronograma, outra pergunta: lá é "o que sai e quando",
     // aqui é "em que pé está".
     { key: 'kanban', label: 'Kanban' },
+    // Ideias antes de Extras: as duas guardam o que está fora do cronograma,
+    // mas ideia ainda não é trabalho — extra já é.
+    { key: 'ideias', label: 'Ideias' },
     { key: 'extras', label: 'Extras' },
     // Recorrentes ao lado de Extras: os dois são o que sai fora do cronograma.
     { key: 'recorrentes', label: 'Recorrentes' },
@@ -759,6 +763,11 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
               <PostsKanban clientId={client.id}
                 heading={<p className="text-sm font-medium text-[var(--color-text-primary)]">Quadro de {client.name}</p>} />
             </div>
+          )}
+
+          {tab === 'ideias' && (
+            <IdeiasView clientId={client.id}
+              heading={<p className="text-sm font-medium text-[var(--color-text-primary)] mb-1">Ideias de {client.name}</p>} />
           )}
 
           {tab === 'extras' && (

@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check, Menu, X as XIcon } from 'lucide-react'
-import { Home, Users, Calendar, Kanban, Smartphone, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, Trash2, Zap, Share2, ListTodo, Repeat } from 'lucide-react'
+import { Home, Users, Calendar, Kanban, Smartphone, Lightbulb, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, Trash2, Zap, Share2, ListTodo, Repeat } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import NotificationsPanel from '@/components/NotificationsPanel'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
@@ -51,6 +51,9 @@ const productionItems = [
   { href: '/dashboard/recorrentes', icon: Repeat,        label: 'Recorrentes' },
 ]
 const contentItems = [
+  // Ideias abre o bloco: é o degrau ANTES da campanha e do calendário — o
+  // material bruto de onde as duas saem.
+  { href: '/dashboard/ideias',                     icon: Lightbulb,     label: 'Ideias' },
   // Campanha é planejamento do que vai ser feito (Dia dos Pais, Natal), não
   // produção do dia — mora junto com calendário e datas especiais, que
   // respondem a mesma pergunta: o que vem por aí.
