@@ -23,6 +23,8 @@ import AttachmentsGrid from '@/components/AttachmentsGrid'
 import EditableField from '@/components/EditableField'
 import ModalPortal from '@/components/ModalPortal'
 import DeliverySection from '@/components/DeliverySection'
+import SimulacaoInstagram from '@/components/SimulacaoInstagram'
+import { temConteudoEntregue } from '@/components/PreviaDrive'
 import PropertyPill, { pillSelectCls } from '@/components/PropertyPill'
 import { linkPublico } from '@/lib/linkAprovacao'
 import {
@@ -261,6 +263,24 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     supabase.from('client_manuals').select('*').eq('client_id', cid).maybeSingle()
       .then(({ data }) => setClientManual(data || null))
   }, [fixedClientId, clientId])
+
+  // O painel da direita alterna entre a conversa e a arte — igual ao card do
+  // cronograma. Extra entregue é conteúdo que vai pro Instagram do cliente do
+  // mesmo jeito; conferir a peça aqui e no cronograma tinha que ser o mesmo
+  // gesto, e até agora só o cronograma tinha.
+  const [abaPainel, setAbaPainel] = useState<'comentarios' | 'arte'>('comentarios')
+  // Logo, @ e cor do cliente, só pra simulação. Buscado quando a aba Arte abre.
+  // Vem da tabela em vez do prop `clients` porque na página do cliente esse
+  // prop chega vazio (lá o cliente é fixo) — e sem isso a simulação sai com o
+  // @ chutado do nome.
+  const [clienteIG, setClienteIG] = useState<{ name: string | null; logo_url: string | null; instagram_url: string | null; color_hex: string | null } | null>(null)
+  useEffect(() => {
+    const cid = fixedClientId || clientId
+    if (abaPainel !== 'arte' || clienteIG || !cid) return
+    supabase.from('clients').select('name, logo_url, instagram_url, color_hex').eq('id', cid).maybeSingle()
+      .then(({ data }) => setClienteIG(data || { name: null, logo_url: null, instagram_url: null, color_hex: null }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abaPainel, clienteIG, fixedClientId, clientId])
 
 
   // Smart auto-detection as the user types the title
@@ -730,6 +750,32 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   const statusSelectObj = isAjuste ? AJUSTE_OPTION : statusObj
   const priorityObj = PRIORITY_OPTIONS.find(p => p.value === priority)!
   const clientName  = clients.find(c => c.id === clientId)?.name
+
+  // Extra guarda a entrega num campo só: `drive_url` carrega link de pasta OU
+  // de arquivo. `PreviaDoPost` recebe os dois casos separados, então a divisão
+  // é feita aqui — pela mesma regra que `DeliverySection` já usa logo abaixo.
+  const previaPasta   = /\/folders\//.test(driveUrl) ? driveUrl : ''
+  const previaArquivo = previaPasta ? '' : driveUrl
+  const temPrevia = temConteudoEntregue(previaArquivo, previaPasta)
+
+  // Qual aba abre. Mesma regra do cronograma: rastro de status não é conversa,
+  // então só duas coisas trazem os comentários pra frente — o cliente estar
+  // esperando resposta, ou alguém ter escrito nos últimos dias.
+  const DIAS_CONVERSA_VIVA = 3
+  const conversaImporta = isAjuste || comments.some((c: any) =>
+    (Date.now() - new Date(c.created_at).getTime()) / 86400000 <= DIAS_CONVERSA_VIVA)
+  // Decide UMA vez, quando o card termina de carregar. Depois é escolha de quem
+  // está usando — trocar a aba embaixo da pessoa é pior que abrir na errada.
+  // Apagar a entrega com a aba Arte aberta deixava o painel numa simulação
+  // vazia: o botão da aba some junto com a prévia, e não sobrava como voltar
+  // pros comentários. A aba que vale volta sozinha.
+  const abaAtiva = abaPainel === 'arte' && temPrevia ? 'arte' : 'comentarios'
+  const abaDecidida = useRef(false)
+  useEffect(() => {
+    if (abaDecidida.current || loading) return
+    abaDecidida.current = true
+    if (!conversaImporta && temPrevia) setAbaPainel('arte')
+  }, [loading, conversaImporta, temPrevia])
 
   if (loading) return (
     <ModalPortal>
@@ -1227,7 +1273,18 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
           {/* RIGHT — comentários + atividade (feed único, tipo Trello) */}
           <div className={`${mobilePane === 'details' ? 'hidden md:flex' : 'flex'} w-full md:w-[380px] flex-1 md:flex-none bg-[var(--color-bg-card)] flex-col overflow-hidden`}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
-              <span className="text-xs font-bold text-[var(--color-text-primary)]">Comentários e atividade</span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setAbaPainel('comentarios')}
+                  className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${abaAtiva === 'comentarios' ? 'text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
+                  Comentários
+                </button>
+                {temPrevia && (
+                  <button onClick={() => setAbaPainel('arte')}
+                    className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${abaAtiva === 'arte' ? 'text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
+                    Arte
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <WatchButton tableName="extras" recordId={id} />
                 <button onClick={() => setShowDetails(v => !v)} className="text-[11px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
@@ -1236,8 +1293,34 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
               </div>
             </div>
 
+            {/* Aba "Arte" — a peça como o cliente vai receber.
+
+                É o mesmo componente que desenha a página de aprovação: o que se
+                confere aqui é literalmente o que chega lá. A legenda vem embaixo
+                da arte, como no Instagram — separadas, ninguém percebe que a
+                primeira linha foi cortada no "... mais". */}
+            {abaAtiva === 'arte' && (
+              <div className="flex-1 overflow-y-auto bg-[var(--color-bg-page)] p-3">
+                <SimulacaoInstagram
+                  driveUrl={previaArquivo}
+                  driveFolderUrl={previaPasta}
+                  postType={type}
+                  legenda={legenda}
+                  titulo={title}
+                  clienteNome={clienteIG?.name || clientName}
+                  clienteLogo={clienteIG?.logo_url}
+                  clienteInstagram={clienteIG?.instagram_url}
+                  clienteCor={clienteIG?.color_hex}
+                  linkDrive={driveUrl}
+                  quando={dueDate
+                    ? new Date(dueDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })
+                    : null}
+                />
+              </div>
+            )}
+
             {/* Campo de comentário — estilo Trello: avatar + caixa + botão "Comentar" abaixo */}
-            <div className="px-4 py-3 border-b border-[var(--color-border)] flex items-start gap-2.5">
+            <div className={`px-4 py-3 border-b border-[var(--color-border)] items-start gap-2.5 ${abaAtiva === 'arte' ? 'hidden' : 'flex'}`}>
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5"
                 style={{ background: (currentMember as any)?.color || 'var(--color-brand)' }}>
                 {(currentMember?.name || '?').split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()}
@@ -1265,7 +1348,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
             </div>
 
             {/* Feed */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+            <div className={`flex-1 overflow-y-auto px-4 py-3 flex-col gap-3 ${abaAtiva === 'arte' ? 'hidden' : 'flex'}`}>
               {visibleFeed.length === 0 ? (
                 <p className="text-xs text-[var(--color-text-faint)] text-center py-8">Nada ainda. Comente mudanças, dúvidas, ajustes…</p>
               ) : visibleFeed.map(item => {

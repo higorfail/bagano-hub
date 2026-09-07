@@ -843,6 +843,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   // Decide UMA vez, quando o card termina de carregar. Depois disso a escolha é
   // de quem está usando — trocar a aba embaixo da pessoa é pior que abrir na
   // errada.
+  // Apagar a entrega com a aba Arte aberta deixava o painel numa simulação
+  // vazia: o botão da aba some junto com a prévia, e não sobrava como voltar
+  // pros comentários. A aba que vale volta sozinha.
+  const abaAtiva = abaPainel === 'arte' && temPrevia ? 'arte' : 'comentarios'
   const abaDecidida = useRef(false)
   useEffect(() => {
     if (abaDecidida.current || loading) return
@@ -1543,12 +1547,12 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
                 <div className="flex items-center gap-1">
                   <button onClick={() => setAbaPainel('comentarios')}
-                    className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${abaPainel === 'comentarios' ? 'text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
+                    className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${abaAtiva === 'comentarios' ? 'text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
                     Comentários
                   </button>
                   {temPrevia && (
                     <button onClick={() => setAbaPainel('arte')}
-                      className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${abaPainel === 'arte' ? 'text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
+                      className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${abaAtiva === 'arte' ? 'text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
                       Arte
                     </button>
                   )}
@@ -1570,7 +1574,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
                 É o mesmo componente que desenha a página de aprovação — o que
                 se confere aqui é literalmente o que chega lá. */}
-            {abaPainel === 'arte' && (
+            {abaAtiva === 'arte' && (
               <div className="flex-1 overflow-y-auto bg-[var(--color-bg-page)] p-3">
                 <SimulacaoInstagram
                   driveUrl={form.drive_url}
@@ -1592,7 +1596,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
 
             {/* Campo de comentário — estilo Trello: avatar + caixa + botão "Comentar" abaixo */}
-            <div className={`px-4 py-3 border-b border-[var(--color-border)] items-start gap-2.5 ${abaPainel === 'arte' ? 'hidden' : 'flex'}`}>
+            <div className={`px-4 py-3 border-b border-[var(--color-border)] items-start gap-2.5 ${abaAtiva === 'arte' ? 'hidden' : 'flex'}`}>
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5"
                 style={{ background: (currentMember as any)?.color || 'var(--color-brand)' }}>
                 {(currentMember?.name || '?').split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()}
@@ -1649,7 +1653,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             </div>
 
             {/* Feed */}
-            <div className={`flex-1 overflow-y-auto px-4 py-3 flex-col gap-3 ${abaPainel === 'arte' ? 'hidden' : 'flex'}`}>
+            <div className={`flex-1 overflow-y-auto px-4 py-3 flex-col gap-3 ${abaAtiva === 'arte' ? 'hidden' : 'flex'}`}>
               {visibleFeed.length === 0 ? (
                 <p className="text-xs text-[var(--color-text-faint)] text-center py-8">
                   {currentId ? 'Nada ainda. Comente mudanças, dúvidas, ajustes…' : 'Comentários e atividade aparecem após salvar o post.'}
