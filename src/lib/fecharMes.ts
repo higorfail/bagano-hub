@@ -109,6 +109,22 @@ export async function aplicarFechamento(
   const descartar = ids('descartar')
   const manter = Object.values(decisoes).filter(s => s === 'manter').length
 
+  // O retrato de como os posts estavam ANTES, pra poder desfazer.
+  //
+  // Fechar mês move, publica e descarta de uma vez — e até aqui não havia
+  // volta: quem clicasse por engano, ou fechasse o mês errado, ficava com o
+  // estrago. O registro de fechamento só guardava um resumo em texto
+  // ("3 passaram pro mês seguinte"), do qual não dá pra reconstruir nada.
+  //
+  // Guardado em `activity_log.new_value` (texto, sem limite) de propósito: o
+  // fechamento já grava ali, o desfazer fica naturalmente amarrado ao
+  // fechamento que o gerou, e a lixeira do time não vira depósito de retrato.
+  const alvos = [...mover, ...pub, ...descartar]
+  const { data: antes } = alvos.length
+    ? await supabase.from('schedules')
+        .select('id, month, year, status, post_number').in('id', alvos)
+    : { data: [] as any[] }
+
   if (mover.length) {
     // Cada um ganha número novo no mês de destino. Sem isso a trava
     // `schedules_numero_unico_no_mes` derruba o fechamento inteiro assim que
@@ -141,6 +157,9 @@ export async function aplicarFechamento(
     // pro cliente) e já usa aquele nome. Compartilhar a ação misturaria as
     // duas pontas do mês no mesmo registro do histórico.
     action: 'closed', actorName: ator?.name, actorId: ator?.id,
+    // O retrato vai aqui: é o que `desfazerFechamento` lê pra devolver cada
+    // post ao mês, número e etapa em que estava.
+    newValue: JSON.stringify(antes || []),
     description: `${ator?.name || 'Alguém'} fechou o cronograma de ${String(month).padStart(2, '0')}/${year}`
       + (mover.length ? ` · ${mover.length} passaram pro mês seguinte` : '')
       + (pub.length ? ` · ${pub.length} marcados como publicados` : '')
@@ -148,4 +167,72 @@ export async function aplicarFechamento(
   })
 
   return { movidos: mover.length, publicados: pub.length, descartados: descartar.length, mantidos: manter }
+}
+
+
+/**
+ * Desfaz o último fechamento de um cliente+mês.
+ *
+ * Lê o retrato guardado no registro do fechamento e devolve cada post ao
+ * mês, número e etapa em que estava. O que ficou como "manter" nunca foi
+ * tocado, então não aparece aqui.
+ *
+ * O número é o ponto delicado: o post volta pro número que tinha, mas se
+ * alguém criou um post novo naquele número no meio tempo, ele recebe o
+ * próximo livre em vez de estourar a trava e derrubar o desfazer inteiro.
+ */
+export async function desfazerFechamento(
+  clientId: string,
+  month: number,
+  year: number,
+  ator?: { id?: string | null; name?: string | null },
+): Promise<{ restaurados: number; renumerados: number; erro?: string }> {
+  const supabase = createClient()
+
+  const { data: registros } = await supabase.from('activity_log')
+    .select('id, new_value, created_at')
+    .eq('table_name', 'cronograma_status').eq('record_id', clientId).eq('action', 'closed')
+    .order('created_at', { ascending: false }).limit(5)
+
+  const comRetrato = (registros || []).find(r => {
+    try { return Array.isArray(JSON.parse(r.new_value || 'null')) } catch { return false }
+  })
+  if (!comRetrato) {
+    return { restaurados: 0, renumerados: 0, erro: 'Não há retrato guardado deste fechamento — ele é anterior ao desfazer existir.' }
+  }
+
+  const antes: { id: string; month: number; year: number; status: string; post_number: number | null }[] =
+    JSON.parse(comRetrato.new_value || '[]')
+  if (!antes.length) return { restaurados: 0, renumerados: 0 }
+
+  // Quais números já estão ocupados no mês de origem, tirando os próprios
+  // posts que estão voltando.
+  const { data: ocupados } = await supabase.from('schedules')
+    .select('id, post_number').eq('client_id', clientId).eq('month', month).eq('year', year)
+  const voltando = new Set(antes.map(a => a.id))
+  const usados = new Set((ocupados || []).filter(o => !voltando.has(o.id)).map(o => o.post_number))
+
+  let restaurados = 0, renumerados = 0
+  let proximo = Math.max(0, ...[...usados].map(n => Number(n) || 0), ...antes.map(a => a.post_number || 0)) + 1
+
+  for (const a of antes) {
+    let numero = a.post_number
+    if (numero == null || usados.has(numero)) { numero = proximo++; renumerados++ }
+    usados.add(numero)
+    const { error } = await supabase.from('schedules')
+      .update({ month: a.month, year: a.year, status: a.status, post_number: numero })
+      .eq('id', a.id)
+    if (error) return { restaurados, renumerados, erro: error.message }
+    restaurados++
+  }
+
+  await logActivity({
+    tableName: 'cronograma_status', recordId: clientId, clientId,
+    action: 'reopened', actorName: ator?.name, actorId: ator?.id,
+    description: `${ator?.name || 'Alguém'} desfez o fechamento de ${String(month).padStart(2, '0')}/${year}`
+      + ` · ${restaurados} post${restaurados !== 1 ? 's' : ''} de volta`
+      + (renumerados ? ` · ${renumerados} com número novo (o antigo já estava ocupado)` : ''),
+  })
+
+  return { restaurados, renumerados }
 }

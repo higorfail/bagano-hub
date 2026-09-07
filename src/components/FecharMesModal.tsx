@@ -6,7 +6,7 @@ import { useDriveThumbnail } from '@/lib/useDriveThumbnail'
 import PostCard from '@/components/PostCard'
 import ModalPortal from '@/components/ModalPortal'
 import { statusBadge, statusShort } from '@/lib/status'
-import { aplicarFechamento, destinoDoMover, type PostAberto, type Saida } from '@/lib/fecharMes'
+import { aplicarFechamento, desfazerFechamento, destinoDoMover, type PostAberto, type Saida } from '@/lib/fecharMes'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 
@@ -50,9 +50,26 @@ export default function FecharMesModal({ clientId, clientName, clientColor, mont
       { id: currentMember?.id, name: currentMember?.name })
     setSalvando(false)
     if (r.erro) { toast('Não deu pra fechar: ' + r.erro); return }
-    toast(r.mantidos > 0
+
+    // Desfazer no próprio aviso.
+    //
+    // Fechar mês move, publica e descarta de uma vez — e até aqui não tinha
+    // volta. Quem clicasse no cliente errado, ou no mês errado, ficava com o
+    // estrago e teria que refazer post a post. O retrato de como tudo estava
+    // fica guardado no registro do fechamento (ver aplicarFechamento).
+    const resumo = r.mantidos > 0
       ? `${r.movidos + r.publicados + r.descartados} resolvidos · ${r.mantidos} ficaram pra depois`
-      : `${MESES[month - 1]} fechado ✓`)
+      : `${MESES[month - 1]} fechado ✓`
+    toast(resumo, 'success', {
+      label: 'Desfazer',
+      onClick: async () => {
+        const d = await desfazerFechamento(clientId, month, year, { id: currentMember?.id, name: currentMember?.name })
+        if (d.erro) { toast('Não deu pra desfazer: ' + d.erro, 'error'); return }
+        toast(`${d.restaurados} post${d.restaurados !== 1 ? 's' : ''} de volta`
+          + (d.renumerados ? ` · ${d.renumerados} com número novo` : ''), 'info')
+        onDone()
+      },
+    })
     onDone()
   }
 

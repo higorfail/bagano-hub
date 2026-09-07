@@ -4,8 +4,12 @@ import { createContext, useContext, useState, useCallback, useEffect, ReactNode 
 import { EVENTO_FALHA } from './gravacaoDeFundo'
 
 type ToastType = 'success' | 'error' | 'info'
-type Toast = { id: string; message: string; type: ToastType }
-type ToastCtx = { toast: (message: string, type?: ToastType) => void }
+// Uma ação opcional no próprio aviso — o padrão "Desfazer" que todo mundo
+// conhece. Fica onde a pessoa acabou de agir, em vez de exigir que ela cace um
+// botão em outra tela pra corrigir o que fez há 3 segundos.
+type AcaoToast = { label: string; onClick: () => void | Promise<void> }
+type Toast = { id: string; message: string; type: ToastType; acao?: AcaoToast }
+type ToastCtx = { toast: (message: string, type?: ToastType, acao?: AcaoToast) => void }
 
 const ToastContext = createContext<ToastCtx>({ toast: () => {} })
 
@@ -28,10 +32,11 @@ const DOT: Record<ToastType, string> = {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
-  const toast = useCallback((message: string, type: ToastType = 'success') => {
+  const toast = useCallback((message: string, type: ToastType = 'success', acao?: AcaoToast) => {
     const id = Math.random().toString(36).slice(2)
-    setToasts(prev => [...prev, { id, message, type }])
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3200)
+    setToasts(prev => [...prev, { id, message, type, acao }])
+    // Aviso com ação fica mais tempo: 3,2 s não dá pra ler, decidir e clicar.
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), acao ? 9000 : 3200)
   }, [])
 
   // Gravação de fundo que falhou vira aviso na tela.
