@@ -42,6 +42,7 @@ export default function SimulacaoInstagram({
   clienteInstagram,
   clienteCor,
   quando,
+  linkDrive,
 }: {
   driveUrl?: string | null
   driveFolderUrl?: string | null
@@ -54,12 +55,23 @@ export default function SimulacaoInstagram({
   clienteCor?: string | null
   /** A data marcada, se houver. */
   quando?: string | null
+  /** Pasta ou arquivo no Drive — vai FORA do cartão, pra não quebrar a ilusão. */
+  linkDrive?: string | null
 }) {
   const arroba = arrobaDoCliente(clienteInstagram, clienteNome)
   const iniciais = (clienteNome || '?').split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase()
 
   return (
-    <div className="bg-white text-[#262626]">
+    <>
+    {/* O cartão é branco sempre, porque o Instagram é branco — no modo escuro
+        do hub ele continua branco de propósito: a simulação vale pelo que o
+        cliente vai ver, não pelo tema de quem confere.
+
+        O que muda no escuro é a MOLDURA. Antes o branco preenchia o painel
+        inteiro e virava um bloco de luz colado no card escuro; agora ele
+        flutua sobre o fundo do hub, com respiro e canto arredondado — lê como
+        "isto é uma prévia", não como "esta metade da tela quebrou". */}
+    <div className="bg-white text-[#262626] rounded-xl overflow-hidden shadow-sm border border-black/5">
       {/* Cabeçalho: avatar com o anel do Instagram, @ e a data */}
       <div className="flex items-center gap-2.5 px-3 py-2.5">
         <div
@@ -87,6 +99,7 @@ export default function SimulacaoInstagram({
           postType={postType}
           titulo={titulo}
           contexto="equipe"
+          semRodape
         />
       </div>
 
@@ -110,5 +123,23 @@ export default function SimulacaoInstagram({
         )}
       </div>
     </div>
+
+    {/* O link pro Drive fica FORA do cartão.
+
+        Dentro, ele aparecia entre a foto e o coração — e post de verdade não
+        tem link pro Drive ali. Aqui embaixo ele continua a um clique, sem
+        quebrar a simulação, e no tema do hub em vez de uma faixa clara colada
+        no branco. */}
+    {linkDrive && (
+      <a
+        href={linkDrive.split(/\s+/)[0]}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] border border-[var(--color-border)] rounded-lg py-2 transition-colors"
+      >
+        📁 Abrir no Drive
+      </a>
+    )}
+    </>
   )
 }

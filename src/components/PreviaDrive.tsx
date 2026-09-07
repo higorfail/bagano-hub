@@ -118,7 +118,7 @@ function useSwipe(onPrev: () => void, onNext: () => void) {
   }
 }
 
-export function CarouselPreview({ folderId, folderUrl, ratio = '100%' }: { folderId: string; folderUrl: string; ratio?: string }) {
+export function CarouselPreview({ folderId, folderUrl, ratio = '100%', semRodape = false }: { folderId: string; folderUrl: string; ratio?: string; semRodape?: boolean }) {
   const [items, setItems] = useState<{ id: string; name: string; isVideo: boolean }[]>([])
   const [slide, setSlide]   = useState(0)
   const [ready, setReady]   = useState(false)
@@ -298,7 +298,7 @@ export function FolderThumb({ folderId }: { folderId: string }) {
   )
 }
 
-export function ReelFolderPreview({ folderId, folderUrl, comecarNoIframe = false }: { folderId: string; folderUrl: string; comecarNoIframe?: boolean }) {
+export function ReelFolderPreview({ folderId, folderUrl, comecarNoIframe = false, semRodape = false }: { folderId: string; folderUrl: string; comecarNoIframe?: boolean; semRodape?: boolean }) {
   const { files, ready } = useFolderFiles(folderId)
   if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1c1a18' }}>{SPINNER}</div>
   const videos = files.filter(f => f.mimeType.startsWith('video/'))
@@ -307,10 +307,12 @@ export function ReelFolderPreview({ folderId, folderUrl, comecarNoIframe = false
   return video ? (
     <DriveVideo id={video.id} folderUrl={folderUrl} comecarNoIframe={comecarNoIframe} />
   ) : (
-    <a href={folderUrl} target="_blank" rel="noopener noreferrer"
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
-      🎬 Abrir reel no Drive
-    </a>
+    semRodape ? null : (
+      <a href={folderUrl} target="_blank" rel="noopener noreferrer"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
+        🎬 Abrir reel no Drive
+      </a>
+    )
   )
 }
 
@@ -330,6 +332,7 @@ export function PreviaDoPost({
   postType,
   titulo,
   contexto = 'cliente',
+  semRodape = false,
 }: {
   driveUrl?: string | null
   driveFolderUrl?: string | null
@@ -337,6 +340,8 @@ export function PreviaDoPost({
   titulo?: string | null
   /** 'equipe' abre o vídeo no player do Drive; 'cliente' usa o nosso (iOS). */
   contexto?: 'equipe' | 'cliente'
+  /** Esconde o link "Abrir no Drive" de dentro da mídia (usado na simulação). */
+  semRodape?: boolean
 }) {
   const ids = extractDriveIds(driveUrl || '')
   const primeiro = ids[0]
@@ -357,8 +362,8 @@ export function PreviaDoPost({
       </div>
     )
   }
-  if (ehVideo && pasta) return <ReelFolderPreview folderId={pasta} folderUrl={driveFolderUrl || ''} comecarNoIframe={contexto === 'equipe'} />
-  if (ehCarrossel && pasta) return <CarouselPreview folderId={pasta} folderUrl={driveFolderUrl || ''} />
+  if (ehVideo && pasta) return <ReelFolderPreview folderId={pasta} folderUrl={driveFolderUrl || ''} comecarNoIframe={contexto === 'equipe'} semRodape={semRodape} />
+  if (ehCarrossel && pasta) return <CarouselPreview folderId={pasta} folderUrl={driveFolderUrl || ''} semRodape={semRodape} />
   if (pasta) return <FolderThumb folderId={pasta} />
   if (varios) return <MultiFilePreview ids={ids} fallbackUrl={driveUrl} />
   if (foto) {

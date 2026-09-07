@@ -1571,7 +1571,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                 É o mesmo componente que desenha a página de aprovação — o que
                 se confere aqui é literalmente o que chega lá. */}
             {abaPainel === 'arte' && (
-              <div className="flex-1 overflow-y-auto bg-[#fafafa]">
+              <div className="flex-1 overflow-y-auto bg-[var(--color-bg-page)] p-3">
                 <SimulacaoInstagram
                   driveUrl={form.drive_url}
                   driveFolderUrl={form.drive_folder_url}
@@ -1582,6 +1582,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                   clienteLogo={clienteIG?.logo_url}
                   clienteInstagram={clienteIG?.instagram_url}
                   clienteCor={clientColor}
+                  linkDrive={form.drive_folder_url || form.drive_url}
                   quando={form.scheduled_date
                     ? new Date(form.scheduled_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })
                     : null}
