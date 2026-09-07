@@ -47,7 +47,25 @@ function DriveVideoMedia({ id, stage, setStage, style, onLoadedMetadata }: { id:
   return <video src={driveStreamUrl(id)} controls playsInline onError={() => setStage('iframe')} onLoadedMetadata={onLoadedMetadata} style={style} />
 }
 
-export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe = false, semRodape = false }: { id: string; folderUrl?: string; ratio?: string; comecarNoIframe?: boolean; semRodape?: boolean }) {
+// A faixa embaixo da mídia — contador, bolinhas, link do Drive.
+//
+// Ela vive em dois lugares com regras opostas. No HUB acompanha o tema: uma
+// faixa `#f5f5f3` fixa vira um bloco branco no modo escuro, que foi
+// exatamente o que apareceu na simulação do Instagram. Na PÁGINA DE APROVAÇÃO
+// não: aquela página é clara de propósito, o cliente recebe um cartão branco,
+// e ali os valores fixos são a escolha certa.
+//
+// Por isso `noHub` em vez de trocar tudo por token: os dois casos são reais.
+function coresDaFaixa(noHub: boolean) {
+  return noHub
+    ? { fundo: 'var(--color-bg-subtle)', borda: 'var(--color-border)', texto: 'var(--color-text-secondary)',
+        pontoAtivo: 'var(--color-text-primary)', pontoInativo: 'var(--color-border-strong)' }
+    : { fundo: '#f5f5f3', borda: '#ebebeb', texto: '#374151',
+        pontoAtivo: '#374151', pontoInativo: '#d1d5db' }
+}
+
+export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe = false, semRodape = false, noHub = false }: { id: string; folderUrl?: string; ratio?: string; comecarNoIframe?: boolean; semRodape?: boolean; noHub?: boolean }) {
+  const cores = coresDaFaixa(noHub)
   // Começar pelo iframe do Drive é o padrão da EQUIPE, no computador: o player
   // do Google funciona ali e não custa nada pra gente. O nosso streaming existe
   // pro CLIENTE, no celular — no iOS o iframe fica preto porque o Safari bloqueia
@@ -67,7 +85,7 @@ export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe =
           e post de verdade não tem isso. */}
       {!semRodape && (
         <a href={driveLink} target="_blank" rel="noopener noreferrer"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 700, color: '#374151', textDecoration: 'none' }}>
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', background: cores.fundo, borderTop: `1px solid ${cores.borda}`, fontSize: 13, fontWeight: 700, color: cores.texto, textDecoration: 'none' }}>
           🎬 Abrir conteúdo no Drive
         </a>
       )}
@@ -123,7 +141,8 @@ function useSwipe(onPrev: () => void, onNext: () => void) {
   }
 }
 
-export function CarouselPreview({ folderId, folderUrl, ratio = '100%', semRodape = false }: { folderId: string; folderUrl: string; ratio?: string; semRodape?: boolean }) {
+export function CarouselPreview({ folderId, folderUrl, ratio = '100%', semRodape = false, noHub = false }: { folderId: string; folderUrl: string; ratio?: string; semRodape?: boolean; noHub?: boolean }) {
+  const cores = coresDaFaixa(noHub)
   const [items, setItems] = useState<{ id: string; name: string; isVideo: boolean }[]>([])
   const [slide, setSlide]   = useState(0)
   const [ready, setReady]   = useState(false)
@@ -185,6 +204,20 @@ export function CarouselPreview({ folderId, folderUrl, ratio = '100%', semRodape
           />
         )}
       </div>
+      {/* Setas de passar slide.
+
+          Sumiram sem querer quando as duas faixas viraram uma — o recorte
+          levou junto. No computador a bolinha é alvo de 6px e não tem
+          arrastar: sem seta, passar de slide virava mira. */}
+      {items.length > 1 && (
+        <>
+          <button onClick={prev} aria-label="Slide anterior"
+            style={{ position: 'absolute', left: 8, top: 'calc(50% - 16px)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>‹</button>
+          <button onClick={next} aria-label="Próximo slide"
+            style={{ position: 'absolute', right: 8, top: 'calc(50% - 16px)', width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>›</button>
+        </>
+      )}
+
       {/* Contador e link do Drive na MESMA linha.
           
           Eram duas faixas empilhadas: uma só com "8 / 9" no meio, outra só com
@@ -192,19 +225,19 @@ export function CarouselPreview({ folderId, folderUrl, ratio = '100%', semRodape
           o carrossel empurrado pra cima. Agora dividem uma faixa fina — as
           bolinhas (ou o número) à esquerda, o link à direita. */}
       {(items.length > 1 || !semRodape) && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '7px 12px', background: '#f5f5f3', borderTop: '1px solid #ebebeb' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '7px 12px', background: cores.fundo, borderTop: `1px solid ${cores.borda}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
             {items.length > 1 && (items.length <= 8 ? items.map((_, i) => (
               <button key={i} onClick={() => setSlide(i)} aria-label={`Ir para ${i + 1} de ${items.length}`}
                 style={{ width: i === slide ? 16 : 6, height: 6, borderRadius: 3, border: 'none', padding: 0,
-                  background: i === slide ? '#374151' : '#d1d5db', cursor: 'pointer', transition: 'width 0.2s, background 0.2s' }} />
+                  background: i === slide ? cores.pontoAtivo : cores.pontoInativo, cursor: 'pointer', transition: 'width 0.2s, background 0.2s' }} />
             )) : (
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#6b7280' }}>{slide + 1} / {items.length}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: cores.texto }}>{slide + 1} / {items.length}</span>
             ))}
           </div>
           {!semRodape && (
             <a href={folderUrl} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: '#374151', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: cores.texto, textDecoration: 'none', whiteSpace: 'nowrap' }}>
               📂 Abrir pasta no Drive
             </a>
           )}
@@ -218,7 +251,8 @@ export function CarouselPreview({ folderId, folderUrl, ratio = '100%', semRodape
 // (não uma pasta) — mesma UI de slide+bolinhas do CarouselPreview, mas sem
 // depender de listar uma pasta (não sabemos o mimetype de cada um, então
 // trata tudo como imagem, que é o caso real que motivou isso).
-export function MultiFilePreview({ ids, fallbackUrl, ratio = '100%' }: { ids: string[]; fallbackUrl?: string | null; ratio?: string }) {
+export function MultiFilePreview({ ids, fallbackUrl, ratio = '100%', noHub = false }: { ids: string[]; fallbackUrl?: string | null; ratio?: string; noHub?: boolean }) {
+  const cores = coresDaFaixa(noHub)
   const [slide, setSlide] = useState(0)
   const { ratio: frameRatio, onMediaSize } = useMediaRatio(ratio)
   const prev = () => setSlide(s => (s - 1 + ids.length) % ids.length)
@@ -246,7 +280,7 @@ export function MultiFilePreview({ ids, fallbackUrl, ratio = '100%' }: { ids: st
       )}
       {fallbackUrl && (
         <a href={fallbackUrl.split(/\s+/)[0]} target="_blank" rel="noopener noreferrer"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 12, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 0', background: cores.fundo, borderTop: `1px solid ${cores.borda}`, fontSize: 12, fontWeight: 600, color: cores.texto, textDecoration: 'none' }}>
           🔗 {slide + 1}/{ids.length} · Abrir no Drive
         </a>
       )}
@@ -303,18 +337,18 @@ export function FolderThumb({ folderId }: { folderId: string }) {
   )
 }
 
-export function ReelFolderPreview({ folderId, folderUrl, comecarNoIframe = false, semRodape = false }: { folderId: string; folderUrl: string; comecarNoIframe?: boolean; semRodape?: boolean }) {
+export function ReelFolderPreview({ folderId, folderUrl, comecarNoIframe = false, semRodape = false, noHub = false }: { folderId: string; folderUrl: string; comecarNoIframe?: boolean; semRodape?: boolean; noHub?: boolean }) {
   const { files, ready } = useFolderFiles(folderId)
   if (!ready) return <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1c1a18' }}>{SPINNER}</div>
   const videos = files.filter(f => f.mimeType.startsWith('video/'))
   const video  = videos[0]
   // Mostra só o vídeo — a capa da pasta não entra aqui pra não sobrepor o player.
   return video ? (
-    <DriveVideo id={video.id} folderUrl={folderUrl} comecarNoIframe={comecarNoIframe} semRodape={semRodape} />
+    <DriveVideo id={video.id} folderUrl={folderUrl} comecarNoIframe={comecarNoIframe} semRodape={semRodape} noHub={noHub} />
   ) : (
     semRodape ? null : (
       <a href={folderUrl} target="_blank" rel="noopener noreferrer"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', background: '#f5f5f3', borderTop: '1px solid #ebebeb', fontSize: 13, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', background: coresDaFaixa(noHub).fundo, borderTop: `1px solid ${coresDaFaixa(noHub).borda}`, fontSize: 13, fontWeight: 600, color: coresDaFaixa(noHub).texto, textDecoration: 'none' }}>
         🎬 Abrir reel no Drive
       </a>
     )
@@ -359,18 +393,20 @@ export function PreviaDoPost({
     : null
   const video = primeiro && ehVideo ? primeiro : null
 
+  // No hub a faixa segue o tema; na página do cliente ela é clara de propósito.
+  const noHub = contexto === 'equipe'
   if (video) {
     return (
       <div>
         {pasta && <FolderThumb folderId={pasta} />}
-        <DriveVideo id={video} folderUrl={driveFolderUrl || driveUrl || ''} comecarNoIframe={contexto === 'equipe'} semRodape={semRodape} />
+        <DriveVideo id={video} folderUrl={driveFolderUrl || driveUrl || ''} comecarNoIframe={noHub} semRodape={semRodape} noHub={noHub} />
       </div>
     )
   }
-  if (ehVideo && pasta) return <ReelFolderPreview folderId={pasta} folderUrl={driveFolderUrl || ''} comecarNoIframe={contexto === 'equipe'} semRodape={semRodape} />
-  if (ehCarrossel && pasta) return <CarouselPreview folderId={pasta} folderUrl={driveFolderUrl || ''} semRodape={semRodape} />
+  if (ehVideo && pasta) return <ReelFolderPreview folderId={pasta} folderUrl={driveFolderUrl || ''} comecarNoIframe={noHub} semRodape={semRodape} noHub={noHub} />
+  if (ehCarrossel && pasta) return <CarouselPreview folderId={pasta} folderUrl={driveFolderUrl || ''} semRodape={semRodape} noHub={noHub} />
   if (pasta) return <FolderThumb folderId={pasta} />
-  if (varios) return <MultiFilePreview ids={ids} fallbackUrl={driveUrl} />
+  if (varios) return <MultiFilePreview ids={ids} fallbackUrl={driveUrl} noHub={noHub} />
   if (foto) {
     return (
       // Altura natural da imagem. Altura fixa com `cover` cortava a arte pela
@@ -382,6 +418,33 @@ export function PreviaDoPost({
     )
   }
   return null
+}
+
+/**
+ * Essa prévia já traz o link do Drive numa faixa própria?
+ *
+ * Carrossel, vídeo, reel e galeria têm — o link fica na mesma linha do contador,
+ * que é onde a pessoa está olhando. Foto solta e capa de pasta não têm faixa
+ * nenhuma, e aí quem chama precisa oferecer o link por fora, senão a única
+ * porta pro Drive some.
+ *
+ * Existe pra essa pergunta não virar mais uma cópia da cadeia de seis casos.
+ */
+export function previaTemRodape(
+  driveUrl?: string | null,
+  driveFolderUrl?: string | null,
+  postType?: string | null,
+) {
+  const ids = extractDriveIds(driveUrl || '')
+  const pasta = driveFolderUrl?.match(/\/folders\/([-\w]{25,})/)?.[1]
+  const ehVideo = postType === 'reels'
+  const ehCarrossel = postType === 'carrossel' || postType === 'carrossel_stories'
+  if (ids[0] && ehVideo) return true          // DriveVideo
+  if (ehVideo && pasta) return true           // ReelFolderPreview
+  if (ehCarrossel && pasta) return true       // CarouselPreview
+  if (pasta) return false                     // FolderThumb: só a imagem
+  if (ids.length > 1) return true             // MultiFilePreview
+  return false                                // foto solta
 }
 
 /** Tem conteúdo entregue? É o que decide se o card estica. */

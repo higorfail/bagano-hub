@@ -1,7 +1,7 @@
 'use client'
 
 import { Heart, MessageCircle, Send, Bookmark } from 'lucide-react'
-import { PreviaDoPost } from '@/components/PreviaDrive'
+import { PreviaDoPost, previaTemRodape } from '@/components/PreviaDrive'
 
 // O post como ele vai aparecer no Instagram.
 //
@@ -60,6 +60,17 @@ export default function SimulacaoInstagram({
   /** Pasta ou arquivo no Drive — vai FORA do cartão, pra não quebrar a ilusão. */
   linkDrive?: string | null
 }) {
+  // O link do Drive vai na MESMA faixa do contador, quando existe faixa.
+  //
+  // Eu tinha escondido a faixa da prévia (`semRodape`) e posto um link solto
+  // embaixo do cartão. Ficaram duas alturas: uma faixa só com as bolinhas e
+  // outra só com o link — e o link longe do lugar pra onde a pessoa olha
+  // enquanto passa os slides. Carrossel, vídeo, reel e galeria já sabem
+  // desenhar isso numa linha só.
+  //
+  // Foto solta e capa de pasta não têm faixa nenhuma. Só nesses dois o link
+  // aparece por fora — senão a única porta pro Drive sumiria.
+  const rodapeDaPrevia = previaTemRodape(driveUrl, driveFolderUrl, postType)
   const arroba = arrobaDoCliente(clienteInstagram, clienteNome)
   const iniciais = (clienteNome || '?').split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase()
 
@@ -100,7 +111,6 @@ export default function SimulacaoInstagram({
           postType={postType}
           titulo={titulo}
           contexto="equipe"
-          semRodape
         />
       </div>
 
@@ -125,13 +135,8 @@ export default function SimulacaoInstagram({
       </div>
     </div>
 
-    {/* O link pro Drive fica FORA do cartão.
-
-        Dentro, ele aparecia entre a foto e o coração — e post de verdade não
-        tem link pro Drive ali. Aqui embaixo ele continua a um clique, sem
-        quebrar a simulação, e no tema do hub em vez de uma faixa clara colada
-        no branco. */}
-    {linkDrive && (
+    {/* Só quando a prévia não tem faixa própria (foto solta, capa de pasta). */}
+    {linkDrive && !rodapeDaPrevia && (
       <a
         href={linkDrive.split(/\s+/)[0]}
         target="_blank"
