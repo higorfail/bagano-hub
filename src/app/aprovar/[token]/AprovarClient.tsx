@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { createApprovalClient } from '@/lib/supabase'
+import { registrarAbertura } from '@/lib/registrarAbertura'
 import { logActivity } from '@/lib/activity'
 import { ensureWatchingFromAssigned } from '@/lib/watch'
 import { extractDriveIds } from '@/lib/driveLinks'
@@ -512,6 +513,11 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
       .from('approval_tokens').select('*').eq('token', token).eq('active', true).single()
     if (!tk) { setError('Link inválido ou expirado.'); setLoading(false); return }
     setTokenData(tk)
+
+    // Marca que o cliente abriu. Sem await: a tela não espera por isso, e
+    // falhar aqui não pode atrapalhar a aprovação. `equipe` fica de fora —
+    // quando é alguém da Bagano abrindo, não é visita do cliente.
+    if (!equipe) void registrarAbertura(supabase, token, tk.client_id)
     const { data: cl } = await supabase
       .from('clients').select('id, name, color_hex, logo_url, instagram_url').eq('id', tk.client_id).single()
     if (!cl) { setError('Cliente não encontrado.'); setLoading(false); return }
