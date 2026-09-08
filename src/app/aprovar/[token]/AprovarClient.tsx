@@ -102,6 +102,46 @@ interface Post {
 // já terminou. Quem abre no celular, decide três e é interrompido, não tem
 // como saber que parou no meio — e não volta. A barra é o que transforma
 // "uma lista de posts" em "uma tarefa com fim".
+/**
+ * "Já aprovados e publicados" — a gaveta do que o cliente já resolveu.
+ *
+ * Era um texto cinza com um "▸" de 12px na frente. Ninguém entendia que abria:
+ * parecia rótulo de seção, não botão. Agora é um bloco com borda, fundo e a
+ * palavra ABRIR/FECHAR escrita — o alvo é a linha inteira, não a setinha.
+ *
+ * Fica em dois lugares (link geral e link final) e por isso mora aqui: era
+ * exatamente assim que o mesmo trecho copiado em três lugares virou três bugs
+ * iguais em outra parte desta tela.
+ */
+function GavetaDecididos({ quantos, aberta, aoAlternar }: { quantos: number; aberta: boolean; aoAlternar: () => void }) {
+  return (
+    <button
+      onClick={aoAlternar}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+        background: aberta ? '#f0fdf4' : '#fff', border: '1.5px solid #bbf7d0',
+        borderRadius: 14, padding: '13px 16px', cursor: 'pointer', textAlign: 'left',
+        transition: 'background 0.15s',
+      }}>
+      <span style={{ fontSize: 16, lineHeight: 1 }}>{aberta ? '📂' : '📁'}</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'block', fontSize: 14, fontWeight: 800, color: '#166534', letterSpacing: '-0.01em' }}>
+          {quantos} já {quantos === 1 ? 'aprovado' : 'aprovados'} e {quantos === 1 ? 'publicado' : 'publicados'}
+        </span>
+        <span style={{ display: 'block', fontSize: 12, color: '#6b7280', marginTop: 1 }}>
+          {aberta ? 'Toque para esconder' : 'Toque para ver o que já foi'}
+        </span>
+      </span>
+      <span style={{
+        fontSize: 11, fontWeight: 800, color: '#16a34a', letterSpacing: '0.04em',
+        border: '1px solid #bbf7d0', borderRadius: 100, padding: '5px 11px', whiteSpace: 'nowrap',
+      }}>
+        {aberta ? 'FECHAR' : 'ABRIR'}
+      </span>
+    </button>
+  )
+}
+
 function ProgressoAprovacao({ feitos, total, cor }: { feitos: number; total: number; cor: string }) {
   if (total <= 0) return null
   const faltam = Math.max(0, total - feitos)
@@ -1351,12 +1391,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
               rever o que aprovou. */}
           {decididos.length > 0 && (
             <div style={{ marginTop: 24, borderTop: '1px solid #ebebeb', paddingTop: 20 }}>
-              <button
-                onClick={() => setVerHistorico(v => !v)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                <span style={{ display: 'inline-block', transform: verHistorico ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>
-                📁 Já aprovados e publicados · {decididos.length}
-              </button>
+              <GavetaDecididos quantos={decididos.length} aberta={verHistorico} aoAlternar={() => setVerHistorico(v => !v)} />
               {verHistorico && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
                   {decididos.map((p, i) => renderFinalCard(p, i))}
@@ -1398,16 +1433,6 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                 <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovação de conteúdos extras</p>
                   <ProgressoAprovacao feitos={extras.filter(e => e.client_approval_status && e.client_approval_status !== 'aguardando').length} total={extras.length} cor={cc} />
               </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <p style={{ margin: 0, lineHeight: 1 }}>
-                  <span style={{ fontSize: 22, fontWeight: 900, color: allExtrasDone ? '#16a34a' : '#111', letterSpacing: '-0.04em' }}>{extrasApproved}</span>
-                  <span style={{ fontSize: 13, color: '#d1d5db', fontWeight: 500 }}>/{extras.length}</span>
-                </p>
-                <p style={{ fontSize: 10, color: '#b0b0b0', margin: '3px 0 0', letterSpacing: '0.02em' }}>APROVADOS</p>
-              </div>
-            </div>
-            <div style={{ height: 4, background: '#f3f3f1', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
-              <div style={{ height: '100%', borderRadius: 2, background: allExtrasDone ? '#22c55e' : cc, width: `${pctExtras}%`, transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)' }} />
             </div>
             <p style={{ fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.5 }}>
               Revise cada conteúdo e toque em <strong style={{ color: '#111' }}>Aprovar</strong>. Se precisar de mudança, toque em <strong style={{ color: '#111' }}>Pedir ajuste</strong>.
@@ -1513,16 +1538,6 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                 <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovação do Cronograma · {MONTHS[(tokenData?.month ?? 1) - 1]} {tokenData?.year}</p>
                   <ProgressoAprovacao feitos={posts.length - posts.filter(p => p.status === 'aguardando_aprovacao_crono').length} total={posts.length} cor={cc} />
               </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <p style={{ margin: 0, lineHeight: 1 }}>
-                  <span style={{ fontSize: 22, fontWeight: 900, color: allCronoDone ? '#16a34a' : '#111', letterSpacing: '-0.04em' }}>{cronoApproved}</span>
-                  <span style={{ fontSize: 13, color: '#d1d5db', fontWeight: 500 }}>/{posts.length}</span>
-                </p>
-                <p style={{ fontSize: 10, color: '#b0b0b0', margin: '3px 0 0', letterSpacing: '0.02em' }}>APROVADOS</p>
-              </div>
-            </div>
-            <div style={{ height: 4, background: '#f3f3f1', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
-              <div style={{ height: '100%', borderRadius: 2, background: allCronoDone ? '#22c55e' : cc, width: `${pctCrono}%`, transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)' }} />
             </div>
             <p style={{ fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.5 }}>
               Revise a <strong style={{ color: '#111' }}>estratégia de cada post</strong>. Após sua aprovação, nossa equipe cria as artes e vídeos.
@@ -1659,25 +1674,15 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
               <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>Aprovação Final · {MONTHS[(tokenData?.month ?? 1) - 1]} {tokenData?.year}</p>
               <ProgressoAprovacao feitos={reviewPosts.length - pendingCount} total={reviewPosts.length} cor={cc} />
             </div>
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <p style={{ margin: 0, lineHeight: 1 }}>
-                <span style={{ fontSize: 22, fontWeight: 900, color: allDone ? '#16a34a' : '#111', letterSpacing: '-0.04em' }}>{approvedCount}</span>
-                <span style={{ fontSize: 13, color: '#d1d5db', fontWeight: 500 }}>/{totalPosts}</span>
-              </p>
-              <p style={{ fontSize: 10, color: '#b0b0b0', margin: '3px 0 0', letterSpacing: '0.02em' }}>APROVADOS</p>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div style={{ height: 4, background: '#f3f3f1', borderRadius: 2, overflow: 'hidden', marginBottom: 12 }}>
-            <div style={{ height: '100%', borderRadius: 2, background: allDone ? '#22c55e' : cc, width: `${pct}%`, transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)' }} />
           </div>
 
           {/* Status pills */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto' }}>
-            {pendingCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, background: '#f3f4f6', color: '#6b7280', padding: '4px 10px', borderRadius: 100, whiteSpace: 'nowrap' }}>{pendingCount} pendente{pendingCount !== 1 ? 's' : ''}</span>}
+            {/* Só a de ajuste sobrou. "N pendentes" e "✓ N aprovados" diziam,
+                palavra por palavra, o que a barra logo acima já diz — o
+                cabeçalho repetia o mesmo número em quatro formatos. Ajuste
+                pedido é o único estado que a barra não mostra. */}
             {changesCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, background: '#fef3c7', color: '#b45309', padding: '4px 10px', borderRadius: 100, whiteSpace: 'nowrap' }}>⚠ {changesCount} ajuste{changesCount !== 1 ? 'ões' : ''}</span>}
-            {approvedCount > 0 && <span style={{ fontSize: 11, fontWeight: 700, background: '#f0fdf4', color: '#16a34a', padding: '4px 10px', borderRadius: 100, whiteSpace: 'nowrap' }}>✓ {approvedCount} aprovado{approvedCount !== 1 ? 's' : ''}</span>}
           </div>
 
           {/* Tab switcher */}
@@ -1825,12 +1830,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                   sem sumir da tela: o cliente ainda quer rever o que aprovou. */}
               {jaResolvidos.length > 0 && (
                 <div style={{ marginTop: 26, borderTop: '1px solid #ebebeb', paddingTop: 18 }}>
-                  <button
-                    onClick={() => setVerHistorico(v => !v)}
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#16a34a', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                    <span style={{ display: 'inline-block', transform: verHistorico ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>
-                    ✓ Já aprovados e publicados · {jaResolvidos.length}
-                  </button>
+                  <GavetaDecididos quantos={jaResolvidos.length} aberta={verHistorico} aoAlternar={() => setVerHistorico(v => !v)} />
                   {verHistorico && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
                       {jaResolvidos.map((post, idx) => renderFinalCard(post, idx))}
