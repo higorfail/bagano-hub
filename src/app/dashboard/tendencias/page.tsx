@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import TendenciasView from '@/components/TendenciasView'
+import ConcorrentesPainel from '@/components/ConcorrentesPainel'
 
 export default function TendenciasPage() {
   useEffect(() => { document.title = 'Tendências · Bagano Hub' }, [])
@@ -13,6 +14,8 @@ export default function TendenciasPage() {
           <p className="text-[var(--color-text-muted)] text-xs mt-0.5">O que está em alta no nicho — e o gancho pra usar em cliente de gastronomia.</p>
         </div>
       } />
+      {/* Fica embaixo e fechado: é ajuste que se faz uma vez, não leitura do dia. */}
+      <div className="max-w-3xl mt-5"><ConcorrentesPainel /></div>
     </div>
   )
 }
