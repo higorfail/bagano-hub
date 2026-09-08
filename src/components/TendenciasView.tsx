@@ -78,9 +78,9 @@ export default function TendenciasView({ heading }: { heading?: React.ReactNode 
         // Erro em português e com o motivo real. "Erro ao buscar" faria a
         // equipe apertar o botão dez vezes contra uma cota que só reseta
         // amanhã.
-        setErroBusca(res.status === 429
-          ? 'A cota de busca da IA acabou por agora — ela é separada da cota normal e costuma voltar no dia seguinte. Dá pra cadastrar à mão enquanto isso.'
-          : json.error || 'Não consegui buscar agora.')
+        // A rota já devolve o motivo em português. Aqui só se garante que
+        // nunca chega um "erro" pelado na tela.
+        setErroBusca(json.error || 'Não consegui buscar agora. Dá pra cadastrar à mão enquanto isso.')
         setBuscando(false)
         return
       }

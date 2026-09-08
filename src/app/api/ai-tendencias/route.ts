@@ -1,23 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { usuarioLogado } from '@/lib/apiAuth'
 import { GEMINI } from '@/lib/gemini'
+import { noticiasDoNicho } from '@/lib/noticiasDoNicho'
 
 // Tendências do nicho, buscadas de verdade.
 //
-// O Gemini sozinho não serve pra isso: ele responde do que aprendeu até o corte
-// de treino, e tendência velha é pior que tendência nenhuma — a equipe produz
-// uma peça pra um som que já morreu. Por isso `google_search`, o mesmo
-// mecanismo que o gerador de manual já usa: o modelo busca antes de responder.
+// A busca NÃO é feita pelo Gemini. O plano da nossa chave não tem a ferramenta
+// `google_search`: medido em dois dias seguidos, chamada simples devolve 200 e
+// a mesma chamada com busca devolve 429 na primeira tentativa, em todos os
+// modelos. Cota zero, não cota esgotada.
 //
-// Cada tendência sai com FONTE. Sem ela não dá pra separar o que foi lido do
-// que foi inventado, e a primeira tendência inventada que alguém produzir
-// derruba a confiança na tela inteira.
+// Então quem busca é o servidor (`noticiasDoNicho`, via Google News RSS) e o
+// modelo só LÊ o que recebeu. Isso é melhor do que seria com grounding:
 //
-// Limite honesto: a busca lê o que o Google indexou. Pinterest, blogs de
-// marketing, portais de gastronomia e matérias sobre TikTok saem bem;
-// INSTAGRAM sai raso, porque a Meta bloqueia rastreador. Ler o Instagram dos
-// concorrentes de verdade depende da Business Discovery API da Meta, que exige
-// App Review aprovado.
+//   1. A FONTE é garantida. O modelo escolhe entre os links que recebeu, não
+//      escreve um. Tendência inventada com fonte inventada era o pior
+//      resultado possível desta tela.
+//   2. A busca é apontável — a lista de consultas fica em `noticiasDoNicho`.
+//
+// Sem notícia nenhuma a rota não chama o modelo: pedir tendência sem material
+// é pedir invenção, e é exatamente o que não se quer aqui.
 
 const CATEGORIAS = ['formato', 'audio', 'assunto', 'data', 'estetica']
 
@@ -29,28 +31,40 @@ export async function POST(req: NextRequest) {
   const { concorrentes = [], quantas = 8 } = await req.json().catch(() => ({}))
 
   const hoje = new Date()
-  const mes = hoje.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-  // Janela explícita. Sem ela o modelo devolve conselho atemporal — "use
-  // vídeos curtos", "mostre os bastidores" — que não é tendência, é manual.
-  const desde = new Date(hoje.getTime() - 45 * 86400000).toLocaleDateString('pt-BR')
+  const DIAS = 45
+  const desde = new Date(hoje.getTime() - DIAS * 86400000).toLocaleDateString('pt-BR')
+
+  const noticias = await noticiasDoNicho(DIAS)
+  if (!noticias.length) {
+    return NextResponse.json({
+      error: 'Não consegui alcançar as fontes de notícia agora. Tente de novo em alguns minutos.',
+    }, { status: 503 })
+  }
 
   const alvos = Array.isArray(concorrentes) && concorrentes.length
-    ? `\nOlhe também estes perfis de restaurantes concorrentes dos nossos clientes, se alcançar o conteúdo público deles: ${concorrentes.slice(0, 25).join(', ')}`
+    ? `\n\nConcorrentes dos nossos clientes, para contexto do que é o nicho: ${concorrentes.slice(0, 25).join(', ')}`
     : ''
 
-  const prompt = `Você pesquisa tendências de conteúdo para uma agência brasileira de social media especializada em GASTRONOMIA (restaurantes, pizzarias, sushi, sorveterias, padarias, hamburguerias).
+  const material = noticias
+    .map((n, i) => `${i + 1}. ${n.titulo}\n   veículo: ${n.veiculo} · ${n.data}\n   link: ${n.link}`)
+    .join('\n')
 
-Hoje é ${mes}. Pesquise na web o que está em alta AGORA, de ${desde} para cá.
+  const prompt = `Você trabalha numa agência brasileira de social media especializada em GASTRONOMIA (restaurantes, pizzarias, sushi, sorveterias, padarias, hamburguerias).
 
-Busque em: Pinterest (Pinterest Predicts e buscas de comida em alta), portais e blogs de marketing digital e social media, matérias sobre tendências do TikTok e do Reels, portais de gastronomia e de restaurantes, e listas de áudios em alta.${alvos}
+Abaixo estão ${noticias.length} matérias REAIS publicadas de ${desde} para cá. Leia e extraia as que representam uma TENDÊNCIA que um restaurante consegue usar nas próximas semanas.${alvos}
 
-Traga ${quantas} tendências CONCRETAS e APLICÁVEIS por um restaurante nas próximas semanas. Cada uma precisa ser algo que dá pra produzir: um formato de vídeo, um áudio, um assunto, uma data, um jeito de fotografar.
+MATÉRIAS:
+${material}
 
-NÃO traga conselho atemporal ("poste com frequência", "mostre os bastidores", "use vídeos curtos"). Isso não é tendência, é manual — e a equipe já sabe.
+Regras, todas obrigatórias:
 
-Se não encontrar ${quantas} tendências REAIS e recentes, traga menos. Lista curta e verdadeira vale mais que longa e inventada. NUNCA invente uma tendência que você não encontrou na busca.
+- Use SOMENTE o que está nas matérias acima. Não acrescente tendência que você conhece de outro lugar — se não está na lista, não entra.
+- O campo "fonte" tem que ser o link EXATO de uma das matérias acima. Nunca escreva outro link.
+- Ignore matéria que não vira conteúdo: turismo, agenda de evento de uma cidade só, notícia de celebridade, curso, feira setorial.
+- Nada de conselho atemporal ("poste com frequência", "mostre os bastidores"). Isso não é tendência, é manual — a equipe já sabe.
+- Traga quantas encontrar, até ${quantas}. Se só três matérias virarem tendência de verdade, traga três. Lista curta e verdadeira vale mais que longa e forçada.
 
-Responda APENAS com JSON válido (sem markdown, sem crases), assim:
+Responda APENAS com JSON válido (sem markdown, sem crases):
 
 {
   "tendencias": [
@@ -59,33 +73,49 @@ Responda APENAS com JSON válido (sem markdown, sem crases), assim:
       "descricao": "o que é, em 1-2 frases",
       "gancho": "como um restaurante usa isso — específico, algo que dá pra produzir esta semana",
       "categoria": "um de: ${CATEGORIAS.join(' | ')}",
-      "fonte": "o site ou perfil onde você viu, com URL quando tiver",
-      "exemplos": ["quem já fez, se você encontrou"]
+      "fonte": "o link exato da matéria de onde saiu",
+      "exemplos": ["quem já fez, se a matéria disser"]
     }
   ]
 }`
 
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI.FLASH}:generateContent`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          tools: [{ google_search: {} }],
-          // Temperatura baixa, como no gerador de manual: aqui não se quer
-          // criatividade, se quer o que foi encontrado.
-          generationConfig: { maxOutputTokens: 4000, temperature: 0.2 },
-        }),
-      }
-    )
+  // Escada de modelos, não uma chamada só.
+  //
+  // Medido agora: `gemini-flash-latest` devolveu 503 ("high demand") duas vezes
+  // seguidas e `flash-lite` respondeu de primeira. Sem a escada, a equipe
+  // aperta "Buscar" num momento de pico e não recebe nada — e o trabalho de
+  // buscar as 67 matérias vai junto pro lixo.
+  const ESCADA = [GEMINI.FLASH, GEMINI.FLASH, GEMINI.FLASH_LITE, GEMINI.FLASH_LITE]
+  const espera = (ms: number) => new Promise(r => setTimeout(r, ms))
 
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('ai-tendencias Gemini error:', res.status, err)
-      if (res.status === 429) return NextResponse.json({ error: 'Limite de uso da IA atingido. Tente daqui a pouco.' }, { status: 429 })
-      return NextResponse.json({ error: 'Não consegui buscar as tendências agora.' }, { status: 500 })
+  try {
+    let res: Response | null = null
+    for (let i = 0; i < ESCADA.length; i++) {
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${ESCADA[i]}:generateContent`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            // Temperatura baixa: aqui não se quer criatividade, se quer o que
+            // estava escrito nas matérias.
+            generationConfig: { maxOutputTokens: 4000, temperature: 0.2 },
+          }),
+        }
+      )
+      if (res.ok) break
+      // 429 é cota — insistir não resolve e só queima o resto. 503 é pico, e
+      // passa.
+      if (res.status === 429) break
+      if (i < ESCADA.length - 1) await espera(2500)
+    }
+
+    if (!res || !res.ok) {
+      const err = res ? await res.text() : ''
+      console.error('ai-tendencias Gemini error:', res?.status, err)
+      if (res?.status === 429) return NextResponse.json({ error: 'Limite de uso da IA atingido. Tente daqui a pouco.' }, { status: 429 })
+      return NextResponse.json({ error: 'A IA está congestionada agora. Tente de novo em alguns minutos — as matérias já foram lidas, é só o resumo que faltou.' }, { status: 503 })
     }
 
     const data = await res.json()
@@ -99,22 +129,28 @@ Responda APENAS com JSON válido (sem markdown, sem crases), assim:
     }
     if (!Array.isArray(lista)) return NextResponse.json({ error: 'A IA não devolveu tendências.' }, { status: 502 })
 
-    // Os links que o Google devolveu junto da resposta. Quando o modelo não
-    // escreve a fonte, é daqui que ela sai — e é isso que separa "li isso" de
-    // "acho que existe".
-    const apoios: string[] = (data.candidates?.[0]?.groundingMetadata?.groundingChunks || [])
-      .map((c: any) => c?.web?.title || c?.web?.uri).filter(Boolean)
+    // Só entra tendência cujo link ESTÁ na lista que mandamos. O modelo tem
+    // instrução de copiar um dos links, mas instrução não é garantia — e uma
+    // fonte inventada é pior que fonte nenhuma, porque parece verificável.
+    const linksReais = new Set(noticias.map(n => n.link))
+    const porLink = new Map(noticias.map(n => [n.link, n]))
 
-    const tendencias = lista.slice(0, 20).map((t: any) => ({
-      titulo: String(t?.titulo || '').slice(0, 200),
-      descricao: String(t?.descricao || ''),
-      gancho: String(t?.gancho || ''),
-      categoria: CATEGORIAS.includes(t?.categoria) ? t.categoria : 'assunto',
-      fonte: String(t?.fonte || '') || apoios.slice(0, 2).join(' · '),
-      exemplos: Array.isArray(t?.exemplos) ? t.exemplos.filter((x: any) => typeof x === 'string').slice(0, 5) : [],
-    })).filter((t: any) => t.titulo)
+    const tendencias = lista.slice(0, 20).map((t: any) => {
+      const fonte = String(t?.fonte || '').trim()
+      const noticia = linksReais.has(fonte) ? porLink.get(fonte) : undefined
+      return {
+        titulo: String(t?.titulo || '').slice(0, 200),
+        descricao: String(t?.descricao || ''),
+        gancho: String(t?.gancho || ''),
+        categoria: CATEGORIAS.includes(t?.categoria) ? t.categoria : 'assunto',
+        // Guarda o link real, e junto o veículo — "O TEMPO" diz mais na tela
+        // que uma URL de redirecionamento do Google News.
+        fonte: noticia ? `${noticia.veiculo || 'matéria'} · ${noticia.link}` : '',
+        exemplos: Array.isArray(t?.exemplos) ? t.exemplos.filter((x: any) => typeof x === 'string').slice(0, 5) : [],
+      }
+    }).filter((t: any) => t.titulo && t.fonte)
 
-    return NextResponse.json({ tendencias, buscadoEm: new Date().toISOString(), fontesConsultadas: apoios.slice(0, 12) })
+    return NextResponse.json({ tendencias, buscadoEm: new Date().toISOString(), materiasLidas: noticias.length })
   } catch {
     return NextResponse.json({ error: 'Erro ao chamar a API do Gemini' }, { status: 500 })
   }

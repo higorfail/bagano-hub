@@ -68,7 +68,18 @@ Responda APENAS com um JSON válido (sem markdown, sem \`\`\`, sem comentários)
       const err = await res.text()
       console.error('ai-manual Gemini error:', res.status, err)
       if (res.status === 429) {
-        return NextResponse.json({ error: 'Limite de uso da IA atingido no momento. Tente de novo em instantes ou mais tarde.' }, { status: 429 })
+        // Não é "tente mais tarde". Esta rota usa `google_search`, e o plano
+        // da nossa chave do Gemini não inclui essa ferramenta: medido em dois
+        // dias seguidos, chamada simples devolve 200 e a mesma com busca
+        // devolve 429 na PRIMEIRA tentativa, em todos os modelos. Dizer "tente
+        // mais tarde" fazia a equipe tentar de novo pra sempre.
+        //
+        // A saída sem mexer no plano é a mesma que Tendências usa: buscar as
+        // fontes no servidor e mandar o texto pro modelo. Aqui é mais difícil
+        // porque as fontes são o site, o Instagram e o iFood do cliente.
+        return NextResponse.json({
+          error: 'A busca na web não está liberada no plano atual da chave do Gemini — não adianta tentar de novo. Dá pra preencher o manual à mão pela própria tela (Começar em branco).',
+        }, { status: 429 })
       }
       return NextResponse.json({ error: 'Não consegui gerar o rascunho agora. Tente de novo em instantes.' }, { status: 500 })
     }
