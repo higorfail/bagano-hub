@@ -30,6 +30,8 @@ type Tendencia = {
   categoria: string | null
   fonte: string | null
   exemplos: string[] | null
+  imagem_url: string | null
+  instagram_url: string | null
   buscado_em: string
   ativa: boolean
 }
@@ -42,6 +44,20 @@ const CATEGORIAS = [
   { valor: 'estetica', rotulo: 'Estética', cor: '#8b5cf6' },
 ]
 const catDe = (v: string | null) => CATEGORIAS.find(c => c.valor === v) || CATEGORIAS[2]
+
+/** "Veículo · https://…" → ["Veículo", "https://…"]. O nome pra ler, o link pra clicar. */
+function partirFonte(fonte: string | null): [string, string] {
+  const t = (fonte || '').trim()
+  if (!t) return ['', '']
+  const link = t.match(/https?:\/\/\S+/)?.[0] || ''
+  const nome = t.replace(link, '').replace(/[·\-\s]+$/, '').trim()
+  return [nome || link.replace(/^https?:\/\/(www\.)?/, '').split('/')[0], link]
+}
+
+/** O código do post, quando o link é de um post (e não de um perfil). */
+function codigoDoPost(url: string | null): string | null {
+  return url?.match(/instagram\.com\/(?:p|reel)\/([A-Za-z0-9_-]+)/)?.[1] || null
+}
 
 export default function TendenciasView({ heading }: { heading?: React.ReactNode }) {
   const supabase = createClient()
@@ -133,7 +149,7 @@ export default function TendenciasView({ heading }: { heading?: React.ReactNode 
   const arquivadas = tendencias.filter(t => !t.ativa).length
 
   return (
-    <div className="flex flex-col gap-5 max-w-3xl">
+    <div className="flex flex-col gap-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         {heading}
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -173,58 +189,126 @@ export default function TendenciasView({ heading }: { heading?: React.ReactNode 
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        // Três colunas na largura inteira. Tendência se compara olhando lado a
+        // lado — uma coluna de blocos de texto era uma lista de leitura, e
+        // ninguém lê lista pra escolher pauta.
+        <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(300px,1fr))] xl:[grid-template-columns:repeat(3,minmax(0,1fr))]">
           {visiveis.map(t => {
             const cat = catDe(t.categoria)
+            // A fonte é gravada como "Veículo · https://…" — o nome pra ler, o
+            // link pra clicar. Sem separar, o card mostrava a URL crua inteira.
+            const [veiculo, link] = partirFonte(t.fonte)
+            const post = codigoDoPost(t.instagram_url)
             return (
-              <div key={t.id} className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3.5 flex flex-col gap-2">
-                <div className="flex items-start gap-2">
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide flex-shrink-0 mt-0.5"
-                    style={{ background: cat.cor + '22', color: cat.cor }}>{cat.rotulo}</span>
-                  <p className="text-sm font-semibold text-[var(--color-text-primary)] leading-snug flex-1">{t.titulo}</p>
-                </div>
+              <article key={t.id} className="group flex flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] overflow-hidden">
+                <Capa tendencia={t} cor={cat.cor} />
 
-                {t.descricao && <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{t.descricao}</p>}
-
-                {t.gancho && (
-                  <div className="rounded-xl bg-[var(--color-bg-subtle)] px-2.5 py-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Como usar</p>
-                    <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{t.gancho}</p>
+                <div className="flex flex-col gap-2 p-3.5 flex-1">
+                  <div className="flex items-start gap-2">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide flex-shrink-0 mt-0.5"
+                      style={{ background: cat.cor + '22', color: cat.cor }}>{cat.rotulo}</span>
+                    <h3 className="text-sm font-semibold text-[var(--color-text-primary)] leading-snug flex-1">{t.titulo}</h3>
                   </div>
-                )}
 
-                <div className="flex items-center gap-2 flex-wrap text-[11px]">
-                  {/* A fonte fica visível sempre, não escondida atrás de hover:
-                      é ela que separa "li isso" de "a IA achou que existia". */}
-                  {t.fonte
-                    ? <span className="text-[var(--color-text-faint)] truncate max-w-[280px]" title={t.fonte}>{t.fonte}</span>
-                    : <span className="text-[var(--ds-caution-text)]">sem fonte</span>}
-                  <span className="text-[var(--color-text-faint)]">· {desdeQuando(t.buscado_em)}</span>
+                  {t.descricao && <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{t.descricao}</p>}
 
-                  <div className="ml-auto flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                    {t.ativa && (
-                      <button onClick={() => virarIdeia(t)}
-                        className="font-semibold px-2 py-1 rounded-lg text-white" style={{ background: 'var(--color-accent)' }}>
-                        Virar ideia
+                  {t.gancho && (
+                    <div className="rounded-xl bg-[var(--color-bg-subtle)] px-2.5 py-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Como usar</p>
+                      <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{t.gancho}</p>
+                    </div>
+                  )}
+
+                  {/* O post do Instagram citado pela matéria, embedado de
+                      verdade. O iframe do Instagram não pede login pra post
+                      público — testado, devolve 200. */}
+                  {post && (
+                    <iframe src={`https://www.instagram.com/p/${post}/embed`}
+                      title="Post no Instagram" loading="lazy" scrolling="no"
+                      className="w-full rounded-xl border border-[var(--color-border)]" style={{ height: 460 }} />
+                  )}
+                  {!post && t.instagram_url && (
+                    <a href={t.instagram_url} target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-medium self-start" style={{ color: cat.cor }}>
+                      Ver no Instagram
+                    </a>
+                  )}
+
+                  <div className="flex items-center gap-2 mt-auto pt-2 text-[11px]">
+                    {/* A fonte fica visível sempre, não escondida atrás de
+                        hover: é ela que separa "li isso" de "a IA achou que
+                        existia". */}
+                    {link
+                      ? <a href={link} target="_blank" rel="noopener noreferrer"
+                          className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] underline truncate max-w-[60%]" title={link}>
+                          {veiculo}
+                        </a>
+                      : <span className="text-[var(--ds-caution-text)]">sem fonte</span>}
+                    <span className="text-[var(--color-text-faint)] truncate">{desdeQuando(t.buscado_em)}</span>
+
+                    <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0">
+                      {t.ativa && (
+                        <button onClick={() => virarIdeia(t)}
+                          className="font-semibold px-2 py-1 rounded-lg text-white" style={{ background: 'var(--color-accent)' }}>
+                          Virar ideia
+                        </button>
+                      )}
+                      <button onClick={() => arquivar(t, !t.ativa)} aria-label={t.ativa ? 'Arquivar' : 'Desarquivar'}
+                        className="p-1 rounded-lg text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)]">
+                        <Archive size={12} />
                       </button>
-                    )}
-                    <button onClick={() => arquivar(t, !t.ativa)} aria-label={t.ativa ? 'Arquivar' : 'Desarquivar'}
-                      className="p-1 rounded-lg text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)]">
-                      <Archive size={12} />
-                    </button>
-                    <button onClick={() => excluir(t)} aria-label="Excluir"
-                      className="p-1 rounded-lg text-[var(--color-text-faint)] hover:text-[var(--ds-error-text)]">
-                      <X size={13} />
-                    </button>
+                      <button onClick={() => excluir(t)} aria-label="Excluir"
+                        className="p-1 rounded-lg text-[var(--color-text-faint)] hover:text-[var(--ds-error-text)]">
+                        <X size={13} />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </article>
             )
           })}
         </div>
       )}
 
       {novaAberta && <ModalNovaTendencia onFechar={() => setNovaAberta(false)} onSalvar={adicionar} />}
+    </div>
+  )
+}
+
+/**
+ * A capa do card: a foto da matéria, ou um visual desenhado no lugar dela.
+ *
+ * A maioria das tendências BOAS não tem foto, e isso não é falha de código —
+ * é onde elas moram. Medido em quatro rodadas: as matérias com foto vêm dos
+ * feeds de lifestyle e quase nunca são tendência; as que são tendência de
+ * verdade vêm da busca em toda a imprensa, que não entrega imagem.
+ *
+ * Forçar o modelo a preferir matéria com foto foi testado e piorou o conteúdo.
+ * Então o card sem foto ganha uma capa própria — faixa na cor da categoria com
+ * o título grande — em vez de um buraco. A grade fica com a mesma altura de
+ * cima a baixo, e nada finge ser foto que não é.
+ */
+function Capa({ tendencia, cor }: { tendencia: Tendencia; cor: string }) {
+  const [quebrou, setQuebrou] = useState(false)
+  if (tendencia.imagem_url && !quebrou) {
+    return (
+      <div className="aspect-[16/9] bg-[var(--color-bg-subtle)] overflow-hidden">
+        <img src={tendencia.imagem_url} alt="" loading="lazy"
+          className="w-full h-full object-cover"
+          onError={() => setQuebrou(true)} />
+      </div>
+    )
+  }
+  return (
+    <div className="aspect-[16/9] flex items-end p-3.5 relative overflow-hidden"
+      style={{ background: `linear-gradient(135deg, ${cor}22, ${cor}0a)` }}>
+      {/* Marca d'água grande atrás do título: dá peso visual sem inventar
+          imagem. Cortada pelo overflow de propósito. */}
+      <span aria-hidden className="absolute -right-2 -top-6 text-[110px] font-black leading-none select-none"
+        style={{ color: cor, opacity: 0.13 }}>#</span>
+      <p className="relative text-base font-bold leading-tight text-[var(--color-text-primary)] line-clamp-3">
+        {tendencia.titulo}
+      </p>
     </div>
   )
 }

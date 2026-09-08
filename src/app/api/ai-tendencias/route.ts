@@ -23,6 +23,21 @@ import { noticiasDoNicho } from '@/lib/noticiasDoNicho'
 
 const CATEGORIAS = ['formato', 'audio', 'assunto', 'data', 'estetica']
 
+/**
+ * O @ ou o post que a matéria citou, em forma de URL.
+ *
+ * Aceita as duas formas porque a matéria escreve das duas: "@starbucks" no meio
+ * do texto, ou o link do post. Post embeda de verdade; perfil abre o perfil.
+ */
+function normalizarInstagram(bruto: unknown): string | null {
+  const t = String(bruto || '').trim()
+  if (!t) return null
+  const url = t.match(/https?:\/\/(?:www\.)?instagram\.com\/[^\s"')]+/)?.[0]
+  if (url) return url.replace(/[.,)]+$/, '')
+  const arroba = t.match(/@([A-Za-z0-9._]{2,30})/)?.[1]
+  return arroba ? `https://www.instagram.com/${arroba}/` : null
+}
+
 export async function POST(req: NextRequest) {
   if (!await usuarioLogado()) return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
   const apiKey = process.env.GEMINI_API_KEY
@@ -45,9 +60,15 @@ export async function POST(req: NextRequest) {
     ? `\n\nConcorrentes dos nossos clientes, para contexto do que é o nicho: ${concorrentes.slice(0, 25).join(', ')}`
     : ''
 
+  // "[COM FOTO]" na lista, e uma regra pedindo preferência.
+  //
+  // Medido: sem a marca, o modelo escolheu as três matérias do Google News
+  // (que não têm foto) e ignorou as 21 com foto — as do Google News parecem
+  // mais "tendência" e ele foi direto nelas. O resultado tinha substância e
+  // nenhuma imagem, que era justamente o pedido.
   const material = noticias
-    .map((n, i) => `${i + 1}. ${n.titulo}\n   veículo: ${n.veiculo} · ${n.data}\n   link: ${n.link}`)
-    .join('\n')
+    .map((n, i) => `${i + 1}.${n.imagem ? ' [COM FOTO]' : ''} ${n.titulo}\n   veículo: ${n.veiculo} · ${n.data}\n   resumo: ${n.resumo || '(sem resumo)'}\n   link: ${n.link}`)
+    .join('\n\n')
 
   const prompt = `Você trabalha numa agência brasileira de social media especializada em GASTRONOMIA (restaurantes, pizzarias, sushi, sorveterias, padarias, hamburguerias).
 
@@ -63,6 +84,8 @@ Regras, todas obrigatórias:
 - Ignore matéria que não vira conteúdo: turismo, agenda de evento de uma cidade só, notícia de celebridade, curso, feira setorial.
 - Nada de conselho atemporal ("poste com frequência", "mostre os bastidores"). Isso não é tendência, é manual — a equipe já sabe.
 - Traga quantas encontrar, até ${quantas}. Se só três matérias virarem tendência de verdade, traga três. Lista curta e verdadeira vale mais que longa e forçada.
+- Se o resumo da matéria citar um perfil ou um post do Instagram (um @ ou um link instagram.com), copie em "instagram". Se não citar, deixe "".
+- Entre duas matérias que sustentam tendências igualmente boas, prefira a marcada [COM FOTO] — a tela mostra a foto da matéria, e card sem imagem rende menos. Isso é desempate, não critério: tendência fraca com foto continua fora.
 
 Responda APENAS com JSON válido (sem markdown, sem crases):
 
@@ -74,6 +97,7 @@ Responda APENAS com JSON válido (sem markdown, sem crases):
       "gancho": "como um restaurante usa isso — específico, algo que dá pra produzir esta semana",
       "categoria": "um de: ${CATEGORIAS.join(' | ')}",
       "fonte": "o link exato da matéria de onde saiu",
+      "instagram": "@perfil ou link instagram.com citado na matéria, senão vazio",
       "exemplos": ["quem já fez, se a matéria disser"]
     }
   ]
@@ -143,9 +167,12 @@ Responda APENAS com JSON válido (sem markdown, sem crases):
         descricao: String(t?.descricao || ''),
         gancho: String(t?.gancho || ''),
         categoria: CATEGORIAS.includes(t?.categoria) ? t.categoria : 'assunto',
-        // Guarda o link real, e junto o veículo — "O TEMPO" diz mais na tela
-        // que uma URL de redirecionamento do Google News.
+        // Veículo e link separados: a tela mostra o nome e usa o link no href.
         fonte: noticia ? `${noticia.veiculo || 'matéria'} · ${noticia.link}` : '',
+        // A foto vem da MATÉRIA, não do modelo — modelo não inventa imagem que
+        // existe, e a do feed é a que ilustra aquele assunto.
+        imagem_url: noticia?.imagem || null,
+        instagram_url: normalizarInstagram(t?.instagram),
         exemplos: Array.isArray(t?.exemplos) ? t.exemplos.filter((x: any) => typeof x === 'string').slice(0, 5) : [],
       }
     }).filter((t: any) => t.titulo && t.fonte)
