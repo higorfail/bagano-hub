@@ -788,8 +788,17 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
   //    "✓ Ajuste aplicado" — ainda vale a pena revisar por cima);
   // 3) aprovados sem nenhum histórico de ajuste, por último.
   // Sort estável: dentro de cada grupo mantém a ordem original.
-  const reviewRank = (p: Post) => !decidido(p) ? 0 : p.approval_comment ? 1 : 2
+  // 4 níveis, não 3: agendado e publicado vão pro fim de tudo. Post que já foi
+  // ao ar não disputa atenção com post esperando decisão — ele nem é mais
+  // decisão, é histórico.
+  const noAr = (p: Post) => p.status === 'agendado' || p.status === 'publicado'
+  const reviewRank = (p: Post) => !decidido(p) ? 0 : noAr(p) ? 3 : p.approval_comment ? 1 : 2
   const reviewPostsOrdered = [...reviewPosts].sort((a, b) => reviewRank(a) - reviewRank(b))
+  // E separados de verdade, não só ordenados. Ordenar põe o resolvido embaixo;
+  // separar diz que ele está resolvido — que é o que o cliente pergunta ao
+  // abrir o link ("o que falta de mim?").
+  const aguardando = reviewPostsOrdered.filter(p => !decidido(p))
+  const jaResolvidos = reviewPostsOrdered.filter(decidido)
 
   // Stats
   const totalPosts    = reviewPosts.length
@@ -1255,7 +1264,18 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
 
   // ── Visão unificada (geral) — tudo pendente do cliente numa página só ───────
   if (tokenData?.type === 'geral') {
-    const cronoList = posts.filter(p => p.status !== 'estrategia')
+    // As três listas são DISJUNTAS. Eram sobrepostas, e o cliente via o mesmo
+    // post duas vezes: `cronoList` pegava "tudo que não é estratégia", então
+    // um post em `aguardando_aprovacao` caía nela E em `finalList` — uma vez
+    // pedindo pra aprovar a pauta, outra pedindo pra aprovar a peça. Um post
+    // já aprovado caía em `cronoList` E em `decididos`.
+    //
+    // Medido em 08/09: Satō Sushi via 39 posts virarem ~78 cards; NI HAO, 27
+    // virarem 52. E `totalPendingGeral` somava as três listas, então a barra
+    // de progresso contava o mesmo post várias vezes.
+    //
+    // Cada post está num estado só, e cada estado tem um bloco:
+    const cronoList = posts.filter(p => p.status === 'aguardando_aprovacao_crono')
     const finalList = posts.filter(p => p.status === 'aguardando_aprovacao')
     // Tudo que o cliente já decidiu, ou que o time já levou adiante. Continua
     // na página em vez de sumir no clique — mais recente primeiro, que é o que
@@ -1786,10 +1806,38 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                 </div>
               </div>
 
-              {/* Post cards */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {reviewPostsOrdered.map((post, idx) => renderFinalCard(post, idx))}
-              </div>
+              {/* Post cards — o que espera o cliente primeiro, com faixa. */}
+              {aguardando.length > 0 && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <p style={{ fontSize: 12, fontWeight: 800, color: '#1d4ed8', letterSpacing: '0.06em', textTransform: 'uppercase', margin: 0, whiteSpace: 'nowrap' }}>
+                      ⏳ Aguardando você · {aguardando.length}
+                    </p>
+                    <div style={{ flex: 1, height: 1, background: '#dbeafe' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {aguardando.map((post, idx) => renderFinalCard(post, idx))}
+                  </div>
+                </>
+              )}
+
+              {/* E o que já está resolvido, embaixo e recolhido. Some da frente
+                  sem sumir da tela: o cliente ainda quer rever o que aprovou. */}
+              {jaResolvidos.length > 0 && (
+                <div style={{ marginTop: 26, borderTop: '1px solid #ebebeb', paddingTop: 18 }}>
+                  <button
+                    onClick={() => setVerHistorico(v => !v)}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#16a34a', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    <span style={{ display: 'inline-block', transform: verHistorico ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▸</span>
+                    ✓ Já aprovados e publicados · {jaResolvidos.length}
+                  </button>
+                  {verHistorico && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+                      {jaResolvidos.map((post, idx) => renderFinalCard(post, idx))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Extras pendentes de aprovação */}
               {extras.length > 0 && (
