@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { UserProvider, useUser } from '@/lib/UserContext'
 import { ChevronDown, Check, Menu, X as XIcon } from 'lucide-react'
-import { Home, Users, Calendar, Kanban, Smartphone, Lightbulb, TrendingUp, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, Trash2, Zap, Share2, ListTodo, Repeat } from 'lucide-react'
+import { Home, Users, Calendar, Kanban, Smartphone, Lightbulb, TrendingUp, FileText, Megaphone, BookOpen, CalendarHeart, Bell, Package, Sun, Moon, Monitor, LayoutList, ClipboardCheck, CalendarDays, UserCircle2, Trash2, Zap, Share2, ListTodo, Repeat } from 'lucide-react'
 import CommandPalette from '@/components/CommandPalette'
 import NotificationsPanel from '@/components/NotificationsPanel'
 import { ThemeProvider, useTheme } from '@/lib/ThemeProvider'
@@ -60,6 +60,8 @@ const contentItems = [
   // produção do dia — mora junto com calendário e datas especiais, que
   // respondem a mesma pergunta: o que vem por aí.
   { href: '/dashboard/campanhas',                  icon: Megaphone,     label: 'Campanhas' },
+  // Relatório fecha o ciclo do conteúdo: é a conversa sobre o mês que passou.
+  { href: '/dashboard/relatorios',                 icon: FileText,      label: 'Relatórios' },
   { href: '/dashboard/calendario',                 icon: Calendar,      label: 'Calendário' },
   { href: 'https://sous-chef-bagano.netlify.app/', icon: BookOpen,      label: 'Manuais', external: true },
   { href: '/dashboard/datas-especiais',            icon: CalendarHeart, label: 'Datas especiais' },
