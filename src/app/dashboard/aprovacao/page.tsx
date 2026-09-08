@@ -3,8 +3,9 @@
 import { useEffect, useState, useMemo, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { desdeQuando } from '@/lib/registrarAbertura'
 import { useToast } from '@/lib/ToastContext'
-import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight, ChevronsUpDown, Search, Link2, LayoutGrid, List, Play, Megaphone, MessageSquare, Send, X, ExternalLink, CalendarCheck } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Clock, ChevronDown, ChevronRight, ChevronsUpDown, Search, Link2, LayoutGrid, List, Play, Megaphone, MessageSquare, Send, X, ExternalLink, CalendarCheck , Eye, EyeOff } from 'lucide-react'
 import ModalPortal from '@/components/ModalPortal'
 import CronoApprovals from '@/components/CronoApprovals'
 import { approvalKind, approvalLabel } from '@/lib/approvalKind'
@@ -328,6 +329,7 @@ function AprovacaoPageInner() {
   const [loading,   setLoading]   = useState(true)
   const [loadError, setLoadError] = useState(false)
   /** Clientes que não têm nenhum link de aprovação vivo. */
+  const [ultimaAbertura, setUltimaAbertura] = useState<Record<string, string>>({})
   const [semLink, setSemLink] = useState<Set<string>>(new Set())
   // Aceita ?filter= do link do alerta: mandar pra página e deixar no filtro
   // padrão faz a pessoa procurar de novo o que o alerta já tinha achado.
@@ -369,7 +371,7 @@ function AprovacaoPageInner() {
     async function load() {
       try {
         const supabase = createClient()
-        const [{ data: postRaw, error: e1 }, { data: clientData }, { data: extrasRaw }, { data: tokensAtivos }] = await Promise.all([
+        const [{ data: postRaw, error: e1 }, { data: clientData }, { data: extrasRaw }, { data: aberturas }, { data: tokensAtivos }] = await Promise.all([
           supabase
             .from('schedules')
             .select('id, title, post_type, status, approval_status, approval_comment, scheduled_date, month, year, client_id, drive_url, drive_folder_url, funil, campaign_type')
@@ -384,6 +386,16 @@ function AprovacaoPageInner() {
           supabase.from('extras').select('id, client_id, title, type, drive_url, due_date')
             .eq('client_approval_status', 'aguardando')
             .is('archived_at', null),
+          // Quando cada cliente abriu o link pela última vez.
+          //
+          // O registro existia e não aparecia em lugar nenhum — gravava e
+          // morria no banco. É aqui que ele serve: esta é a tela onde se
+          // decide cobrar, e "abriu ontem e não respondeu" é uma conversa
+          // completamente diferente de "nunca abriu".
+          supabase.from('activity_log').select('client_id, created_at')
+            .eq('action', 'link_aberto')
+            .order('created_at', { ascending: false })
+            .limit(500),
           // Quais clientes ainda têm link de aprovação vivo.
           //
           // O link expira sozinho (o cron desativa quando não há mais o que
@@ -402,6 +414,14 @@ function AprovacaoPageInner() {
         // Cliente ativo sem nenhum token vivo: o link que ele tem na mão
         // devolve "Link vencido", e ele não tem como saber que existe um novo
         // — a menos que alguém aqui repare e mande de novo.
+        // Vem ordenado do mais novo pro mais velho, então o primeiro de cada
+        // cliente é o último acesso dele.
+        const ultima: Record<string, string> = {}
+        for (const a of (aberturas || []) as any[]) {
+          if (a.client_id && !ultima[a.client_id]) ultima[a.client_id] = a.created_at
+        }
+        setUltimaAbertura(ultima)
+
         const comLink = new Set((tokensAtivos || []).map((t: any) => t.client_id))
         setSemLink(new Set([...ativos].filter(id => !comLink.has(id)) as string[]))
         const postData = fromActiveClients<any>(postRaw, ativos)
@@ -806,6 +826,22 @@ function AprovacaoPageInner() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Abriu ou não abriu — muda a cobrança inteira. Sem isso a
+                      mensagem é "oi, conseguiu ver?", que é chato de mandar e
+                      fácil de ignorar. Com isso é "vi que você abriu ontem,
+                      ficou alguma dúvida?" — outra conversa. */}
+                  {(pendentes + extrasPendentes) > 0 && (
+                    ultimaAbertura[clientId]
+                      ? <span title={`Cliente abriu o link em ${new Date(ultimaAbertura[clientId]).toLocaleString('pt-BR')}`}
+                          className="hidden md:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                          style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
+                          <Eye size={10} /> abriu {desdeQuando(ultimaAbertura[clientId])}
+                        </span>
+                      : <span title="Nenhuma abertura registrada — o cliente pode nem ter visto o link"
+                          className="hidden md:flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full text-[var(--color-text-muted)] bg-[var(--color-bg-subtle)]">
+                          <EyeOff size={10} /> não abriu
+                        </span>
+                  )}
                   {(pendentes + extrasPendentes) > 0 && (
                     <span
                       role="button"
