@@ -525,6 +525,10 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     const label = POST_TYPES.find(t => t.value === v)?.label || v
     setForm(f => ({ ...f, post_type: v })); persist({ post_type: v }, `${who} definiu o tipo: ${label}`)
   }
+  // Os dois estados em que a bola está com o cliente. Entrar em qualquer um
+  // deles é FAZER UMA PERGUNTA — e pergunta nova não nasce respondida.
+  const PERGUNTANDO_DE_NOVO = new Set(['aguardando_aprovacao', 'aguardando_aprovacao_crono'])
+
   async function changeStatus(v: string) {
     const prevStatus = formRef.current.status
     const old = STATUS_LABEL[prevStatus] || prevStatus
@@ -564,7 +568,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     // nada.
     let approvalPatch: string | null | undefined
     if (movingToApproved && approvalStatus !== 'aprovado') approvalPatch = 'aprovado'
-    else if (v === 'aguardando_aprovacao' && approvalStatus === 'aprovado') approvalPatch = 'pendente'
+    else if (PERGUNTANDO_DE_NOVO.has(v) && approvalStatus && approvalStatus !== 'pendente') approvalPatch = 'pendente'
     else if (!movingToApproved && (wasAjuste || wasApprovedType) && v !== 'ajuste') approvalPatch = null
     else approvalPatch = undefined
 

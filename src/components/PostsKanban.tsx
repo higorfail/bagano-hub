@@ -135,10 +135,11 @@ export default function PostsKanban({ clientId, heading }: Props) {
     // o approval_comment como histórico) — mesma regra do card expandido.
     const wasAjuste = posts.find(p => p.id === postId)?.status === 'ajuste'
     const clearRejection = wasAjuste && dbStatus !== 'ajuste'
-    // Arrastar pra "Com cliente" é fazer uma pergunta nova: a resposta anterior
-    // (tipicamente a aprovação do cronograma) não responde ela, e deixada ali
-    // faz a página do cliente mostrar "✓ Aprovado" sem botão. Mesma regra do
-    // card expandido.
+    // Arrastar pra "Com cliente" é fazer uma pergunta nova, e pergunta nova não
+    // nasce respondida. Qualquer resposta anterior sai: 'aprovado' (do
+    // cronograma) faria a página do cliente mostrar "✓ Aprovado" sem botão;
+    // 'não aprovado' (de um ajuste pedido lá atrás) faria mostrar "⚠ Pediu
+    // ajuste", também sem botão. Mesma regra do card expandido.
     const reperguntando = dbStatus === 'aguardando_aprovacao'
     const patch: any = reperguntando ? { status: dbStatus, approval_status: 'pendente' }
       : clearRejection ? { status: dbStatus, approval_status: null }

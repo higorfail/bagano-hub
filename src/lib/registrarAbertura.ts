@@ -12,32 +12,27 @@
 // Guardado no `activity_log`, sem coluna nova: o registro fica pendurado no
 // TOKEN (não num post), porque é o link que foi aberto, não uma peça.
 
-/** Não registra duas vezes na mesma janela — recarregar a página não é visita nova. */
-const JANELA_MINUTOS = 30
+import { withBase } from '@/lib/base'
 
 export async function registrarAbertura(
-  db: { from: (t: string) => any },
+  _db: unknown,
   token: string,
-  clientId: string | null | undefined,
+  _clientId?: string | null,
 ) {
   try {
-    const desde = new Date(Date.now() - JANELA_MINUTOS * 60_000).toISOString()
-    const { data: recente } = await db.from('activity_log')
-      .select('id')
-      .eq('table_name', 'approval_tokens')
-      .eq('record_id', token)
-      .eq('action', 'link_aberto')
-      .gte('created_at', desde)
-      .limit(1)
-    if (recente?.length) return
-
-    await db.from('activity_log').insert({
-      table_name: 'approval_tokens',
-      record_id: token,
-      client_id: clientId || null,
-      action: 'link_aberto',
-      actor_name: 'Cliente',
-      description: 'Cliente abriu o link de aprovação',
+    // Pelo servidor, não direto no banco.
+    //
+    // A dedupe morava aqui e nunca funcionou: a consulta que procurava uma
+    // abertura recente roda como `anon`, e `activity_log` só tem política de
+    // INSERT pra anon — nenhuma de SELECT. Voltava vazia sempre, e toda carga
+    // de página virava uma visita nova. Dar SELECT pra anon abriria o histórico
+    // inteiro do cliente pra quem tem o link, então a conferência foi pro
+    // servidor. Ver src/app/api/aprovacao/abertura/route.ts.
+    await fetch(withBase('/api/aprovacao/abertura'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+      keepalive: true,
     })
   } catch {
     // Registrar visita nunca pode impedir a aprovação de acontecer.
