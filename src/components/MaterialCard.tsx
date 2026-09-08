@@ -382,7 +382,7 @@ export default function MaterialCard({ materialId, fixedClientId, initialCampaig
     if (error) { toast('Erro no upload: ' + error.message); setUploading(false); return }
     const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
     const { data: row } = await supabase.from('material_uploads').insert({
-      material_id: mid,
+      material_id: mid, uploaded_by: who,
       filename: file.name,
       file_url: publicUrl,
       file_size: file.size,

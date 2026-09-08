@@ -294,7 +294,7 @@ export default function TaskCard({ taskId, defaultAssignedTo, defaultStatus, def
     if (error) { toast('Erro no upload: ' + error.message); setUploading(false); return }
     const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
     const { data: row } = await supabase.from('personal_task_uploads').insert({
-      task_id: tid, filename: file.name, file_url: publicUrl, file_size: file.size, mime_type: file.type,
+      task_id: tid, uploaded_by: who, filename: file.name, file_url: publicUrl, file_size: file.size, mime_type: file.type,
     }).select().single()
     if (row) setUploads(u => [...u, row])
     setUploading(false)

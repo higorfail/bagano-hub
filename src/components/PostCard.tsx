@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, Upload, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles, Reply } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, Upload, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles, Reply, BookMarked } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash, deleteFromTrash } from '@/lib/trash'
@@ -429,6 +429,57 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   }
 
   const who = currentMember?.name || 'Alguém'
+
+  // "Usar como referência": a legenda aprovada vira exemplo pro que a IA
+  // escrever depois.
+  //
+  // O mecanismo já existia dos dois lados e faltava o meio. De um lado,
+  // `ai-legenda` lê `tone_of_voice.caption_samples` do manual e coloca essas
+  // legendas ANTES das oito mais recentes — "foi escolha de alguém, não sorteio
+  // das mais recentes", diz o comentário de lá. Do outro, o manual virou
+  // editável esta semana. No meio não havia como dizer "esta aqui ficou boa",
+  // que é o único momento em que alguém sabe disso: quando o cliente aprova.
+  const [ehReferencia, setEhReferencia] = useState<boolean | null>(null)
+  const [marcando, setMarcando] = useState(false)
+
+  // Confere uma vez, quando há legenda e cliente — o botão precisa nascer
+  // sabendo se aquela legenda já é referência, senão vira "adicionar" de novo
+  // em cima do que já está lá.
+  useEffect(() => {
+    const texto = (form.legenda || '').trim()
+    if (!clientId || texto.length < 20) { setEhReferencia(null); return }
+    let cancelado = false
+    supabase.from('client_manuals').select('tone_of_voice').eq('client_id', clientId).maybeSingle()
+      .then(({ data }) => {
+        if (cancelado) return
+        const lista = (data?.tone_of_voice as any)?.caption_samples
+        setEhReferencia(Array.isArray(lista) && lista.some((t: any) => String(t).trim() === texto))
+      })
+    return () => { cancelado = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, form.legenda])
+
+  async function alternarReferencia() {
+    const texto = (form.legenda || '').trim()
+    if (!clientId || texto.length < 20 || marcando) return
+    setMarcando(true)
+    const { data } = await supabase.from('client_manuals').select('tone_of_voice').eq('client_id', clientId).maybeSingle()
+    const tov = (data?.tone_of_voice as any) || {}
+    const atuais: string[] = Array.isArray(tov.caption_samples) ? tov.caption_samples : []
+    const jaTem = atuais.some(t => String(t).trim() === texto)
+    // Teto de 12: `ai-legenda` corta em 10 exemplos no total, e lista que só
+    // cresce empurra as legendas recentes pra fora sem ninguém perceber. A mais
+    // antiga sai quando entra uma nova.
+    const novas = jaTem
+      ? atuais.filter(t => String(t).trim() !== texto)
+      : [...atuais, texto].slice(-12)
+    const { error } = await supabase.from('client_manuals')
+      .upsert({ client_id: clientId, tone_of_voice: { ...tov, caption_samples: novas } }, { onConflict: 'client_id' })
+    setMarcando(false)
+    if (dbError(error, toast, 'salvar a referência')) return
+    setEhReferencia(!jaTem)
+    toast(jaTem ? 'Saiu das referências' : 'Virou referência de tom de voz')
+  }
   // "mudou de X para Y" em vez de só "definiu a data para Y" — pra quem
   // acompanha (Social Media, principalmente) o que importa é saber que a data
   // SAIU de um dia que já estava no radar dela.
@@ -497,8 +548,23 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     // Fora disso, sair de "Ajuste solicitado" por qualquer caminho que NÃO
     // seja aprovado ainda limpa o alerta vermelho (mantém approval_comment
     // pro "✓ Ajuste aplicado").
+    //
+    // E MANDAR PRO CLIENTE limpa a resposta anterior. `approval_status` guarda a
+    // resposta do cliente à pergunta que está em pé — e "Aguardando aprovação"
+    // faz uma pergunta NOVA. Sem limpar, a resposta do cronograma (dada uma
+    // semana antes, sobre a estratégia) ficava respondendo a pergunta da peça
+    // pronta: o quadro do time dizia "Aguardando aprovação" e a página do
+    // cliente dizia "✓ Aprovado", sem botão pra clicar. Os dois lados viam algo
+    // coerente e nada andava.
+    //
+    // Encontrado em 08/09 em 4 posts de 4 clientes (Bem Viver #4, Big Poke #10,
+    // Criativa Padaria #4, Zebuino #4), todos com o mesmo trajeto:
+    // cliente aprova a estratégia → Captação → Produção → Revisão interna →
+    // Aguardando aprovação. Essa última seta caía no `else` que não mexia em
+    // nada.
     let approvalPatch: string | null | undefined
     if (movingToApproved && approvalStatus !== 'aprovado') approvalPatch = 'aprovado'
+    else if (v === 'aguardando_aprovacao' && approvalStatus === 'aprovado') approvalPatch = 'pendente'
     else if (!movingToApproved && (wasAjuste || wasApprovedType) && v !== 'ajuste') approvalPatch = null
     else approvalPatch = undefined
 
@@ -635,7 +701,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (error) { toast('Erro no upload: ' + error.message); setUploading(false); return }
     const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
     const { data: row } = await supabase.from('schedule_uploads').insert({
-      schedule_id: pid, filename: file.name, file_url: publicUrl, file_size: file.size, mime_type: file.type,
+      schedule_id: pid, uploaded_by: who, filename: file.name, file_url: publicUrl, file_size: file.size, mime_type: file.type,
     }).select().single()
     if (row) setUploads(u => [...u, row])
     setUploading(false)
@@ -1412,13 +1478,27 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             {textField('briefing', 'Briefing', '· instruções pro time (o que fazer)', 'O que precisa ser feito, direção criativa, referências de estilo…', 70)}
             {textField('copy', 'Copy', '· conceito / roteiro', 'Ideia central, roteiro do reels, texto das artes…', 70)}
             {textField('legenda', 'Legenda', '· o texto que vai no Instagram', 'A legenda final do post, com hashtags e CTA…', 70,
-              (form.briefing?.trim() || form.copy?.trim()) ? (
-                <button onClick={suggestLegenda} disabled={generatingLegenda}
-                  className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
-                  style={{ background: '#8b5cf618', color: '#8b5cf6' }}>
-                  {generatingLegenda ? <><div className="w-2.5 h-2.5 border border-[#8b5cf6] border-t-transparent rounded-full animate-spin" /> Gerando…</> : <><Sparkles size={11} /> Sugerir com IA</>}
-                </button>
-              ) : undefined
+              <span className="ml-auto flex items-center gap-1.5">
+                {/* Só aparece quando a legenda existe e tem tamanho de legenda —
+                    marcar "oi" como referência de tom de voz não ajuda ninguém. */}
+                {ehReferencia !== null && (
+                  <button onClick={alternarReferencia} disabled={marcando}
+                    title={ehReferencia ? 'Tirar do tom de voz do manual' : 'Guardar no manual como exemplo do jeito de escrever desta marca'}
+                    className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
+                    style={ehReferencia
+                      ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }
+                      : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
+                    {ehReferencia ? <><Check size={11} /> É referência</> : <><BookMarked size={11} /> Usar como referência</>}
+                  </button>
+                )}
+                {(form.briefing?.trim() || form.copy?.trim()) && (
+                  <button onClick={suggestLegenda} disabled={generatingLegenda}
+                    className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
+                    style={{ background: '#8b5cf618', color: '#8b5cf6' }}>
+                    {generatingLegenda ? <><div className="w-2.5 h-2.5 border border-[#8b5cf6] border-t-transparent rounded-full animate-spin" /> Gerando…</> : <><Sparkles size={11} /> Sugerir com IA</>}
+                  </button>
+                )}
+              </span>
             )}
 
 

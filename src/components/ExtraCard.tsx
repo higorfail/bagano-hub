@@ -689,7 +689,7 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     if (error) { toast('Erro no upload: ' + error.message); setUploading(false); return }
     const { data: { publicUrl } } = supabase.storage.from('bagano-materiais').getPublicUrl(path)
     const { data: row } = await supabase.from('extra_uploads').insert({
-      extra_id: eid, filename: file.name, file_url: publicUrl, file_size: file.size, mime_type: file.type,
+      extra_id: eid, uploaded_by: who, filename: file.name, file_url: publicUrl, file_size: file.size, mime_type: file.type,
     }).select().single()
     if (row) setUploads(u => [...u, row])
     setUploading(false)

@@ -135,7 +135,14 @@ export default function PostsKanban({ clientId, heading }: Props) {
     // o approval_comment como histórico) — mesma regra do card expandido.
     const wasAjuste = posts.find(p => p.id === postId)?.status === 'ajuste'
     const clearRejection = wasAjuste && dbStatus !== 'ajuste'
-    const patch: any = clearRejection ? { status: dbStatus, approval_status: null } : { status: dbStatus }
+    // Arrastar pra "Com cliente" é fazer uma pergunta nova: a resposta anterior
+    // (tipicamente a aprovação do cronograma) não responde ela, e deixada ali
+    // faz a página do cliente mostrar "✓ Aprovado" sem botão. Mesma regra do
+    // card expandido.
+    const reperguntando = dbStatus === 'aguardando_aprovacao'
+    const patch: any = reperguntando ? { status: dbStatus, approval_status: 'pendente' }
+      : clearRejection ? { status: dbStatus, approval_status: null }
+      : { status: dbStatus }
     const prev = posts
     setPosts(p => p.map(post => post.id === postId ? { ...post, ...patch } : post))
     const { error } = await createClient().from('schedules').update(patch).eq('id', postId)
@@ -149,7 +156,10 @@ export default function PostsKanban({ clientId, heading }: Props) {
     const ids = getColPosts(fromCol).filter(p => p.client_id === clientId).map(p => p.id)
     if (ids.length === 0) return
     const clearRejection = fromCol === 'ajuste' && dbStatus !== 'ajuste'
-    const patch: any = clearRejection ? { status: dbStatus, approval_status: null } : { status: dbStatus }
+    const reperguntando = dbStatus === 'aguardando_aprovacao'
+    const patch: any = reperguntando ? { status: dbStatus, approval_status: 'pendente' }
+      : clearRejection ? { status: dbStatus, approval_status: null }
+      : { status: dbStatus }
     const prev = posts
     setPosts(p => p.map(post => ids.includes(post.id) ? { ...post, ...patch } : post))
     const { error } = await createClient().from('schedules').update(patch).in('id', ids)
