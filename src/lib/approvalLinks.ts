@@ -10,11 +10,53 @@ import { novoCodigo } from '@/lib/linkAprovacao'
 // O `db` opcional existe pro servidor: a rota /api/aprovacao/link passa o
 // cliente de servidor, porque criar token é gravar em `approval_tokens` — e o
 // navegador deslogado não pode mais fazer isso.
-export async function getOrCreateGeneralApprovalToken(clientId: string, db?: any): Promise<string | null> {
+/**
+ * O link de um MÊS (cronograma ou conteúdo final), reaproveitando o que existe.
+ *
+ * Duas regras que estavam faltando nas três cópias desta busca espalhadas pelo
+ * hub — Cronograma (dois botões) e a fila de Cronogramas:
+ *
+ * 1. `active = true`. Sem isso, gerar o link de um mês que já teve token
+ *    desativado devolve o token MORTO, e o cliente recebe "Link inválido ou
+ *    expirado". Medido em 08/09: 38 combinações de cliente+mês+tipo nesse
+ *    estado, em 19 clientes, todas de julho e agosto.
+ *
+ * 2. `order + limit` no lugar de `maybeSingle`. Duplicata do mesmo mês existe
+ *    de verdade — Mundo Selvagem Garden tem 17 tokens de `final` 7/2026 — e
+ *    `maybeSingle` estoura com dois, derrubando o botão em vez de dar o link.
+ *    O mesmo já tinha sido consertado em `getOrCreateExtrasApprovalToken`, com
+ *    comentário e tudo; as cópias do mês nunca receberam.
+ *
+ * Reaproveita o MAIS ANTIGO: se um link já foi mandado pro cliente, é esse que
+ * está no WhatsApp dele.
+ */
+export async function getOrCreateMonthToken(
+  clientId: string,
+  type: 'cronograma' | 'final',
+  month: number,
+  year: number,
+  db?: any,
+): Promise<string | null> {
   const supabase = db || createClient()
   const { data: existing } = await supabase.from('approval_tokens').select('token')
-    .eq('client_id', clientId).eq('type', 'geral').eq('active', true).maybeSingle()
-  if (existing?.token) return existing.token
+    .eq('client_id', clientId).eq('type', type).eq('month', month).eq('year', year).eq('active', true)
+    .order('created_at', { ascending: true }).limit(1)
+  if (existing?.[0]?.token) return existing[0].token
+
+  const { data } = await supabase.from('approval_tokens')
+    .insert({ client_id: clientId, month, year, type, code: novoCodigo() })
+    .select('token').single()
+  return data?.token || null
+}
+
+export async function getOrCreateGeneralApprovalToken(clientId: string, db?: any): Promise<string | null> {
+  const supabase = db || createClient()
+  // order + limit, não maybeSingle: dois tokens `geral` ativos derrubariam o
+  // link fixo do cliente em vez de devolver um deles.
+  const { data: existing } = await supabase.from('approval_tokens').select('token')
+    .eq('client_id', clientId).eq('type', 'geral').eq('active', true)
+    .order('created_at', { ascending: true }).limit(1)
+  if (existing?.[0]?.token) return existing[0].token
 
   const now = new Date()
   const { data } = await supabase.from('approval_tokens')

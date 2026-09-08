@@ -20,6 +20,7 @@ import { useIsWideScreen } from '@/lib/useMediaQuery'
 import { statusBadge } from '@/lib/status'
 import { withBase } from '@/lib/base'
 import { linkPublico, novoCodigo } from '@/lib/linkAprovacao'
+import { getOrCreateMonthToken } from '@/lib/approvalLinks'
 import { renumerarPosts } from '@/lib/renumerarPosts'
 import { numerosNoDestino } from '@/lib/numeroNoDestino'
 
@@ -310,11 +311,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [copiedLinkType, setCopiedLinkType] = useState<'cronograma' | 'final' | null>(null)
   async function copyTypeApprovalLink(type: 'cronograma' | 'final') {
     const ok = await copyTextAsync(async () => {
-      const { data: existing } = await supabase.from('approval_tokens').select('token')
-        .eq('client_id', clientId).eq('month', month).eq('year', year).eq('type', type).maybeSingle()
-      const token = existing?.token || (
-        await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type, code: novoCodigo() }).select('token').single()
-      ).data?.token
+      const token = await getOrCreateMonthToken(clientId, type, month, year, supabase)
       if (!token) throw new Error('sem token')
       return `${window.location.origin}${await linkPublico(supabase, token)}`
     })
@@ -644,11 +641,8 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
       setPosts(prev => prev.map(p => targets.find(t => t.id === p.id) ? { ...p, status: novoStatus, approval_status: null, approval_comment: null } : p))
     }
 
-    const { data: existing } = await supabase.from('approval_tokens').select('token')
-      .eq('client_id', clientId).eq('month', month).eq('year', year).eq('type', type).maybeSingle()
-    const token = existing?.token || (
-      await supabase.from('approval_tokens').insert({ client_id: clientId, month, year, type, code: novoCodigo() }).select('token').single()
-    ).data?.token
+    const token = await getOrCreateMonthToken(clientId, type, month, year, supabase)
+    if (!token) { toast('Não deu pra gerar o link'); setGeneratingLink(false); return }
 
     const link = `${window.location.origin}${await linkPublico(supabase, token)}`
     setApprovalLink(link)

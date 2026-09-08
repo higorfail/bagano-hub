@@ -7,6 +7,7 @@ import { copyTextAsync } from '@/lib/clipboard'
 import { Link2, Check, ChevronDown, ChevronRight, Clock } from 'lucide-react'
 import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
 import { linkPublico, novoCodigo } from '@/lib/linkAprovacao'
+import { getOrCreateMonthToken } from '@/lib/approvalLinks'
 import { avisarSeCortou } from '@/lib/limitePostgrest'
 
 // Acompanhamento das aprovações de CRONOGRAMA — separado da aprovação de arte
@@ -129,13 +130,7 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
   async function copyLink(r: Row) {
     const supabase = createClient()
     const ok = await copyTextAsync(async () => {
-      const { data: existing } = await supabase.from('approval_tokens').select('token')
-        .eq('client_id', r.clientId).eq('month', r.month).eq('year', r.year).eq('type', 'cronograma').maybeSingle()
-      const token = existing?.token || (
-        await supabase.from('approval_tokens')
-          .insert({ client_id: r.clientId, month: r.month, year: r.year, type: 'cronograma', code: novoCodigo() })
-          .select('token').single()
-      ).data?.token
+      const token = await getOrCreateMonthToken(r.clientId, 'cronograma', r.month, r.year, supabase)
       if (!token) throw new Error('sem token')
       return `${window.location.origin}${await linkPublico(supabase, token)}`
     })
