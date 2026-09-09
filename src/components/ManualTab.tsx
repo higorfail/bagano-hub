@@ -636,13 +636,20 @@ export default function ManualTab({ clientId }: { clientId: string }) {
   // mesmo JSON do gerador, e cai no MESMO modal de revisão. Ninguém salva nada
   // sem olhar.
   const importInputRef = useRef<HTMLInputElement>(null)
-  async function importarPdf(file: File) {
+  const [linkDrive, setLinkDrive] = useState('')
+  const [pedindoLink, setPedindoLink] = useState(false)
+
+  async function importarPdf(file: File | null, link?: string) {
     setShowGenerator(true)
     setGenLoading(true); setGenError(''); setGenDraft('')
     setGenName(clientInfo?.name || '')
     try {
       const fd = new FormData()
-      fd.append('arquivo', file)
+      // Link é o caminho normal: o manual do cliente já mora numa pasta do
+      // Drive, e baixar pra depois subir é um passo inteiro por nada.
+      if (link) fd.append('link', link)
+      else if (file) fd.append('arquivo', file)
+      setPedindoLink(false)
       const res = await fetch(withBase('/api/ai-manual-pdf'), { method: 'POST', body: fd })
       const json = await res.json()
       if (!res.ok || json.error) { setGenError(json.error || 'Não deu pra ler o PDF'); setGenLoading(false); return }
@@ -671,8 +678,58 @@ export default function ManualTab({ clientId }: { clientId: string }) {
   // Um input só pros dois botões (tela vazia e cabeçalho). `value=''` no clique
   // permite escolher o MESMO arquivo de novo depois de um erro.
   const inputArquivo = (
-    <input ref={importInputRef} type="file" accept="application/pdf" className="hidden"
-      onChange={e => { const f = e.target.files?.[0]; e.currentTarget.value = ''; if (f) void importarPdf(f) }} />
+    <>
+      <input ref={importInputRef} type="file" accept="application/pdf" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; e.currentTarget.value = ''; if (f) void importarPdf(f) }} />
+
+      {/* Duas portas pro mesmo lugar, e o LINK vem primeiro.
+      
+          O manual do cliente já mora numa pasta do Drive — baixar pra depois
+          subir é um passo inteiro por nada. Subir do computador fica pra quem
+          recebeu o PDF por WhatsApp ou e-mail. */}
+      {pedindoLink && (
+        <div className="fixed inset-0 bg-black/40 z-[80] flex items-center justify-center p-4"
+          onClick={e => { if (e.target === e.currentTarget) setPedindoLink(false) }}>
+          <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-md shadow-pop flex flex-col">
+            <div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between">
+              <p className="text-sm font-semibold text-[var(--color-text-primary)]">Importar manual em PDF</p>
+              <button onClick={() => setPedindoLink(false)} aria-label="Fechar"
+                className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"><X size={15} /></button>
+            </div>
+            <div className="p-4 flex flex-col gap-3">
+              <div>
+                <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Link do arquivo no Drive</label>
+                <input
+                  autoFocus
+                  value={linkDrive}
+                  onChange={e => setLinkDrive(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && linkDrive.trim()) { e.preventDefault(); void importarPdf(null, linkDrive.trim()) } }}
+                  placeholder="https://drive.google.com/file/d/…"
+                  className="w-full text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-faint)] outline-none focus:border-[var(--color-accent)]"
+                />
+                <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5 leading-relaxed">
+                  O arquivo precisa estar compartilhado como “qualquer pessoa com o link”. Link da PASTA não serve — tem que ser o do arquivo.
+                </p>
+              </div>
+              <button onClick={() => importarPdf(null, linkDrive.trim())} disabled={!linkDrive.trim()}
+                className="w-full text-sm font-semibold py-2 rounded-lg text-white disabled:opacity-40"
+                style={{ background: 'var(--color-accent)' }}>
+                Ler do Drive
+              </button>
+              <div className="flex items-center gap-2">
+                <span className="flex-1 h-px bg-[var(--color-border)]" />
+                <span className="text-[10px] uppercase tracking-widest text-[var(--color-text-faint)]">ou</span>
+                <span className="flex-1 h-px bg-[var(--color-border)]" />
+              </div>
+              <button onClick={() => { setPedindoLink(false); importInputRef.current?.click() }}
+                className="w-full flex items-center justify-center gap-1.5 text-sm font-medium py-2 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                <FileUp size={13} /> Escolher do computador
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 
   if (loading) return (
@@ -704,7 +761,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
             className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors disabled:opacity-50">
             {criando ? 'Criando…' : 'Começar em branco'}
           </button>
-          <button onClick={() => importInputRef.current?.click()}
+          <button onClick={() => setPedindoLink(true)}
             className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
             <FileUp size={14} /> Importar PDF
           </button>
@@ -749,7 +806,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
             Sous Chef <ExternalLink size={11} />
           </a>
         )}
-        <button onClick={() => importInputRef.current?.click()} title="Ler um PDF de manual de marca e preencher a partir dele (você revisa antes de salvar)"
+        <button onClick={() => setPedindoLink(true)} title="Ler um PDF de manual de marca e preencher a partir dele (você revisa antes de salvar)"
           className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0 whitespace-nowrap">
           <FileUp size={12} /> Importar PDF
         </button>
