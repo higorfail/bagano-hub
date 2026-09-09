@@ -156,10 +156,10 @@ export default function CalendarioPage() {
           .gte('scheduled_date', startISO).lte('scheduled_date', endISO)
           .order('scheduled_date', { ascending: true }),
         supabase.from('captacoes')
-          .select('id, client_id, scheduled_date, scheduled_time, status, notes, team_member_ids, clients(name, color_hex)')
+          .select('id, client_id, scheduled_date, scheduled_time, status, notes, team_member_ids, google_calendar_event_id, clients(name, color_hex)')
           .gte('scheduled_date', startISO).lte('scheduled_date', endISO),
         supabase.from('agenda_criacao')
-          .select('id, client_id, day_of_week, week_start, member_ids, notes, clients(name, color_hex)')
+          .select('id, client_id, day_of_week, week_start, member_ids, notes, google_calendar_event_id, clients(name, color_hex)')
           .gte('week_start', agStart).lte('week_start', agEnd),
         supabase.from('hub_events')
           .select('id, title, event_type, date, start_time, end_time, description, location, google_calendar_event_id')
@@ -214,9 +214,24 @@ export default function CalendarioPage() {
       // e travar o mês inteiro esperando a API do Google seria pagar caro por
       // eles. `ignorar` tira o que o hub já desenha por conta própria — sem
       // isso a captação criada aqui apareceria duas vezes no mesmo dia.
+      // As três origens que o hub empurra pro Google, e que ele mesmo desenha:
+      // evento, captação e dia de criação. Faltavam duas.
+      //
+      // O conjunto era montado com `google_calendar_event_id` de `captData` —
+      // e a consulta de captações NÃO selecionava essa coluna. Todo item virava
+      // `undefined`, o `.filter(Boolean)` limpava tudo, e o conjunto saía
+      // VAZIO: o filtro rodava e nunca removia nada. `agenda_criacao` nem
+      // entrava na conta, embora tenha a coluna e seja empurrada pro Google
+      // por `sincronizarCriacao`.
+      //
+      // Resultado na tela: toda captação e todo dia de criação apareciam duas
+      // vezes no mesmo dia — uma como o hub desenha, outra como o Google
+      // devolve. Em 11/09: "Terras Altas" e "TERRAS ALTAS", mesmo horário,
+      // mesmo evento, ids idênticos.
       const jaMostrados = new Set<string>([
-        ...(eventsData || []).map((d: any) => d.google_calendar_event_id),
-        ...(captData   || []).map((d: any) => d.google_calendar_event_id),
+        ...(eventsData  || []).map((d: any) => d.google_calendar_event_id),
+        ...(captData    || []).map((d: any) => d.google_calendar_event_id),
+        ...(criacaoData || []).map((d: any) => d.google_calendar_event_id),
       ].filter(Boolean) as string[])
       todosEventosDoGoogle(startISO, endISO, jaMostrados).then(setGoogleEvents)
 
