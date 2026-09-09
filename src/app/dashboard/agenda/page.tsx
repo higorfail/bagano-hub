@@ -7,14 +7,15 @@ import { dbError } from '@/lib/dbError'
 import { Plus, ChevronLeft, ChevronRight, Camera, X, Check, Loader2, CalendarPlus, AlertTriangle } from 'lucide-react'
 import { fromActiveClients } from '@/lib/activeClients'
 import { detectarAusencia } from '@/lib/googleEventos'
+import { aniversariosNoPeriodo } from '@/lib/aniversarios'
 import { sincronizarCaptacao, sincronizarCriacao, dataDaCriacao, removerDoCalendario, eventosDoGoogle } from '@/lib/calendarSync'
 import { ensureWatching } from '@/lib/watch'
 import { logActivity } from '@/lib/activity'
 import { useUser } from '@/lib/UserContext'
 import { withBase } from '@/lib/base'
 
-type Client       = { id: string; name: string; color_hex: string; logo_url: string | null }
-type Member       = { id: string; name: string; role: string }
+type Client       = { id: string; name: string; color_hex: string; logo_url: string | null; birthday?: string | null; birthday_label?: string | null }
+type Member       = { id: string; name: string; role: string; birthday?: string | null }
 type AgendaEntry  = { id: string; week_start: string; day_of_week: number; client_id: string; member_ids: string[] | null; notes: string | null }
 type Captacao     = {
   id: string; client_id: string; scheduled_date: string; scheduled_time: string | null
@@ -69,6 +70,7 @@ export default function AgendaPage() {
   const { toast } = useToast()
   const { currentMember } = useUser()
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
+  const [tipoAgenda, setTipoAgenda] = useState<'tudo' | 'criacao' | 'captacao'>('tudo')
   const [clients,      setClients]      = useState<Client[]>([])
   const [members,      setMembers]      = useState<Member[]>([])
   const [clientTeam,   setClientTeam]   = useState<Record<string, string[]>>({})
@@ -127,8 +129,8 @@ export default function AgendaPage() {
     const end   = toLocalISO(addDays(weekStart, 90)) // captações até 90 dias
 
     const [{ data: cl }, { data: mb }, { data: en }, { data: cap }, { data: ct }] = await Promise.all([
-      supabase.from('clients').select('id, name, color_hex, logo_url').eq('status', 'active').order('name'),
-      supabase.from('team_members').select('id, name, role').order('name'),
+      supabase.from('clients').select('id, name, color_hex, logo_url, birthday, birthday_label').eq('status', 'active').order('name'),
+      supabase.from('team_members').select('id, name, role, birthday').order('name'),
       supabase.from('agenda_criacao').select('*').eq('week_start', start),
       supabase.from('captacoes').select('*').gte('scheduled_date', start).lte('scheduled_date', end).order('scheduled_date'),
       // Quem é de cada cliente. É o que o Google não tem como saber: lá o
@@ -343,6 +345,19 @@ export default function AgendaPage() {
 
   // ── Rendering helpers ──────────────────────────────────────────────
   const dayDates = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i))
+
+  // Criação e captação são trabalhos diferentes, de pessoas diferentes: criação
+  // é o designer e o editor, captação é filmagem. Quem abre a agenda quase
+  // sempre quer um dos dois — e hoje as duas seções aparecem sempre empilhadas,
+  // deixando a página longa pra quem só queria conferir a semana de filmagem.
+  const mostraCriacao  = tipoAgenda !== 'captacao'
+  const mostraCaptacao = tipoAgenda !== 'criacao'
+
+  // Aniversários da semana. A grade cobre segunda a sexta, e é esse o recorte:
+  // aniversário no fim de semana não cabe em dia nenhum da tela.
+  const aniversariosDaSemana = aniversariosNoPeriodo(
+    toLocalISO(weekStart), toLocalISO(addDays(weekStart, 4)), clients, members,
+  )
   // ── Quem está fora ────────────────────────────────────────────────
   //
   // O calendário da Bagano já registra ausência há tempos: "GEE OFF" aparece 72
@@ -391,12 +406,34 @@ export default function AgendaPage() {
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10 space-y-6 md:space-y-10">
 
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Agenda</h1>
-          <p className="text-sm text-[var(--color-text-muted)] mt-1">Criação semanal e agenda de captações</p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Agenda</h1>
+            <p className="text-sm text-[var(--color-text-muted)] mt-1">Criação semanal e agenda de captações</p>
+          </div>
+          {/* Criação e captação são trabalhos de pessoas diferentes — designer e
+              editor de um lado, filmagem do outro. Quem abre a agenda quase
+              sempre quer um dos dois, e as duas seções empilhadas deixavam a
+              página longa pra quem só ia conferir a semana de filmagem. */}
+          <div className="flex items-center gap-0.5 rounded-xl bg-[var(--color-bg-subtle)] p-0.5 flex-shrink-0">
+            {([
+              { chave: 'tudo' as const,     rotulo: 'Tudo' },
+              { chave: 'criacao' as const,  rotulo: 'Criação' },
+              { chave: 'captacao' as const, rotulo: 'Captação' },
+            ]).map(op => (
+              <button key={op.chave} onClick={() => setTipoAgenda(op.chave)}
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap ${
+                  tipoAgenda === op.chave
+                    ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm'
+                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
+                {op.rotulo}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── AGENDA DE CRIAÇÃO ─────────────────────────────────────────────── */}
+        {mostraCriacao && (
         <div>
           <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Agenda de criação</h2>
@@ -479,6 +516,29 @@ export default function AgendaPage() {
                     </button>
                   </div>
 
+                  {/* Aniversários do dia.
+                  
+                      Antes das entradas de propósito: aniversário é coisa de
+                      MANHÃ — parabenizar depois do meio-dia já não é a mesma
+                      coisa —, e no fim do card ele ficaria embaixo de uma lista
+                      que pode ter cinco clientes.
+                  
+                      Do cliente vem com a cor da marca e o nome da PESSOA
+                      (`birthday_label`): "Aniversário do Big Poke" seria o
+                      aniversário da marca, que é outra data e mora em Datas
+                      Especiais. */}
+                  {aniversariosDaSemana.filter(a => a.dia === dateStr).map((a, i) => (
+                    <div key={`aniv-${i}`}
+                      className="flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded-lg"
+                      style={a.tipo === 'cliente'
+                        ? { background: (a.cor || '#888') + '18', color: a.cor || 'var(--color-text-secondary)' }
+                        : { background: 'var(--ds-purple-bg)', color: 'var(--ds-purple-text)' }}
+                      title={a.tipo === 'cliente' ? 'Aniversário do cliente' : 'Aniversário da equipe'}>
+                      <span>🎂</span>
+                      <span className="truncate">{a.nome}</span>
+                    </div>
+                  ))}
+
                   {/* Entries */}
                   {dayEntries.map(entry => {
                     const client = clientMap[entry.client_id]
@@ -527,8 +587,10 @@ export default function AgendaPage() {
             })}
           </div>
         </div>
+        )}
 
         {/* ── CAPTAÇÕES ─────────────────────────────────────────────────────── */}
+        {mostraCaptacao && (
         <div>
           <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Captações</h2>
@@ -565,6 +627,7 @@ export default function AgendaPage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* ── Modal: nova entrada de agenda ────────────────────────────────────── */}

@@ -27,7 +27,7 @@ const PRESET_COLORS = [
   '#0891b2', '#2563eb', '#7c3aed', '#db2777', '#475569',
 ]
 
-const EMPTY_FORM = { name: '', color_hex: '#2563eb', logo_url: '', drive_folder_url: '', sous_chef_url: '', instagram_url: '', instagram_followers: '', instagram_following: '' }
+const EMPTY_FORM = { name: '', color_hex: '#2563eb', logo_url: '', drive_folder_url: '', sous_chef_url: '', instagram_url: '', instagram_followers: '', instagram_following: '', birthday: '', birthday_label: '' }
 
 function getInitials(name: string) {
   return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
@@ -129,7 +129,7 @@ export default function ClientesPage() {
     e.preventDefault()
     e.stopPropagation()
     setEditingClient(c)
-    setForm({ name: c.name, color_hex: c.color_hex, logo_url: c.logo_url || '', drive_folder_url: c.drive_folder_url || '', sous_chef_url: c.sous_chef_url || '', instagram_url: c.instagram_url || '', instagram_followers: c.instagram_followers?.toString() || '', instagram_following: c.instagram_following?.toString() || '' })
+    setForm({ name: c.name, color_hex: c.color_hex, logo_url: c.logo_url || '', drive_folder_url: c.drive_folder_url || '', sous_chef_url: c.sous_chef_url || '', instagram_url: c.instagram_url || '', instagram_followers: c.instagram_followers?.toString() || '', instagram_following: c.instagram_following?.toString() || '', birthday: (c as any).birthday || '', birthday_label: (c as any).birthday_label || '' })
     setShowModal(true)
   }
 
@@ -141,6 +141,9 @@ export default function ClientesPage() {
       ...form,
       instagram_followers: form.instagram_followers ? parseInt(form.instagram_followers) : null,
       instagram_following: form.instagram_following ? parseInt(form.instagram_following) : null,
+      // Data vazia é null, não string vazia: coluna `date` recusa ''.
+      birthday: form.birthday || null,
+      birthday_label: form.birthday_label.trim() || null,
     }
     const { error } = editingClient
       ? await supabase.from('clients').update(payload).eq('id', editingClient.id)
@@ -391,6 +394,34 @@ export default function ClientesPage() {
                   >
                     {pullingIg ? 'Puxando…' : 'Puxar foto'}
                   </button>
+                </div>
+              </div>
+
+              {/* Aniversário do DONO, não da marca.
+              
+                  "Aniversário do Big Poke" é a data da marca e mora em Datas
+                  Especiais, com o resto do calendário de conteúdo. Aqui é a
+                  pessoa com quem a gente fala — e por isso o nome ao lado: sem
+                  ele o card na agenda diria o nome do restaurante e ninguém
+                  saberia pra quem mandar mensagem. */}
+              <div className="flex gap-3">
+                <div className="w-40 flex-shrink-0">
+                  <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Aniversário</label>
+                  <input
+                    type="date"
+                    value={form.birthday}
+                    onChange={e => setForm(f => ({ ...f, birthday: e.target.value }))}
+                    className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)] bg-[var(--color-bg-card)]"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">De quem</label>
+                  <input
+                    value={form.birthday_label}
+                    onChange={e => setForm(f => ({ ...f, birthday_label: e.target.value }))}
+                    placeholder="Ex: Tiago (dono)"
+                    className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)] placeholder-[var(--color-text-faint)]"
+                  />
                 </div>
               </div>
 
