@@ -99,7 +99,7 @@ export default function CriacaoPage() {
   // Higor é `videos` em 25 clientes, todo reels de todo cliente caía na lista
   // dele — 19 marcados no meio de 78 itens. O que cobre e não tem dono não
   // sumiu: mudou de aba, com o número à vista.
-  const [modo, setModo] = useState<'meus' | 'sem_dono'>('meus')
+  const [modo, setModo] = useState<'meus' | 'sem_dono' | 'todos'>('meus')
   const { toast } = useToast()
   const hasInitialized = useRef(false)
 
@@ -352,7 +352,12 @@ export default function CriacaoPage() {
     if (filterMember) {
       const meu = (p.assigned_members || []).includes(filterMember)
       const semDono = (p.assigned_members || []).length === 0
-      if (modo === 'meus') {
+      if (modo === 'todos') {
+        // Tudo que passa pela pessoa: o que tem o nome dela, o que tem o nome
+        // de outro e o que não tem dono. É a regra que valia pra todo mundo
+        // antes das abas — continua aqui, agora como escolha em vez de padrão.
+        if (!meu && !memberCoversPost(p.client_id, filterMember, p.post_type)) return false
+      } else if (modo === 'meus') {
         if (!meu) return false
       } else {
         // Sem dono E que eu cubro. Post com o nome de outra pessoa não entra
@@ -430,15 +435,16 @@ export default function CriacaoPage() {
   // "Limpar" só aparece quando o usuário aplicou filtro além do padrão (membro logado)
   // Os dois números são calculados sempre, não só o do modo aberto: uma aba
   // que só mostra o total depois de clicada não convida ninguém a clicar.
-  const contaModo = (qual: 'meus' | 'sem_dono') => posts.filter(p => {
+  const contaModo = (qual: 'meus' | 'sem_dono' | 'todos') => posts.filter(p => {
     if (filterClient && p.client_id !== filterClient) return false
     if (filterType && p.post_type !== filterType) return false
-    if (!filterMember) return qual === 'meus'
+    if (!filterMember) return qual !== 'sem_dono'
     const meu = (p.assigned_members || []).includes(filterMember)
     const semDono = (p.assigned_members || []).length === 0
-    return qual === 'meus'
-      ? meu
-      : semDono && memberCoversPost(p.client_id, filterMember, p.post_type)
+    const cobre = memberCoversPost(p.client_id, filterMember, p.post_type)
+    if (qual === 'todos') return meu || cobre
+    if (qual === 'meus') return meu
+    return semDono && cobre
   }).length
 
   // Abre na aba que tem coisa.
@@ -499,28 +505,40 @@ export default function CriacaoPage() {
             </p>
           </div>
 
+          {/* A troca de visão vem ANTES dos filtros, e sozinha na linha.
+              
+              Estava espremida entre os <select> e empurrava o filtro de pessoa
+              pra uma segunda linha, com "Higor" órfão embaixo. E o lugar
+              estava errado de todo jeito: os selects RECORTAM a mesma lista,
+              este botão TROCA a lista. Duas naturezas na mesma faixa é o que
+              fazia ele parecer um filtro a mais. */}
+          {(totalPosts > 0 || totalExtras > 0 || totalMaterials > 0) && (
+            <div className="flex items-center gap-1 border-b border-[var(--color-border)] w-full md:w-auto md:border-b-0">
+              {([
+                { chave: 'meus' as const,     rotulo: 'Pra fazer agora' },
+                { chave: 'sem_dono' as const, rotulo: 'Sem dono ainda' },
+                { chave: 'todos' as const,    rotulo: 'Todos' },
+              ]).map(op => (
+                <button key={op.chave} onClick={() => setModo(op.chave)}
+                  className={`relative text-sm font-semibold px-3 py-2 transition-colors whitespace-nowrap ${
+                    modo === op.chave
+                      ? 'text-[var(--color-text-primary)]'
+                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}>
+                  {op.rotulo}
+                  {modo === op.chave && (
+                    <span className="absolute left-2 right-2 -bottom-px h-0.5 rounded-full bg-[var(--color-text-primary)]" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Filters */}
           {(totalPosts > 0 || totalExtras > 0 || totalMaterials > 0) && (
             <div className="flex items-center gap-1.5 md:gap-2 flex-wrap w-full md:w-auto">
               <Filter size={13} className="text-[var(--color-text-muted)] flex-shrink-0 hidden md:block" />
 
               {/* Client */}
-              {/* Duas listas, um lugar. "Pra fazer agora" abre por padrão. */}
-              <div className="flex items-center gap-1 rounded-xl bg-[var(--color-bg-subtle)] p-0.5 flex-shrink-0">
-                {([
-                  { chave: 'meus' as const,     rotulo: 'Pra fazer agora' },
-                  { chave: 'sem_dono' as const, rotulo: 'Sem dono ainda' },
-                ]).map(op => (
-                  <button key={op.chave} onClick={() => setModo(op.chave)}
-                    className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap ${
-                      modo === op.chave
-                        ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm'
-                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
-                    {op.rotulo} <span className="opacity-60">{contaModo(op.chave)}</span>
-                  </button>
-                ))}
-              </div>
-
               <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
                 className="flex-1 min-w-0 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
                 <option value="">Todos os clientes</option>
