@@ -16,6 +16,8 @@ import { logActivity } from '@/lib/activity'
 import { ensureWatching } from '@/lib/watch'
 import ModalPortal from '@/components/ModalPortal'
 import ListCell from '@/components/ListCell'
+import LinksCurtos from '@/components/cronograma/LinksCurtos'
+import BalaoComentarios from '@/components/cronograma/BalaoComentarios'
 import { useIsWideScreen } from '@/lib/useMediaQuery'
 import { statusBadge } from '@/lib/status'
 import { withBase } from '@/lib/base'
@@ -552,6 +554,38 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     })
   }
 
+  /**
+   * Data e status direto na linha.
+   *
+   * Eram os dois últimos campos da tabela que só mudavam abrindo o card — e são
+   * os que mais mudam ao montar pauta: empurrar um post dois dias, marcar que
+   * saiu da estratégia. Abrir card pra isso é o que fazia esta tela parecer
+   * menos que a planilha.
+   *
+   * Não passa por `saveField` porque aquele é de texto: registra "editou a
+   * copy" no histórico e compara string. Status muda o fluxo do post e merece
+   * a frase certa no histórico — a mesma que o card escreve.
+   */
+  async function saveInline(postId: string, patch: { scheduled_date?: string | null; status?: string }) {
+    const post = posts.find(p => p.id === postId)
+    if (!post) return
+    const prev = posts
+    setPosts(ps => ps.map(p => p.id === postId ? { ...p, ...patch } : p))
+    const { error } = await supabase.from('schedules').update(patch).eq('id', postId)
+    if (error) { setPosts(prev); dbError(error, toast, 'salvar'); return }
+    const who = currentMember?.name || 'Alguém'
+    logActivity({
+      tableName: 'schedules', recordId: postId, clientId,
+      action: patch.status ? 'status_changed' : 'updated',
+      actorName: currentMember?.name, actorId: currentMember?.id,
+      description: patch.status
+        ? `${who} moveu de "${STATUS_LABEL[post.status] || post.status}" para "${STATUS_LABEL[patch.status] || patch.status}"`
+        : patch.scheduled_date
+          ? `${who} definiu a data para ${fmtDiaMes(patch.scheduled_date)}`
+          : `${who} tirou a data`,
+    })
+  }
+
   async function saveField(postId: string, field: 'title' | 'briefing' | 'copy' | 'legenda', value: string) {
     const post = posts.find(p => p.id === postId)
     if (!post || ((post as any)[field] || '') === value) return
@@ -870,7 +904,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                                 value={post.title || ''}
                                 placeholder="Sem título"
                                 editable={wide}
-                                clampLines={2}
+                                clampLines={0}
                                 onCommit={v => saveField(post.id, 'title', v)}
                               />
                             </div>
@@ -885,7 +919,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                             </span>
                             {campaign && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
                             {post.comments_count > 0 && (
-                              <span className="text-[11px] text-[var(--color-text-muted)]" title={`${post.comments_count} comentário${post.comments_count !== 1 ? 's' : ''}`}>💬 {post.comments_count}</span>
+                              <BalaoComentarios postId={post.id} quantos={post.comments_count} />
                             )}
                             {labels.slice(0, 2).map((l, i) => (
                               <span key={i} className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: l.color }}>{l.text}</span>
@@ -895,16 +929,16 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
 
                         <div className="min-w-0">
                           <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Copy</p>
-                          <ListCell value={post.copy || ''} editable={wide} clampLines={wide ? 5 : 0} onCommit={v => saveField(post.id, 'copy', v)} />
+                          <ListCell value={post.copy || ''} editable={wide} clampLines={0} onCommit={v => saveField(post.id, 'copy', v)} />
                         </div>
                         <div className="min-w-0">
                           <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Descrição</p>
-                          <ListCell value={post.briefing || ''} editable={wide} clampLines={wide ? 5 : 0} onCommit={v => saveField(post.id, 'briefing', v)} />
+                          <ListCell value={post.briefing || ''} editable={wide} clampLines={0} onCommit={v => saveField(post.id, 'briefing', v)} />
                         </div>
                         {showLegenda && (
                           <div className="min-w-0">
                             <p className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-0.5">Legenda</p>
-                            <ListCell value={post.legenda || ''} editable={wide} clampLines={wide ? 5 : 0} onCommit={v => saveField(post.id, 'legenda', v)} />
+                            <ListCell value={post.legenda || ''} editable={wide} clampLines={0} onCommit={v => saveField(post.id, 'legenda', v)} />
                           </div>
                         )}
 
@@ -919,7 +953,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                                 <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>📎 {post.attachments_count}</span>
                               )}
                               {(post.reference_notes || '').trim() && (
-                                <span className="text-[11px] text-[var(--color-text-muted)] truncate">{post.reference_notes}</span>
+                                <LinksCurtos texto={post.reference_notes || ''} />
                               )}
                               {/* Com a coluna Legenda escondida, ainda dá pra
                                   saber que ela já foi escrita — sem gastar
@@ -933,9 +967,23 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
 
                         <div className="text-xs text-[var(--color-text-muted)] tabular-nums sm:text-right">
                           <span className="sm:hidden text-[9px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mr-1">Data</span>
-                          {/* dd/mmm curtinho: o formato do pt-BR devolve
-                              "05 de ago." e quebrava a coluna em duas linhas. */}
-                          {post.scheduled_date ? fmtDiaMes(post.scheduled_date) : '—'}
+                          {/* O input de data é invisível por cima do texto: um
+                              <input type=date> nativo ocupa 130px com ícone de
+                              calendário, e a coluna tem 60. Assim mostra
+                              "05/ago" e abre o seletor do sistema no clique.
+                          
+                              dd/mmm curtinho: o pt-BR devolve "05 de ago." e
+                              quebrava a coluna em duas linhas. */}
+                          <span className="relative inline-block cursor-pointer hover:text-[var(--color-text-primary)] transition-colors">
+                            {post.scheduled_date ? fmtDiaMes(post.scheduled_date) : '—'}
+                            {wide && (
+                              <input type="date" value={post.scheduled_date || ''}
+                                onClick={e => e.stopPropagation()}
+                                onChange={e => saveInline(post.id, { scheduled_date: e.target.value || null })}
+                                title="Data de publicação"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                            )}
+                          </span>
                         </div>
 
                         <div className="flex items-start gap-1 flex-wrap">
@@ -944,8 +992,23 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                               ✓ {approvalShort(post.status, post.approval_status)}
                             </span>
                           )}
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={statusBadge(post.status)}>
-                            {STATUS_LABEL[post.status] || post.status}
+                          {/* Mesma pastilha de sempre, com um <select>
+                              transparente por cima: mantém a cor do status
+                              (que é como se lê a coluna de relance) e ganha a
+                              troca em um clique. */}
+                          <span className="relative inline-block">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full block" style={statusBadge(post.status)}>
+                              {STATUS_LABEL[post.status] || post.status}
+                            </span>
+                            {wide && (
+                              <select value={post.status}
+                                onClick={e => e.stopPropagation()}
+                                onChange={e => saveInline(post.id, { status: e.target.value })}
+                                title="Mudar o status"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                                {STATUSES.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                              </select>
+                            )}
                           </span>
                         </div>
 

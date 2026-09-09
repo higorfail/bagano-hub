@@ -20,7 +20,14 @@ type Props = {
   onCommit: (value: string) => void
   /** Falso no celular: lá o toque abre o card, editar em célula estreita é pior. */
   editable?: boolean
-  /** 0 = sem corte. No celular a célula ocupa a linha inteira e o texto sai completo. */
+  /**
+   * 0 = sem corte, e é o padrão da tabela do cronograma.
+   *
+   * Cortava em 5 linhas com reticências. Só que quem monta pauta lê a descrição
+   * inteira pra decidir — e ter que abrir o card pra ver o fim do próprio texto
+   * que acabou de escrever é o oposto do que uma planilha faz. Linha alta é o
+   * preço, e é mais barato que texto escondido.
+   */
   clampLines?: number
 }
 
