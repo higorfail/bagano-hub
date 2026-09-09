@@ -241,9 +241,16 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
               ? <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}><Package size={10} /> Entregue</span>
               : <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]"><Package size={10} /> Sem entrega</span>}
             {isRejected && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>Não aprovado</span>}
+            {/* A segunda etiqueta era "✓ Ajuste aplicado", e passou a mentir
+                quando aprovar deixou de apagar o pedido: o cliente pode
+                aprovar COM uma ressalva em pé ("tira os valores, o resto tá
+                perfeito"), e aí nada foi aplicado ainda. Como não dá pra
+                distinguir os dois casos pelas colunas que existem, o rótulo
+                afirma só o que é verdade nos dois: tem recado do cliente
+                aqui, abre. */}
             {isAdjustedPending
               ? <span title={post.approval_comment || ''} className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>🟡 Ajustado</span>
-              : isAdjusted && <span title={post.approval_comment || ''} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]">✓ Ajuste aplicado</span>}
+              : isAdjusted && <span title={post.approval_comment || ''} className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ background: '#f59e0b22', color: '#f59e0b' }}>💬 Ajuste do cliente</span>}
             {/* Diz QUAL aprovação foi: um "✓" sozinho não distinguia o
                 cronograma aprovado da arte final aprovada. */}
             {approvalShort(post.status, post.approval_status) && (

@@ -206,6 +206,12 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
 
   const [form,           setForm]           = useState<PostForm>(() => postId ? EMPTY : { ...EMPTY, scheduled_date: initialDate || '', campaign_type: initialCampaignType || '' })
   const [approvalStatus, setApprovalStatus] = useState<string>('')
+  // O que o cliente escreveu ao pedir ajuste. O card expandido nunca mostrou
+  // esse texto — só a lista do cronograma e o kanban mostravam. Passou a
+  // importar agora que aprovar deixou de apagar o pedido: um post pode estar
+  // "Aprovado" e ainda ter uma ressalva em pé ("tira os valores, o resto tá
+  // perfeito"), e este card é onde a pessoa abre pra trabalhar nele.
+  const [approvalComment, setApprovalComment] = useState<string>('')
   const [assignedMembers, setAssignedMembers] = useState<string[]>([])
   const [labels,          setLabels]          = useState<{ text: string; color: string }[]>([])
   const [showLabelPicker, setShowLabelPicker] = useState(false)
@@ -315,6 +321,7 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
           funil: data.funil || '', campaign_type: data.campaign_type || '',
         })
         setApprovalStatus(data.approval_status || '')
+        setApprovalComment(data.approval_comment || '')
         setAssignedMembers(Array.isArray(data.assigned_members) ? data.assigned_members : [])
         setLabels(Array.isArray(data.labels) ? data.labels : [])
         setCreatedAt(data.created_at || null)
@@ -1119,6 +1126,21 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                   : 'O cliente aprovou a ideia no cronograma — a arte final ainda não foi aprovada'}
                 style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}>
                 ✓ {approvalLabel(form.status, approvalStatus)}
+              </span>
+            )}
+            {/* O pedido do cliente ao lado do selo de aprovado, e não escondido
+                no histórico. Um post pode estar aprovado COM uma ressalva em
+                pé — foi exatamente assim que "tirar os valores do post" quase
+                foi ao ar na Criativa Padaria. Só aparece quando o post não
+                está mais em "ajuste", porque nesse caso a linha do cronograma
+                e o kanban já gritam o pedido em vermelho; aqui o papel é
+                justamente pegar o caso silencioso. */}
+            {approvalComment.trim() && form.status !== 'ajuste' && (
+              <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl max-w-[22rem]"
+                title={approvalComment}
+                style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)', border: '1px solid var(--ds-warn-border)' }}>
+                <span className="flex-shrink-0">💬</span>
+                <span className="truncate">Cliente pediu: “{approvalComment}”</span>
               </span>
             )}
             {currentId && (

@@ -89,7 +89,15 @@ export async function getOrCreateGeneralApprovalToken(clientId: string, db?: any
 export async function sendFeitoExtrasToClient(clientId: string): Promise<number> {
   const supabase = createClient()
   const { data, error } = await supabase.from('extras')
-    .update({ status: 'aguardando_aprovacao', client_approval_status: 'aguardando', client_approval_comment: null, completed_at: null })
+    // `client_approval_comment` NÃO é limpo aqui. Limpar matava em silêncio o
+    // destaque "🟡 Ajustado — revisar" na página do cliente: aquele estado
+    // exige status 'aguardando' E o comentário preenchido, e esta função
+    // gravava os dois em contradição, então a condição nunca era verdadeira.
+    // Efeito prático: o extra que o cliente tinha pedido pra mudar voltava
+    // pra ele parecendo um pendente qualquer, sem nenhum sinal de que era
+    // justamente aquele. O que o cliente pediu é dele — quem responde de novo
+    // é o `client_approval_status`, não o texto.
+    .update({ status: 'aguardando_aprovacao', client_approval_status: 'aguardando', completed_at: null })
     .eq('client_id', clientId).eq('status', 'feito').is('archived_at', null)
     .select('id')
   if (error) throw new Error(error.message)

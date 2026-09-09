@@ -113,6 +113,58 @@ interface Post {
  * exatamente assim que o mesmo trecho copiado em três lugares virou três bugs
  * iguais em outra parte desta tela.
  */
+/**
+ * Rodapé de um item em que o cliente JÁ pediu ajuste e ainda não voltou pro
+ * time. Esse estado não existia em lugar nenhum.
+ *
+ * Depois de enviar, o card voltava a mostrar "✏️ Pedir ajuste | Aprovar",
+ * exatamente igual a um post que ninguém tinha tocado. A tela nunca dizia
+ * "recebi". Foi assim que a Criativa Padaria mandou o mesmo pedido duas vezes
+ * (15:14 e 15:18, texto idêntico) e, ainda sem resposta da tela, apertou
+ * Aprovar às 15:20 — a única coisa ali que produzia uma mudança visível.
+ *
+ * O botão de aprovar continua, discreto: quem pediu ajuste e mudou de ideia
+ * precisa poder seguir sem depender do time. Agora aprovar preserva o pedido,
+ * então esse caminho não apaga mais nada.
+ */
+function RodapeAjusteEnviado({ aoAprovar, aoPedirDeNovo, cor, carregando }: {
+  aoAprovar: () => void
+  /** Abre a caixa de texto de novo. Só nos CARDS, onde ela fica escondida
+   *  atrás do "✏️ Pedir ajuste" — na gaveta do feed a caixa já está na tela.
+   *  Sem isso eu teria trocado um defeito por outro: quem pediu uma coisa e
+   *  lembrou de outra ficaria sem botão nenhum pra falar. */
+  aoPedirDeNovo?: () => void
+  /** A cor do cliente, pra o botão continuar igual ao das outras telas. */
+  cor: string
+  carregando: boolean
+}) {
+  const aviso = (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '11px 12px', borderRadius: 16, background: '#fffbeb', border: '1.5px solid #fcd34d', fontSize: 13, fontWeight: 700, color: '#b45309', lineHeight: 1.35, textAlign: 'center' }}>
+      <MessageSquare size={15} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+      <span>Ajuste enviado — o time já foi avisado</span>
+    </div>
+  )
+  const botaoAprovar = (
+    <button onClick={aoAprovar} disabled={carregando}
+      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 16, background: cor, border: 'none', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer', opacity: carregando ? 0.7 : 1, boxShadow: `0 6px 24px ${cor}44`, letterSpacing: '-0.02em' }}>
+      {carregando ? '…' : <><CheckCircle size={17} strokeWidth={2.5} /> Aprovar</>}
+    </button>
+  )
+  if (!aoPedirDeNovo) return <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{aviso}{botaoAprovar}</div>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {aviso}
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button onClick={aoPedirDeNovo}
+          style={{ padding: '14px 18px', borderRadius: 16, background: '#f3f4f6', border: '1.5px solid #ebebeb', fontSize: 14, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          ✏️ Pedir outra coisa
+        </button>
+        {botaoAprovar}
+      </div>
+    </div>
+  )
+}
+
 function GavetaDecididos({ quantos, aberta, aoAlternar }: { quantos: number; aberta: boolean; aoAlternar: () => void }) {
   return (
     <button
@@ -394,11 +446,24 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
   // internamente, porque o `.update()` nunca teve `error` checado. Cada ação
   // agora confere `error` e mostra um aviso claro pro cliente tentar de novo
   // em vez de fingir sucesso.
+  // APROVAR NÃO APAGA O PEDIDO DE AJUSTE.
+  //
+  // Zerava `approval_comment` aqui, e foi assim que a gente perdeu um pedido
+  // real: Criativa Padaria #4, 09/09. O cliente escreveu "tirar os valores do
+  // post, o restante perfeito", enviou, e minutos depois apertou Aprovar —
+  // porque na cabeça dele era isso mesmo: aprovado, com uma ressalva. O
+  // Aprovar limpou o texto, o post ficou "aprovado e sem pendência", e o
+  // pedido só sobreviveu no histórico lateral que ninguém abre. O reels ia ao
+  // ar com os preços na tela.
+  //
+  // Aprovar responde "pode seguir". Não é uma retratação do que o cliente
+  // pediu antes, e não tem por que apagar. Quem apaga é o Desfazer, que é
+  // explícito: ali a pessoa está retirando a resposta dela.
   async function approve(postId: string) {
     setSubmitting(postId)
-    const { error } = await supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null, status: 'aprovado' }).eq('id', postId)
+    const { error } = await supabase.from('schedules').update({ approval_status: 'aprovado', status: 'aprovado' }).eq('id', postId)
     if (error) { showToast('Não deu pra aprovar agora — tenta de novo em instantes.', false); setSubmitting(null); return }
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p))
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, approval_status: 'aprovado', status: 'aprovado' } : p))
     await ensureWatchingFromAssigned('schedules', postId, supabase)
     await queueApprovalDigest(tokenData?.client_id, 'approved', 1, supabase)
     await logActivity({ db: supabase, token, tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post`, skipPush: true })
@@ -461,7 +526,10 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     if (!pending.length) return
     setApprovingAll(true)
     const results = await Promise.all(
-      pending.map(p => supabase.from('schedules').update({ approval_status: 'aprovado', approval_comment: null, status: 'aprovado' }).eq('id', p.id))
+      // Mesma regra do `approve` individual: aprovar não apaga o que o
+      // cliente pediu. Em lote isso pesa ainda mais — "aprovar tudo" varreria
+      // de uma vez todos os pedidos em pé do mês.
+      pending.map(p => supabase.from('schedules').update({ approval_status: 'aprovado', status: 'aprovado' }).eq('id', p.id))
     )
     const okIds = new Set(pending.filter((_, i) => !results[i].error).map(p => p.id))
     const failedCount = pending.length - okIds.size
@@ -470,7 +538,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
       ...pending.filter(p => okIds.has(p.id)).map(p => logActivity({ db: supabase, token, tableName: 'schedules', recordId: p.id, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: `Cliente aprovou o post`, skipPush: true })),
     ])
     await queueApprovalDigest(tokenData?.client_id, 'approved', okIds.size, supabase)
-    setPosts(prev => prev.map(p => okIds.has(p.id) ? { ...p, approval_status: 'aprovado', status: 'aprovado', approval_comment: undefined } : p))
+    setPosts(prev => prev.map(p => okIds.has(p.id) ? { ...p, approval_status: 'aprovado', status: 'aprovado' } : p))
     if (failedCount > 0) showToast(`${okIds.size} aprovados, ${failedCount} falharam — tenta de novo neles.`, false)
     else showToast(`${okIds.size} posts aprovados! 🎉`)
     setApprovingAll(false)
@@ -535,7 +603,10 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
 
   async function approveCrono(postId: string) {
     setSubmitting(postId)
-    const { error } = await supabase.from('schedules').update({ status: APOS_APROVAR_CRONO, approval_status: 'aprovado', approval_comment: null }).eq('id', postId)
+    // Não apaga o pedido — mesma regra da aprovação da peça final. Aqui o
+    // texto vale ainda mais: é um pedido sobre a PAUTA, e quem vai produzir
+    // precisa dele em mãos justamente depois do "pode seguir".
+    const { error } = await supabase.from('schedules').update({ status: APOS_APROVAR_CRONO, approval_status: 'aprovado' }).eq('id', postId)
     if (error) { showToast('Não deu pra aprovar agora — tenta de novo em instantes.', false); setSubmitting(null); return }
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: APOS_APROVAR_CRONO, approval_status: 'aprovado' } : p))
     await ensureWatchingFromAssigned('schedules', postId, supabase)
@@ -565,7 +636,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     if (!pending.length) return
     setApprovingAll(true)
     const results = await Promise.all(
-      pending.map(p => supabase.from('schedules').update({ status: APOS_APROVAR_CRONO, approval_status: 'aprovado', approval_comment: null }).eq('id', p.id))
+      pending.map(p => supabase.from('schedules').update({ status: APOS_APROVAR_CRONO, approval_status: 'aprovado' }).eq('id', p.id))
     )
     const okIds = new Set(pending.filter((_, i) => !results[i].error).map(p => p.id))
     const failedCount = pending.length - okIds.size
@@ -586,9 +657,10 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
   // e ninguém do time percebia que já podia arquivar/publicar.
   async function approveExtra(extraId: string) {
     setExtraSubmitting(extraId)
-    const { error } = await supabase.from('extras').update({ client_approval_status: 'aprovado', client_approval_comment: null, status: 'done', completed_at: new Date().toISOString() }).eq('id', extraId)
+    // Não apaga o pedido do cliente — mesma regra dos posts.
+    const { error } = await supabase.from('extras').update({ client_approval_status: 'aprovado', status: 'done', completed_at: new Date().toISOString() }).eq('id', extraId)
     if (error) { showToast('Não deu pra aprovar agora — tenta de novo em instantes.', false); setExtraSubmitting(null); return }
-    setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aprovado', client_approval_comment: null, status: 'done' } : e))
+    setExtras(prev => prev.map(e => e.id === extraId ? { ...e, client_approval_status: 'aprovado', status: 'done' } : e))
     await ensureWatchingFromAssigned('extras', extraId, supabase)
     await queueApprovalDigest(tokenData?.client_id, 'approved', 1, supabase)
     await logActivity({ db: supabase, token, tableName: 'extras', recordId: extraId, clientId: tokenData?.client_id, action: 'client_approved', actorName: client?.name || 'Cliente', description: 'Cliente aprovou o extra', skipPush: true })
@@ -750,7 +822,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
               discreta (não é mais um alerta) só pra manter o contexto visível. */}
           {isApproved && extra.client_approval_comment && (
             <div style={{ background: '#f5f5f3', border: '1px solid #e5e5e0', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
-              <p style={{ fontSize: 10, color: '#8a8a85', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>✓ Ajuste aplicado</p>
+              <p style={{ fontSize: 10, color: '#8a8a85', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>💬 O que você pediu</p>
               <p style={{ fontSize: 13, color: '#6b6b66', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{extra.client_approval_comment}"</p>
             </div>
           )}
@@ -787,6 +859,11 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                 <MessageSquare size={15} /> Enviar pedido
               </button>
             </div>
+          ) : isChanges ? (
+            <RodapeAjusteEnviado
+              aoAprovar={() => approveExtra(extra.id)}
+              aoPedirDeNovo={() => setExtraCommenting(s => { const n = new Set(s); n.add(extra.id); return n })}
+              cor={cc} carregando={!!isLoading} />
           ) : (
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setExtraCommenting(s => { const n = new Set(s); n.add(extra.id); return n })}
@@ -1032,6 +1109,11 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                 <MessageSquare size={15} /> Enviar pedido
               </button>
             </div>
+          ) : isChanged ? (
+            <RodapeAjusteEnviado
+              aoAprovar={() => approveCrono(post.id)}
+              aoPedirDeNovo={() => setCommenting(s => { const n = new Set(s); n.add(post.id); return n })}
+              cor={cc} carregando={!!isLoading} />
           ) : (
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setCommenting(s => { const n = new Set(s); n.add(post.id); return n })}
@@ -1239,7 +1321,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
               discreta (não é mais um alerta) só pra manter o contexto visível. */}
           {isApproved && post.approval_comment && (
             <div style={{ background: '#f5f5f3', border: '1px solid #e5e5e0', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
-              <p style={{ fontSize: 10, color: '#8a8a85', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>✓ Ajuste aplicado</p>
+              <p style={{ fontSize: 10, color: '#8a8a85', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>💬 O que você pediu</p>
               <p style={{ fontSize: 13, color: '#6b6b66', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>"{post.approval_comment}"</p>
             </div>
           )}
@@ -1286,6 +1368,11 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                 <MessageSquare size={15} /> Enviar ajuste
               </button>
             </div>
+          ) : isChanges ? (
+            <RodapeAjusteEnviado
+              aoAprovar={() => approve(post.id)}
+              aoPedirDeNovo={() => setCommenting(s => { const n = new Set(s); n.add(post.id); return n })}
+              cor={cc} carregando={!!isLoading} />
           ) : (
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setCommenting(s => { const n = new Set(s); n.add(post.id); return n })}
@@ -1756,7 +1843,12 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
               onStoryReject={handleStoryReject}
               onPostClick={fp => {
                 const raw = posts.find(p => p.id === fp.id)
-                if (raw) { setSheetPost(raw); setSheetComment(raw.approval_comment || '') }
+                // Abre com a caixa VAZIA, sempre. Preencher com o pedido que
+                // o cliente já mandou devolve um recado entregue com cara de
+                // rascunho não enviado — foi o que fez a Criativa Padaria
+                // mandar o mesmo texto duas vezes, palavra por palavra. O que
+                // ele já pediu continua na tela, mas como bloco de leitura.
+                if (raw) { setSheetPost(raw); setSheetComment('') }
               }}
             />
           </div>
@@ -1953,7 +2045,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                         const dotColor   = p.status === 'publicado' ? '#22c55e' : p.status === 'agendado' ? '#2563eb' : isApproved ? '#22c55e' : isChanges ? '#f59e0b' : '#d1d5db'
                         return (
                           <button key={p.id}
-                            onClick={() => { setSheetPost(p); setSheetComment(p.approval_comment || '') }}
+                            onClick={() => { setSheetPost(p); setSheetComment('') }}
                             style={{ display: 'block', width: '100%', minWidth: 0, marginBottom: 2, background: isApproved ? '#f0fdf4' : isChanges ? '#fffbeb' : '#f3f4f6', border: `1px solid ${isApproved ? '#86efac' : isChanges ? '#fde68a' : '#e5e7eb'}`, borderRadius: 4, padding: '2px 4px', cursor: 'pointer', textAlign: 'left' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0 }}>
                               <div style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
@@ -1989,7 +2081,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                     const isChanges  = !isLive && p.approval_status === 'não aprovado'
                     return (
                       <button key={p.id}
-                        onClick={() => { setSheetPost(p); setSheetComment(p.approval_comment || '') }}
+                        onClick={() => { setSheetPost(p); setSheetComment('') }}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, background: '#fff', borderRadius: 14, border: `1.5px solid ${isApproved ? '#86efac' : isChanges ? '#fde68a' : '#ebebeb'}`, padding: '12px 14px', cursor: 'pointer', textAlign: 'left', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                         <span style={{ fontSize: 20, flexShrink: 0 }}>{TYPE_EMOJIS[p.post_type] || '📄'}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -2110,7 +2202,7 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                   {/* Histórico: já foi aprovado, mas passou por um ajuste antes */}
                   {isApproved && sheetPost.approval_comment && (
                     <div style={{ background: '#f5f5f3', border: '1px solid #e5e5e0', borderRadius: 14, padding: '11px 14px', marginBottom: 14 }}>
-                      <p style={{ fontSize: 10, color: '#8a8a85', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>✓ Ajuste aplicado</p>
+                      <p style={{ fontSize: 10, color: '#8a8a85', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>💬 O que você pediu</p>
                       <p style={{ fontSize: 13, color: '#6b6b66', margin: 0, fontStyle: 'italic' }}>"{sheetPost.approval_comment}"</p>
                     </div>
                   )}
@@ -2145,6 +2237,16 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                         <RotateCcw size={13} /> Desfazer
                       </button>
                     </div>
+                  ) : isChanges && !sheetComment.trim() ? (
+                    // Ajuste já enviado e nada digitado agora: a gaveta diz o
+                    // estado em vez de cair direto no "Aprovar este post",
+                    // que era o que ela fazia — e é o botão que a Criativa
+                    // Padaria acabou apertando por falta de qualquer outro
+                    // sinal. Se ele começar a digitar de novo, volta pro fluxo
+                    // normal de enviar um pedido novo.
+                    // Sem `aoPedirDeNovo`: aqui a caixa de texto já está
+                    // aberta logo acima, é só digitar.
+                    <RodapeAjusteEnviado aoAprovar={() => approve(sheetPost.id)} cor={cc} carregando={!!isLoading} />
                   ) : sheetComment.trim() ? (
                     <div style={{ display: 'flex', gap: 10 }}>
                       <button onClick={() => setSheetComment('')}
