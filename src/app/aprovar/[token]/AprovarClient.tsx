@@ -1205,7 +1205,18 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     const isComm     = commenting.has(post.id)
     const comment    = comments[post.id] || ''
     const isLoading  = submitting === post.id
-    const displayCopy = post.legenda || post.copy || ''
+    // SÓ a legenda. Sem cair no `copy`.
+    //
+    // O `copy` é campo interno e é usado pra duas coisas diferentes conforme
+    // o cliente: numas contas a equipe escreve a legenda ali, noutras escreve
+    // o ROTEIRO de gravação. Não dá pra distinguir pelo campo, e o preço do
+    // erro é assimétrico — o Mercado Velho #2 estava, neste exato momento,
+    // mostrando ao cliente "Pessoa entrando / chegando no restaurante",
+    // "Close na caipirinha sendo preparada", "TEXTO FINAL NA TELA".
+    //
+    // O card do CRONO continua mostrando os dois, de propósito: lá o que o
+    // cliente aprova é justamente a ideia e o roteiro.
+    const displayCopy = post.legenda || ''
 
     const isCarrossel = post.post_type === 'carrossel' || post.post_type === 'carrossel_stories'
     // Não confia só no post_type pra decidir o que mostrar — lê o que foi
@@ -1296,11 +1307,11 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
               Na aprovação de CRONOGRAMA os dois continuam, porque ali o que
               está em jogo é justamente a pauta. */}
 
-          {/* Legenda (texto final do Instagram; se ainda não tiver, cai no rascunho de copy) */}
+          {/* Legenda — o texto final do Instagram, e só ele. */}
           {displayCopy && (
             <div style={{ marginBottom: 16 }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                {post.legenda ? 'Legenda' : 'Rascunho de copy'}
+                Legenda
               </p>
               <div style={{ background: '#fafaf8', borderRadius: 14, padding: '12px 14px', border: '1px solid #f0f0ec' }}>
                 <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
@@ -2183,12 +2194,13 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
                       iPhone, que é a tela do conteúdo final. */}
 
                   {/* Legenda (texto final do Instagram; se ainda não tiver, cai no rascunho de copy) */}
-                  {(sheetPost.legenda || sheetPost.copy) && (
+                  {/* Só a legenda, mesma regra do card — ver `displayCopy`. */}
+                  {sheetPost.legenda && (
                     <div style={{ background: '#fafaf8', borderRadius: 14, padding: '12px 14px', marginBottom: 14, border: '1px solid #f0f0ec' }}>
                       <p style={{ fontSize: 10, fontWeight: 700, color: '#b0b0b0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                        {sheetPost.legenda ? 'Legenda' : 'Rascunho de copy'}
+                        Legenda
                       </p>
-                      <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{sheetPost.legenda || sheetPost.copy}</p>
+                      <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{sheetPost.legenda}</p>
                     </div>
                   )}
 

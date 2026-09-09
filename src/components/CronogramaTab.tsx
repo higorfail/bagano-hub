@@ -307,6 +307,10 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [approvalLink, setApprovalLink] = useState('')
   const [generatingLink, setGeneratingLink] = useState(false)
   const [aiMessage, setAiMessage] = useState('')
+  // Qual link o modal está mostrando. O aviso de "sem legenda" só faz sentido
+  // no link final: no de cronograma o cliente aprova a ideia, e ali o card
+  // mostra briefing e roteiro de propósito.
+  const [approvalType, setApprovalType] = useState<'cronograma' | 'final'>('final')
   const [copied, setCopied] = useState(false)
 
   const [showPreplist, setShowPreplist] = useState(false)
@@ -648,9 +652,21 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   }
 
   async function openApprovalModal(type: 'cronograma' | 'final') {
-    setShowApprovalModal(true); setApprovalLink(''); setAiMessage('')
+    setShowApprovalModal(true); setApprovalLink(''); setAiMessage(''); setApprovalType(type)
     await generateApprovalLink(type)
   }
+
+  /**
+   * Posts que já estão com o cliente e vão aparecer SEM texto nenhum.
+   *
+   * O link final passa a mostrar só `legenda`. Antes ele caía no `copy` quando
+   * a legenda estava vazia, e o `copy` é campo interno — em alguns clientes a
+   * equipe escreve a legenda ali, em outros escreve o roteiro de gravação com
+   * direção de câmera. Fechado o vazamento, sobra o outro lado: post sem
+   * legenda chega mudo. Este aviso é pra equipe mover o texto pro campo certo
+   * antes de mandar o link.
+   */
+  const postsSemLegenda = posts.filter(p => p.status === 'aguardando_aprovacao' && !(p.legenda || '').trim())
 
   function copyLink() { navigator.clipboard.writeText(approvalLink); setCopied(true); setTimeout(() => setCopied(false), 2000) }
   function openWhatsApp() { window.open(`https://wa.me/?text=${encodeURIComponent(aiMessage || approvalLink)}`, '_blank') }
@@ -1219,6 +1235,22 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 <div className="flex items-center justify-center py-8"><p className="text-sm text-[var(--color-text-muted)]">Gerando link...</p></div>
               ) : (
                 <>
+                  {approvalType === 'final' && postsSemLegenda.length > 0 && (
+                    <div className="rounded-xl p-3.5 flex flex-col gap-1.5"
+                      style={{ background: 'var(--ds-warn-bg)', border: '1px solid var(--ds-warn-border)' }}>
+                      <p className="text-xs font-semibold" style={{ color: 'var(--ds-warn-text)' }}>
+                        ⚠️ {postsSemLegenda.length === 1
+                          ? '1 post vai aparecer sem texto'
+                          : `${postsSemLegenda.length} posts vão aparecer sem texto`}
+                      </p>
+                      <p className="text-[11px] leading-snug" style={{ color: 'var(--ds-warn-text)', opacity: 0.85 }}>
+                        {postsSemLegenda.map(p => `#${String(p.post_number ?? '?').padStart(2, '0')} ${p.title}`).join(' · ')}
+                      </p>
+                      <p className="text-[11px] leading-snug" style={{ color: 'var(--ds-warn-text)', opacity: 0.7 }}>
+                        O cliente vê só a legenda. Se o texto está no campo de copy, cole na legenda antes de mandar.
+                      </p>
+                    </div>
+                  )}
                   <div className="bg-[var(--color-bg-input)] rounded-xl p-3"><span className="text-xs text-[var(--color-text-secondary)] break-all">{approvalLink}</span></div>
                   <div className="border border-[var(--color-border)] rounded-xl p-4 flex flex-col gap-3">
                     <div className="flex items-center gap-2">

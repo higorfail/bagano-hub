@@ -468,11 +468,14 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
           {/* Approval actions */}
           {approvalMode && (
             <div style={{ padding: '0 12px 16px', pointerEvents: 'auto' }}>
-              {/* Legenda snippet */}
-              {(post.legenda || post.copy) && (
+              {/* Legenda snippet — SÓ a legenda, nunca o `copy`.
+                  Este bloco só existe em `approvalMode`, ou seja, é tela de
+                  cliente, e o `copy` às vezes guarda roteiro de gravação em
+                  vez de legenda. Mesma regra do card do link final. */}
+              {post.legenda && (
                 <div style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', borderRadius: 10, padding: '8px 12px', marginBottom: 10 }}>
-                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', margin: '0 0 3px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{post.legenda ? 'Legenda' : 'Rascunho de copy'}</p>
-                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const }}>{post.legenda || post.copy}</p>
+                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', margin: '0 0 3px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Legenda</p>
+                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', margin: 0, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const }}>{post.legenda}</p>
                 </div>
               )}
 

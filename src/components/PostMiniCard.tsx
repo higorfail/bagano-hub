@@ -23,6 +23,9 @@ export type MiniPost = {
   post_number?: number | null
   title: string
   copy?: string | null
+  /** Só pra saber se está vazia — o link final agora mostra SÓ este campo,
+   *  então post sem legenda chega mudo no cliente. Ver `semLegenda` abaixo. */
+  legenda?: string | null
   post_type: string
   status: string
   approval_status?: string | null
@@ -70,6 +73,12 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
   const isAdjusted        = !isRejected && post.status !== 'ajuste' && !!post.approval_comment
   const isAdjustedPending = isAdjusted && post.status === 'aguardando_aprovacao'
   const isRevisao   = post.status === 'revisao_interna'
+  // Está com o cliente AGORA e sem legenda. O link final passou a mostrar só
+  // `legenda` (o `copy` é interno e às vezes guarda roteiro de gravação), então
+  // um post nessa situação chega mudo: o cliente vê a arte e nenhum texto.
+  // Só em "aguardando_aprovacao" — antes disso a legenda ainda está sendo
+  // escrita na produção, e avisar cedo vira barulho.
+  const semLegenda  = post.status === 'aguardando_aprovacao' && !(post.legenda || '').trim()
   const refs      = post.reference_images?.length || 0
   const delivered = !!(post.drive_url || post.drive_folder_url)
   const isVideo   = post.post_type === 'reels'
@@ -241,6 +250,13 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
               ? <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }}><Package size={10} /> Entregue</span>
               : <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-faint)]"><Package size={10} /> Sem entrega</span>}
             {isRejected && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--ds-error-bg)', color: 'var(--ds-error-text)' }}>Não aprovado</span>}
+            {semLegenda && (
+              <span title="Este post está com o cliente e vai aparecer sem texto nenhum — a legenda está vazia."
+                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)', border: '1px solid var(--ds-warn-border)' }}>
+                ⚠️ Sem legenda
+              </span>
+            )}
             {/* A segunda etiqueta era "✓ Ajuste aplicado", e passou a mentir
                 quando aprovar deixou de apagar o pedido: o cliente pode
                 aprovar COM uma ressalva em pé ("tira os valores, o resto tá
