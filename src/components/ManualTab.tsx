@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { TextoEditavel, Etiquetas, CardsEditaveis, CoresEditaveis, ParesEditaveis, Salvo } from '@/components/manual/CamposEditaveis'
 import { createClient } from '@/lib/supabase'
 import { withBase } from '@/lib/base'
 import {
   MapPin, Phone, AtSign, Globe, Truck, BookOpen,
-  ChevronDown, ChevronRight, Sparkles, X, ExternalLink,
+  ChevronDown, ChevronRight, Sparkles, X, ExternalLink, FileUp,
 } from 'lucide-react'
 
 type Pillar       = { name: string; description: string }
@@ -628,6 +628,32 @@ export default function ManualTab({ clientId }: { clientId: string }) {
     setCriando(false)
   }
 
+  // Ler o PDF que o cliente já tem.
+  //
+  // Vários chegam com manual pronto — de outra agência, de um designer, do
+  // próprio dono — e esse material morre no Drive, porque transcrever à mão é
+  // uma tarde de trabalho. O arquivo vai inteiro pro modelo; ele devolve o
+  // mesmo JSON do gerador, e cai no MESMO modal de revisão. Ninguém salva nada
+  // sem olhar.
+  const importInputRef = useRef<HTMLInputElement>(null)
+  async function importarPdf(file: File) {
+    setShowGenerator(true)
+    setGenLoading(true); setGenError(''); setGenDraft('')
+    setGenName(clientInfo?.name || '')
+    try {
+      const fd = new FormData()
+      fd.append('arquivo', file)
+      const res = await fetch(withBase('/api/ai-manual-pdf'), { method: 'POST', body: fd })
+      const json = await res.json()
+      if (!res.ok || json.error) { setGenError(json.error || 'Não deu pra ler o PDF'); setGenLoading(false); return }
+      try { setGenDraft(JSON.stringify(JSON.parse(json.manual), null, 2)) }
+      catch { setGenDraft(json.manual) }
+    } catch {
+      setGenError('Erro de conexão ao enviar o arquivo')
+    }
+    setGenLoading(false)
+  }
+
   async function saveGeneratedManual() {
     let parsed: any
     try { parsed = JSON.parse(genDraft) }
@@ -642,6 +668,13 @@ export default function ManualTab({ clientId }: { clientId: string }) {
     await load()
   }
 
+  // Um input só pros dois botões (tela vazia e cabeçalho). `value=''` no clique
+  // permite escolher o MESMO arquivo de novo depois de um erro.
+  const inputArquivo = (
+    <input ref={importInputRef} type="file" accept="application/pdf" className="hidden"
+      onChange={e => { const f = e.target.files?.[0]; e.currentTarget.value = ''; if (f) void importarPdf(f) }} />
+  )
+
   if (loading) return (
     <div className="flex items-center justify-center h-40">
       <p className="text-sm text-[var(--color-text-muted)]">Carregando manual...</p>
@@ -650,6 +683,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
 
   if (!data) return (
     <>
+      {inputArquivo}
       <div className="flex flex-col items-center justify-center min-h-[360px] gap-4 text-center">
         <div className="w-16 h-16 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center">
           <BookOpen size={28} className="text-[var(--color-text-faint)]" />
@@ -669,6 +703,10 @@ export default function ManualTab({ clientId }: { clientId: string }) {
           <button onClick={comecarEmBranco} disabled={criando}
             className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors disabled:opacity-50">
             {criando ? 'Criando…' : 'Começar em branco'}
+          </button>
+          <button onClick={() => importInputRef.current?.click()}
+            className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+            <FileUp size={14} /> Importar PDF
           </button>
           <button onClick={openGenerator}
             className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl text-white transition-opacity hover:opacity-90"
@@ -690,6 +728,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
 
   return (
     <div className="flex flex-col gap-0 max-w-4xl">
+      {inputArquivo}
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-5 pb-5 border-b border-[var(--color-border)]">
         <div>
@@ -710,6 +749,10 @@ export default function ManualTab({ clientId }: { clientId: string }) {
             Sous Chef <ExternalLink size={11} />
           </a>
         )}
+        <button onClick={() => importInputRef.current?.click()} title="Ler um PDF de manual de marca e preencher a partir dele (você revisa antes de salvar)"
+          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0 whitespace-nowrap">
+          <FileUp size={12} /> Importar PDF
+        </button>
         <button onClick={openGenerator} title="Gerar novo rascunho com IA (sobrescreve ao salvar)"
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 transition-colors"
           style={{ background: '#8b5cf618', color: '#8b5cf6' }}>
