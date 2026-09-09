@@ -78,7 +78,7 @@ export function FolderThumbnail({ folderUrl }: { folderUrl: string }) {
             <a key={item.id} href={`https://drive.google.com/file/d/${item.id}/view`} target="_blank" rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
               className="relative w-[110px] aspect-[4/5] flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-bg-alt)] block">
-              <img src={`/api/drive-thumb?id=${item.id}&sz=w400`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
+              <img loading="lazy" decoding="async" src={`/api/drive-thumb?id=${item.id}&sz=w400`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
               {item.isVideo && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
                   <div className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
@@ -120,7 +120,7 @@ export function DriveThumbnail({ driveUrl, isVideo }: { driveUrl: string; isVide
           <a key={id} href={`https://drive.google.com/file/d/${id}/view`} target="_blank" rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
             className="relative w-[110px] aspect-[4/5] flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-bg-alt)] block">
-            <img src={`/api/drive-thumb?id=${id}&sz=w400`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
+            <img loading="lazy" decoding="async" src={`/api/drive-thumb?id=${id}&sz=w400`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
           </a>
         ))}
       </div>

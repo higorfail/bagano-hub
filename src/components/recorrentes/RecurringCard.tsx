@@ -62,7 +62,7 @@ export default function RecurringCard({ rec, logs, onEdit }: Props) {
 
       <div className="relative w-[60px] aspect-[4/5] flex-shrink-0 rounded-lg overflow-hidden bg-[var(--color-bg-alt)] flex items-center justify-center">
         {cover?.files[0]
-          ? <img src={`/api/drive-thumb?id=${cover.files[0].id}&sz=w200`} alt="" className="w-full h-full object-cover" />
+          ? <img loading="lazy" decoding="async" src={`/api/drive-thumb?id=${cover.files[0].id}&sz=w200`} alt="" className="w-full h-full object-cover" />
           : <ImageOff size={16} className="text-[var(--color-text-faint)]" />}
       </div>
 

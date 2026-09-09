@@ -133,7 +133,7 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
         <div className="relative flex-shrink-0 self-stretch overflow-hidden bg-[var(--color-bg-subtle)]" style={{ width: 138 }}>
           {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a
               dependência circular (img 100% ← container ← card ← tamanho natural da img) */}
-          <img src={thumbUrl} alt={post.title}
+          <img loading="lazy" decoding="async" src={thumbUrl} alt={post.title}
             className="absolute inset-0 w-full h-full object-cover"
             onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
           {isThumbVideo && (

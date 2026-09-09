@@ -242,7 +242,7 @@ function Miniatura({ post, onAbrir }: { post: PostAberto; onAbrir: () => void })
       className="w-12 h-12 rounded-lg overflow-hidden bg-[var(--color-bg-subtle)] flex items-center justify-center flex-shrink-0 border border-[var(--color-border)]">
       {thumbUrl && !quebrou
         // eslint-disable-next-line @next/next/no-img-element
-        ? <img src={thumbUrl} alt="" className="w-full h-full object-cover" onError={() => setQuebrou(true)} />
+        ? <img loading="lazy" decoding="async" src={thumbUrl} alt="" className="w-full h-full object-cover" onError={() => setQuebrou(true)} />
         : <ImageOff size={14} className="text-[var(--color-text-faint)]" />}
     </button>
   )

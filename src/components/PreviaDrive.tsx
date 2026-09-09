@@ -219,7 +219,7 @@ export function CarouselPreview({ folderId, folderUrl, ratio = '100%', semRodape
             onLoadedMetadata={(e: React.SyntheticEvent<HTMLVideoElement>) => onMediaSize(e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : (
-          <img
+          <img loading="lazy" decoding="async"
             key={current.id}
             src={`/api/drive-thumb?id=${current.id}&sz=w800`}
             alt={`Slide ${slide + 1}`}
@@ -287,7 +287,7 @@ export function MultiFilePreview({ ids, fallbackUrl, ratio = '100%', noHub = fal
   return (
     <div style={{ position: 'relative', background: '#1c1a18', userSelect: 'none' }}>
       <div {...swipe} style={{ position: 'relative', paddingTop: frameRatio, overflow: 'hidden', cursor: ids.length > 1 ? 'grab' : 'default', touchAction: 'pan-y' }}>
-        <img key={ids[slide]} src={`/api/drive-thumb?id=${ids[slide]}&sz=w800`} alt={`Slide ${slide + 1}`}
+        <img loading="lazy" decoding="async" key={ids[slide]} src={`/api/drive-thumb?id=${ids[slide]}&sz=w800`} alt={`Slide ${slide + 1}`}
           onLoad={e => onMediaSize(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
           draggable={false}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
@@ -355,7 +355,7 @@ export function FolderThumb({ folderId }: { folderId: string }) {
   if (!img) return null
   return (
     <div style={{ background: '#f5f5f3', lineHeight: 0 }}>
-      <img src={`/api/drive-thumb?id=${img.id}&sz=w800`} alt=""
+      <img loading="lazy" decoding="async" src={`/api/drive-thumb?id=${img.id}&sz=w800`} alt=""
         style={{ width: '100%', display: 'block' }}
         onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
     </div>

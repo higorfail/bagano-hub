@@ -450,7 +450,7 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
                             <div className="relative w-full aspect-[4/5] rounded-lg overflow-hidden bg-[var(--color-bg-alt)] flex items-center justify-center">
                               {s.files[0]
                                 ? <>
-                                    <img src={`/api/drive-thumb?id=${s.files[0].id}&sz=w200`} alt="" className="w-full h-full object-cover" />
+                                    <img loading="lazy" decoding="async" src={`/api/drive-thumb?id=${s.files[0].id}&sz=w200`} alt="" className="w-full h-full object-cover" />
                                     {s.files[0].isVideo && <Play size={14} fill="#fff" color="#fff" className="absolute" />}
                                   </>
                                 : <span className="text-[9px] text-[var(--ds-error-text)] font-bold text-center px-1">vazia</span>}

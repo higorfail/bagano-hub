@@ -134,7 +134,7 @@ export default function SocialItemCard({ item, client, draggable, onDragStart, o
           esticar, então a faixa sumia). */}
       <div className={`relative self-stretch ${publicado ? 'w-[96px]' : 'w-[140px]'} flex-shrink-0 bg-[var(--color-bg-subtle)] overflow-hidden`}>
         {thumbUrl && thumbFalhou !== thumbUrl ? (
-          <img src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
+          <img loading="lazy" decoding="async" src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
             onError={() => setThumbFalhou(thumbUrl)} />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-[var(--color-text-faint)] text-[10px]">sem arte</div>

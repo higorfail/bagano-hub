@@ -32,7 +32,11 @@ export async function GET(req: NextRequest) {
     // cada card de carrossel que aparece na tela), e o `stale-while-revalidate`
     // faz a atualização acontecer em segundo plano, sem ninguém esperar.
     return NextResponse.json({ files: data.files || [] }, {
-      headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
+      // `s-maxage` curto de propósito: isto é LISTAGEM, muda no instante em
+      // que alguém sobe um arquivo na pasta. Um minuto na borda já corta a
+      // repetição (cada card de carrossel na tela pede a mesma listagem), sem
+      // esconder material novo da equipe.
+      headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300' },
     })
   } catch {
     return NextResponse.json({ files: [] })

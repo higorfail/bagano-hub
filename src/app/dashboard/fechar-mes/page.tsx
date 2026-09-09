@@ -187,7 +187,7 @@ function Previa({ post, onAbrir }: { post: Post; onAbrir: () => void }) {
       className="w-9 h-9 rounded-md overflow-hidden bg-[var(--color-bg-subtle)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0 hover:border-[var(--color-border-hover)] transition-colors">
       {thumbUrl && !quebrou
         // eslint-disable-next-line @next/next/no-img-element
-        ? <img src={thumbUrl} alt="" className="w-full h-full object-cover" onError={() => setQuebrou(true)} />
+        ? <img loading="lazy" decoding="async" src={thumbUrl} alt="" className="w-full h-full object-cover" onError={() => setQuebrou(true)} />
         : <ImageOff size={12} className="text-[var(--color-text-faint)]" />}
     </button>
   )

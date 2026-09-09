@@ -124,7 +124,7 @@ export default function ExtraMiniCard({
         <div className="relative w-28 aspect-[4/5] self-start flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
           {/* img absoluta: fora do fluxo, não contribui pra altura do card — quebra a
               dependência circular (img 100% ← container ← card ← tamanho natural da img) */}
-          <img src={thumbUrl} alt={extra.title} className="absolute inset-0 w-full h-full object-cover"
+          <img loading="lazy" decoding="async" src={thumbUrl} alt={extra.title} className="absolute inset-0 w-full h-full object-cover"
             onError={e => { const el = e.currentTarget.parentElement; if (el) el.style.display = 'none' }} />
           {isThumbVideo && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">

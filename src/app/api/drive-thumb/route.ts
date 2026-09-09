@@ -22,7 +22,20 @@ export async function GET(req: NextRequest) {
     return new NextResponse(res.body, {
       headers: {
         'Content-Type': res.headers.get('content-type') || 'image/jpeg',
-        'Cache-Control': 'public, max-age=3600',
+        // `s-maxage` é o que faz a CDN guardar. Sem ele havia só `max-age`, que
+        // fala com o NAVEGADOR: cada pessoa, em cada aparelho, na primeira
+        // visita, disparava uma função nossa que ia buscar a imagem no Google e
+        // devolvia. Numa tela de cronograma com 30 posts são 30 idas ao
+        // servidor por pessoa — e é isso que se sente como lentidão.
+        //
+        // Com `s-maxage`, a primeira pessoa paga e as outras recebem da borda.
+        // Um dia é seguro: a miniatura é identificada por id do arquivo mais
+        // tamanho, e trocar a arte no Drive troca o id.
+        //
+        // `stale-while-revalidate` de uma semana evita o vale: mesmo depois de
+        // vencer, a imagem antiga aparece na hora enquanto a nova é buscada
+        // atrás. Ninguém espera por uma revalidação.
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800',
       },
     })
   } catch {

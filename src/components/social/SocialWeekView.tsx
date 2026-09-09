@@ -55,7 +55,7 @@ function WeekDayItem({ item, client, overdue, dragging, onClick, onDragStart, on
     >
       {thumbUrl && (
         <div className="relative w-11 h-11 lg:w-8 lg:h-8 rounded-lg lg:rounded-md overflow-hidden bg-[var(--color-bg-subtle)] flex-shrink-0">
-          <img src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
+          <img loading="lazy" decoding="async" src={thumbUrl} alt="" className="absolute inset-0 w-full h-full object-cover"
             onError={e => { const el = e.target as HTMLImageElement; if (el.parentElement) el.parentElement.style.display = 'none' }} />
           {isVideo && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">

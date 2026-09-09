@@ -112,7 +112,7 @@ export default function TodayRow({ rec, slot, iso, log, logs, captions, busy, on
           className="relative w-11 md:w-12 aspect-[4/5] flex-shrink-0 rounded-md overflow-hidden bg-[var(--color-bg-alt)] block">
           {/* height inline junto do object-cover: sem ela a imagem não ocupa a
               caixa inteira e a miniatura sai partida ao meio. */}
-          <img src={`/api/drive-thumb?id=${f.id}&sz=w160`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
+          <img loading="lazy" decoding="async" src={`/api/drive-thumb?id=${f.id}&sz=w160`} alt="" className="w-full h-full object-cover" style={{ height: '100%' }} />
           {f.isVideo && <Play size={12} fill="#fff" color="#fff" className="absolute inset-0 m-auto" />}
           {files.length > 1 && (
             <span className="absolute top-0 left-0 text-[9px] font-bold w-3.5 h-3.5 rounded-br flex items-center justify-center bg-black/65 text-white">{i + 1}</span>

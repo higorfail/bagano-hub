@@ -282,9 +282,9 @@ function StoryCircle({ post, clientColor, clientInitials, avatarUrl, seen, appro
       }}>
         <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '2.5px solid white', overflow: 'hidden', background: clientColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {avatarUrl
-            ? <img src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+            ? <img loading="lazy" decoding="async" src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
             : thumbUrl
-              ? <img src={thumbUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ? <img loading="lazy" decoding="async" src={thumbUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : <span style={{ fontSize: 11, fontWeight: 700, color: 'white' }}>{clientInitials}</span>
           }
         </div>
@@ -395,7 +395,7 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
         {/* Header */}
         <div style={{ position: 'absolute', top: 26, left: 12, right: 12, display: 'flex', alignItems: 'center', gap: 8, zIndex: 20 }}>
           <div style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.8)', background: clientColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'white', overflow: 'hidden', flexShrink: 0 }}>
-            {avatarUrl ? <img src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : clientInitials}
+            {avatarUrl ? <img loading="lazy" decoding="async" src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : clientInitials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: 'white' }}>{clientName}</span>
@@ -419,7 +419,7 @@ function StoryViewer({ post, onClose, clientColor, clientInitials, clientName, a
           <DriveVideo src={videoEmbedUrl} native={nativeVideo} folderUrl={media?.folderLink || post.drive_url}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
         ) : slides.length > 0 ? (
-          <img src={slides[slide]} alt={post.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img loading="lazy" decoding="async" src={slides[slide]} alt={post.title} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, background: '#1a1a1a' }}>
             <Image size={40} color="rgba(255,255,255,0.2)" />
@@ -627,7 +627,7 @@ function PostPanel({ post, onClose, nativeVideo }: { post: FeedPost; onClose: ()
               <DriveVideo src={videoEmbedUrl} native={nativeVideo} folderUrl={media?.folderLink || post.drive_url}
                 style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
             ) : (
-              <img src={slides[slide]} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img loading="lazy" decoding="async" src={slides[slide]} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             )}
             {isCarousel && (
               <>
@@ -833,7 +833,7 @@ export default function IPhoneFeed({
                 {(() => {
                   const avatarStyle: React.CSSProperties = { flexShrink: 0, borderRadius: '50%', overflow: 'hidden', width: 48, height: 48, background: clientColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }
                   const inner = avatarUrl
-                    ? <img src={avatarUrl} alt={igUsername || clientName} width={48} height={48} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    ? <img loading="lazy" decoding="async" src={avatarUrl} alt={igUsername || clientName} width={48} height={48} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                         onError={e => { const el = e.currentTarget; el.style.display = 'none'; const p = el.parentElement; if (p) { p.style.display = 'flex'; p.style.alignItems = 'center'; p.style.justifyContent = 'center'; p.innerHTML = `<span style="font-size:13px;font-weight:600;color:white">${clientInitials}</span>` } }} />
                     : <span style={{ fontSize: 13, fontWeight: 600, color: 'white' }}>{clientInitials}</span>
                   return instagramUrl
