@@ -13,7 +13,16 @@ import { ExternalLink } from 'lucide-react'
 // peso — e os links, que são a metade recuperável da ideia, não davam nem pra
 // clicar.
 
-const RE_URL = /https?:\/\/[^\s<>"')]+/g
+// Uma FUNÇÃO, não uma constante — e isso não é estilo.
+//
+// Regex com `/g` guarda `lastIndex` entre chamadas. Um `.test()` deixava o
+// cursor no meio da linha, e o `matchAll` seguinte começava dali e não achava
+// nada: a linha era classificada como "só link", saía do corpo, e não virava
+// pastilha. Sumia da tela — foi exatamente o que aconteceu com "Referências:" e
+// "Drive:" no card do Big Poke.
+//
+// Cada chamada leva a sua, sem estado compartilhado.
+const url = () => /https?:\/\/[^\s<>"')]+/g
 
 /** "instagram.com/DZXLs4cMQ4Y" — o suficiente pra reconhecer, sem esticar. */
 function apelido(url: string): string {
@@ -37,15 +46,15 @@ function rotuloDaLinha(linha: string): string | null {
 
 /** Uma linha que é SÓ endereço (com ou sem rótulo na frente). */
 function soUmLink(linha: string): boolean {
-  const semUrl = linha.replace(RE_URL, '').replace(/^\s*[A-Za-zÀ-ú\s]{2,20}:\s*/, '').trim()
-  return RE_URL.test(linha) && !semUrl
+  const semUrl = linha.replace(url(), '').replace(/^\s*[A-Za-zÀ-ú\s]{2,20}:\s*/, '').trim()
+  return url().test(linha) && !semUrl
 }
 
 /** Texto com os endereços clicáveis no meio da frase. */
 function comLinks(texto: string) {
   const partes: React.ReactNode[] = []
   let ultimo = 0
-  for (const m of texto.matchAll(RE_URL)) {
+  for (const m of texto.matchAll(url())) {
     const i = m.index ?? 0
     if (i > ultimo) partes.push(texto.slice(ultimo, i))
     partes.push(
@@ -79,7 +88,7 @@ export default function TextoDaIdeia({ texto }: { texto: string }) {
     if (!linha.trim()) { corpo.push(linha); return }
     if (soUmLink(linha)) {
       const rot = rotuloDaLinha(linha)
-      for (const m of linha.matchAll(RE_URL)) links.push({ rotulo: rot || apelido(m[0]), url: m[0] })
+      for (const m of linha.matchAll(url())) links.push({ rotulo: rot || apelido(m[0]), url: m[0] })
       return
     }
     corpo.push(linha)
