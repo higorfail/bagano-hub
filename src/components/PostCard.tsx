@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, Upload, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles, Reply, BookMarked } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, Upload, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles, Reply, BookMarked, Lightbulb } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash, deleteFromTrash } from '@/lib/trash'
@@ -795,6 +795,58 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     for (const file of Array.from(e.dataTransfer.files)) await uploadFile(file)
   }
 
+  /**
+   * Guardar o post como ideia futura.
+   *
+   * COPIA, não move: o card continua no cronograma. Guardar uma ideia é dizer
+   * "isto rende de novo", não "isto sai daqui" — e são duas decisões
+   * diferentes. Quem quiser tirar o post do mês tem "Mover" logo ao lado, e
+   * excluir no rodapé.
+   *
+   * Fecha o caminho de volta: o banco de ideias já sabia virar post, e não
+   * sabia receber um.
+   *
+   * Vai como origem "nossa": saiu da cabeça da equipe, não de tendência nem de
+   * pedido do cliente.
+   *
+   * O texto leva título, briefing, copy e legenda porque o valor está aí. As
+   * REFERÊNCIAS também: link do Drive e nota de referência são metade do que
+   * faz a ideia recuperável meses depois. O que fica pra trás é o que só faz
+   * sentido no mês — data, status, número.
+   */
+  const [guardando, setGuardando] = useState(false)
+  const [guardadaComoIdeia, setGuardadaComoIdeia] = useState(false)
+  async function guardarComoIdeia() {
+    const pid = currentId
+    if (!pid || guardando || guardadaComoIdeia) return
+    setGuardando(true)
+    const texto = [
+      form.title,
+      form.briefing,
+      form.copy,
+      form.legenda,
+      form.reference_notes && `Referências: ${form.reference_notes}`,
+      (form.drive_folder_url || form.drive_url) && `Drive: ${form.drive_folder_url || form.drive_url}`,
+    ].filter(t => (t || '').trim()).join('\n\n')
+
+    const { error } = await supabase.from('ideias').insert({
+      texto: texto || 'Sem descrição', client_id: clientId, origem: 'nossa',
+      autor_id: currentMember?.id || null, autor_nome: currentMember?.name || null,
+    })
+    setGuardando(false)
+    if (dbError(error, toast, 'guardar como ideia')) return
+
+    // Fica no histórico do post: daqui a três meses, quem abrir o card entende
+    // por que a mesma pauta reapareceu no banco de ideias.
+    logActivity({
+      tableName: 'schedules', recordId: pid, clientId, action: 'updated',
+      actorName: currentMember?.name, actorId: currentMember?.id,
+      description: `${who} guardou este post como ideia futura`,
+    })
+    setGuardadaComoIdeia(true)
+    toast('Guardado no banco de ideias')
+  }
+
   async function handleDelete() {
     if (!postId) return
     setDeleting(true)
@@ -1101,6 +1153,27 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                           <option value="">Escolher cliente…</option>
                           {clientList.filter(c => c.id !== clientId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
+                      </div>
+
+                      {/* Guardar como ideia é vizinho de Mover porque responde a
+                          mesma pergunta — "o que faço com este post?" — mas COPIA
+                          em vez de mover: o card fica onde está. Dizer "isto
+                          rende de novo" e "isto sai do mês" são duas decisões, e
+                          juntá-las faria uma virar efeito colateral da outra. */}
+                      <div className="pt-1 border-t border-[var(--color-border)]">
+                        <button onClick={guardarComoIdeia} disabled={guardando || guardadaComoIdeia}
+                          title="Copia este post pro banco de ideias. O card continua aqui."
+                          className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-2 rounded-lg transition-colors disabled:cursor-default"
+                          style={guardadaComoIdeia
+                            ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }
+                            : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)' }}>
+                          {guardadaComoIdeia
+                            ? <><Check size={12} /> Guardado nas ideias</>
+                            : <><Lightbulb size={12} /> {guardando ? 'Guardando…' : 'Guardar como ideia futura'}</>}
+                        </button>
+                        <p className="text-[10px] text-[var(--color-text-faint)] mt-1 leading-snug">
+                          Leva título, briefing, copy, legenda e referências. O post continua no cronograma.
+                        </p>
                       </div>
                     </div>
                   </>
