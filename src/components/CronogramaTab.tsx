@@ -208,13 +208,12 @@ type Props = {
   month: number
   year: number
   postParam?: string | null
-  showViewToggle?: boolean
   onPostsChange?: (count: number) => void
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function CronogramaTab({ clientId, clientName, clientColor, month, year, postParam, showViewToggle = false, onPostsChange }: Props) {
+export default function CronogramaTab({ clientId, clientName, clientColor, month, year, postParam, onPostsChange }: Props) {
   const { toast } = useToast()
   const { currentMember, members } = useUser()
   const supabase = createClient()

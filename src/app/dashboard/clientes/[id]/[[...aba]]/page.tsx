@@ -233,7 +233,13 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
       }))
       setTeam(enriched)
       setAllMembers(membersData || [])
-      const { data: matData } = await supabase.from('materials').select('*').eq('client_id', id).order('created_at', { ascending: false })
+      const { data: matData } = await supabase.from('materials').select('*').eq('client_id', id)
+      // Arquivado sai daqui como sai da tela de Materiais. A consulta desta
+      // aba não filtrava, e a mesma peça que a equipe tirou do caminho
+      // continuava cobrando na página do cliente: 10 materiais em 5
+      // clientes, misturados com trabalho vivo.
+      .is('archived_at', null)
+      .order('created_at', { ascending: false })
       setMaterials(matData || [])
       const [{ data: chk }, { data: cms }, { data: atts }, { data: ups }] = await Promise.all([
         supabase.from('material_checklist').select('material_id, done'),
@@ -255,7 +261,13 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
 
   async function reloadMaterials() {
     const supabase = createClient()
-    const { data } = await supabase.from('materials').select('*').eq('client_id', id).order('created_at', { ascending: false })
+    const { data } = await supabase.from('materials').select('*').eq('client_id', id)
+      // Arquivado sai daqui como sai da tela de Materiais. A consulta desta
+      // aba não filtrava, e a mesma peça que a equipe tirou do caminho
+      // continuava cobrando na página do cliente: 10 materiais em 5
+      // clientes, misturados com trabalho vivo.
+      .is('archived_at', null)
+      .order('created_at', { ascending: false })
     setMaterials(data || [])
   }
 
@@ -524,7 +536,6 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                 month={selectedMonth}
                 year={selectedYear}
                 postParam={postURL ?? searchParams.get('post')}
-                showViewToggle
               />
             </div>
           )}
