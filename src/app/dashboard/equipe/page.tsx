@@ -29,7 +29,7 @@ function initials(name: string) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
-const emptyForm = { name: '', role: 'posts', color: '#6366f1', birthday: '' }
+const emptyForm = { name: '', role: 'posts', color: '#6366f1', birthday: '', emails_alternativos: '' }
 
 export default function EquipePage() {
   useEffect(() => { document.title = 'Equipe · Bagano Hub' }, [])
@@ -48,7 +48,7 @@ export default function EquipePage() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data } = await createClient().from('team_members').select('id, name, role, color, birthday').order('name')
+    const { data } = await createClient().from('team_members').select('id, name, role, color, birthday, email, emails_alternativos').order('name')
     setMembers(data || [])
     setLoading(false)
   }
@@ -67,7 +67,13 @@ export default function EquipePage() {
   async function saveEdit(id: string) {
     if (!editForm.name.trim()) return
     // Data vazia é null, não string vazia: coluna `date` recusa ''.
-    const { error } = await createClient().from('team_members').update({ name: editForm.name.trim(), role: editForm.role, color: editForm.color, birthday: editForm.birthday || null }).eq('id', id)
+    const { error } = await createClient().from('team_members').update({
+      name: editForm.name.trim(), role: editForm.role, color: editForm.color,
+      birthday: editForm.birthday || null,
+      // Texto separado por vírgula vira lista. Vazio é lista vazia, não [''] —
+      // um endereço em branco casaria com convidado sem e-mail.
+      emails_alternativos: editForm.emails_alternativos.split(',').map(e => e.trim().toLowerCase()).filter(Boolean),
+    }).eq('id', id)
     if (dbError(error, toast, 'salvar pessoa')) return
     await load()
     setEditing(null)
@@ -149,6 +155,18 @@ export default function EquipePage() {
                       onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
                       onKeyDown={e => { if (e.key === 'Enter') saveEdit(m.id); if (e.key === 'Escape') setEditing(null) }}
                       placeholder="Nome"
+                      className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-page)] text-[var(--color-text-primary)]"
+                    />
+                    {/* Outros e-mails com que a pessoa aparece no Google Agenda.
+                    
+                        Não é detalhe: o Franz e o Otávio são convidados com
+                        endereço diferente do que usam pra entrar no hub, e sem
+                        isto o calendário não reconheceria nenhum dos dois em
+                        evento nenhum. */}
+                    <input
+                      value={editForm.emails_alternativos}
+                      onChange={e => setEditForm(f => ({ ...f, emails_alternativos: e.target.value }))}
+                      placeholder="Outros e-mails no Google Agenda (separados por vírgula)"
                       className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-page)] text-[var(--color-text-primary)]"
                     />
                     {/* Aniversário aparece na semana da Agenda. Opcional: quem
@@ -239,7 +257,7 @@ export default function EquipePage() {
                     {/* Actions — visible on hover */}
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={() => { setEditing(m.id); setEditForm({ name: m.name, role: m.role || 'posts', color: m.color || '#6366f1', birthday: (m as any).birthday || '' }) }}
+                        onClick={() => { setEditing(m.id); setEditForm({ name: m.name, role: m.role || 'posts', color: m.color || '#6366f1', birthday: (m as any).birthday || '', emails_alternativos: ((m as any).emails_alternativos || []).join(', ') }) }}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] transition-colors"
                       >
                         <Pencil size={11} />
