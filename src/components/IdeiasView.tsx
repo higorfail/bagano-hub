@@ -10,6 +10,7 @@ import { ensureWatching } from '@/lib/watch'
 import { numerosNoDestino } from '@/lib/numeroNoDestino'
 import { desdeQuando } from '@/lib/registrarAbertura'
 import { Lightbulb, Trash2, X } from 'lucide-react'
+import TextoDaIdeia from '@/components/cronograma/TextoDaIdeia'
 
 // O banco de ideias.
 //
@@ -232,7 +233,7 @@ export default function IdeiasView({ clientId, heading }: { clientId?: string; h
             const cli = clienteDe(ideia.client_id)
             return (
               <div key={ideia.id} className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3.5 flex flex-col gap-2.5">
-                <p className="text-sm text-[var(--color-text-primary)] leading-relaxed whitespace-pre-wrap">{ideia.texto}</p>
+                <TextoDaIdeia texto={ideia.texto} />
 
                 <div className="flex items-center gap-2 flex-wrap text-[11px]">
                   <span className="font-semibold px-1.5 py-0.5 rounded-md" style={{ background: org.cor + '22', color: org.cor }}>{org.rotulo}</span>
