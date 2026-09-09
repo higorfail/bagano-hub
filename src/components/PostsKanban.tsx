@@ -22,7 +22,12 @@ type Post = {
 type Client = { id: string; name: string; color_hex: string }
 
 const COLUMNS = [
-  { key: 'crono_feito',          label: 'Crono Feito',  color: '#10B981', virtual: true },
+  // A coluna "Crono Feito" saiu junto com o botao "Finalizar crono" que a
+  // enchia. Ela mostrava os posts em Producao de um cronograma marcado como
+  // finalizado -- e como o botao caiu em desuso (7 clientes em julho, 3 em
+  // agosto, 1 em setembro), a coluna virou um lugar onde quase nada chegava:
+  // 3 posts, de um cliente so. Coluna vazia permanente ensina a ignorar o
+  // quadro.
   // Cores de src/lib/status.ts — estas já batiam com a paleta canônica, mas
   // eram cópia: a próxima mudança lá não chegaria aqui sozinha.
   { key: 'aguardando_aprovacao', label: 'Com cliente',  color: statusColor('aguardando_aprovacao') },
@@ -88,7 +93,6 @@ export default function PostsKanban({ clientId, heading }: Props) {
   const [showPostCard, setShowPostCard] = useState(false)
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
   const [editingClientId, setEditingClientId] = useState<string | null>(null)
-  const [cronoStatuses, setCronoStatuses] = useState<Record<string, string>>({})
   const { isCollapsed, toggleCollapse, draggingGroup, setDraggingGroup, dragCounters } = useClientGrouping()
 
   useEffect(() => {
@@ -108,11 +112,9 @@ export default function PostsKanban({ clientId, heading }: Props) {
       const clientsQuery = clientId
         ? supabase.from('clients').select('id, name, color_hex').eq('id', clientId)
         : supabase.from('clients').select('id, name, color_hex').eq('status', 'active')
-      const [{ data: clientData }, { data: postData }, { data: cronoData }] = await Promise.all([
+      const [{ data: clientData }, { data: postData }] = await Promise.all([
         clientsQuery,
         clientId ? postsQuery.eq('client_id', clientId) : postsQuery,
-        supabase.from('cronograma_status')
-          .select('client_id, month, year, status'),
       ])
       // Os posts vêm sem recorte de cliente (o Kanban mostra tudo e filtra o
       // período do lado de cá). Sem isto, cliente desativado continuava com
@@ -121,16 +123,13 @@ export default function PostsKanban({ clientId, heading }: Props) {
       setClients(clientData || [])
       const carregados = avisarSeCortou(`kanban: posts${clientId ? ' de um cliente' : ''}`, postData)
       setPosts(clientId ? (carregados || []) : fromActiveClients<any>(carregados, ativos))
-      const map: Record<string, string> = {}
-      ;(cronoData || []).forEach(cs => { map[`${cs.client_id}-${cs.month}-${cs.year}`] = cs.status })
-      setCronoStatuses(map)
       setLoading(false)
     }
     load()
   }, [clientId])
 
   async function movePost(postId: string, toColKey: string) {
-    const dbStatus = toColKey === 'crono_feito' ? 'producao' : toColKey
+    const dbStatus = toColKey
     // Sair de "Ajuste" arrastando no kanban também limpa o approval_status (mantém
     // o approval_comment como histórico) — mesma regra do card expandido.
     const wasAjuste = posts.find(p => p.id === postId)?.status === 'ajuste'
@@ -153,7 +152,7 @@ export default function PostsKanban({ clientId, heading }: Props) {
   // Move todos os posts de um cliente (que estão na coluna de origem) para a coluna destino
   async function moveClientGroup(clientId: string, fromCol: string, toCol: string) {
     if (fromCol === toCol) return
-    const dbStatus = toCol === 'crono_feito' ? 'producao' : toCol
+    const dbStatus = toCol
     const ids = getColPosts(fromCol).filter(p => p.client_id === clientId).map(p => p.id)
     if (ids.length === 0) return
     const clearRejection = fromCol === 'ajuste' && dbStatus !== 'ajuste'
@@ -190,18 +189,6 @@ export default function PostsKanban({ clientId, heading }: Props) {
   ).sort((a, b) => b.year - a.year || b.month - a.month)
 
   function getColPosts(colKey: string): Post[] {
-    if (colKey === 'crono_feito') {
-      return visiblePosts.filter(p => {
-        const key = `${p.client_id}-${p.month}-${p.year}`
-        return p.status === 'producao' && cronoStatuses[key] === 'finalizado'
-      })
-    }
-    if (colKey === 'producao') {
-      return visiblePosts.filter(p => {
-        const key = `${p.client_id}-${p.month}-${p.year}`
-        return p.status === 'producao' && cronoStatuses[key] !== 'finalizado'
-      })
-    }
     return visiblePosts.filter(p => p.status === colKey)
   }
 
@@ -227,7 +214,6 @@ export default function PostsKanban({ clientId, heading }: Props) {
   const totalPosts = visiblePosts.length
   const publishedPosts = visiblePosts.filter(p => p.status === 'publicado').length
   const pendingApproval = visiblePosts.filter(p => p.approval_status === 'não aprovado' && !['aprovado', 'agendado', 'publicado'].includes(p.status)).length
-  const cronoFeitoCount = getColPosts('crono_feito').length
   const editingPost = editingPostId ? posts.find(p => p.id === editingPostId) : null
 
   return (
@@ -244,11 +230,6 @@ export default function PostsKanban({ clientId, heading }: Props) {
             da tela pra dizer um número. Selos em h-8 e o seletor em h-9 — a
             diferença de altura é o que marca quem é leitura e quem é controle. */}
         <div className="flex items-center gap-2 flex-wrap md:flex-nowrap md:flex-shrink-0">
-          {cronoFeitoCount > 0 && (
-            <div className="h-8 flex items-center rounded-lg px-2.5 border flex-shrink-0" style={{ background: 'var(--ds-success-bg)', borderColor: 'var(--ds-success-border)' }}>
-              <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: 'var(--ds-success-text)' }}>✓ {cronoFeitoCount} {cronoFeitoCount === 1 ? 'crono' : 'cronos'}<span className="hidden sm:inline"> {cronoFeitoCount === 1 ? 'finalizado' : 'finalizados'}</span></span>
-            </div>
-          )}
           {pendingApproval > 0 && (
             <div className="h-8 flex items-center rounded-lg px-2.5 border flex-shrink-0" style={{ background: 'var(--ds-error-bg)', borderColor: 'var(--ds-error-border)' }}>
               <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: 'var(--ds-error-text)' }}>✗ {pendingApproval} não aprovado{pendingApproval > 1 ? 's' : ''}</span>
@@ -306,7 +287,6 @@ export default function PostsKanban({ clientId, heading }: Props) {
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
                     <span className="text-xs font-semibold text-[var(--color-text-primary)]">{col.label}</span>
-                    {col.virtual && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide" style={{ background: col.color + '22', color: col.color }}>auto</span>}
                   </div>
                   <span className="text-[10px] font-bold text-[var(--color-text-muted)] bg-[var(--color-bg-card)] rounded-full w-5 h-5 flex items-center justify-center border border-[var(--color-border)]">
                     {colPosts.length}

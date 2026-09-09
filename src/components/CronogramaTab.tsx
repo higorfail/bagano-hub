@@ -221,7 +221,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [campaigns, setCampaigns] = useState<{ id: string; name: string; type: string }[]>([])
   const [cronoStatus, setCronoStatus] = useState<CronoStatus>(null)
   const [loading, setLoading] = useState(true)
-  const [togglingStatus, setTogglingStatus] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [showPostCard, setShowPostCard] = useState(false)
@@ -308,18 +307,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [generatingLink, setGeneratingLink] = useState(false)
   const [aiMessage, setAiMessage] = useState('')
   const [copied, setCopied] = useState(false)
-  const [copiedLinkType, setCopiedLinkType] = useState<'cronograma' | 'final' | null>(null)
-  async function copyTypeApprovalLink(type: 'cronograma' | 'final') {
-    const ok = await copyTextAsync(async () => {
-      const token = await getOrCreateMonthToken(clientId, type, month, year, supabase)
-      if (!token) throw new Error('sem token')
-      return `${window.location.origin}${await linkPublico(supabase, token)}`
-    })
-    if (!ok) { toast('Erro ao gerar link'); return }
-    setCopiedLinkType(type)
-    toast(`Link de ${type === 'cronograma' ? 'aprovação do crono' : 'aprovação final'} copiado!`)
-    setTimeout(() => setCopiedLinkType(null), 2000)
-  }
 
   const [showPreplist, setShowPreplist] = useState(false)
   const [generatingPreplist, setGeneratingPreplist] = useState(false)
@@ -456,70 +443,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     if (!opts.silent) setLoading(false)
   }
 
-  async function toggleFinalized() {
-    setTogglingStatus(true)
-    const isFinalized = cronoStatus?.status === 'finalizado'
-    // client_id (não id) — cronograma_status não tem coluna id; pedir uma
-    // coluna inexistente faz o PostgREST rejeitar a requisição inteira,
-    // inclusive quando encadeada com update/insert (já aconteceu: finalizar
-    // "dava erro" e nem chegava a salvar o status).
-    const { data: existing } = await supabase.from('cronograma_status').select('client_id')
-      .eq('client_id', clientId).eq('month', month).eq('year', year).maybeSingle()
 
-    if (isFinalized) {
-      const payload = { status: 'rascunho', finalized_at: null, finalized_by: null }
-      setCronoStatus(s => s ? { ...s, ...payload } : null)
-      const { error } = existing
-        ? await supabase.from('cronograma_status').update(payload).eq('client_id', clientId).eq('month', month).eq('year', year)
-        : await supabase.from('cronograma_status').insert({ client_id: clientId, month, year, ...payload })
-      if (error) { toast(`Erro ao reabrir: ${error.message}`); setTogglingStatus(false); return }
-      toast('Cronograma reaberto')
-    } else {
-      const by = currentMember?.name || null
-      const payload = { status: 'finalizado', finalized_at: new Date().toISOString(), finalized_by: by }
-      setCronoStatus(payload)
-      const { error } = existing
-        ? await supabase.from('cronograma_status').update(payload).eq('client_id', clientId).eq('month', month).eq('year', year)
-        : await supabase.from('cronograma_status').insert({ client_id: clientId, month, year, ...payload })
-      if (error) { toast(`Erro ao finalizar: ${error.message}`); setTogglingStatus(false); return }
-      toast('Cronograma marcado como finalizado!')
-    }
-    setTogglingStatus(false)
-  }
-
-  async function finalizeCrono() {
-    if (cronoStatus?.status === 'finalizado') { await toggleFinalized(); return }
-    setTogglingStatus(true)
-    const by = currentMember?.name || null
-    const payload = { status: 'finalizado', finalized_at: new Date().toISOString(), finalized_by: by }
-    // client_id, não id — ver nota em toggleFinalized().
-    const { data: existing } = await supabase.from('cronograma_status').select('client_id')
-      .eq('client_id', clientId).eq('month', month).eq('year', year).maybeSingle()
-    setCronoStatus(payload)
-    const { error } = existing
-      ? await supabase.from('cronograma_status').update(payload).eq('client_id', clientId).eq('month', month).eq('year', year)
-      : await supabase.from('cronograma_status').insert({ client_id: clientId, month, year, ...payload })
-    setTogglingStatus(false)
-    if (error) { toast(`Erro ao finalizar: ${error.message}`); return }
-    toast('Cronograma marcado como finalizado!')
-
-    // Todo o time do cliente precisa saber que a pauta do mês fechou — não só
-    // quem por acaso observa esse registro. Busca o id à parte, DEPOIS do
-    // finalize em si já ter sido salvo com sucesso — se essa parte falhar
-    // (ex: coluna id ainda não criada), só a notificação fica de fora, o
-    // cronograma continua finalizado normalmente.
-    const { data: saved } = await supabase.from('cronograma_status').select('id')
-      .eq('client_id', clientId).eq('month', month).eq('year', year).maybeSingle()
-    const statusId = (saved as any)?.id
-    if (statusId) {
-      const { data: team } = await supabase.from('client_team').select('member_id').eq('client_id', clientId)
-      if (team?.length) {
-        await ensureWatching('cronograma_status', statusId, team.map((t: any) => t.member_id))
-        await logActivity({ tableName: 'cronograma_status', recordId: statusId, clientId, action: 'finalized', actorName: currentMember?.name, actorId: currentMember?.id, description: `📅 ${by || 'Alguém'} finalizou o cronograma de ${CRONO_MONTHS[month - 1]}` })
-      }
-    }
-    await openApprovalModal('cronograma')
-  }
 
   async function sendToCriacao(postId: string) {
     const { error } = await supabase.from('schedules').update({ status: 'producao' }).eq('id', postId)
@@ -626,20 +550,20 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     const typeLabel = type === 'cronograma' ? 'cronograma' : 'conteúdo final'
     const monthLabel = CRONO_MONTHS[month - 1]
 
-    // Gerar o link move os posts pra "aguardando aprovação" em lote. Se esse
-    // UPDATE falhar sem ninguém olhar, o link é copiado e mandado do mesmo
-    // jeito — e o cliente abre uma página vazia, porque a tela de aprovação
-    // filtra justamente por esse status. Pior: internamente parece enviado.
-    const novoStatus = type === 'cronograma' ? 'aguardando_aprovacao_crono' : 'aguardando_aprovacao'
-    const deStatus   = type === 'cronograma' ? 'estrategia' : 'revisao_interna'
-    const targets = posts.filter(p => p.status === deStatus)
-    if (targets.length > 0) {
-      const res = await Promise.all(targets.map(p =>
-        supabase.from('schedules').update({ status: novoStatus, approval_status: null, approval_comment: null }).eq('id', p.id)))
-      const err = res.find(r => r.error)?.error
-      if (err) { dbError(err, toast, 'enviar os posts pra aprovação'); setGeneratingLink(false); return }
-      setPosts(prev => prev.map(p => targets.find(t => t.id === p.id) ? { ...p, status: novoStatus, approval_status: null, approval_comment: null } : p))
-    }
+    // Gerar o link NAO mexe mais no status de ninguem.
+    //
+    // Antes movia em lote: cronograma levava tudo que estava em Estrategia,
+    // final levava tudo que estava em Revisao. A ideia era "fechei o mes, ta
+    // indo". So que o mes nunca fecha limpo: sempre falta um post pra captar
+    // depois, e o botao passava a declarar algo que nao era verdade.
+    //
+    // O uso conta a historia. "Finalizar crono" caiu de 7 clientes em julho
+    // pra 3 em agosto e 1 em setembro. E dos posts hoje esperando o cliente,
+    // todos os que tem registro de quem mandou foram movidos um a um no
+    // card: 141 movimentacoes manuais em 30 dias. A equipe ja tinha
+    // decidido, na pratica, que mandar e post a post.
+    //
+    // Sobra aqui o que era util: o endereco e a mensagem pronta.
 
     const token = await getOrCreateMonthToken(clientId, type, month, year, supabase)
     if (!token) { toast('Não deu pra gerar o link'); setGeneratingLink(false); return }
@@ -674,7 +598,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   }
   const visiblePosts = posts.filter(matchesFilters)
   const hasFilter = !!(filterStatus || filterType || filterText)
-  const isFinalized = cronoStatus?.status === 'finalizado'
   const estrategiaPosts = posts.filter(p => p.status === 'estrategia')
   const revisaoPosts = posts.filter(p => p.status === 'revisao_interna')
 
@@ -735,18 +658,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 acordeão gastava uma linha pra esconder o que mais importa. */}
             <div className="order-1 md:order-2 grid grid-cols-2 gap-2 w-full md:flex md:w-auto md:ml-auto md:items-center md:gap-2 md:flex-wrap">
               {/* Grupo Crono: finalizar+enviar (sempre) + Pra Criação (se houver pendência) + copiar link (sempre) */}
-              <div className="col-span-2 md:col-auto flex items-center rounded-xl border overflow-hidden" style={{ borderColor: isFinalized ? 'var(--ds-success-border)' : 'var(--ds-purple-border,var(--color-border))' }}>
-                <button onClick={finalizeCrono} disabled={togglingStatus}
-                  title={isFinalized
-                    ? `Cronograma finalizado${cronoStatus?.finalized_by ? ` por ${cronoStatus.finalized_by}` : ''} — clique pra reabrir e voltar a editar`
-                    : `Finalizar cronograma e enviar${estrategiaPosts.length > 0 ? ` ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} em estratégia` : ''} pra aprovação do cliente`}
-                  className="flex-1 md:flex-none h-8 justify-center flex items-center gap-1.5 text-xs font-semibold px-3 transition-all hover:opacity-90 disabled:opacity-50"
-                  style={isFinalized
-                    ? { color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
-                    : { color: 'var(--ds-purple-text)', background: 'var(--ds-purple-bg)' }}>
-                  <ClipboardCheck size={12} />
-                  {isFinalized ? `Finalizado${cronoStatus?.finalized_by ? ` · ${cronoStatus.finalized_by.split(' ')[0]}` : ''}` : `Finalizar crono${estrategiaPosts.length > 0 ? ` · ${estrategiaPosts.length}` : ''}`}
-                </button>
+              <div className="col-span-2 md:col-auto flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-purple-border,var(--color-border))' }}>
                 {estrategiaPosts.length > 0 && (
                   <>
                     <button onClick={async () => {
@@ -767,14 +679,11 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                     </button>
                   </>
                 )}
-                <button onClick={() => copyTypeApprovalLink('cronograma')}
+                <button onClick={() => openApprovalModal('cronograma')}
                   title="Copiar link de aprovação do cronograma (pauta/estratégia, sem produção)"
                   className="flex-1 md:flex-none h-8 justify-center flex items-center gap-1.5 text-xs font-medium px-3 border-l transition-all hover:opacity-90"
-                  style={copiedLinkType === 'cronograma'
-                    ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
-                    : { borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)' }}>
-                  {copiedLinkType === 'cronograma' ? <Check size={12} /> : <Link2 size={12} />}
-                  {copiedLinkType === 'cronograma' ? 'Copiado!' : 'Link do crono'}
+                  style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)' }}>
+                  <Link2 size={12} /> Link do crono
                 </button>
               </div>
 
@@ -782,22 +691,11 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                   Sem pendência sobra só "Link final", que divide a linha com o
                   Checklist em vez de cada um gastar uma faixa inteira. */}
               <div className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto flex items-center rounded-xl border overflow-hidden`} style={{ borderColor: 'var(--ds-success-border,var(--color-border))' }}>
-                {revisaoPosts.length > 0 && (
-                  <button onClick={() => openApprovalModal('final')}
-                    title={`Enviar ${revisaoPosts.length} post${revisaoPosts.length !== 1 ? 's' : ''} em revisão pra aprovação final do cliente`}
-                    className="flex-1 md:flex-none h-8 justify-center flex items-center gap-1.5 text-xs font-semibold px-3 transition-all hover:opacity-90"
-                    style={{ color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }}>
-                    <ClipboardCheck size={12} /> Conteúdo entregue · {revisaoPosts.length}
-                  </button>
-                )}
-                <button onClick={() => copyTypeApprovalLink('final')}
+                <button onClick={() => openApprovalModal('final')}
                   title="Copiar link de aprovação final (conteúdo já produzido)"
                   className={`flex-1 md:flex-none h-8 justify-center flex items-center gap-1.5 text-xs font-medium px-3 transition-all hover:opacity-90 ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
-                  style={copiedLinkType === 'final'
-                    ? { borderColor: 'var(--ds-success-border)', color: 'var(--ds-success-text)', background: 'var(--ds-success-bg)' }
-                    : { borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)' }}>
-                  {copiedLinkType === 'final' ? <Check size={12} /> : <Link2 size={12} />}
-                  {copiedLinkType === 'final' ? 'Copiado!' : 'Link final'}
+                  style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)' }}>
+                  <Link2 size={12} /> Link final
                 </button>
               </div>
 

@@ -32,7 +32,7 @@ type Row = {
   pendentes: number
   aprovados: number
   total: number
-  finalizedAt: string | null
+  enviadoEm: string | null
   posts: { id: string; post_number: number | null; title: string; post_type: string; scheduled_date: string | null }[]
 }
 
@@ -78,14 +78,27 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
           // Descartado fora da fila de aprovação de crono, pelo mesmo motivo
           // de não ir pro cliente: ninguém aprova o que foi cancelado.
           .not('status', 'in', `(${NOT_SENT},cancelado)`),
-        supabase.from('cronograma_status').select('client_id, month, year, finalized_at'),
+        // Quando o cronograma foi MANDADO pro cliente = quando o link dele
+        // nasceu. Antes isto vinha de `cronograma_status.finalized_at`, escrito
+        // pelo botao "Finalizar crono" — que saiu, porque declarava um mes
+        // fechado que nunca fecha. O link, esse existe sempre: sem ele o
+        // cliente nao teria como aprovar nada.
+        supabase.from('approval_tokens').select('client_id, month, year, created_at')
+          .eq('type', 'cronograma'),
         // Cronograma de cliente desativado não espera aprovação de ninguém.
         activeClientIds(supabase),
       ])
       const posts = fromActiveClients(avisarSeCortou('aprovação de crono: posts', postsRaw) as any, ativos)
 
-      const finalizedBy = new Map<string, string | null>()
-      for (const c of (cronos || []) as any[]) finalizedBy.set(`${c.client_id}:${c.month}:${c.year}`, c.finalized_at)
+      // O mais ANTIGO de cada mes: se o link foi regerado, quem conta e a
+      // primeira vez que o cliente recebeu — e o que se quer saber aqui e ha
+      // quanto tempo ele esta sentado nisso.
+      const enviadoPorMes = new Map<string, string | null>()
+      for (const c of (cronos || []) as any[]) {
+        const k = `${c.client_id}:${c.month}:${c.year}`
+        const atual = enviadoPorMes.get(k)
+        if (!atual || c.created_at < atual) enviadoPorMes.set(k, c.created_at)
+      }
 
       const map = new Map<string, Row>()
       for (const p of (posts || []) as any[]) {
@@ -95,7 +108,7 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
           r = {
             clientId: p.client_id, month: p.month, year: p.year,
             pendentes: 0, aprovados: 0, total: 0,
-            finalizedAt: finalizedBy.get(key) ?? null,
+            enviadoEm: enviadoPorMes.get(key) ?? null,
             posts: [],
           }
           map.set(key, r)
@@ -113,7 +126,7 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
       // lista de todo mês de todo cliente, e o que importa aqui é o que trava.
       const list = [...map.values()].filter(r => r.pendentes > 0)
       // Mais parado primeiro: é a ordem da cobrança.
-      list.sort((a, b) => (daysSince(b.finalizedAt) ?? -1) - (daysSince(a.finalizedAt) ?? -1))
+      list.sort((a, b) => (daysSince(b.enviadoEm) ?? -1) - (daysSince(a.enviadoEm) ?? -1))
       setRows(list)
       setLoading(false)
       // Cronograma de meses muito atrás quase sempre é mês que a equipe
@@ -159,7 +172,7 @@ export default function CronoApprovals({ clients }: { clients: Client[] }) {
         const client = clients.find(c => c.id === r.clientId)
         const key = `${r.clientId}:${r.month}:${r.year}`
         const isOpen = open.has(key)
-        const dias = daysSince(r.finalizedAt)
+        const dias = daysSince(r.enviadoEm)
         // Aprovação parcial é o caso que mais precisa de cobrança e o que
         // hoje ninguém enxerga: o cliente aprovou parte e parou.
         const parcial = r.aprovados > 0 && r.pendentes > 0
