@@ -31,6 +31,12 @@ const COLUMNS = [
   // Cores de src/lib/status.ts — estas já batiam com a paleta canônica, mas
   // eram cópia: a próxima mudança lá não chegaria aqui sozinha.
   { key: 'aguardando_aprovacao', label: 'Com cliente',  color: statusColor('aguardando_aprovacao') },
+  // Captação não tinha coluna, e por isso não tinha lugar nenhum: aparecia só
+  // misturada na Criação (que é do designer e do editor) e nos alertas do
+  // Início. Captação é FILMAGEM — outro trabalho, outra pessoa. Com a saída
+  // dela da Criação, sem esta coluna os 44 posts parados nela ficariam sem
+  // nenhuma lista onde alguém os visse.
+  { key: 'captacao',             label: 'Captação',     color: statusColor('captacao') },
   { key: 'producao',             label: 'Em Produção',  color: statusColor('producao') },
   { key: 'revisao_interna',      label: 'Revisão',      color: statusColor('revisao_interna') },
   { key: 'aprovado',             label: 'Aprovado',     color: statusColor('aprovado') },

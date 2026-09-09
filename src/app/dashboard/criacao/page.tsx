@@ -92,6 +92,14 @@ export default function CriacaoPage() {
 
   const supabase = createClient()
   const { currentMember } = useUser()
+  // "Pra fazer agora" é o que tem o SEU NOME. É o que a estrategista já faz na
+  // prática: marca a pessoa e move pra produção.
+  //
+  // Antes a regra era "marcado OU você cobre esse tipo nesse cliente". Como o
+  // Higor é `videos` em 25 clientes, todo reels de todo cliente caía na lista
+  // dele — 19 marcados no meio de 78 itens. O que cobre e não tem dono não
+  // sumiu: mudou de aba, com o número à vista.
+  const [modo, setModo] = useState<'meus' | 'sem_dono'>('meus')
   const { toast } = useToast()
   const hasInitialized = useRef(false)
 
@@ -139,7 +147,15 @@ export default function CriacaoPage() {
           // requestChanges) — sem isso, o post some da Criação assim que sai de
           // producao/captacao, mesmo precisando ser refeito por quem está atribuído.
           .select('id, title, post_type, status, scheduled_date, briefing, copy, legenda, drive_url, drive_folder_url, funil, post_number, month, year, client_id, assigned_members, approval_comment')
-          .in('status', ['producao', 'captacao', 'ajuste'])
+          // Captação saiu daqui. Ela é FILMAGEM — outra pessoa, outro
+          // trabalho — e enchia a lista de quem faz design e edição: dos 78
+          // itens que apareciam pro Higor, 35 eram captação sem dono nenhum.
+          // O código que criou esse estado já dizia o que ele é: "aprovado, e
+          // ainda não decidido", a pilha da estrategista.
+          //
+          // Ela não sumiu: ganhou coluna própria no Kanban, que é onde o fluxo
+          // mora. Antes não tinha nem isso.
+          .in('status', ['producao', 'ajuste'])
           .order('scheduled_date', { ascending: true, nullsFirst: false }),
         supabase.from('cronograma_status')
           .select('client_id, month, year, production_note')
@@ -333,7 +349,18 @@ export default function CriacaoPage() {
   const filteredPosts = posts.filter(p => {
     if (filterClient && p.client_id !== filterClient) return false
     if (filterType   && p.post_type !== filterType)   return false
-    if (filterMember && !memberCoversPost(p.client_id, filterMember, p.post_type) && !(p.assigned_members || []).includes(filterMember)) return false
+    if (filterMember) {
+      const meu = (p.assigned_members || []).includes(filterMember)
+      const semDono = (p.assigned_members || []).length === 0
+      if (modo === 'meus') {
+        if (!meu) return false
+      } else {
+        // Sem dono E que eu cubro. Post com o nome de outra pessoa não entra
+        // em lugar nenhum aqui — é trabalho dela, e ver isso era metade do
+        // ruído. Pra olhar a fila de outro, troca-se a pessoa no filtro.
+        if (!semDono || !memberCoversPost(p.client_id, filterMember, p.post_type)) return false
+      }
+    }
     return true
   })
 
@@ -401,6 +428,36 @@ export default function CriacaoPage() {
   })
 
   // "Limpar" só aparece quando o usuário aplicou filtro além do padrão (membro logado)
+  // Os dois números são calculados sempre, não só o do modo aberto: uma aba
+  // que só mostra o total depois de clicada não convida ninguém a clicar.
+  const contaModo = (qual: 'meus' | 'sem_dono') => posts.filter(p => {
+    if (filterClient && p.client_id !== filterClient) return false
+    if (filterType && p.post_type !== filterType) return false
+    if (!filterMember) return qual === 'meus'
+    const meu = (p.assigned_members || []).includes(filterMember)
+    const semDono = (p.assigned_members || []).length === 0
+    return qual === 'meus'
+      ? meu
+      : semDono && memberCoversPost(p.client_id, filterMember, p.post_type)
+  }).length
+
+  // Abre na aba que tem coisa.
+  //
+  // O padrão é "Pra fazer agora", mas nem todo mundo recebe marcação: o Felipe
+  // é `acompanha` em 2 clientes e tem ZERO posts com o nome dele — a tela
+  // abriria vazia pra ele, dizendo "nada pendente" com 16 itens do outro lado.
+  // Quem não tem nada marcado começa em "Sem dono ainda".
+  //
+  // Decide uma vez, quando os posts chegam. Depois é escolha de quem está
+  // usando: trocar a aba embaixo da pessoa é pior que abrir na errada.
+  const modoDecidido = useRef(false)
+  useEffect(() => {
+    if (modoDecidido.current || loading || !filterMember) return
+    modoDecidido.current = true
+    if (contaModo('meus') === 0 && contaModo('sem_dono') > 0) setModo('sem_dono')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, filterMember, posts.length])
+
   const hasFilter = !!(filterClient || filterType || (filterMember && filterMember !== currentMember?.id))
   const totalPosts     = filteredPosts.length
   const totalExtras    = filteredExtras.length
@@ -448,6 +505,22 @@ export default function CriacaoPage() {
               <Filter size={13} className="text-[var(--color-text-muted)] flex-shrink-0 hidden md:block" />
 
               {/* Client */}
+              {/* Duas listas, um lugar. "Pra fazer agora" abre por padrão. */}
+              <div className="flex items-center gap-1 rounded-xl bg-[var(--color-bg-subtle)] p-0.5 flex-shrink-0">
+                {([
+                  { chave: 'meus' as const,     rotulo: 'Pra fazer agora' },
+                  { chave: 'sem_dono' as const, rotulo: 'Sem dono ainda' },
+                ]).map(op => (
+                  <button key={op.chave} onClick={() => setModo(op.chave)}
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap ${
+                      modo === op.chave
+                        ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm'
+                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
+                    {op.rotulo} <span className="opacity-60">{contaModo(op.chave)}</span>
+                  </button>
+                ))}
+              </div>
+
               <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
                 className="flex-1 min-w-0 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
                 <option value="">Todos os clientes</option>
@@ -506,8 +579,14 @@ export default function CriacaoPage() {
                   : 'Nenhum resultado'}
               </p>
               <p className="text-[var(--color-text-muted)] text-sm mt-1">
+                {/* Vazio aqui não quer mais dizer vazio na tela: pode haver
+                    trabalho sem dono do outro lado. Dizer "verifique se você
+                    está atribuído" quando existem 16 itens ali seria mandar a
+                    pessoa procurar o que está a um clique. */}
                 {filterMember === currentMember?.id && !filterClient && !filterType
-                  ? 'Verifique se você está atribuído como responsável nos posts, materiais ou extras.'
+                  ? (modo === 'meus' && contaModo('sem_dono') > 0
+                      ? `Nada com o seu nome. Tem ${contaModo('sem_dono')} sem dono ainda, ali do lado.`
+                      : 'Verifique se você está atribuído como responsável nos posts, materiais ou extras.')
                   : 'Ajuste os filtros acima.'}
               </p>
             </div>
