@@ -34,6 +34,30 @@ const TETO_MB = 15
  */
 const REFERRER = `${SITE_URL.replace(/\/$/, '')}/`
 
+/**
+ * É PDF por dentro? Pergunta melhor que "termina em .pdf".
+ *
+ * Arquivo `.ai` salvo pelo Illustrator moderno É um PDF: desde a versão 9, com
+ * "Criar arquivo compatível com PDF" ligado (o padrão), o Illustrator grava um
+ * PDF válido com os dados próprios dele pendurados no fim. O arquivo começa com
+ * `%PDF-` e qualquer leitor de PDF abre.
+ *
+ * O Drive não ajuda: ele reporta `.ai` como `application/postscript` ou
+ * `application/illustrator`, nunca como PDF. Confiar no mimeType recusaria um
+ * arquivo que o modelo leria sem problema.
+ *
+ * `.ai` antigo (ou salvo sem compatibilidade) é PostScript de verdade: começa
+ * com `%!PS` e não tem como ser lido aqui. A diferença está nos primeiros
+ * bytes, e é a única coisa que responde de verdade.
+ */
+function ehPdfPorDentro(bytes: Buffer): boolean {
+  return bytes.subarray(0, 5).toString('latin1') === '%PDF-'
+}
+
+function ehPostScriptAntigo(bytes: Buffer): boolean {
+  return bytes.subarray(0, 4).toString('latin1') === '%!PS'
+}
+
 async function pdfDoDrive(link: string): Promise<{ base64: string; nome: string } | { erro: string; status: number }> {
   const id = link.match(/[-\w]{25,}/)?.[0]
   if (!id) return { erro: 'Esse link não parece do Google Drive. Copie o endereço do arquivo (não o da pasta).', status: 400 }
@@ -50,18 +74,29 @@ async function pdfDoDrive(link: string): Promise<{ base64: string; nome: string 
     return { erro: 'Não consegui abrir esse arquivo. Verifique se ele está compartilhado como "qualquer pessoa com o link".', status: 404 }
   }
   const info = await meta.json()
-  if (info.mimeType !== 'application/pdf') {
-    return { erro: `Esse arquivo é ${info.mimeType || 'de outro tipo'}, não PDF. Se o manual for Google Docs ou Slides, exporte como PDF no Drive antes.`, status: 400 }
+  // Google Docs/Slides não têm bytes pra baixar — precisam de /export, e o
+  // caminho pra quem tem um é exportar como PDF no próprio Drive.
+  if (typeof info.mimeType === 'string' && info.mimeType.startsWith('application/vnd.google-apps')) {
+    return { erro: 'Esse é um arquivo nativo do Google (Docs, Slides). Abra no Drive e exporte como PDF antes.', status: 400 }
   }
   const mb = Number(info.size || 0) / 1024 / 1024
-  if (mb > TETO_MB) return { erro: `O PDF tem ${mb.toFixed(1)} MB e o limite é ${TETO_MB} MB.`, status: 413 }
+  if (mb > TETO_MB) return { erro: `O arquivo tem ${mb.toFixed(1)} MB e o limite é ${TETO_MB} MB.`, status: 413 }
 
   const bin = await buscarNoDrive(
     `https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${key}`,
     { headers: { Referer: REFERRER } },
   )
   if (!bin.ok) return { erro: 'Achei o arquivo mas não consegui baixá-lo. Tente de novo em instantes.', status: 502 }
-  return { base64: Buffer.from(await bin.arrayBuffer()).toString('base64'), nome: info.name || 'manual.pdf' }
+  const bytes = Buffer.from(await bin.arrayBuffer())
+
+  // A decisão é pelos BYTES, não pelo mimeType do Drive nem pela extensão.
+  if (!ehPdfPorDentro(bytes)) {
+    if (ehPostScriptAntigo(bytes)) {
+      return { erro: 'Esse .ai foi salvo sem compatibilidade com PDF (é PostScript puro). Abra no Illustrator e salve de novo com "Criar arquivo compatível com PDF" marcado, ou exporte como PDF.', status: 400 }
+    }
+    return { erro: `Esse arquivo não é PDF por dentro (o Drive diz ${info.mimeType || 'tipo desconhecido'}). Exporte como PDF antes.`, status: 400 }
+  }
+  return { base64: bytes.toString('base64'), nome: info.name || 'manual.pdf' }
 }
 
 export async function POST(req: NextRequest) {
@@ -82,9 +117,6 @@ export async function POST(req: NextRequest) {
     base64 = r.base64
     nomeArquivo = r.nome
   } else if (arquivo instanceof File) {
-    if (arquivo.type !== 'application/pdf') {
-      return NextResponse.json({ error: 'Só PDF por enquanto. Se o manual for imagem ou slide, exporte como PDF antes.' }, { status: 400 })
-    }
     const mb = arquivo.size / 1024 / 1024
     if (mb > TETO_MB) {
       // Dizer o tamanho: "arquivo grande demais" faz a pessoa tentar de novo
@@ -93,7 +125,17 @@ export async function POST(req: NextRequest) {
         error: `O PDF tem ${mb.toFixed(1)} MB e o limite é ${TETO_MB} MB. Manual de marca costuma passar disso por causa das imagens — exportar em qualidade menor resolve, o que importa aqui é o texto.`,
       }, { status: 413 })
     }
-    base64 = Buffer.from(await arquivo.arrayBuffer()).toString('base64')
+    const bytes = Buffer.from(await arquivo.arrayBuffer())
+    // Mesma regra do Drive: valem os bytes. Um `.ai` com compatibilidade PDF
+    // passa; um PostScript antigo é recusado com o caminho de saída.
+    if (!ehPdfPorDentro(bytes)) {
+      return NextResponse.json({
+        error: ehPostScriptAntigo(bytes)
+          ? 'Esse .ai foi salvo sem compatibilidade com PDF (é PostScript puro). Salve de novo no Illustrator com "Criar arquivo compatível com PDF" marcado, ou exporte como PDF.'
+          : 'Esse arquivo não é PDF por dentro. Exporte como PDF antes — .ai e .indd servem se salvos com compatibilidade PDF.',
+      }, { status: 400 })
+    }
+    base64 = bytes.toString('base64')
     nomeArquivo = arquivo.name
   } else {
     return NextResponse.json({ error: 'Mande um PDF ou cole o link do Drive.' }, { status: 400 })

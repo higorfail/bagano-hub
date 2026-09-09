@@ -679,7 +679,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
   // permite escolher o MESMO arquivo de novo depois de um erro.
   const inputArquivo = (
     <>
-      <input ref={importInputRef} type="file" accept="application/pdf" className="hidden"
+      <input ref={importInputRef} type="file" accept=".pdf,.ai,application/pdf,application/postscript,application/illustrator" className="hidden"
         onChange={e => { const f = e.target.files?.[0]; e.currentTarget.value = ''; if (f) void importarPdf(f) }} />
 
       {/* Duas portas pro mesmo lugar, e o LINK vem primeiro.
@@ -708,7 +708,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
                   className="w-full text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 py-2 text-[var(--color-text-primary)] placeholder-[var(--color-text-faint)] outline-none focus:border-[var(--color-accent)]"
                 />
                 <p className="text-[11px] text-[var(--color-text-faint)] mt-1.5 leading-relaxed">
-                  O arquivo precisa estar compartilhado como “qualquer pessoa com o link”. Link da PASTA não serve — tem que ser o do arquivo.
+                  Precisa estar compartilhado como “qualquer pessoa com o link”, e ser o link do ARQUIVO (não da pasta). PDF ou .ai salvo com compatibilidade PDF.
                 </p>
               </div>
               <button onClick={() => importarPdf(null, linkDrive.trim())} disabled={!linkDrive.trim()}
