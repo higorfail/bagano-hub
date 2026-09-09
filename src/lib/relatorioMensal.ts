@@ -44,8 +44,22 @@ export async function calcularRelatorio(
 
   // Posts do cronograma: recortados por mês/ano, que é o endereço deles — não
   // por data agendada, que pode estar vazia.
+  //
+  // CANCELADO e ESTRATÉGIA ficam de fora, e essa é a diferença entre um número
+  // e uma mentira educada.
+  //
+  //   cancelado   o post não aconteceu. Julho tinha 12, todos entrando na
+  //               conta de "posts no cronograma".
+  //   estrategia  é pauta, não peça: nunca saiu da ideia. Setembro tem 41 e
+  //               outubro 23 — num relatório de mês fechado, contar isso é
+  //               dizer ao cliente que entregamos o que só foi pensado.
+  //
+  // O relatório é lido POR QUEM PAGA. Um número inflado aqui não é otimismo, é
+  // algo que ele confere contra o próprio feed.
+  const NAO_ACONTECEU = ['cancelado', 'estrategia']
   const { data: posts } = await db.from('schedules')
     .select('post_type, status').eq('client_id', clientId).eq('month', mes).eq('year', ano)
+    .not('status', 'in', `(${NAO_ACONTECEU.join(',')})`)
   const lista = posts || []
 
   const porTipo: Record<string, number> = {}
@@ -62,6 +76,10 @@ export async function calcularRelatorio(
       .eq('client_id', clientId).eq('action', 'client_approved').gte('created_at', inicio).lt('created_at', fim)),
     contar(db.from('activity_log').select('*', { count: 'exact', head: true })
       .eq('client_id', clientId).eq('action', 'client_rejected').gte('created_at', inicio).lt('created_at', fim)),
+    // Arquivado CONTA, de propósito. O cron `archive-completed` arquiva o que
+    // está `done`/`finalizado` — arquivar aqui é guardar trabalho ENTREGUE, não
+    // descartar. Dos extras concluídos entre agosto e setembro, 13 de 14 estão
+    // arquivados: filtrá-los zeraria o relatório de quem trabalhou.
     contar(db.from('extras').select('*', { count: 'exact', head: true })
       .eq('client_id', clientId).gte('completed_at', inicio).lt('completed_at', fim)),
     contar(db.from('materials').select('*', { count: 'exact', head: true })
