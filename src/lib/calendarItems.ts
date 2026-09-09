@@ -29,6 +29,15 @@ export type CalItem = {
   href: string | null
   /** O registro original, pra tela abrir o que precisa abrir. */
   data: any
+  /**
+   * Etiqueta lida do TÍTULO do evento do Google — "Confra", "Coworking",
+   * "Reunião". O calendário não tem campo de tipo e ninguém vai passar a
+   * preencher um; a equipe já escreve a palavra. Null quando não reconhece, que
+   * é o normal: a maioria dos títulos é só o nome do cliente.
+   */
+  etiqueta?: string | null
+  /** Nomes de quem foi convidado e não recusou, casados pelo e-mail. */
+  pessoas?: string[]
 }
 
 /** Tem hora marcada? É o que decide entre a faixa horária e a tira de dia inteiro. */

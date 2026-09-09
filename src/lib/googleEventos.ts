@@ -142,3 +142,83 @@ const APELIDOS: Record<string, string> = {
 export function ehBloqueio(titulo: string): boolean {
   return MARCAS_AUSENCIA.test(normalizar(titulo))
 }
+
+// ── Que TIPO de compromisso é ────────────────────────────────────────────────
+//
+// O calendário não tem campo de tipo, e ninguém vai passar a preencher um.
+// Mas a equipe já escreve a palavra: "CONFRA", "COWORKING", "REUNIÃO COM X".
+// Ler isso é dar cor e etiqueta a um evento que hoje chega cinza e anônimo.
+//
+// A ordem importa: ausência primeiro, porque "FOLGA — CONFRA" é ausência (a
+// pessoa não está), não uma confra a organizar. Depois o resto, do mais
+// específico pro mais genérico.
+
+export type TipoEvento = {
+  chave: 'ausencia' | 'confra' | 'coworking' | 'reuniao' | 'captacao' | 'criacao' | 'outro'
+  rotulo: string
+  cor: string
+}
+
+const TIPOS: { chave: TipoEvento['chave']; rotulo: string; cor: string; padrao: RegExp }[] = [
+  // Escrito de tudo quanto é jeito: confra, confraternização, aniversário da
+  // equipe, happy hour da casa.
+  { chave: 'confra',    rotulo: 'Confra',    cor: '#ec4899', padrao: /\b(CONFRA|CONFRATERNIZACAO|CONFRATERNIZACOES|HAPPY\s?HOUR\s?INTERNO|ANIVERSARIO\s?DA\s?EQUIPE)\b/ },
+  { chave: 'coworking', rotulo: 'Coworking', cor: '#0ea5e9', padrao: /\b(COWORKING|CO\s?WORKING|ESCRITORIO|PRESENCIAL|SALA)\b/ },
+  { chave: 'reuniao',   rotulo: 'Reunião',   cor: '#8b5cf6', padrao: /\b(REUNIAO|REUNIOES|MEET|CALL|ALINHAMENTO|BRIEFING|ONBOARDING|APRESENTACAO)\b/ },
+  { chave: 'captacao',  rotulo: 'Captação',  cor: '#f59e0b', padrao: /\b(CAPTACAO|CAPTACOES|GRAVACAO|FILMAGEM|SHOOTING|ENSAIO|FOTO|FOTOS)\b/ },
+  { chave: 'criacao',   rotulo: 'Criação',   cor: '#f59e0b', padrao: /\b(CRIACAO|DESIGN|EDICAO)\b/ },
+]
+
+/**
+ * O tipo do compromisso, lido do título.
+ *
+ * Devolve `outro` quando não reconhece — e isso é o normal, não uma falha: a
+ * maior parte dos títulos é só o nome do cliente em caixa alta, e esse caso já
+ * é resolvido por `identificarCliente`. Inventar um tipo pra ele seria pior que
+ * deixar cinza.
+ */
+export function tipoDoEvento(titulo: string): TipoEvento {
+  const n = normalizar(titulo)
+  // Ausência ganha de tudo: "FOLGA — CONFRA" é alguém fora, não uma confra.
+  if (MARCAS_AUSENCIA.test(n)) return { chave: 'ausencia', rotulo: 'Ausência', cor: '#94a3b8' }
+  for (const t of TIPOS) {
+    if (t.padrao.test(n)) return { chave: t.chave, rotulo: t.rotulo, cor: t.cor }
+  }
+  return { chave: 'outro', rotulo: '', cor: '#64748b' }
+}
+
+// ── Quem está no evento ──────────────────────────────────────────────────────
+
+/**
+ * As pessoas da equipe convidadas, casadas pelo E-MAIL da conta do hub.
+ *
+ * E-mail e não nome: "Gee" no título é ambíguo e some quando alguém escreve
+ * "Geovana", enquanto o convite carrega o endereço exato. Os 8 da equipe já têm
+ * e-mail em `team_members` — é o mesmo com que entram no hub.
+ *
+ * Só quem não recusou. Convite recusado é justamente a informação de que a
+ * pessoa NÃO vai, e mostrá-la como presente seria pior que não mostrar nada.
+ */
+export function membrosDoEvento(
+  convidados: { email?: string | null; responseStatus?: string | null }[] | null | undefined,
+  equipe: { id: string; name: string; email?: string | null; emails_alternativos?: string[] | null }[],
+): { id: string; name: string }[] {
+  if (!convidados?.length) return []
+  // Uma pessoa, vários endereços. Medido nos 80 eventos reais do calendário:
+  // dois dos convidados mais frequentes — `lucaspasetti@outlook.com` e
+  // `otavio@nouzlab.com` — não são os e-mails com que essas pessoas entram no
+  // hub. Casar só pelo e-mail da conta perderia os dois em todo evento.
+  const porEmail = new Map<string, { id: string; name: string }>()
+  for (const m of equipe) {
+    for (const e of [m.email, ...(m.emails_alternativos || [])]) {
+      if (e?.trim()) porEmail.set(e.trim().toLowerCase(), { id: m.id, name: m.name })
+    }
+  }
+  const achados: { id: string; name: string }[] = []
+  for (const c of convidados) {
+    if (c.responseStatus === 'declined') continue
+    const m = porEmail.get((c.email || '').trim().toLowerCase())
+    if (m && !achados.some(x => x.id === m.id)) achados.push({ id: m.id, name: m.name })
+  }
+  return achados
+}

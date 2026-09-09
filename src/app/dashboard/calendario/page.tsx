@@ -10,7 +10,7 @@ import { diasDaSemana, segundaDe, ordenarDoDia, type CalItem } from '@/lib/calen
 import WeekView from '@/components/calendario/WeekView'
 import ListView from '@/components/calendario/ListView'
 import DayPanel from '@/components/calendario/DayPanel'
-import { ehBloqueio, identificarCliente } from '@/lib/googleEventos'
+import { ehBloqueio, identificarCliente, tipoDoEvento, membrosDoEvento } from '@/lib/googleEventos'
 import ItemChip from '@/components/calendario/ItemChip'
 import { useRouter } from 'next/navigation'
 import { withBase } from '@/lib/base'
@@ -88,6 +88,7 @@ export default function CalendarioPage() {
   // o hub não via nada disso — dos 8 eventos do calendário, só 1 tinha saído
   // daqui.
   const [googleEvents,   setGoogleEvents]   = useState<EventoGoogle[]>([])
+  const [equipe, setEquipe] = useState<{ id: string; name: string; email?: string | null; emails_alternativos?: string[] | null }[]>([])
   const [allClients,     setAllClients]     = useState<Client[]>([])
   const [loading,        setLoading]        = useState(true)
 
@@ -150,7 +151,7 @@ export default function CalendarioPage() {
       const agStart    = toISO(new Date(new Date(startISO + 'T12:00:00').getTime() - 7 * 86400000))
       const agEnd      = toISO(new Date(new Date(endISO   + 'T12:00:00').getTime() + 7 * 86400000))
 
-      const [{ data: postsData }, { data: captData }, { data: criacaoData }, { data: eventsData }, { data: clientData }] = await Promise.all([
+      const [{ data: postsData }, { data: captData }, { data: criacaoData }, { data: eventsData }, { data: clientData }, { data: equipeData }] = await Promise.all([
         supabase.from('schedules')
           .select('id, title, scheduled_date, post_type, approval_status, client_id, month, year, clients(name, color_hex)')
           .gte('scheduled_date', startISO).lte('scheduled_date', endISO)
@@ -166,6 +167,9 @@ export default function CalendarioPage() {
           .gte('date', startISO).lte('date', endISO)
           .order('date', { ascending: true }),
         supabase.from('clients').select('id, name, color_hex').eq('status', 'active').order('name'),
+        // A equipe com TODOS os endereços de cada um: o convite do Google traz
+        // o e-mail, e duas pessoas aparecem lá com conta diferente da do hub.
+        supabase.from('team_members').select('id, name, email, emails_alternativos'),
       ])
 
       // Calendário busca por mês, nunca por cliente — então o recorte de
@@ -236,6 +240,7 @@ export default function CalendarioPage() {
       todosEventosDoGoogle(startISO, endISO, jaMostrados).then(setGoogleEvents)
 
       setAllClients(clientData || [])
+      setEquipe((equipeData || []) as any[])
       setLoading(false)
     }
     load()
@@ -330,12 +335,24 @@ export default function CalendarioPage() {
       const tipo = bloqueio ? 'bloqueio' as const
         : g.origem === 'criacao' ? 'criacao' as const
         : 'google' as const
+      // O calendário não tem campo de tipo e ninguém vai passar a preencher um
+      // — mas a equipe já escreve a palavra no título ("CONFRA", "COWORKING",
+      // "REUNIÃO DE PRODUÇÃO"). Ler isso dá etiqueta e cor a um evento que
+      // chegava cinza e anônimo. Quando não reconhece, continua cinza: inventar
+      // um tipo seria pior.
+      const lido = tipoDoEvento(g.summary)
+      const pessoas = membrosDoEvento(g.attendees, equipe)
       out.push({ key: `g-${g.id}`, kind: tipo, id: g.id,
         title: g.summary, date: g.date,
         startTime: g.allDay ? null : g.startTime, endTime: g.allDay ? null : g.endTime,
+        // Cliente manda na cor: saber DE QUEM é o compromisso vale mais que
+        // saber que ele é uma reunião. O tipo pinta só o que não tem dono.
         color: cli ? (allClients.find(c => c.id === cli.id)?.color_hex || '#64748b')
-             : g.origem === 'criacao' ? '#f59e0b' : '#64748b',
-        clientId: cli?.id || null, clientName: cli?.name || null, href: g.htmlLink, data: g })
+             : g.origem === 'criacao' ? '#f59e0b'
+             : lido.chave !== 'outro' ? lido.cor : '#64748b',
+        clientId: cli?.id || null, clientName: cli?.name || null, href: g.htmlLink, data: g,
+        etiqueta: lido.chave !== 'outro' && !bloqueio ? lido.rotulo : null,
+        pessoas: pessoas.map(p => p.name) })
     }
 
     return out

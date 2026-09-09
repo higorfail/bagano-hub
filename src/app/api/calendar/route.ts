@@ -145,6 +145,16 @@ export async function GET(req: NextRequest) {
       startTime: horaLocal(e.start?.dateTime),
       endTime:   horaLocal(e.end?.dateTime),
       allDay: !!e.start?.date,
+      // Quem foi convidado. É o que liga um evento do Google a uma pessoa da
+      // equipe sem depender do título: "Gee" escrito à mão é ambíguo e some
+      // quando alguém digita "Geovana"; o convite carrega o endereço exato.
+      //
+      // `responseStatus` vem junto porque recusar é informação: quem recusou
+      // NÃO vai, e mostrá-lo como presente seria pior que não mostrar nada.
+      attendees: (e.attendees || []).map(a => ({
+        email: a.email || null,
+        responseStatus: a.responseStatus || null,
+      })),
     }))
     return NextResponse.json({ events })
   } catch (err: any) {

@@ -127,6 +127,8 @@ export type EventoGoogle = {
   startTime: string | null
   endTime: string | null
   allDay: boolean
+  /** Quem foi convidado, com a resposta. É o que liga o evento a uma pessoa. */
+  attendees?: { email: string | null; responseStatus: string | null }[]
 }
 
 /**

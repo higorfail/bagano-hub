@@ -22,6 +22,14 @@ export default function ItemChip({ item, compacto, onClick, style, className = '
   style?: React.CSSProperties
   className?: string
 }) {
+  // Quem está no evento cabe no passar-o-mouse, não no chip: o chip tem uma
+  // linha e o nome do compromisso já a ocupa. Mas saber que a Gee aceitou e a
+  // Yasmim recusou é o que evita a pergunta "quem vai nessa?".
+  const descricao = (i: typeof item) => [
+    `${rotulo(i.kind)}: ${i.title}`,
+    i.pessoas?.length ? `Com: ${i.pessoas.join(', ')}` : null,
+  ].filter(Boolean).join('\n')
+
   const Icon = ICONE[item.kind] || CalendarDays
   // O que veio do Google não é do hub: fica tracejado e sem preenchimento, e
   // abre lá em vez de fingir que edita aqui.
@@ -34,6 +42,14 @@ export default function ItemChip({ item, compacto, onClick, style, className = '
   const conteudo = (
     <>
       <Icon size={9} className="flex-shrink-0" />
+      {/* A etiqueta lida do título ("Confra", "Coworking") vem ANTES do texto:
+          o título do Google costuma ser longo e cortar no truncate, e o tipo é
+          justamente o que se quer saber de relance. No compacto some — ali só
+          cabe a inicial. */}
+      {!compacto && item.etiqueta && (
+        <span className="flex-shrink-0 text-[8px] font-bold uppercase tracking-wide px-1 py-px rounded"
+          style={{ background: cor + '33' }}>{item.etiqueta}</span>
+      )}
       <span className="truncate">
         {item.startTime ? item.startTime + ' ' : ''}
         {compacto ? iniciais(item.clientName || item.title) : item.title}
@@ -50,14 +66,14 @@ export default function ItemChip({ item, compacto, onClick, style, className = '
   if (item.href) {
     return (
       <a href={item.href} target="_blank" rel="noopener noreferrer"
-        className={base} style={estilo} title={`${rotulo(item.kind)}: ${item.title}`}>
+        className={base} style={estilo} title={descricao(item)}>
         {conteudo}
       </a>
     )
   }
   return (
     <button onClick={onClick} className={base} style={estilo}
-      title={`${rotulo(item.kind)}: ${item.title}`}>
+      title={descricao(item)}>
       {conteudo}
     </button>
   )
