@@ -24,10 +24,38 @@ type Props = {
   clampLines?: number
 }
 
+// Marca as células navegáveis por Tab. Ficam no DOM em vez de num contexto de
+// React porque a ordem que interessa é a ORDEM DA TELA — esquerda pra direita,
+// linha por linha — e é exatamente essa que `querySelectorAll` devolve. Um
+// registro central teria que reproduzi-la à mão e sair de sincronia na primeira
+// coluna que alguém escondesse (a Legenda já liga e desliga).
+const MARCA_CELULA = 'data-celula-lista'
+
 export default function ListCell({ value, placeholder = '—', onCommit, editable = true, clampLines = 5 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const discardRef = useRef(false)
+  const caixaRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * Tab vai pra próxima célula e JÁ ABRE pra escrever.
+   *
+   * É o gesto que fazia a planilha ser planilha: montar uma pauta é preencher
+   * campo após campo, e ter que mirar o mouse em cada célula é o que torna a
+   * tabela do hub mais lenta que o Google Sheets — mesmo tendo as mesmas
+   * colunas.
+   *
+   * O clique é disparado no quadro seguinte: salvar aqui provoca re-render, e
+   * clicar antes dele acertaria um elemento que vai deixar de existir.
+   */
+  function irPara(direcao: 1 | -1) {
+    const todas = Array.from(document.querySelectorAll<HTMLElement>(`[${MARCA_CELULA}]`))
+    const eu = caixaRef.current
+    const i = eu ? todas.indexOf(eu) : -1
+    const alvo = todas[i + direcao]
+    if (!alvo) return
+    requestAnimationFrame(() => alvo.click())
+  }
 
   function start(e: React.MouseEvent) {
     e.stopPropagation()
@@ -58,6 +86,15 @@ export default function ListCell({ value, placeholder = '—', onCommit, editabl
         onKeyDown={e => {
           if (e.key === 'Escape') { e.preventDefault(); discardRef.current = true; setEditing(false) }
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); e.currentTarget.blur() }
+          // Tab salva e abre a próxima; Shift+Tab volta. O navegador moveria o
+          // foco pro próximo elemento focável, que numa linha de tabela é um
+          // botão qualquer — e a edição morreria no meio.
+          if (e.key === 'Tab') {
+            e.preventDefault()
+            const dir = e.shiftKey ? -1 : 1
+            commit()
+            irPara(dir)
+          }
         }}
         ref={el => { if (el) autoGrow(el, 9999) }}
         className="w-full bg-[var(--color-bg-card)] border border-[var(--color-accent)] rounded-md px-1.5 py-1 text-[12px] leading-snug text-[var(--color-text-primary)] outline-none resize-none"
@@ -68,6 +105,10 @@ export default function ListCell({ value, placeholder = '—', onCommit, editabl
 
   return (
     <div
+      ref={caixaRef}
+      // A marca fica na célula em REPOUSO, não na que está aberta: quando o Tab
+      // procura a próxima, a atual acabou de virar textarea e sairia da lista.
+      {...{ [MARCA_CELULA]: editable ? '' : undefined }}
       onClick={start}
       className={`text-[12px] leading-snug rounded-md -mx-1 px-1 py-0.5 transition-colors whitespace-pre-wrap break-words
         ${editable ? 'cursor-text hover:bg-[var(--color-bg-subtle)]' : ''}

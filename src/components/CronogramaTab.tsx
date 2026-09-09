@@ -10,7 +10,7 @@ import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
 import { approvalShort } from '@/lib/approvalKind'
 import { dbError } from '@/lib/dbError'
-import { Check, Copy, Search, X, Zap, ClipboardCheck, Link2, Sparkles, ClipboardList, ChevronDown, GripVertical } from 'lucide-react'
+import { ChevronRight, Check, Copy, Search, X, Zap, ClipboardCheck, Link2, Sparkles, ClipboardList, ChevronDown, GripVertical } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { ensureWatching } from '@/lib/watch'
@@ -512,6 +512,46 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   // aqui não pode ficar invisível na linha do tempo do post só porque foi
   // feita numa tela diferente.
   const FIELD_LABEL: Record<string, string> = { title: 'o título', briefing: 'o briefing', copy: 'a copy', legenda: 'a legenda' }
+  /**
+   * Uma linha nova, direto na tabela.
+   *
+   * "+ Novo post" abre um modal com quinze campos — certo pra quem vai montar o
+   * post inteiro, errado pra quem está montando a PAUTA: ali se digita título
+   * atrás de título e se preenche o resto depois. Era isso que a planilha
+   * deixava fazer e esta tela não.
+   *
+   * Nasce só com número e tipo padrão. Nada de título "Novo post": o campo em
+   * branco convida a escrever, um texto de exemplo convida a deixar como está —
+   * e nasceriam cinco posts chamados "Novo post".
+   */
+  const [criandoLinha, setCriandoLinha] = useState(false)
+  async function novaLinha() {
+    if (criandoLinha) return
+    setCriandoLinha(true)
+    const [numero] = await numerosNoDestino(supabase, clientId, month, year)
+    const { data, error } = await supabase.from('schedules').insert({
+      client_id: clientId, month, year, post_number: numero,
+      title: '', post_type: 'post', status: 'estrategia',
+    }).select('*').single()
+    setCriandoLinha(false)
+    if (error || !data) { dbError(error, toast, 'criar a linha'); return }
+    await ensureWatching('schedules', data.id, [currentMember?.id])
+    logActivity({
+      tableName: 'schedules', recordId: data.id, clientId, action: 'created',
+      actorName: currentMember?.name, actorId: currentMember?.id,
+      description: `${currentMember?.name || 'Alguém'} criou o post #${numero}`,
+    })
+    setPosts(ps => [...ps, data as any])
+    // Abre o título da linha nova pra escrever. Sem isto, criar a linha e ter
+    // que mirar o mouse nela desfaz metade do ganho.
+    requestAnimationFrame(() => {
+      const linhas = document.querySelectorAll<HTMLElement>('[data-linha-post]')
+      const ultima = linhas[linhas.length - 1]
+      // Primeira célula da última linha = o título, que é onde se começa.
+      ultima?.querySelector<HTMLElement>('[data-celula-lista]')?.click()
+    })
+  }
+
   async function saveField(postId: string, field: 'title' | 'briefing' | 'copy' | 'legenda', value: string) {
     const post = posts.find(p => p.id === postId)
     if (!post || ((post as any)[field] || '') === value) return
@@ -788,6 +828,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                         // e agora, com célula editável, seria pior ainda.
                         onDragOver={e => { e.preventDefault(); if (dragOverId !== post.id) setDragOverId(post.id) }}
                         onDrop={() => reorderPosts(post.id)}
+                        data-linha-post=""
                         className={`grid grid-cols-1 gap-x-3 gap-y-2 bg-[var(--color-bg-card)] border rounded-xl px-4 py-3 transition-all
                           ${isDragging ? 'opacity-40' : ''}
                           ${isOver ? 'border-[var(--color-brand)]' : 'border-[var(--color-border)]'}`}
@@ -811,12 +852,33 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                         </div>
 
                         <div className="min-w-0">
-                          {/* O título é o que abre o card. A linha inteira não
-                              abre mais: ela agora tem células que editam. */}
-                          <button onClick={abrirCard}
-                            className="text-left text-[14px] font-semibold text-[var(--color-text-primary)] hover:underline truncate w-full">
-                            {post.title || <span className="font-normal text-[var(--color-text-faint)] italic">Sem título</span>}
-                          </button>
+                          {/* O título edita NA LINHA, como qualquer célula.
+                          
+                              Era o único campo que a estrategista mais digita
+                              ao montar a pauta e que só abria pelo card — três
+                              cliques (abrir, escrever, fechar) por título, numa
+                              tela onde copy e descrição se resolvem com um. Era
+                              a diferença que fazia isto parecer menos que a
+                              planilha antiga.
+                          
+                              O card continua a um clique, na seta ao lado: ele
+                              tem comentário, anexo e histórico, que a linha
+                              nunca vai ter. */}
+                          <div className="flex items-start gap-1">
+                            <div className="flex-1 min-w-0">
+                              <ListCell
+                                value={post.title || ''}
+                                placeholder="Sem título"
+                                editable={wide}
+                                clampLines={2}
+                                onCommit={v => saveField(post.id, 'title', v)}
+                              />
+                            </div>
+                            <button onClick={abrirCard} title="Abrir o card completo"
+                              className="flex-shrink-0 text-[var(--color-text-faint)] hover:text-[var(--color-text-primary)] transition-colors mt-0.5">
+                              <ChevronRight size={13} />
+                            </button>
+                          </div>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${typeColor[post.post_type] || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
                               {TYPE_LABEL[post.post_type] || post.post_type || '—'}
@@ -900,6 +962,27 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                       </div>
                     )
                   })}
+
+                  {/* A linha de "mais um", no fim da tabela.
+                  
+                      "+ Novo post" abre um modal de quinze campos — certo pra
+                      montar o post inteiro, errado pra montar a PAUTA, que é
+                      digitar título atrás de título e preencher o resto depois.
+                      Era isto que a planilha deixava fazer.
+                  
+                      Só sem filtro: com a lista recortada, a linha nova apareceria
+                      ou não conforme o filtro, e some assim que alguém digitar
+                      algo que não casa. */}
+                  {wide && !hasFilter && (
+                    <button onClick={novaLinha} disabled={criandoLinha}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[var(--color-border)] text-[13px] font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-bg-subtle)] transition-colors disabled:opacity-50">
+                      <span className="text-base leading-none">+</span>
+                      {criandoLinha ? 'Criando…' : 'Mais uma linha'}
+                      <span className="ml-auto text-[11px] text-[var(--color-text-faint)] hidden md:inline">
+                        Tab anda pelas células
+                      </span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
