@@ -505,30 +505,45 @@ export default function CriacaoPage() {
             </p>
           </div>
 
+          {/* A visão mora na linha do título, não na barra de filtros.
+          
+              Três tentativas até aqui, e as duas primeiras erraram o LUGAR
+              antes de errar a forma: espremida entre os <select>, empurrava o
+              filtro de pessoa pra uma segunda linha; numa faixa própria acima,
+              gastava uma linha inteira pra três palavras. Como <select> cabia,
+              mas ficava idêntica a um recorte — e ela não recorta, ela troca a
+              lista.
+          
+              O cabeçalho já era `justify-between` com o lado direito vazio. A
+              aba entra ali: mesma altura do título, nenhuma linha nova, e a
+              forma de aba preservada — que é o que diz "isto muda o que você
+              está vendo", diferente dos filtros logo abaixo. */}
+          {(totalPosts > 0 || totalExtras > 0 || totalMaterials > 0) && (
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {([
+                { chave: 'meus' as const,     rotulo: 'Pra fazer agora' },
+                { chave: 'sem_dono' as const, rotulo: 'Sem dono ainda' },
+                { chave: 'todos' as const,    rotulo: 'Todos' },
+              ]).map(op => (
+                <button key={op.chave} onClick={() => setModo(op.chave)}
+                  className={`relative text-sm font-semibold px-3 py-2 transition-colors whitespace-nowrap ${
+                    modo === op.chave
+                      ? 'text-[var(--color-text-primary)]'
+                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}>
+                  {op.rotulo}
+                  {modo === op.chave && (
+                    <span className="absolute left-2.5 right-2.5 -bottom-0.5 h-0.5 rounded-full bg-[var(--color-text-primary)]" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Filters */}
           {(totalPosts > 0 || totalExtras > 0 || totalMaterials > 0) && (
             <div className="flex items-center gap-1.5 md:gap-2 flex-wrap w-full md:w-auto">
               <Filter size={13} className="text-[var(--color-text-muted)] flex-shrink-0 hidden md:block" />
 
-              {/* A visão vira o primeiro seletor, com a mesma forma dos outros.
-              
-                  Passou por pílula e por aba antes disto. As duas quebravam a
-                  linha: eram largas demais ao lado de três <select>, e a de
-                  pessoa caía sozinha embaixo. Um seletor cabe, e a barra volta
-                  a ser uma faixa só.
-              
-                  A diferença de natureza continua real — os outros recortam a
-                  lista, este troca a lista — mas ela se resolve pela ORDEM
-                  (vem primeiro) e pelo texto das opções, não por uma forma
-                  diferente que não cabia. */}
-              <select value={modo} onChange={e => setModo(e.target.value as typeof modo)}
-                className="flex-1 min-w-0 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 py-1.5 font-semibold text-[var(--color-text-primary)] outline-none cursor-pointer">
-                <option value="meus">Pra fazer agora</option>
-                <option value="sem_dono">Sem dono ainda</option>
-                <option value="todos">Todos</option>
-              </select>
-
-              {/* Client */}
               <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
                 className="flex-1 min-w-0 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
                 <option value="">Todos os clientes</option>
