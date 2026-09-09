@@ -505,44 +505,38 @@ export default function CriacaoPage() {
             </p>
           </div>
 
-          {/* A visão mora na linha do título, não na barra de filtros.
-          
-              Três tentativas até aqui, e as duas primeiras erraram o LUGAR
-              antes de errar a forma: espremida entre os <select>, empurrava o
-              filtro de pessoa pra uma segunda linha; numa faixa própria acima,
-              gastava uma linha inteira pra três palavras. Como <select> cabia,
-              mas ficava idêntica a um recorte — e ela não recorta, ela troca a
-              lista.
-          
-              O cabeçalho já era `justify-between` com o lado direito vazio. A
-              aba entra ali: mesma altura do título, nenhuma linha nova, e a
-              forma de aba preservada — que é o que diz "isto muda o que você
-              está vendo", diferente dos filtros logo abaixo. */}
-          {(totalPosts > 0 || totalExtras > 0 || totalMaterials > 0) && (
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {([
-                { chave: 'meus' as const,     rotulo: 'Pra fazer agora' },
-                { chave: 'sem_dono' as const, rotulo: 'Sem dono ainda' },
-                { chave: 'todos' as const,    rotulo: 'Todos' },
-              ]).map(op => (
-                <button key={op.chave} onClick={() => setModo(op.chave)}
-                  className={`relative text-sm font-semibold px-3 py-2 transition-colors whitespace-nowrap ${
-                    modo === op.chave
-                      ? 'text-[var(--color-text-primary)]'
-                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}>
-                  {op.rotulo}
-                  {modo === op.chave && (
-                    <span className="absolute left-2.5 right-2.5 -bottom-0.5 h-0.5 rounded-full bg-[var(--color-text-primary)]" />
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-
           {/* Filters */}
           {(totalPosts > 0 || totalExtras > 0 || totalMaterials > 0) && (
-            <div className="flex items-center gap-1.5 md:gap-2 flex-wrap w-full md:w-auto">
+            <div className="flex items-center gap-1.5 md:gap-2 flex-wrap md:flex-nowrap w-full md:w-auto">
               <Filter size={13} className="text-[var(--color-text-muted)] flex-shrink-0 hidden md:block" />
+
+              {/* Os três numa pílula só, na mesma faixa dos filtros.
+              
+                  Quinta posição tentada. As anteriores erraram tentando marcar
+                  a diferença de natureza (isto TROCA a lista, os outros
+                  RECORTAM) com forma ou lugar diferente — e toda vez a linha
+                  quebrava. A diferença é real, mas não vale uma linha inteira:
+                  fica no fundo sólido da opção ativa, que os <select> ao lado
+                  não têm.
+              
+                  Texto em 11px e padding curto pra caber: três rótulos mais
+                  três selects passam de 768px com folga se cada um pedir o
+                  tamanho confortável. */}
+              <div className="flex items-center gap-0.5 rounded-xl bg-[var(--color-bg-subtle)] p-0.5 flex-shrink-0">
+                {([
+                  { chave: 'meus' as const,     rotulo: 'Pra fazer agora' },
+                  { chave: 'sem_dono' as const, rotulo: 'Sem marcação' },
+                  { chave: 'todos' as const,    rotulo: 'Todos' },
+                ]).map(op => (
+                  <button key={op.chave} onClick={() => setModo(op.chave)}
+                    className={`text-[11px] font-semibold px-2 py-1 rounded-lg transition-colors whitespace-nowrap ${
+                      modo === op.chave
+                        ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm'
+                        : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
+                    {op.rotulo}
+                  </button>
+                ))}
+              </div>
 
               <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
                 className="flex-1 min-w-0 md:flex-none text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 py-1.5 text-[var(--color-text-secondary)] outline-none cursor-pointer">
@@ -608,7 +602,7 @@ export default function CriacaoPage() {
                     pessoa procurar o que está a um clique. */}
                 {filterMember === currentMember?.id && !filterClient && !filterType
                   ? (modo === 'meus' && contaModo('sem_dono') > 0
-                      ? `Nada com o seu nome. Tem ${contaModo('sem_dono')} sem dono ainda, ali do lado.`
+                      ? `Nada com o seu nome. Tem ${contaModo('sem_dono')} sem marcação, ali do lado.`
                       : 'Verifique se você está atribuído como responsável nos posts, materiais ou extras.')
                   : 'Ajuste os filtros acima.'}
               </p>
