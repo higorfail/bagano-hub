@@ -22,6 +22,7 @@ import { fromActiveClients } from '@/lib/activeClients'
 import { withBase } from '@/lib/base'
 import { caminhoCliente } from '@/lib/clienteSlug'
 import { fetchAgencyAlerts, type AgencyAlert } from '@/lib/agencyAlerts'
+import { baldeDoItem, fraseDaFila, sugestaoDeAdiantar, somaDias, type Balde, type ClienteDeHoje } from '@/lib/filaDoDia'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
 const CFG = {
@@ -384,7 +385,8 @@ export default function DashboardPage() {
 
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
   const [myTasks,      setMyTasks]      = useState<any[]>([])
-  const [digestText,   setDigestText]   = useState('')
+  /** Os dias da agenda de criação desta pessoa: quando, qual cliente, e a nota. */
+  const [minhaAgenda,  setMinhaAgenda]  = useState<{ dia: string; clientId: string | null; nota: string | null }[]>([])
   const [greetingLine, setGreetingLine] = useState('')
   // A fila do dia. `fetchAgencyAlerts` já existia e já calculava tudo isto —
   // urgências, extras parados, captação chegando, post travado — mas morava só
@@ -533,6 +535,34 @@ export default function DashboardPage() {
         }))
       })
   }, [currentMember?.id])
+
+  // A agenda de criação da pessoa. É ela que sabe QUE DIA cada cliente é —
+  // o "Para você" ignorava isso por completo e por isso mostrava o mês inteiro
+  // de uma vez, com data de publicação fazendo as vezes de prazo.
+  //
+  // Três semanas pra trás bastam: o que interessa do passado é "o dia combinado
+  // passou e continua aberto". Mais fundo que isso é arqueologia, e o item já
+  // apareceria pela própria data vencida.
+  useEffect(() => {
+    if (!currentMember?.id) return
+    const inicio = somaDias(todayStr, -21)
+    supabase
+      .from('agenda_criacao')
+      .select('week_start, day_of_week, client_id, member_ids, notes')
+      .gte('week_start', somaDias(inicio, -6))
+      .then(({ data }) => {
+        if (!data) return
+        setMinhaAgenda(data
+          .filter(d => Array.isArray(d.member_ids) && d.member_ids.includes(currentMember.id))
+          .map(d => ({
+            // week_start é segunda e day_of_week começa em 1 — ver a tela de Criação.
+            dia: somaDias(d.week_start, (d.day_of_week || 1) - 1),
+            clientId: d.client_id as string | null,
+            nota: (d.notes || null) as string | null,
+          }))
+          .filter(d => !!d.clientId))
+      })
+  }, [currentMember?.id, todayStr])
 
   // Tarefas/lembretes/notas do Quadro pessoal que estão ligadas a um cliente —
   // ficavam de fora do "Para você", que só olhava post/extra/material, então
@@ -1097,49 +1127,75 @@ export default function DashboardPage() {
 
   // Ajuste pedido pelo cliente é sempre o grupo de maior prioridade, com ou sem prazo —
   // o resto vira uma lista só ("Pendências"), já ordenada por urgência (itemSort).
-  const needsYouAjusteItems = needsYou.filter(i => i.ajuste)
-  const needsYouRest        = needsYou.filter(i => !i.ajuste)
-
-  // Resumo diário por IA — 1 frase, cacheada por pessoa+dia+conteúdo (evita gerar
-  // de novo a cada reload; só refaz se a lista de pendências mudar de fato).
-  useEffect(() => {
-    if (!currentMember || loading) return
-    if (needsYou.length === 0) { setDigestText(''); return }
-    // A chave inclui a campanha: o nome dela chega depois (busca separada), e
-    // sem isso o resumo gerado antes ficava cacheado sem citá-la o dia todo.
-    const itemsKey = needsYou.slice(0, 20).map(i => `${i.id}:${i.campaignType || ''}`).join(',') + `|${Object.keys(campaignNameMap).length}`
-    const cacheKey = `bagano_digest_v2_${currentMember.id}_${todayStr}`
-    try {
-      const cached = localStorage.getItem(cacheKey)
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        if (parsed.itemsKey === itemsKey) { setDigestText(parsed.text); return }
-      }
-    } catch {}
-    const items = needsYou.slice(0, 20).map(i => ({
-      kind: i.kind, title: i.title, clientName: clientMap[i.clientId]?.name,
-      ajuste: i.ajuste, ajusteAlvo: i.ajusteAlvo, overdue: !!i.dueDate && i.dueDate < todayStr, dueDate: i.dueDate,
-      // A etiqueta é o que diz o que falta fazer no card ("CRIAR LEGENDA",
-      // "Criar o design") — sem ela o resumo só sabia contar, não dizia o
-      // trabalho de verdade. A campanha entra pelo mesmo motivo: saber que um
-      // post é de Dia dos Pais muda a leitura da urgência, e a frase carrega
-      // isso melhor do que um selo espremido na linha.
-      postType: i.postType, labels: (i.labels || []).map(l => l.text),
-      campaign: i.campaignType ? (campaignNameMap[`${i.clientId}:${i.campaignType}`] || null) : null,
-    }))
-    fetch(withBase('/api/ai-daily-digest'), {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ memberName: currentMember.name?.split(' ')[0], items }),
+  // ── A fila do dia ──────────────────────────────────────────────────────────
+  // A lógica mora em src/lib/filaDoDia.ts, fora do React e testada: é ela que
+  // decide o que é de hoje, o que passou e o que nem tem dia. Aqui só se monta
+  // o contexto (a agenda desta pessoa) e se distribui.
+  const JANELA_SEM_AGENDA = 3
+  const contextoFila = useMemo(() => {
+    const hoje = new Set<string>(), passados = new Set<string>(), futuros = new Set<string>()
+    minhaAgenda.forEach(d => {
+      if (!d.clientId) return
+      if (d.dia === todayStr) hoje.add(d.clientId)
+      else if (d.dia < todayStr) passados.add(d.clientId)
+      else futuros.add(d.clientId)
     })
-      .then(r => r.json())
-      .then(data => {
-        if (data.digest) {
-          setDigestText(data.digest)
-          try { localStorage.setItem(cacheKey, JSON.stringify({ itemsKey, text: data.digest })) } catch {}
-        }
-      })
-      .catch(() => {})
-  }, [currentMember?.id, loading, todayStr, needsYou.length, campaignNameMap])
+    // Cliente que tem dia hoje não conta como atrasado por um dia anterior —
+    // hoje é a combinação que vale.
+    hoje.forEach(c => passados.delete(c))
+    return {
+      hoje: todayStr,
+      // "Tem agenda" é sobre a PESSOA, não sobre o dia: quem participa da
+      // agenda mas está sem nada marcado hoje precisa ler "nada marcado pra
+      // hoje", não cair na régua de proximidade de quem nunca aparece nela.
+      temAgenda: minhaAgenda.length > 0,
+      clientesHoje: hoje, clientesPassados: passados, clientesFuturos: futuros,
+      janelaDias: JANELA_SEM_AGENDA,
+    }
+  }, [minhaAgenda, todayStr])
+
+  const minhaFila = useMemo(() => {
+    const b: Record<Balde, ParaVoceItem[]> = { ajuste: [], passou: [], agora: [], proximos: [], semDia: [] }
+    needsYou.forEach(i => {
+      b[baldeDoItem({ clientId: i.clientId || null, ajuste: i.ajuste, data: i.dueDate || null }, contextoFila)].push(i)
+    })
+    return b
+  }, [needsYou, contextoFila])
+
+  const contagemFila = useMemo(() => ({
+    ajuste: minhaFila.ajuste.length, passou: minhaFila.passou.length, agora: minhaFila.agora.length,
+    proximos: minhaFila.proximos.length, semDia: minhaFila.semDia.length,
+  }), [fila])
+
+  /** Os clientes de hoje, com a nota da agenda — é o que dá nome à frase. */
+  const clientesDeHoje = useMemo(() => {
+    const vistos = new Map<string, ClienteDeHoje>()
+    minhaAgenda.filter(d => d.dia === todayStr && d.clientId).forEach(d => {
+      const nome = clientMap[d.clientId!]?.name
+      if (!nome || vistos.has(d.clientId!)) return
+      vistos.set(d.clientId!, { nome, nota: d.nota })
+    })
+    return [...vistos.values()]
+  }, [minhaAgenda, todayStr, clientMap])
+
+  /** O próximo dia com trabalho, pro convite de adiantar. */
+  const proximoDaAgenda = useMemo(() => {
+    const futuros = minhaAgenda.filter(d => d.dia > todayStr).sort((a, b) => a.dia.localeCompare(b.dia))
+    if (futuros.length === 0) return null
+    const quando = futuros[0].dia
+    const doDia = futuros.filter(d => d.dia === quando)
+    const ids = new Set(doDia.map(d => d.clientId!))
+    return {
+      quando: quando === somaDias(todayStr, 1) ? 'amanhã' : new Date(quando + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' }),
+      clientes: [...ids].map(c => clientMap[c]?.name).filter(Boolean) as string[],
+      itens: minhaFila.proximos.filter(i => i.clientId && ids.has(i.clientId)).length,
+    }
+  }, [minhaAgenda, todayStr, clientMap, minhaFila.proximos])
+
+  const needsYouAjusteItems = minhaFila.ajuste
+
+  // A chamada de IA que gerava esta frase saiu junto: sem ninguém lendo o
+  // resultado, ela só queimaria a cota diária gratuita a cada carregamento.
 
   // "Parado há X dias" — busca updated_at à parte, isolado com try/catch: se a
   // coluna ainda não existir (migração não rodada), falha em silêncio e o
@@ -1287,32 +1343,25 @@ export default function DashboardPage() {
   const firstName = currentMember?.name.split(' ')[0]
   const paraVoceContent = paraVoceItems.length > 0
 
-  // Título + resumo juntos numa linha só (era "Para você, Nome" + um parágrafo
-  // logo abaixo repetindo a mesma informação) — a IA já resume tudo, só
-  // faltava não duplicar espaço/atenção com dois textos dizendo quase a
-  // mesma coisa. Fallback determinístico até a IA responder (ou se falhar) —
-  // detalha por tipo ("6 posts do crono, 1 extra e 1 material"), não só a
-  // contagem total ("3 pendências"), que não dizia nada sobre o que era.
-  const paraVoceFallbackSummary = (() => {
-    const REST_KIND_LABEL: Record<string, [string, string]> = {
-      post: ['post do crono', 'posts do crono'], extra: ['extra', 'extras'],
-      material: ['material', 'materiais'], task: ['tarefa', 'tarefas'],
-    }
-    const restCounts: Record<string, number> = {}
-    needsYouRest.forEach(i => { restCounts[i.kind] = (restCounts[i.kind] || 0) + 1 })
-    const restParts = (['post', 'extra', 'material', 'task'] as const)
-      .filter(k => restCounts[k] > 0)
-      .map(k => { const n = restCounts[k]; const [s, p] = REST_KIND_LABEL[k]; return `${n} ${pl(n, s, p)}` })
-    const restJoined = restParts.length > 1
-      ? restParts.slice(0, -1).join(', ') + ' e ' + restParts[restParts.length - 1]
-      : restParts[0] || ''
-    const parts = [
-      needsYouAjusteItems.length > 0 && `${needsYouAjusteItems.length} ${pl(needsYouAjusteItems.length, 'ajuste pedido', 'ajustes pedidos')} pelo cliente`,
-      restJoined,
-    ].filter(Boolean)
-    return parts.length ? parts.join(', ') + '.' : ''
-  })()
-  const paraVoceSummary = digestText || paraVoceFallbackSummary
+  // A frase saiu da IA.
+  //
+  // Ela recebia 20 itens soltos, sem noção de dia e sem a agenda, então o
+  // melhor que conseguia era listar: "um carrossel da Bagano MKT, mais dezenas
+  // de reels de clientes como Number Seven, Zebuino, NI HAO, Criativa Padaria,
+  // Toit e Unizushi sem tarefas pendentes definidas". Tudo verdade e nada útil
+  // — nenhum daqueles clientes era o de hoje.
+  //
+  // O que faltava não era modelo melhor, era a agenda na entrada. Com ela o
+  // texto vira dado estruturado (cliente + nota + contagem), e aí a frase sai
+  // igual toda vez, na hora, sem depender da cota diária gratuita — que já
+  // estourou uma vez e deixou o card mudo.
+  const paraVoceSummary = fraseDaFila({
+    temAgenda: contextoFila.temAgenda,
+    clientesDeHoje,
+    contagem: contagemFila,
+    janelaDias: JANELA_SEM_AGENDA,
+  })
+  const convitePraAdiantar = sugestaoDeAdiantar({ contagem: contagemFila, proximo: proximoDaAgenda })
   const paraVoceTitle = paraVoceContent && paraVoceSummary ? `Para você, ${firstName}: ${paraVoceSummary}` : `Para você, ${firstName}`
 
   return (
@@ -1411,8 +1460,35 @@ export default function DashboardPage() {
                 {needsYouAjusteItems.length > 0 && (
                   <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} />
                 )}
-                {needsYouRest.length > 0 && (
-                  <ParaVoceGroup label="Pendências" items={needsYouRest} clientMap={clientMap} router={router} todayStr={todayStr} cap={5} agingMap={agingMap} campaignNameMap={campaignNameMap} />
+                {/* A ordem é a do dia: o que passou, o que é agora, e só depois
+                    o que ainda vai chegar. "Sem dia" fica por último e discreto
+                    de propósito — não é dívida da pessoa, é planejamento que
+                    falta, e misturado com o resto era o que fazia 24 itens
+                    parecerem 24 atrasos. */}
+                {minhaFila.passou.length > 0 && (
+                  <ParaVoceGroup label="⏰ Passou do dia" items={minhaFila.passou} clientMap={clientMap} router={router} todayStr={todayStr} cap={5} agingMap={agingMap} campaignNameMap={campaignNameMap} />
+                )}
+                {minhaFila.agora.length > 0 && (
+                  <ParaVoceGroup
+                    label={contextoFila.temAgenda
+                      ? (clientesDeHoje.length > 0 ? `📌 Hoje · ${clientesDeHoje.map(c => c.nome).join(' · ')}` : '📌 Hoje')
+                      : `📌 Mais urgente · sai em até ${JANELA_SEM_AGENDA} dias`}
+                    items={minhaFila.agora} clientMap={clientMap} router={router} todayStr={todayStr} cap={8} agingMap={agingMap} campaignNameMap={campaignNameMap} />
+                )}
+                {convitePraAdiantar && (
+                  <ParaVoceSummaryRow icon="⚡" label={convitePraAdiantar} onClick={() => router.push('/dashboard/criacao')} />
+                )}
+                {minhaFila.proximos.length > 0 && (
+                  <ParaVoceSummaryRow
+                    icon="📅"
+                    label={`${minhaFila.proximos.length} ${pl(minhaFila.proximos.length, 'item', 'itens')} de outros dias`}
+                    onClick={() => router.push('/dashboard/criacao')} muted />
+                )}
+                {minhaFila.semDia.length > 0 && (
+                  <ParaVoceSummaryRow
+                    icon="❓"
+                    label={`${minhaFila.semDia.length} ${pl(minhaFila.semDia.length, 'item sem dia marcado', 'itens sem dia marcado')}`}
+                    onClick={() => router.push('/dashboard/criacao')} muted />
                 )}
                 {entregues.length > 0 && (
                   <ParaVoceGroup label="✅ Entregue — falta o próximo passo" items={entregues} clientMap={clientMap} router={router} todayStr={todayStr} muted cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} />
