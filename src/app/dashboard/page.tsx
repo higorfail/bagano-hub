@@ -155,23 +155,25 @@ function ClientAvatar({ client }: { client?: { name: string; color_hex?: string;
   )
 }
 
-function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap, campaignNameMap, hrefDoCliente }: {
+function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap, campaignNameMap, sempreCliente }: {
   label: string
   items: ParaVoceRowItem[]
   /**
-   * Quando existe, a linha é SEMPRE um cliente e SEMPRE navega — nunca expande.
+   * A linha é SEMPRE um cliente, e SEMPRE abre a lista de itens dele.
    *
    * A lista misturava duas granularidades na mesma forma de linha: cliente com
    * um item só desenhava O ITEM e abria o card; com dois ou mais desenhava o
    * RESUMO e expandia. Mesma linha, dois significados e duas reações — a seta
    * aparecia só num dos casos. Era isso que fazia a tela parecer bagunçada e
-   * "nem tudo clicável", mesmo com o conteúdo certo.
+   * "nem tudo clicável".
    *
-   * Agora vale uma regra só: a linha te leva ao cliente. Os itens estão lá
-   * dentro, e o endereço de cada card já funciona desde o conserto do
-   * deep-link.
+   * Minha primeira correção foi longe demais: fiz a linha NAVEGAR pro cliente,
+   * e com isso sumiu o poder de ver os itens sem sair da tela — que é metade
+   * do valor do card de manhã. A consistência não exigia isso. Exigia que
+   * TODA linha fizesse a mesma coisa: abrir. Inclusive a de um item só, que
+   * antes era a exceção.
    */
-  hrefDoCliente?: (clientId: string) => string
+  sempreCliente?: boolean
   clientMap: Record<string, { name: string; color_hex?: string; logo_url?: string | null }>
   router: ReturnType<typeof useRouter>
   todayStr: string
@@ -267,7 +269,7 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
 
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5 px-0.5">{label}</p>
+      {label && <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-faint)] mb-1.5 px-0.5">{label}</p>}
       <div className="flex flex-col gap-1">
         {clientGroups.slice(0, cap).map(({ key, its }) => {
           const isOpen = expanded.has(key)
@@ -282,15 +284,14 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
             labelCounts.set(l.text, { color: l.color, n: (cur?.n || 0) + 1 })
           }))
           // No modo por cliente NUNCA há linha-item: a granularidade é uma só.
-          const single = hrefDoCliente ? null : (its.length === 1 ? its[0] : null)
+          const single = sempreCliente ? null : (its.length === 1 ? its[0] : null)
           const singleOverdue = !!single?.dueDate && single.dueDate < todayStr && !single.ajuste
           const singleCountdown = single ? dueCountdown(single.dueDate, todayStr) : null
           const singleCampaign = single?.campaignType ? campaignNameMap?.[`${single.clientId}:${single.campaignType}`] : null
 
           return (
             <div key={key}>
-              <button onClick={() => hrefDoCliente ? router.push(hrefDoCliente(its[0].clientId))
-                                  : single ? router.push(single.href) : toggle(key)}
+              <button onClick={() => single ? router.push(single.href) : toggle(key)}
                 className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2 transition-colors hover:brightness-[0.97]"
                 style={{ background: hasAjuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
                 <ClientAvatar client={client} />
@@ -308,7 +309,15 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
                     {singleCampaign ? <span className="text-[var(--color-text-muted)]"> · 📣 {singleCampaign}</span> : null}
                   </span>
                 ) : (
-                  <span className="text-[10px] text-[var(--color-text-muted)] truncate flex-1 min-w-0">{summarize(its)}</span>
+                  // Com UM item só, o título dele no lugar de "1 post": é a
+                  // mesma informação que apareceria ao expandir, e não custa
+                  // nada mostrar antes. A linha continua abrindo igual às
+                  // outras — o que mudou é o que ela já conta sem abrir.
+                  <span className="text-[10px] text-[var(--color-text-muted)] truncate flex-1 min-w-0">
+                    {its.length === 1
+                      ? `${emojiFor(its[0])} ${its[0].title || 'Sem título'}`
+                      : summarize(its)}
+                  </span>
                 )}
                 {[...labelCounts.entries()].slice(0, 2).map(([text, { color, n }]) => (
                   <span key={text} className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: color }}>
@@ -324,12 +333,12 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
                     {overdueCount} atrasado{overdueCount !== 1 ? 's' : ''}
                   </span>
                 )}
-                {(hrefDoCliente || !single) && (
+                {!single && (
                   <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200"
-                    style={{ transform: !hrefDoCliente && isOpen ? 'rotate(90deg)' : 'none' }} />
+                    style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
                 )}
               </button>
-              {!hrefDoCliente && !single && isOpen && (
+              {!single && isOpen && (
                 <div className="flex flex-col gap-1 mt-1 pl-3">
                   {its.map(it => renderRow(it, `${key}-${it.id}`))}
                 </div>
@@ -347,13 +356,14 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
   )
 }
 
-function ParaVoceSummaryRow({ icon, label, onClick, muted }: { icon: string; label: string; onClick: () => void; muted?: boolean }) {
+function ParaVoceSummaryRow({ icon, label, onClick, muted, aberto }: { icon: string; label: string; onClick: () => void; muted?: boolean; aberto?: boolean }) {
   return (
     <button onClick={onClick}
       className={`w-full text-left rounded-xl px-3 py-2 flex items-center gap-2.5 transition-colors ${muted ? 'text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)]' : 'bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] text-[var(--color-text-secondary)]'}`}>
       <span className="text-sm flex-shrink-0">{icon}</span>
       <span className="text-xs font-medium flex-1">{label}</span>
-      <ChevronRight size={13} className="text-[var(--color-text-faint)] flex-shrink-0" />
+      <ChevronRight size={13} className="text-[var(--color-text-faint)] flex-shrink-0 transition-transform duration-200"
+        style={{ transform: aberto ? 'rotate(90deg)' : 'none' }} />
     </button>
   )
 }
@@ -396,6 +406,7 @@ export default function DashboardPage() {
   const [myTasks,      setMyTasks]      = useState<any[]>([])
   /** Os dias da agenda de criação desta pessoa: quando, qual cliente, e a nota. */
   const [greetingLine, setGreetingLine] = useState('')
+  const [verResto,     setVerResto]     = useState(false)
   const [minhaAgenda,  setMinhaAgenda]  = useState<{ dia: string; clientId: string | null; nota: string | null }[]>([])
   // A fila do dia. `fetchAgencyAlerts` já existia e já calculava tudo isto —
   // urgências, extras parados, captação chegando, post travado — mas morava só
@@ -1186,10 +1197,6 @@ export default function DashboardPage() {
     () => [...minhaFila.passou, ...minhaFila.agora],
     [minhaFila.passou, minhaFila.agora])
 
-  /** A linha da frente do cliente, no mês que está sendo trabalhado. */
-  const hrefDoCliente = (cid: string) =>
-    `${linkCliente(cid)?.('cronograma')}/${year}-${String(now.getMonth() + 1).padStart(2, '0')}`
-
   /**
    * Tudo que NÃO é de agora, numa frase só. Some quando não há nada.
    *
@@ -1197,6 +1204,15 @@ export default function DashboardPage() {
    * cliente) — quatro contagens que não pedem ação nenhuma hoje ocupando o
    * mesmo peso visual do trabalho de verdade.
    */
+  /**
+   * Tudo que não é de agora, na ordem em que se olharia: o que tem dia marcado
+   * pra frente, o que não tem dia, o que já foi entregue e falta o próximo
+   * passo, e o que está com o cliente.
+   */
+  const resto = useMemo(
+    () => [...minhaFila.proximos, ...minhaFila.semDia, ...entregues, ...waitingOnClient],
+    [minhaFila.proximos, minhaFila.semDia, entregues, waitingOnClient])
+
   const resumoDoResto = useMemo(() => {
     const partes = [
       minhaFila.proximos.length > 0 && `${minhaFila.proximos.length} de outros dias`,
@@ -1497,12 +1513,15 @@ export default function DashboardPage() {
                        ação é a mesma (sentar com aquele cliente). */}
                 {fazerAgora.length > 0 && (
                   <ParaVoceGroup
-                    label={contextoFila.temAgenda
-                      ? (clientesDeHoje.length > 0 ? `📌 Hoje · ${clientesDeHoje.map(c => c.nome).join(' · ')}` : '📌 Hoje')
+                    // Sem enumerar cliente no título: eles JÁ são as linhas
+                    // logo abaixo, e o bloco carrega também o que passou do dia
+                    // de OUTROS clientes — "Hoje · Zebuino · NI HAO" com Bagano
+                    // MKT na lista era o título contradizendo o conteúdo.
+                    label={contextoFila.temAgenda ? '📌 Hoje'
                       : `📌 Mais urgente · sai em até ${JANELA_SEM_AGENDA} dias`}
                     items={fazerAgora} clientMap={clientMap} router={router} todayStr={todayStr} cap={6}
                     agingMap={agingMap} campaignNameMap={campaignNameMap}
-                    hrefDoCliente={hrefDoCliente} />
+                    sempreCliente />
                 )}
 
                 {convitePraAdiantar && (
@@ -1513,8 +1532,24 @@ export default function DashboardPage() {
                        linha morta no meio da manhã, "10 itens sem dia marcado"
                        é ruído — e é informação de quem MONTA a agenda, não de
                        quem executa. */}
-                {resumoDoResto && (
-                  <ParaVoceSummaryRow icon="📂" label={resumoDoResto} onClick={() => router.push('/dashboard/criacao')} muted />
+                {resto.length > 0 && (
+                  <div>
+                    <ParaVoceSummaryRow icon="📂" label={resumoDoResto} aberto={verResto} muted
+                      onClick={() => setVerResto(v => !v)} />
+                    {/* Abre a lista INTEIRA, agrupada por cliente e clicável
+                        até o card — igual ao bloco de cima. Era um link cego
+                        pra outra tela: a pessoa via "6 de outros dias" e não
+                        tinha como saber quais sem sair daqui. Fechado por
+                        padrão, porque de manhã isso não é decisão; aberto, é a
+                        mesma lista de sempre. */}
+                    {verResto && (
+                      <div className="mt-1.5">
+                        <ParaVoceGroup label="" items={resto} clientMap={clientMap} router={router}
+                          todayStr={todayStr} cap={20} agingMap={agingMap}
+                          campaignNameMap={campaignNameMap} sempreCliente muted />
+                      </div>
+                    )}
+                  </div>
                 )}
               </SectionCard>
             )}
