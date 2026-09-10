@@ -22,6 +22,7 @@ import { fromActiveClients } from '@/lib/activeClients'
 import { withBase } from '@/lib/base'
 import { caminhoCliente } from '@/lib/clienteSlug'
 import { fetchAgencyAlerts, type AgencyAlert } from '@/lib/agencyAlerts'
+import { papelNoItem } from '@/lib/donoDaEtapa'
 import { baldeDoItem, contextoDaAgenda, fraseDaFila, sugestaoDeAdiantar, somaDias, type Balde, type ClienteDeHoje } from '@/lib/filaDoDia'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
@@ -406,6 +407,9 @@ export default function DashboardPage() {
   const [myTasks,      setMyTasks]      = useState<any[]>([])
   /** Os dias da agenda de criação desta pessoa: quando, qual cliente, e a nota. */
   const [greetingLine, setGreetingLine] = useState('')
+  /** Minha função em cada cliente — client_team. É o que separa "faço" de "acompanho". */
+  const [minhasFuncoes, setMinhasFuncoes] = useState<Record<string, string>>({})
+  const [verAcompanhando, setVerAcompanhando] = useState(false)
   const [verResto,     setVerResto]     = useState(false)
   const [minhaAgenda,  setMinhaAgenda]  = useState<{ dia: string; clientId: string | null; nota: string | null }[]>([])
   // A fila do dia. `fetchAgencyAlerts` já existia e já calculava tudo isto —
@@ -554,6 +558,24 @@ export default function DashboardPage() {
           return assigned.includes(currentMember.id)
         }))
       })
+  }, [currentMember?.id])
+
+  // Minha função em cada cliente. Sem isto o hub trata "estar marcado no card"
+  // como "isto é seu pra fazer" — e não é: a Gabis está marcada em 12 materiais
+  // em produção que quem faz é o Felipe.
+  useEffect(() => {
+    if (!currentMember?.id) return
+    supabase
+      .from('client_team')
+      .select('client_id, funcao')
+      .eq('member_id', currentMember.id)
+      .then(({ data }) => {
+        if (!data) return
+        const m: Record<string, string> = {}
+        data.forEach((r: any) => { if (r.client_id && r.funcao) m[r.client_id] = r.funcao })
+        setMinhasFuncoes(m)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMember?.id])
 
   // A agenda de criação da pessoa. É ela que sabe QUE DIA cada cliente é —
@@ -1028,6 +1050,8 @@ export default function DashboardPage() {
   type ParaVoceItem = {
     id: string; kind: 'post' | 'extra' | 'material' | 'task'; title: string
     clientId: string; dueDate: string | null; ajuste: boolean; waitingClient: boolean; entregue: boolean; href: string
+    /** A etapa do card — é ela que diz de quem é a bola. Ver donoDaEtapa.ts. */
+    status?: string | null
     postType?: string | null; campaignType?: string | null; labels?: CardLabel[] | null
     ajusteAlvo?: string | null
   }
@@ -1059,7 +1083,7 @@ export default function DashboardPage() {
 
   const paraVoceItems: ParaVoceItem[] = [
     ...directAssigned.map((s): ParaVoceItem => ({
-      id: `post-${s.id}`, kind: 'post', title: s.title, clientId: s.client_id,
+      id: `post-${s.id}`, kind: 'post', title: s.title, clientId: s.client_id, status: s.status,
       dueDate: s.scheduled_date, ajuste: s.status === CFG.S.ajuste,
       waitingClient: s.status === CFG.S.aguardandoAprovacao && !stillOwesWork(openLabels(asLabels((s as any).labels), s.legenda)),
       entregue: false,
@@ -1074,7 +1098,7 @@ export default function DashboardPage() {
       ajusteAlvo: ajusteAlvos[s.id] || null,
     })),
     ...fromActiveClients(myExtras, clientesAtivos).map((e): ParaVoceItem => ({
-      id: `extra-${e.id}`, kind: 'extra', title: e.title, clientId: e.client_id,
+      id: `extra-${e.id}`, kind: 'extra', title: e.title, clientId: e.client_id, status: e.status,
       dueDate: e.due_date, ajuste: e.client_approval_status === 'recusado',
       waitingClient: e.client_approval_status === 'aguardando' && !stillOwesWork(asLabels(e.labels)),
       entregue: e.status === 'feito',
@@ -1087,7 +1111,7 @@ export default function DashboardPage() {
       labels: asLabels(e.labels),
     })),
     ...fromActiveClients(myMaterials, clientesAtivos).map((m): ParaVoceItem => ({
-      id: `material-${m.id}`, kind: 'material', title: m.title, clientId: m.client_id,
+      id: `material-${m.id}`, kind: 'material', title: m.title, clientId: m.client_id, status: m.status,
       dueDate: m.due_date, ajuste: m.status === 'ajuste',
       waitingClient: m.status === 'aguardando_aprovacao' && !stillOwesWork(asLabels(m.labels)),
       entregue: m.status === 'feito',
@@ -1098,7 +1122,7 @@ export default function DashboardPage() {
       labels: asLabels(m.labels),
     })),
     ...fromActiveClients(myTasks, clientesAtivos).map((t): ParaVoceItem => ({
-      id: `task-${t.id}`, kind: 'task', title: t.title, clientId: t.client_id,
+      id: `task-${t.id}`, kind: 'task', title: t.title, clientId: t.client_id, status: t.status,
       dueDate: t.due_date, ajuste: false, waitingClient: false, entregue: false,
       href: `/dashboard/tarefas?task=${t.id}`,
       labels: asLabels(t.labels),
@@ -1110,7 +1134,29 @@ export default function DashboardPage() {
   // Feito não mudava nada na tela — o card continuava cobrando quem já tinha
   // entregado, e quem precisava dar o passo seguinte só via um aviso passar.
   const entregues = paraVoceItems.filter(i => i.entregue)
-  const needsYou = paraVoceItems.filter(i => !i.waitingClient && !i.entregue)
+  /**
+   * "Marcado no card" não é o mesmo que "isto é seu pra fazer".
+   *
+   * A Gabis está marcada em 12 materiais em PRODUÇÃO — quem faz é o Felipe, que
+   * está marcado nos mesmos doze. Ela entra porque DEPOIS entrega e cobra. O
+   * hub contava os doze como carga dela, e junto com o resto mostrava 76 itens
+   * de "faça isto" pra alguém cujo trabalho, na verdade, é agendar e cobrar.
+   *
+   * Quem decide é `donoDaEtapa`: função da pessoa NAQUELE cliente × etapa do
+   * card. Nada some — o que não é seu vai pra faixa "acompanhando", porque
+   * filtro que esconde trabalho é pior que filtro nenhum.
+   */
+  const papelDoItem = (i: ParaVoceItem) => papelNoItem({
+    tabela: i.kind === 'post' ? 'schedules' : i.kind === 'task' ? 'personal_tasks' : i.kind === 'extra' ? 'extras' : 'materials',
+    status: i.status,
+    marcado: true,   // tudo que chega aqui já veio de "atribuído a mim"
+    minhaFuncao: minhasFuncoes[i.clientId] || null,
+  })
+  const daFila = paraVoceItems.filter(i => !i.waitingClient && !i.entregue)
+  // Ajuste do cliente fura: alguém está esperando resposta, e responder é ação
+  // de quem está no card, seja qual for a etapa.
+  const needsYou = daFila.filter(i => i.ajuste || papelDoItem(i) === 'meu')
+  const acompanhando = daFila.filter(i => !i.ajuste && papelDoItem(i) !== 'meu')
   const waitingOnClient = paraVoceItems.filter(i => i.waitingClient && !i.entregue)
 
   function itemSort(a: ParaVoceItem, b: ParaVoceItem) {
@@ -1532,6 +1578,24 @@ export default function DashboardPage() {
                        linha morta no meio da manhã, "10 itens sem dia marcado"
                        é ruído — e é informação de quem MONTA a agenda, não de
                        quem executa. */}
+                {/* A rede de segurança do filtro: o que está no seu card mas
+                    a bola é de outra pessoa nesta etapa. Fica discreto e
+                    fechado — mas ninguém perde nada de vista, que era a única
+                    forma honesta de filtrar. */}
+                {acompanhando.length > 0 && (
+                  <div>
+                    <ParaVoceSummaryRow icon="👀" aberto={verAcompanhando} muted
+                      label={`${acompanhando.length} ${pl(acompanhando.length, 'item que você acompanha', 'itens que você acompanha')} — a bola é de outra pessoa`}
+                      onClick={() => setVerAcompanhando(v => !v)} />
+                    {verAcompanhando && (
+                      <div className="mt-1.5">
+                        <ParaVoceGroup label="" items={acompanhando} clientMap={clientMap} router={router}
+                          todayStr={todayStr} cap={20} agingMap={agingMap}
+                          campaignNameMap={campaignNameMap} sempreCliente muted />
+                      </div>
+                    )}
+                  </div>
+                )}
                 {resto.length > 0 && (
                   <div>
                     <ParaVoceSummaryRow icon="📂" label={resumoDoResto} aberto={verResto} muted
