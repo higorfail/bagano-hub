@@ -2,7 +2,7 @@
 // @ts-nocheck
 
 import { useEffect, useState, useRef, Suspense } from 'react'
-import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import CronogramaTab, { CRONO_MONTHS } from '@/components/CronogramaTab'
 import Button from '@/components/ui/Button'
@@ -21,7 +21,6 @@ function CronogramaPageInner() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const searchParams = useSearchParams()
-  const router = useRouter()
   const pathname = usePathname()
   const clientParam = searchParams.get('client')
   const postParam = searchParams.get('post')
@@ -112,7 +111,11 @@ function CronogramaPageInner() {
     if (postAberto) params.set('post', postAberto)
     else params.delete('post')
     if (params.toString() !== searchParams.toString()) {
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+      // Mesma razão da página do cliente: isto aqui é estado de tela virando
+      // endereço, não navegação. `router.replace` faz o roteador buscar a rota
+      // de novo a cada card aberto e fechado; o `replaceState` nativo é
+      // suportado nesta versão e sincroniza `useSearchParams` sem recarregar.
+      window.history.replaceState(null, '', `${pathname}?${params.toString()}`)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedClient, selectedMonth, selectedYear, postAberto])

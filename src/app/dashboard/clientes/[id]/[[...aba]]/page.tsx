@@ -240,7 +240,21 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
     const qs = params.toString()
     const destino = qs ? `${base}?${qs}` : base
     if (destino !== `${pathname}?${searchParams.toString()}`) {
-      router.replace(destino, { scroll: false })
+      // `history.replaceState`, não `router.replace`.
+      //
+      // Esta rota resolve os parâmetros com `use(params)` dentro de um
+      // <Suspense>. Todo `router.replace` entrega uma promessa NOVA de params,
+      // o `use` suspende, a árvore some e volta — e voltar significa `loading`
+      // em true de novo. Era meio segundo de "Carregando..." a cada abrir e
+      // fechar de card, e também a cada troca de aba e de mês, que já faziam
+      // isso antes.
+      //
+      // A documentação desta versão do Next trata `pushState`/`replaceState`
+      // nativos como caminho suportado: integram com o roteador e sincronizam
+      // `usePathname` e `useSearchParams`, sem recarregar. É o que a gente
+      // quer — aqui o endereço é estado de tela, não navegação. Um link novo
+      // de fora continua sendo navegação de verdade e atualiza os params.
+      window.history.replaceState(null, '', destino)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, selectedMonth, selectedYear, postAberto])

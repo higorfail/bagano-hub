@@ -454,7 +454,9 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     }
     handledPostParam.current = passo.escrever
     aoAbrirPost?.(passo.escrever ? Number(passo.escrever) : null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // `aoAbrirPost` fica FORA das dependências de propósito: as duas telas
+    // passam uma função anônima, que muda de identidade a cada render. Dentro,
+    // o efeito rodaria a cada render.
   }, [postParam, posts, showPostCard, editingPostId])
 
   useEffect(() => {
