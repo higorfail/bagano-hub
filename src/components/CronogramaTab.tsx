@@ -25,6 +25,7 @@ import { linkPublico, novoCodigo } from '@/lib/linkAprovacao'
 import { getOrCreateMonthToken } from '@/lib/approvalLinks'
 import { renumerarPosts } from '@/lib/renumerarPosts'
 import { numerosNoDestino } from '@/lib/numeroNoDestino'
+import { proximoPassoDoEndereco } from '@/lib/enderecoDoPost'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -208,12 +209,20 @@ type Props = {
   month: number
   year: number
   postParam?: string | null
+  /**
+   * Avisa a tela de fora QUAL post está aberto (ou `null` quando fecha), pra
+   * que o endereço acompanhe. O componente não monta a URL sozinho porque as
+   * duas telas que o usam escrevem endereços diferentes: a página do cliente
+   * usa caminho (`/cronograma/2026-09/11`) e a tela geral usa parâmetro
+   * (`?post=11`).
+   */
+  aoAbrirPost?: (postNumber: number | null) => void
   onPostsChange?: (count: number) => void
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function CronogramaTab({ clientId, clientName, clientColor, month, year, postParam, onPostsChange }: Props) {
+export default function CronogramaTab({ clientId, clientName, clientColor, month, year, postParam, aoAbrirPost, onPostsChange }: Props) {
   const { toast } = useToast()
   const { currentMember, members } = useUser()
   const supabase = createClient()
@@ -392,8 +401,61 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     setTimeout(() => setPreplistCopied(false), 2000)
   }
 
-  // deep-link: auto-open post when postParam changes
   const handledPostParam = useRef<string | null>(null)
+
+  // Abrir o post que o endereço aponta.
+  //
+  // Isto morava DENTRO de `loadPosts`, que só roda em [clientId, month, year].
+  // O comentário dizia "quando postParam muda", mas postParam não estava em
+  // dependência nenhuma: trocar de post pelo "Para você" (ou pelo sino) sem
+  // trocar de cliente e de mês não recarregava nada, e o card não abria — a
+  // pessoa caía no cronograma do mês, inteiro, sem entender por quê.
+  //
+  // `postParam` aceita as DUAS formas: o número do post, que é como o endereço
+  // novo o identifica (/cronograma/2026-09/11), e o UUID, que é o que as
+  // centenas de notificações já guardadas no sino carregam.
+  // E o caminho inverso mora no MESMO efeito, de propósito: o endereço
+  // acompanha o card aberto. Abrir um card não mexia na URL, então não existia
+  // link pra um post — só pro mês.
+  //
+  // Separar em dois efeitos parece mais limpo e não funciona: eles rodam na
+  // mesma descarga, e o segundo leria `showPostCard` ainda como `false` no
+  // instante em que o primeiro acabou de mandar abrir. Resultado: o endereço
+  // seria limpo justamente na chegada de um deep-link. Num efeito só, quem
+  // abriu sai pela porta de cima e não chega a escrever endereço nenhum
+  // naquela passada — a próxima já reflete o card.
+  //
+  // `handledPostParam` é o que os dois lados combinam entre si: guarda o que
+  // está na tela AGORA, então nem o endereço reabre o que já está aberto, nem
+  // o card reescreve um endereço igual.
+  useEffect(() => {
+    // `postParam` aceita as DUAS formas: o número do post, que é como o
+    // endereço novo o identifica (/cronograma/2026-09/11), e o UUID, que é o
+    // que as centenas de notificações já guardadas no sino carregam.
+    const alvo = postParam
+      ? posts.find(p => p.id === postParam || String(p.post_number) === postParam)
+      : undefined
+    // Post novo ainda não tem número, e aí o endereço fica no mês: não existe
+    // endereço pra um post que ainda não foi salvo.
+    const aberto = showPostCard ? posts.find(p => p.id === editingPostId) : undefined
+
+    const passo = proximoPassoDoEndereco({
+      noEndereco: postParam ?? null,
+      refletido: handledPostParam.current,
+      idNoEndereco: alvo?.id ?? null,
+      numeroAberto: aberto?.post_number != null ? String(aberto.post_number) : null,
+    })
+    if (!passo) return
+    if ('abrir' in passo) {
+      handledPostParam.current = postParam!
+      setEditingPostId(passo.abrir)
+      setShowPostCard(true)
+      return
+    }
+    handledPostParam.current = passo.escrever
+    aoAbrirPost?.(passo.escrever ? Number(passo.escrever) : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postParam, posts, showPostCard, editingPostId])
 
   useEffect(() => {
     loadPosts()
@@ -435,16 +497,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     setCampaigns(campaignsData || [])
     onPostsChange?.(loaded.length)
 
-    // `postParam` aceita as DUAS formas: o número do post, que é como o
-    // endereço novo o identifica (/cronograma/2026-09/11), e o UUID, que é o
-    // que as centenas de notificações já guardadas no sino carregam.
-    const achado = loaded.find((p: any) =>
-      p.id === postParam || (postParam && String(p.post_number) === postParam))
-    if (postParam && postParam !== handledPostParam.current && achado) {
-      handledPostParam.current = postParam
-      setEditingPostId(achado.id)
-      setShowPostCard(true)
-    }
     if (!opts.silent) setLoading(false)
   }
 

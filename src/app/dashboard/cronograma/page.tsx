@@ -39,6 +39,10 @@ function CronogramaPageInner() {
     if (!isNaN(y) && y > 2000) return y
     return readLastPeriod()?.y ?? new Date().getFullYear()
   })
+  // Qual post está aberto. Aqui o endereço é parâmetro (`?post=`), não caminho
+  // — esta tela não tem cliente fixo na URL. Nasce do link e depois quem manda
+  // é o CronogramaTab, abrindo e fechando o card.
+  const [postAberto, setPostAberto] = useState<string | null>(postParam)
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [postCount, setPostCount] = useState(0)
   // Em que meses desse cliente ainda tem post esperando resposta — pra tela
@@ -89,6 +93,10 @@ function CronogramaPageInner() {
     if (clientParam !== selectedClient && clients.some(c => c.id === clientParam)) {
       setSelectedClient(clientParam)
     }
+    // O post do link também: sem isto, um segundo link de notificação pro
+    // mesmo cliente e mês não abriria o card, porque a tela não remonta.
+    if (postParam && postParam !== postAberto) setPostAberto(postParam)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncKey, clients])
 
   // Mantém a URL sincronizada com a seleção atual, pra um refresh voltar pro mesmo cliente/mês/ano
@@ -100,11 +108,14 @@ function CronogramaPageInner() {
     params.set('client', selectedClient)
     params.set('m', String(selectedMonth))
     params.set('y', String(selectedYear))
+    // O post aberto entra e sai daqui — é o que dá endereço pra um card.
+    if (postAberto) params.set('post', postAberto)
+    else params.delete('post')
     if (params.toString() !== searchParams.toString()) {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClient, selectedMonth, selectedYear])
+  }, [selectedClient, selectedMonth, selectedYear, postAberto])
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -200,7 +211,8 @@ function CronogramaPageInner() {
             clientColor={client?.color_hex}
             month={selectedMonth}
             year={selectedYear}
-            postParam={postParam}
+            postParam={postAberto}
+            aoAbrirPost={n => setPostAberto(n != null ? String(n) : null)}
             onPostsChange={setPostCount}
           />
         )}

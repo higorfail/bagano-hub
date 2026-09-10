@@ -1028,7 +1028,11 @@ export default function DashboardPage() {
       dueDate: e.due_date, ajuste: e.client_approval_status === 'recusado',
       waitingClient: e.client_approval_status === 'aguardando' && !stillOwesWork(asLabels(e.labels)),
       entregue: e.status === 'feito',
-      href: e.client_id ? (linkCliente(e.client_id)?.('extras') || '/dashboard/kanban') : '/dashboard/kanban',
+      // `?post=` abre o extra direto — sem ele, o clique caía no quadro
+      // inteiro e a pessoa tinha que achar o card no meio das colunas.
+      // O `||` fica ANTES da interpolação de propósito: montada a string, ela
+      // é sempre verdadeira, e um cliente sem endereço viraria "undefined?post=".
+      href: `${(e.client_id && linkCliente(e.client_id)?.('extras')) || '/dashboard/extras'}?post=${e.id}`,
       postType: e.type, campaignType: e.campaign_type || null,
       labels: asLabels(e.labels),
     })),

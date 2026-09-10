@@ -77,6 +77,10 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
   const [client, setClient] = useState<Client | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [tab, setTab] = useState(abaInicial)
+  // Qual post está aberto, pra manter no endereço. Nasce do que veio no link
+  // (incluindo o `?post=` antigo, que ainda chega das notificações do sino) e
+  // depois passa a ser o CronogramaTab quem avisa, abrindo e fechando.
+  const [postAberto, setPostAberto] = useState<string | null>(postURL ?? searchParams.get('post'))
   // Faixa encolhida. Basta o primeiro gesto de rolagem: 16px pra encolher, e
   // volta ao topo de verdade (4px). Os dois limiares são diferentes de propósito
   // — com um só, parar de rolar exatamente em cima dele faz o cabeçalho piscar
@@ -196,6 +200,18 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
   //
   // Mês e ano ficam em parâmetro porque são FILTRO da mesma página, não outro
   // lugar — e porque quase toda aba os ignora.
+  // Link novo chegando com a tela JÁ aberta: outro item do "Para você", o
+  // sino, ou o botão de voltar. A rota é a mesma, então o React não remonta e
+  // o `useState` inicial não roda de novo — sem isto, clicar num segundo post
+  // do mesmo cliente e mês não abriria nada.
+  useEffect(() => {
+    // O `?post=` entra junto: é por ele que chegam as notificações já guardadas
+    // no sino. Sem essa metade, o efeito limparia na montagem justamente o
+    // pedido que veio por parâmetro.
+    setPostAberto(postURL ?? searchParams.get('post'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postURL])
+
   useEffect(() => {
     saveLastPeriod(selectedMonth, selectedYear)
     // O período entra no caminho só nas abas que têm mês. Nas outras ele não
@@ -203,17 +219,31 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
     // dizendo uma coisa que a tela ignora.
     const comMes = ABAS_COM_MES.has(tab)
     const periodo = comMes ? `/${selectedYear}-${String(selectedMonth).padStart(2, '0')}` : ''
-    const base = `/dashboard/clientes/${slug || id}/${tab}${periodo}`
+    // O post aberto também é endereço. Sem esta parte, este efeito rodava na
+    // montagem e reescrevia o caminho SEM o post — e como ele roda antes do
+    // cliente terminar de carregar, o CronogramaTab montava depois já com
+    // `postParam` nulo. Era por isso que clicar num item do "Para você" caía
+    // no cronograma do mês inteiro em vez de abrir o card.
+    // Só o NÚMERO vira caminho. As notificações antigas do sino apontam o post
+    // por UUID (`?post=<uuid>`), e um UUID no caminho não seria lido de volta —
+    // o leitor só aceita dígitos ali. Esse fica no parâmetro até o cronograma
+    // abrir o card e devolver o número, e aí o endereço vira o legível sozinho.
+    const numerico = !!postAberto && /^\d+$/.test(postAberto)
+    const alvo = tab === 'cronograma' && numerico ? `/${postAberto}` : ''
+    const base = `/dashboard/clientes/${slug || id}/${tab}${periodo}${alvo}`
     const params = new URLSearchParams(searchParams.toString())
     // Os três saem do endereço: viraram caminho.
     params.delete('tab'); params.delete('m'); params.delete('y')
+    // E o `post` sai junto quando já está no caminho, pra não ficar dito duas
+    // vezes — em lugares diferentes e podendo divergir.
+    if (alvo) params.delete('post')
     const qs = params.toString()
     const destino = qs ? `${base}?${qs}` : base
     if (destino !== `${pathname}?${searchParams.toString()}`) {
       router.replace(destino, { scroll: false })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, selectedMonth, selectedYear])
+  }, [tab, selectedMonth, selectedYear, postAberto])
 
   useEffect(() => {
     async function load() {
@@ -535,7 +565,8 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                 clientColor={client?.color_hex}
                 month={selectedMonth}
                 year={selectedYear}
-                postParam={postURL ?? searchParams.get('post')}
+                postParam={postAberto}
+                aoAbrirPost={n => setPostAberto(n != null ? String(n) : null)}
               />
             </div>
           )}
@@ -789,7 +820,10 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
             <div className="flex flex-col gap-4 h-full min-h-0">
               {/* Título vai DENTRO da barra do quadro: solto acima, as ações
                   caíam numa fileira própria embaixo da explicação. */}
-              <ExtrasKanban clientId={client.id} members={allMembers}
+              {/* `?post=` abre o extra direto, igual a tela geral de Extras já
+                  fazia. Sem isto, o item de extra no "Para você" levava pro
+                  quadro inteiro e a pessoa tinha que caçar o card. */}
+              <ExtrasKanban clientId={client.id} members={allMembers} initialOpenId={searchParams.get('post')}
                 heading={<>
                   <p className="text-sm font-medium text-[var(--color-text-primary)]">Extras de {client.name}</p>
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Tarefas, notas e lembretes específicos deste cliente</p>
