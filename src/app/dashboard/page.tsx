@@ -1041,7 +1041,10 @@ export default function DashboardPage() {
       dueDate: m.due_date, ajuste: m.status === 'ajuste',
       waitingClient: m.status === 'aguardando_aprovacao' && !stillOwesWork(asLabels(m.labels)),
       entregue: m.status === 'feito',
-      href: m.client_id ? (linkCliente(m.client_id)?.('materiais') || '/dashboard/materiais') : '/dashboard/materiais',
+      // `?post=` abre o material direto, igual extras e post. Mesmo cuidado do
+      // extra: o `||` vem ANTES da interpolação, senão "undefined?post=" seria
+      // uma string verdadeira e o fallback nunca valeria.
+      href: `${(m.client_id && linkCliente(m.client_id)?.('materiais')) || '/dashboard/materiais'}?post=${m.id}`,
       labels: asLabels(m.labels),
     })),
     ...fromActiveClients(myTasks, clientesAtivos).map((t): ParaVoceItem => ({

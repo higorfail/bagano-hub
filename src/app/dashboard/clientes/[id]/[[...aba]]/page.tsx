@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useState, Suspense } from 'react'
+import { use, useEffect, useRef, useState, Suspense } from 'react'
 import { useDarkMode } from '@/lib/useDarkMode'
 import { useUser } from '@/lib/UserContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
@@ -77,6 +77,10 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
   const [client, setClient] = useState<Client | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [tab, setTab] = useState(abaInicial)
+  // Qual aba estava na tela na passada anterior, pra saber quando houve
+  // TROCA de aba — na montagem não houve, e é isso que preserva o `?post=`
+  // que veio no link.
+  const abaAnterior = useRef(abaInicial)
   // Qual post está aberto, pra manter no endereço. Nasce do que veio no link
   // (incluindo o `?post=` antigo, que ainda chega das notificações do sino) e
   // depois passa a ser o CronogramaTab quem avisa, abrindo e fechando.
@@ -150,7 +154,12 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
   const [showAddMember, setShowAddMember] = useState(false)
   const [materials,    setMaterials]    = useState<any[]>([])
   const [matCounts,    setMatCounts]    = useState<Record<string,any>>({})
-  const [cardOpen,     setCardOpen]     = useState<string | 'new' | null>(null)
+  // Material aberto. Nasce do `?post=` quando a pessoa chega já na aba de
+  // materiais — é assim que o item do "Para você" abre o card direto, em vez
+  // de largar a pessoa no quadro pra caçar. Mesmo parâmetro que o quadro geral
+  // de Materiais já usava; a aba do cliente é que não lia.
+  const [cardOpen,     setCardOpen]     = useState<string | 'new' | null>(
+    abaInicial === 'materiais' ? searchParams.get('post') : null)
   const [matDragging,  setMatDragging]  = useState<string | null>(null)
   const [matDragOver,  setMatDragOver]  = useState<string | null>(null)
   const [newMemberId, setNewMemberId] = useState('')
@@ -204,13 +213,21 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
   // sino, ou o botão de voltar. A rota é a mesma, então o React não remonta e
   // o `useState` inicial não roda de novo — sem isto, clicar num segundo post
   // do mesmo cliente e mês não abriria nada.
+  // Link novo chegando com a tela JÁ aberta: outro item do "Para você", o
+  // sino, ou o botão de voltar. A rota é a mesma, então o React não remonta e
+  // os `useState` iniciais não rodam de novo — sem isto, clicar num segundo
+  // item do mesmo cliente não trocaria o card.
+  //
+  // O `?post=` entra junto do caminho: é por ele que chegam as notificações já
+  // guardadas no sino, e é o único endereço que material tem.
+  const postQuery = searchParams.get('post')
   useEffect(() => {
-    // O `?post=` entra junto: é por ele que chegam as notificações já guardadas
-    // no sino. Sem essa metade, o efeito limparia na montagem justamente o
-    // pedido que veio por parâmetro.
-    setPostAberto(postURL ?? searchParams.get('post'))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postURL])
+    const vindo = postURL ?? postQuery
+    // Cada aba lê o endereço pro SEU card. Sem o recorte por aba, um id de
+    // material iria parar no cronograma e vice-versa.
+    if (tab === 'materiais') { if (vindo) setCardOpen(vindo) }
+    else setPostAberto(vindo)
+  }, [postURL, postQuery, tab])
 
   useEffect(() => {
     saveLastPeriod(selectedMonth, selectedYear)
@@ -234,9 +251,25 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
     const params = new URLSearchParams(searchParams.toString())
     // Os três saem do endereço: viraram caminho.
     params.delete('tab'); params.delete('m'); params.delete('y')
-    // E o `post` sai junto quando já está no caminho, pra não ficar dito duas
-    // vezes — em lugares diferentes e podendo divergir.
-    if (alvo) params.delete('post')
+    // Quem manda no `post` do parâmetro é a aba que está na tela.
+    //
+    // No cronograma ele sai quando já virou caminho, pra não ficar dito duas
+    // vezes e poder divergir. Em materiais, o parâmetro É o endereço do card —
+    // não existe caminho pra material. E ao TROCAR de aba ele some: id de
+    // material não quer dizer nada no cronograma, e vice-versa; ficaria pendurado
+    // no endereço confundindo quem copiasse.
+    const trocouDeAba = tab !== abaAnterior.current
+    abaAnterior.current = tab
+    if (alvo) {
+      params.delete('post')
+    } else if (tab === 'materiais') {
+      // "new" e "new:<coluna>" são material ainda não salvo — sem endereço.
+      const idMaterial = cardOpen && !cardOpen.startsWith('new') ? cardOpen : null
+      if (idMaterial) params.set('post', idMaterial)
+      else params.delete('post')
+    } else if (trocouDeAba) {
+      params.delete('post')
+    }
     const qs = params.toString()
     const destino = qs ? `${base}?${qs}` : base
     if (destino !== `${pathname}?${searchParams.toString()}`) {
@@ -257,7 +290,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
       window.history.replaceState(null, '', destino)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, selectedMonth, selectedYear, postAberto])
+  }, [tab, selectedMonth, selectedYear, postAberto, cardOpen])
 
   useEffect(() => {
     async function load() {
