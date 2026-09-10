@@ -19,10 +19,9 @@ import LineChart from '@/components/ui/LineChart'
 import { brasiliaISOFromDate } from '@/lib/timezone'
 import { POST_DONE_STAGES, temMaterial, contaComoFolego } from '@/lib/postStages'
 import { fromActiveClients } from '@/lib/activeClients'
-import { withBase } from '@/lib/base'
 import { caminhoCliente } from '@/lib/clienteSlug'
 import { fetchAgencyAlerts, type AgencyAlert } from '@/lib/agencyAlerts'
-import { baldeDoItem, fraseDaFila, sugestaoDeAdiantar, somaDias, type Balde, type ClienteDeHoje } from '@/lib/filaDoDia'
+import { baldeDoItem, contextoDaAgenda, fraseDaFila, sugestaoDeAdiantar, somaDias, type Balde, type ClienteDeHoje } from '@/lib/filaDoDia'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
 const CFG = {
@@ -106,12 +105,6 @@ function getDayGreeting() {
 // sozinha (bom dia → boa tarde → boa noite), então a frase acompanha. Dentro
 // do mesmo período ela fica fixa, senão trocaria a cada refresh e perderia a
 // graça de "a frase de hoje".
-function getDayPeriod() {
-  const h = new Date().getHours()
-  if (h < 12) return 'manhã'
-  if (h < 18) return 'tarde'
-  return 'noite'
-}
 
 function daysBetween(a: Date, b: Date) {
   const aMid = new Date(a); aMid.setHours(0, 0, 0, 0)
@@ -161,9 +154,23 @@ function ClientAvatar({ client }: { client?: { name: string; color_hex?: string;
   )
 }
 
-function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap, campaignNameMap }: {
+function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap, campaignNameMap, hrefDoCliente }: {
   label: string
   items: ParaVoceRowItem[]
+  /**
+   * Quando existe, a linha é SEMPRE um cliente e SEMPRE navega — nunca expande.
+   *
+   * A lista misturava duas granularidades na mesma forma de linha: cliente com
+   * um item só desenhava O ITEM e abria o card; com dois ou mais desenhava o
+   * RESUMO e expandia. Mesma linha, dois significados e duas reações — a seta
+   * aparecia só num dos casos. Era isso que fazia a tela parecer bagunçada e
+   * "nem tudo clicável", mesmo com o conteúdo certo.
+   *
+   * Agora vale uma regra só: a linha te leva ao cliente. Os itens estão lá
+   * dentro, e o endereço de cada card já funciona desde o conserto do
+   * deep-link.
+   */
+  hrefDoCliente?: (clientId: string) => string
   clientMap: Record<string, { name: string; color_hex?: string; logo_url?: string | null }>
   router: ReturnType<typeof useRouter>
   todayStr: string
@@ -273,16 +280,16 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
             const cur = labelCounts.get(l.text)
             labelCounts.set(l.text, { color: l.color, n: (cur?.n || 0) + 1 })
           }))
-          // Cliente com um item só: a linha JÁ é o item — abre o card direto,
-          // sem seta. Expandir pra revelar uma única linha é clique à toa.
-          const single = its.length === 1 ? its[0] : null
+          // No modo por cliente NUNCA há linha-item: a granularidade é uma só.
+          const single = hrefDoCliente ? null : (its.length === 1 ? its[0] : null)
           const singleOverdue = !!single?.dueDate && single.dueDate < todayStr && !single.ajuste
           const singleCountdown = single ? dueCountdown(single.dueDate, todayStr) : null
           const singleCampaign = single?.campaignType ? campaignNameMap?.[`${single.clientId}:${single.campaignType}`] : null
 
           return (
             <div key={key}>
-              <button onClick={() => single ? router.push(single.href) : toggle(key)}
+              <button onClick={() => hrefDoCliente ? router.push(hrefDoCliente(its[0].clientId))
+                                  : single ? router.push(single.href) : toggle(key)}
                 className="w-full text-left rounded-xl px-3 py-2 flex items-center gap-2 transition-colors hover:brightness-[0.97]"
                 style={{ background: hasAjuste ? 'var(--ds-error-bg)' : muted ? 'transparent' : 'var(--color-bg-subtle)' }}>
                 <ClientAvatar client={client} />
@@ -316,11 +323,12 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
                     {overdueCount} atrasado{overdueCount !== 1 ? 's' : ''}
                   </span>
                 )}
-                {!single && (
-                  <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }} />
+                {(hrefDoCliente || !single) && (
+                  <ChevronRight size={13} className="flex-shrink-0 text-[var(--color-text-faint)] transition-transform duration-200"
+                    style={{ transform: !hrefDoCliente && isOpen ? 'rotate(90deg)' : 'none' }} />
                 )}
               </button>
-              {!single && isOpen && (
+              {!hrefDoCliente && !single && isOpen && (
                 <div className="flex flex-col gap-1 mt-1 pl-3">
                   {its.map(it => renderRow(it, `${key}-${it.id}`))}
                 </div>
@@ -387,7 +395,6 @@ export default function DashboardPage() {
   const [myTasks,      setMyTasks]      = useState<any[]>([])
   /** Os dias da agenda de criação desta pessoa: quando, qual cliente, e a nota. */
   const [minhaAgenda,  setMinhaAgenda]  = useState<{ dia: string; clientId: string | null; nota: string | null }[]>([])
-  const [greetingLine, setGreetingLine] = useState('')
   // A fila do dia. `fetchAgencyAlerts` já existia e já calculava tudo isto —
   // urgências, extras parados, captação chegando, post travado — mas morava só
   // atrás do sininho, e ninguém clica no sininho pra saber por onde começar.
@@ -1112,18 +1119,6 @@ export default function DashboardPage() {
   // central de aprovações sem nenhuma pista de qual item era. Materiais não
   // têm fluxo de aprovação pelo cliente (sem link público /aprovar) — não tem
   // o que focar na central, então esses continuam indo pro próprio cliente.
-  function waitingOnClientHref(): string {
-    const nonMaterial = waitingOnClient.filter(i => i.kind !== 'material')
-    if (nonMaterial.length === 0) return waitingOnClient[0]?.href || '/dashboard/aprovacao'
-    if (waitingOnClient.length === 1) {
-      const item = nonMaterial[0]
-      const rawId = item.id.slice(item.kind.length + 1)
-      return `/dashboard/aprovacao?client=${item.clientId}&highlight=${rawId}&kind=${item.kind}`
-    }
-    const clientIds = new Set(nonMaterial.map(i => i.clientId))
-    if (clientIds.size === 1) return `/dashboard/aprovacao?client=${[...clientIds][0]}`
-    return '/dashboard/aprovacao'
-  }
 
   // Ajuste pedido pelo cliente é sempre o grupo de maior prioridade, com ou sem prazo —
   // o resto vira uma lista só ("Pendências"), já ordenada por urgência (itemSort).
@@ -1132,27 +1127,9 @@ export default function DashboardPage() {
   // decide o que é de hoje, o que passou e o que nem tem dia. Aqui só se monta
   // o contexto (a agenda desta pessoa) e se distribui.
   const JANELA_SEM_AGENDA = 3
-  const contextoFila = useMemo(() => {
-    const hoje = new Set<string>(), passados = new Set<string>(), futuros = new Set<string>()
-    minhaAgenda.forEach(d => {
-      if (!d.clientId) return
-      if (d.dia === todayStr) hoje.add(d.clientId)
-      else if (d.dia < todayStr) passados.add(d.clientId)
-      else futuros.add(d.clientId)
-    })
-    // Cliente que tem dia hoje não conta como atrasado por um dia anterior —
-    // hoje é a combinação que vale.
-    hoje.forEach(c => passados.delete(c))
-    return {
-      hoje: todayStr,
-      // "Tem agenda" é sobre a PESSOA, não sobre o dia: quem participa da
-      // agenda mas está sem nada marcado hoje precisa ler "nada marcado pra
-      // hoje", não cair na régua de proximidade de quem nunca aparece nela.
-      temAgenda: minhaAgenda.length > 0,
-      clientesHoje: hoje, clientesPassados: passados, clientesFuturos: futuros,
-      janelaDias: JANELA_SEM_AGENDA,
-    }
-  }, [minhaAgenda, todayStr])
+  const contextoFila = useMemo(
+    () => contextoDaAgenda(minhaAgenda, todayStr, JANELA_SEM_AGENDA),
+    [minhaAgenda, todayStr])
 
   const minhaFila = useMemo(() => {
     const b: Record<Balde, ParaVoceItem[]> = { ajuste: [], passou: [], agora: [], proximos: [], semDia: [] }
@@ -1193,6 +1170,40 @@ export default function DashboardPage() {
   }, [minhaAgenda, todayStr, clientMap, minhaFila.proximos])
 
   const needsYouAjusteItems = minhaFila.ajuste
+
+  /**
+   * O bloco de agora: o que passou do dia PRIMEIRO, depois o de hoje.
+   *
+   * "Passou do dia" era seção própria e não devia ser: a ação é idêntica —
+   * sentar com aquele cliente. Duas seções pro mesmo gesto viravam duas
+   * listas pra ler de manhã. Como o agrupamento respeita a ordem de entrada,
+   * pôr os atrasados na frente já os deixa no topo, com a etiqueta vermelha
+   * que a própria linha desenha.
+   */
+  const fazerAgora = useMemo(
+    () => [...minhaFila.passou, ...minhaFila.agora],
+    [minhaFila.passou, minhaFila.agora])
+
+  /** A linha da frente do cliente, no mês que está sendo trabalhado. */
+  const hrefDoCliente = (cid: string) =>
+    `${linkCliente(cid)?.('cronograma')}/${year}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  /**
+   * Tudo que NÃO é de agora, numa frase só. Some quando não há nada.
+   *
+   * Eram quatro linhas separadas (outros dias, sem dia, entregue, esperando o
+   * cliente) — quatro contagens que não pedem ação nenhuma hoje ocupando o
+   * mesmo peso visual do trabalho de verdade.
+   */
+  const resumoDoResto = useMemo(() => {
+    const partes = [
+      minhaFila.proximos.length > 0 && `${minhaFila.proximos.length} de outros dias`,
+      minhaFila.semDia.length > 0 && `${minhaFila.semDia.length} sem dia`,
+      entregues.length > 0 && `${entregues.length} ${pl(entregues.length, 'entregue', 'entregues')}`,
+      waitingOnClient.length > 0 && `${waitingOnClient.length} com o cliente`,
+    ].filter(Boolean) as string[]
+    return partes.length ? partes.join(' · ') : ''
+  }, [minhaFila.proximos, minhaFila.semDia, entregues, waitingOnClient])
 
   // A chamada de IA que gerava esta frase saiu junto: sem ninguém lendo o
   // resultado, ela só queimaria a cota diária gratuita a cada carregamento.
@@ -1242,68 +1253,9 @@ export default function DashboardPage() {
       })
   }, [loading, paraVoceItems.length])
 
-  // Frase do dia (a que acompanha "Bom dia, Fulano"). Cacheada por
-  // pessoa+dia+período: dentro do mesmo turno é sempre a mesma, senão trocaria
-  // a cada refresh. A saudação padrão aparece na hora e a frase entra quando
-  // chega — nunca deixa o topo da tela esperando a IA.
-  useEffect(() => {
-    if (!currentMember || loading) return
-    const period = getDayPeriod()
-
-    const overdueCount = needsYou.filter(i => i.dueDate && i.dueDate < todayStr).length
-    const dueTodayCount = needsYou.filter(i => i.dueDate === todayStr).length
-    const clientsWithWork = [...new Set(needsYou.map(i => clientMap[i.clientId]?.name).filter(Boolean))]
-    const nextDate = specialDates[0]
-      ? `${specialDates[0].name} em ${daysBetween(now, new Date(specialDates[0].date + 'T12:00:00'))} dias`
-      : null
-
-    // A chave carrega os NÚMEROS que a frase cita. Sem isso ela ficava presa
-    // por período inteiro (até 6 h, e 6 h+ à noite): a saudação dizia "19
-    // pendências" enquanto o painel logo abaixo mostrava 11, porque o efeito
-    // até rodava de novo quando a lista mudava, mas o cache respondia antes.
-    // Mesma proteção que o resumo diário já tinha e esta não.
-    const countsKey = [
-      needsYou.length, overdueCount, dueTodayCount,
-      waitingOnClient.length, needsYouAjusteItems.length,
-      clientsWithWork.join('|'),
-    ].join(':')
-    const cacheKey = `bagano_greeting_v2_${currentMember.id}_${todayStr}_${period}`
-    try {
-      const cached = localStorage.getItem(cacheKey)
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        if (parsed.countsKey === countsKey) { setGreetingLine(parsed.text); return }
-      }
-    } catch {}
-
-    fetch(withBase('/api/ai-greeting'), {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        memberName: currentMember.name?.split(' ')[0],
-        role: currentMember.role,
-        weekday: DAYS[now.getDay()],
-        period,
-        dateLabel: `${now.getDate()} de ${MONTHS[now.getMonth()]}`,
-        pending: needsYou.length,
-        overdue: overdueCount,
-        dueToday: dueTodayCount,
-        waitingClient: waitingOnClient.length,
-        ajustes: needsYouAjusteItems.length,
-        clientsWithWork,
-        nextSpecialDate: nextDate,
-        publishedThisMonth: published,
-        totalThisMonth: total,
-      }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (!data.greeting) return
-        setGreetingLine(data.greeting)
-        try { localStorage.setItem(cacheKey, JSON.stringify({ countsKey, text: data.greeting })) } catch {}
-      })
-      .catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMember?.id, loading, todayStr, needsYou.length])
+  // A chamada de IA da saudação saiu junto com a frase que ela escrevia: sem
+  // ninguém lendo, ela só queimaria cota a cada carregamento. Quem conta é o
+  // card do "Para você", e uma fonte só de número é o ponto todo.
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -1375,14 +1327,19 @@ export default function DashboardPage() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">
-              {getDayGreeting()}{firstName ? `, ${firstName}` : ''}{greetingLine ? '.' : ' 👋'}
+              {getDayGreeting()}{firstName ? `, ${firstName}` : ''}.
             </h1>
-            {/* Frase do dia escrita pela IA com base no que a pessoa tem pra
-                fazer. Até chegar (ou se falhar/estourar o limite gratuito),
-                fica a frase fixa de sempre — o topo nunca espera a IA. */}
-            <p className="text-sm text-[var(--color-text-muted)] mt-1">
-              {greetingLine || 'Aqui está o que está acontecendo hoje na Bagano.'}
-            </p>
+            {/* A SAUDAÇÃO NÃO CARREGA NÚMERO.
+
+                Aqui havia uma frase da IA que contava por conta própria — "28
+                tasks te olhando feio ali no painel" — enquanto o card logo
+                abaixo dizia "8 hoje, 1 atrasado". Dois números diferentes na
+                mesma tela, de duas fontes que olhavam recortes diferentes.
+                Número que não bate com o vizinho não confunde só ele: derruba
+                a confiança nos dois, e faz a tela inteira parecer imprecisa
+                mesmo quando está certa.
+                Quem conta é o card, que sabe o que está contando. Aqui fica só
+                a data — informação que não compete com nada. */}
           </div>
           {/* No celular a data vive na barra do topo (ver layout.tsx): lá ela
               não custa altura nenhuma, porque aquela faixa já existe. */}
@@ -1457,44 +1414,44 @@ export default function DashboardPage() {
 
             {currentMember && paraVoceContent && (
               <SectionCard title={paraVoceTitle} icon={Zap} iconTone="amber" bodyClassName="px-4 pb-4 space-y-3">
+                {/* TRÊS REGIÕES, no máximo. Eram até oito — o card do Franz
+                    tinha sete seções abertas ao mesmo tempo, e isso não é
+                    problema de layout, é de escopo: a tela de manhã responde UMA
+                    pergunta, "o que eu faço primeiro?". Status, índice do que
+                    existe e planejamento são outra conversa, e agora cabem numa
+                    linha só no rodapé. */}
+
+                {/* 1. Alguém está esperando resposta. Aqui a unidade é o ITEM,
+                       porque o cliente pediu sobre um post específico. */}
                 {needsYouAjusteItems.length > 0 && (
-                  <ParaVoceGroup label="🔴 Ajuste pedido" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} />
+                  <ParaVoceGroup label="🔴 Esperando você" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} />
                 )}
-                {/* A ordem é a do dia: o que passou, o que é agora, e só depois
-                    o que ainda vai chegar. "Sem dia" fica por último e discreto
-                    de propósito — não é dívida da pessoa, é planejamento que
-                    falta, e misturado com o resto era o que fazia 24 itens
-                    parecerem 24 atrasos. */}
-                {minhaFila.passou.length > 0 && (
-                  <ParaVoceGroup label="⏰ Passou do dia" items={minhaFila.passou} clientMap={clientMap} router={router} todayStr={todayStr} cap={5} agingMap={agingMap} campaignNameMap={campaignNameMap} />
-                )}
-                {minhaFila.agora.length > 0 && (
+
+                {/* 2. O trabalho de agora. Aqui a unidade é o CLIENTE — é assim
+                       que o dia acontece: senta com um cliente e faz o lote
+                       dele. O que passou do dia não é seção separada: entra
+                       aqui, primeiro na lista e com etiqueta vermelha, porque a
+                       ação é a mesma (sentar com aquele cliente). */}
+                {fazerAgora.length > 0 && (
                   <ParaVoceGroup
                     label={contextoFila.temAgenda
                       ? (clientesDeHoje.length > 0 ? `📌 Hoje · ${clientesDeHoje.map(c => c.nome).join(' · ')}` : '📌 Hoje')
                       : `📌 Mais urgente · sai em até ${JANELA_SEM_AGENDA} dias`}
-                    items={minhaFila.agora} clientMap={clientMap} router={router} todayStr={todayStr} cap={8} agingMap={agingMap} campaignNameMap={campaignNameMap} />
+                    items={fazerAgora} clientMap={clientMap} router={router} todayStr={todayStr} cap={6}
+                    agingMap={agingMap} campaignNameMap={campaignNameMap}
+                    hrefDoCliente={hrefDoCliente} />
                 )}
+
                 {convitePraAdiantar && (
                   <ParaVoceSummaryRow icon="⚡" label={convitePraAdiantar} onClick={() => router.push('/dashboard/criacao')} />
                 )}
-                {minhaFila.proximos.length > 0 && (
-                  <ParaVoceSummaryRow
-                    icon="📅"
-                    label={`${minhaFila.proximos.length} ${pl(minhaFila.proximos.length, 'item', 'itens')} de outros dias`}
-                    onClick={() => router.push('/dashboard/criacao')} muted />
-                )}
-                {minhaFila.semDia.length > 0 && (
-                  <ParaVoceSummaryRow
-                    icon="❓"
-                    label={`${minhaFila.semDia.length} ${pl(minhaFila.semDia.length, 'item sem dia marcado', 'itens sem dia marcado')}`}
-                    onClick={() => router.push('/dashboard/criacao')} muted />
-                )}
-                {entregues.length > 0 && (
-                  <ParaVoceGroup label="✅ Entregue — falta o próximo passo" items={entregues} clientMap={clientMap} router={router} todayStr={todayStr} muted cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} />
-                )}
-                {waitingOnClient.length > 0 && (
-                  <ParaVoceSummaryRow icon="⏳" label={`${waitingOnClient.length} ${pl(waitingOnClient.length, 'item esperando', 'itens esperando')} o cliente`} onClick={() => router.push(waitingOnClientHref())} muted />
+
+                {/* 3. Todo o resto numa linha só. Contagem não é navegação: como
+                       linha morta no meio da manhã, "10 itens sem dia marcado"
+                       é ruído — e é informação de quem MONTA a agenda, não de
+                       quem executa. */}
+                {resumoDoResto && (
+                  <ParaVoceSummaryRow icon="📂" label={resumoDoResto} onClick={() => router.push('/dashboard/criacao')} muted />
                 )}
               </SectionCard>
             )}

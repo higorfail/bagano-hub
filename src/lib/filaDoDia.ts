@@ -70,6 +70,54 @@ export function somaDias(data: string, dias: number): string {
     .toISOString().slice(0, 10)
 }
 
+/** Uma linha da agenda de criação, já com a data resolvida. */
+export type DiaDaAgenda = { dia: string; clientId: string | null }
+
+/**
+ * Quantos dias em torno de hoje contam como "esta pessoa trabalha por agenda".
+ *
+ * Existir UMA linha de agenda não significa nada. A Yasmim tinha exatamente uma,
+ * de 20/08 — um dia avulso de três semanas antes —, e isso bastava pra jogá-la
+ * no modo plano: tudo do cliente daquele dia virava "passou do dia" e o resto
+ * virava "sem dia marcado". O card dela dizia "7 passaram do dia" com ZERO itens
+ * de data vencida. Era o mesmo "parece que estou sempre atrasada" que a fila
+ * tinha ido consertar, reaparecendo por outra porta.
+ *
+ * A janela também dá VALIDADE ao atraso: um dia combinado de três semanas atrás
+ * não pode marcar trabalho como atrasado pra sempre.
+ */
+export const JANELA_DA_AGENDA = 7
+
+/** Monta o contexto a partir das linhas cruas da agenda desta pessoa. */
+export function contextoDaAgenda(
+  dias: DiaDaAgenda[],
+  hoje: string,
+  janelaDias: number,
+): ContextoDaFila {
+  const inicio = somaDias(hoje, -JANELA_DA_AGENDA)
+  const fim = somaDias(hoje, JANELA_DA_AGENDA)
+  const perto = dias.filter(d => !!d.clientId && d.dia >= inicio && d.dia <= fim)
+
+  const clientesHoje = new Set<string>()
+  const clientesPassados = new Set<string>()
+  const clientesFuturos = new Set<string>()
+  perto.forEach(d => {
+    if (d.dia === hoje) clientesHoje.add(d.clientId!)
+    else if (d.dia < hoje) clientesPassados.add(d.clientId!)
+    else clientesFuturos.add(d.clientId!)
+  })
+  // Cliente que tem dia HOJE não é atraso por um dia anterior — hoje é a
+  // combinação que vale.
+  clientesHoje.forEach(c => clientesPassados.delete(c))
+
+  return {
+    hoje,
+    temAgenda: perto.length > 0,
+    clientesHoje, clientesPassados, clientesFuturos,
+    janelaDias,
+  }
+}
+
 export function baldeDoItem(item: ItemDaFila, ctx: ContextoDaFila): Balde {
   // Pedido do cliente fura a fila. Não importa de que dia é: alguém está
   // esperando resposta do outro lado.
