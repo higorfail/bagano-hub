@@ -19,6 +19,7 @@ import LineChart from '@/components/ui/LineChart'
 import { brasiliaISOFromDate } from '@/lib/timezone'
 import { POST_DONE_STAGES, temMaterial, contaComoFolego } from '@/lib/postStages'
 import { fromActiveClients } from '@/lib/activeClients'
+import { withBase } from '@/lib/base'
 import { caminhoCliente } from '@/lib/clienteSlug'
 import { fetchAgencyAlerts, type AgencyAlert } from '@/lib/agencyAlerts'
 import { baldeDoItem, contextoDaAgenda, fraseDaFila, sugestaoDeAdiantar, somaDias, type Balde, type ClienteDeHoje } from '@/lib/filaDoDia'
@@ -394,6 +395,7 @@ export default function DashboardPage() {
   const [myMaterials,  setMyMaterials]  = useState<any[]>([])
   const [myTasks,      setMyTasks]      = useState<any[]>([])
   /** Os dias da agenda de criação desta pessoa: quando, qual cliente, e a nota. */
+  const [greetingLine, setGreetingLine] = useState('')
   const [minhaAgenda,  setMinhaAgenda]  = useState<{ dia: string; clientId: string | null; nota: string | null }[]>([])
   // A fila do dia. `fetchAgencyAlerts` já existia e já calculava tudo isto —
   // urgências, extras parados, captação chegando, post travado — mas morava só
@@ -1253,9 +1255,68 @@ export default function DashboardPage() {
       })
   }, [loading, paraVoceItems.length])
 
-  // A chamada de IA da saudação saiu junto com a frase que ela escrevia: sem
-  // ninguém lendo, ela só queimaria cota a cada carregamento. Quem conta é o
-  // card do "Para você", e uma fonte só de número é o ponto todo.
+  // Frase do dia, a que acompanha "Bom dia, Fulano". É escrita pela IA e a
+  // equipe lê — eu tinha tirado junto com o problema, e o problema não era ela.
+  //
+  // O que confundia era ela CONTAR POR CONTA PRÓPRIA: recebia a pilha inteira
+  // da pessoa e dizia "28 tasks te olhando feio" enquanto o card logo abaixo
+  // dizia "8 hoje, 1 atrasado". Agora ela come da mesma tigela — os números
+  // saem da fila, os mesmos que o card desenha — e a rota tem regra explícita
+  // de não inventar número. Duas vozes, uma conta só.
+  //
+  // Cacheada por pessoa+dia+período, com os números na chave: sem isso a frase
+  // ficava presa dizendo um número velho depois que a lista mudava.
+  useEffect(() => {
+    if (!currentMember || loading) return
+    const h = now.getHours()
+    const period = h < 12 ? 'manhã' : h < 18 ? 'tarde' : 'noite'
+    const nextDate = specialDates[0]
+      ? `${specialDates[0].name} em ${daysBetween(now, new Date(specialDates[0].date + 'T12:00:00'))} dias`
+      : null
+
+    const countsKey = [
+      fazerAgora.length, contagemFila.passou, contagemFila.ajuste,
+      waitingOnClient.length, clientesDeHoje.map(c => c.nome).join('|'),
+    ].join(':')
+    const cacheKey = `bagano_greeting_v3_${currentMember.id}_${todayStr}_${period}`
+    try {
+      const cached = localStorage.getItem(cacheKey)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed.countsKey === countsKey) { setGreetingLine(parsed.text); return }
+      }
+    } catch {}
+
+    fetch(withBase('/api/ai-greeting'), {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        memberName: currentMember.name?.split(' ')[0],
+        role: currentMember.role,
+        weekday: DAYS[now.getDay()],
+        period,
+        dateLabel: `${now.getDate()} de ${MONTHS[now.getMonth()]}`,
+        // "Agora" e não "tudo que existe": é o que o card mostra.
+        pending: fazerAgora.length,
+        overdue: contagemFila.passou,
+        ajustes: contagemFila.ajuste,
+        waitingClient: waitingOnClient.length,
+        clientsWithWork: clientesDeHoje.length
+          ? clientesDeHoje.map(c => c.nome)
+          : [...new Set(fazerAgora.map(i => clientMap[i.clientId]?.name).filter(Boolean))],
+        nextSpecialDate: nextDate,
+        publishedThisMonth: published,
+        totalThisMonth: total,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.greeting) return
+        setGreetingLine(data.greeting)
+        try { localStorage.setItem(cacheKey, JSON.stringify({ countsKey, text: data.greeting })) } catch {}
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMember?.id, loading, todayStr, fazerAgora.length, contagemFila.passou, contagemFila.ajuste])
 
   if (loading) return (
     <div className="flex items-center justify-center h-full">
@@ -1327,19 +1388,21 @@ export default function DashboardPage() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">
-              {getDayGreeting()}{firstName ? `, ${firstName}` : ''}.
+              {getDayGreeting()}{firstName ? `, ${firstName}` : ''}{greetingLine ? '.' : ' 👋'}
             </h1>
-            {/* A SAUDAÇÃO NÃO CARREGA NÚMERO.
+            <p className="text-sm text-[var(--color-text-muted)] mt-1">
+              {greetingLine || 'Aqui está o que está acontecendo hoje na Bagano.'}
+            </p>
+            {/* A frase da IA (ver o efeito que chama /api/ai-greeting).
+                A equipe lê, e ela fica.
 
-                Aqui havia uma frase da IA que contava por conta própria — "28
-                tasks te olhando feio ali no painel" — enquanto o card logo
-                abaixo dizia "8 hoje, 1 atrasado". Dois números diferentes na
-                mesma tela, de duas fontes que olhavam recortes diferentes.
-                Número que não bate com o vizinho não confunde só ele: derruba
-                a confiança nos dois, e faz a tela inteira parecer imprecisa
-                mesmo quando está certa.
-                Quem conta é o card, que sabe o que está contando. Aqui fica só
-                a data — informação que não compete com nada. */}
+                O que confundia era ela contar SOZINHA: dizia "28 tasks te
+                olhando feio" com a pilha inteira, enquanto o card logo abaixo
+                dizia "8 hoje, 1 atrasado". Número que não bate com o vizinho
+                derruba a confiança nos dois. Cheguei a tirar a frase junto com
+                o problema — errado: o problema era a conta, não o humor.
+                Agora ela recebe os números da MESMA fila que o card desenha, e
+                a rota tem regra explícita de não inventar número. */}
           </div>
           {/* No celular a data vive na barra do topo (ver layout.tsx): lá ela
               não custa altura nenhuma, porque aquela faixa já existe. */}

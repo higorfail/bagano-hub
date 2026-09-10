@@ -86,12 +86,18 @@ export async function POST(req: NextRequest) {
   const facts = [
     `Pessoa: ${memberName || 'alguém do time'}${role ? ` (${role})` : ''}`,
     `Quando: ${weekday}, ${period}, ${dateLabel}`,
-    pending ? `Pendências dela hoje: ${pending}` : 'Sem nenhuma pendência — lista limpa',
-    overdue ? `Atrasados: ${overdue}` : null,
+    // Os números vêm da MESMA fila que o card logo abaixo desenha.
+    //
+    // Antes chegava aqui a pilha inteira da pessoa ("28 pendências") enquanto o
+    // card dizia "8 hoje, 1 atrasado". Dois números, duas contas, na mesma
+    // tela. Número que não bate com o vizinho derruba a confiança nos dois — e
+    // era o que fazia a saudação parecer confusa, não o humor dela.
+    pending ? `Trabalho dela pra AGORA: ${pending}` : 'Nada pra agora — dia limpo',
+    overdue ? `Passaram do dia: ${overdue}` : null,
     dueToday ? `Vencem hoje: ${dueToday}` : null,
     ajustes ? `Ajustes pedidos pelo cliente: ${ajustes}` : null,
     waitingClient ? `Esperando resposta do cliente: ${waitingClient}` : null,
-    clientsWithWork?.length ? `Clientes com trabalho dela: ${clientsWithWork.slice(0, 4).join(', ')}` : null,
+    clientsWithWork?.length ? `Clientes do dia dela: ${clientsWithWork.slice(0, 4).join(', ')}` : null,
     nextSpecialDate ? `Data comemorativa chegando: ${nextSpecialDate}` : null,
     totalThisMonth ? `Progresso do mês da agência: ${publishedThisMonth}/${totalThisMonth} posts publicados` : null,
   ].filter(Boolean).join('\n')
@@ -103,6 +109,12 @@ export async function POST(req: NextRequest) {
 CONTEXTO DE HOJE:
 ${facts}
 ${rare ? `\nINSTRUÇÃO ESPECIAL DE HOJE: ${rare}` : ''}
+
+REGRA DE NÚMERO: só pode citar número que esteja no contexto acima, exatamente
+como está. Não some, não arredonde, não invente. Logo abaixo desta frase existe
+um painel com as mesmas contas — se as duas discordarem, a pessoa para de
+confiar nas duas. Se não tiver certeza, escreva sem número nenhum: a frase
+funciona melhor pelo humor do que pela estatística.
 
 Escreva a frase (só ela, sem a saudação, máximo 75 caracteres):`
 
