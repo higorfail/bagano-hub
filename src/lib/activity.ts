@@ -51,17 +51,40 @@ export async function logActivity(params: {
   // notificação na caixa de entrada, e só o envio do push é que fica de fora.
   // Antes o skipPush saía aqui e a aprovação do cliente nunca chegava ao
   // sininho — era a maior fonte de "chegou no push mas não ficou salvo".
-  fetch(withBase('/api/push/notify'), {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(params.token ? { 'x-approval-token': params.token } : {}),
-    },
-    body: JSON.stringify(params),
-    // keepalive: a requisição sobrevive se a pessoa fechar a aba ou navegar
-    // logo depois da ação. Sem isso o navegador cancela em trânsito e a
-    // notificação nunca chega a ser gravada — mesmo problema que já mordeu o
-    // registro de "cliente pediu ajuste" antes.
-    keepalive: true,
-  }).catch(() => {})
+  //
+  // O `db` NÃO pode ir no corpo. Ele é o cliente do Supabase, um objeto com
+  // referências circulares, e `JSON.stringify` estoura com
+  // "Converting circular structure to JSON" — sempre, não às vezes.
+  //
+  // Isso quebrou em 04/09, quando os helpers passaram a receber `db` pra
+  // carregar o token da página de aprovação. A conta: a linha do histórico já
+  // tinha sido gravada acima, então o estrago não aparecia no banco — mas a
+  // exceção subia daqui e matava QUEM CHAMOU no meio do caminho. Na página de
+  // aprovação isso significava caixa que não fecha, texto que não limpa,
+  // nenhum aviso na tela e o botão travado em "…" até recarregar. Em seis dias
+  // foram 50 ações de cliente e ZERO notificações pra equipe.
+  //
+  // A rota nem lê o `db`: ela usa `tableName`, `recordId` e `action`, e o
+  // token vai no cabeçalho.
+  const { db: _naoVaiNoCorpo, ...paraNotificar } = params
+  // E o try/catch é a segunda trava: nada aqui é essencial pra ação que a
+  // pessoa acabou de fazer — ela JÁ está gravada. Uma falha neste rodapé não
+  // pode voltar a derrubar a tela de quem chamou.
+  try {
+    fetch(withBase('/api/push/notify'), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(params.token ? { 'x-approval-token': params.token } : {}),
+      },
+      body: JSON.stringify(paraNotificar),
+      // keepalive: a requisição sobrevive se a pessoa fechar a aba ou navegar
+      // logo depois da ação. Sem isso o navegador cancela em trânsito e a
+      // notificação nunca chega a ser gravada — mesmo problema que já mordeu o
+      // registro de "cliente pediu ajuste" antes.
+      keepalive: true,
+    }).catch(() => {})
+  } catch (e) {
+    console.error('[logActivity] não deu pra avisar a equipe:', e)
+  }
 }
