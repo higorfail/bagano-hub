@@ -1107,6 +1107,8 @@ export default function DashboardPage() {
     clientId: string; dueDate: string | null; ajuste: boolean; waitingClient: boolean; entregue: boolean; href: string
     /** A etapa do card — é ela que diz de quem é a bola. Ver donoDaEtapa.ts. */
     status?: string | null
+    /** Mês do cronograma a que o card pertence, 'YYYY-MM'. */
+    competencia?: string | null
     postType?: string | null; campaignType?: string | null; labels?: CardLabel[] | null
     ajusteAlvo?: string | null
   }
@@ -1139,6 +1141,7 @@ export default function DashboardPage() {
   const paraVoceItems: ParaVoceItem[] = [
     ...directAssigned.map((s): ParaVoceItem => ({
       id: `post-${s.id}`, kind: 'post', title: s.title, clientId: s.client_id, status: s.status,
+      competencia: s.year && s.month ? `${s.year}-${String(s.month).padStart(2, '0')}` : null,
       dueDate: s.scheduled_date, ajuste: s.status === CFG.S.ajuste,
       waitingClient: s.status === CFG.S.aguardandoAprovacao && !stillOwesWork(openLabels(asLabels((s as any).labels), s.legenda)),
       entregue: false,
@@ -1254,6 +1257,7 @@ export default function DashboardPage() {
       b[baldeDoItem({
         clientId: i.clientId || null, ajuste: i.ajuste, data: i.dueDate || null,
         esperandoVoce: !!etapa?.esperandoVoce,
+        competencia: i.competencia || null,
       }, contextoFila)].push(i)
     })
     return b

@@ -43,6 +43,8 @@ export type ItemDaFila = {
    * `esperandoVoce` em donoDaEtapa.ts.
    */
   esperandoVoce?: boolean
+  /** Mês de competência do card no cronograma, 'YYYY-MM'. */
+  competencia?: string | null
 }
 
 export type ContextoDaFila = {
@@ -58,6 +60,16 @@ export type ContextoDaFila = {
   clientesFuturos: Set<string>
   /** Sem agenda: quantos dias à frente ainda contam como "agora". */
   janelaDias: number
+  /**
+   * Por cliente com dia na agenda: qual competência ('YYYY-MM') aquele dia
+   * trata. Sai da nota quando ela nomeia mês; senão, do próprio dia.
+   *
+   * Vale pro dia de HOJE e pros que PASSARAM — e a segunda metade importa
+   * tanto quanto: o dia do NI HAO foi ontem com a nota "Cronograma set", e os
+   * 3 posts que sobraram são de OUTUBRO. Sem esta regra eles apareciam como
+   * ATRASADOS, cobrando um cronograma que nem começou.
+   */
+  competenciaDoDia?: Map<string, string>
 }
 
 /**
@@ -76,7 +88,39 @@ export function somaDias(data: string, dias: number): string {
 }
 
 /** Uma linha da agenda de criação, já com a data resolvida. */
-export type DiaDaAgenda = { dia: string; clientId: string | null }
+export type DiaDaAgenda = { dia: string; clientId: string | null; nota?: string | null }
+
+// Abreviação E nome inteiro, e nada além disso. A abreviação sozinha NÃO pode
+// aceitar sufixo: "marcados" é a nota mais comum da agenda e casaria com
+// "mar" (março), e "jantar do dia 10" casaria com "jan". O teste pegou os dois.
+const MESES = [
+  ['jan', 'janeiro'], ['fev', 'fevereiro'], ['mar', 'marco', 'março'],
+  ['abr', 'abril'], ['mai', 'maio'], ['jun', 'junho'],
+  ['jul', 'julho'], ['ago', 'agosto'], ['set', 'setembro'],
+  ['out', 'outubro'], ['nov', 'novembro'], ['dez', 'dezembro'],
+]
+
+/**
+ * O mês que a nota da agenda nomeia — "Cronograma set" → setembro.
+ *
+ * A nota é escrita à mão e quase nunca traz mês ("Cronograma", "2 marcados",
+ * "primeiros do mes"). Quando traz, é a informação mais precisa que existe
+ * sobre QUAL trabalho é o do dia, e estava sendo ignorada: o dia 10/09 do NI
+ * HAO dizia "Cronograma set" e a fila trazia os 3 posts de OUTUBRO, que é o
+ * cronograma seguinte, ainda não começado.
+ *
+ * Devolve 1–12, ou null quando a nota não nomeia mês.
+ */
+export function mesDaNota(nota?: string | null): number | null {
+  const t = (nota || '').toLowerCase()
+  if (!t.trim()) return null
+  for (let i = 0; i < 12; i++) {
+    // Palavra INTEIRA, sem sufixo. `\b` não é confiável com acento em JS, por
+    // isso a vizinhança é escrita à mão.
+    if (MESES[i].some(m => new RegExp(`(^|[^a-zà-úç])${m}([^a-zà-úç]|$)`, 'i').test(t))) return i + 1
+  }
+  return null
+}
 
 /**
  * Quantos dias em torno de hoje contam como "esta pessoa trabalha por agenda".
@@ -106,10 +150,20 @@ export function contextoDaAgenda(
   const clientesHoje = new Set<string>()
   const clientesPassados = new Set<string>()
   const clientesFuturos = new Set<string>()
-  perto.forEach(d => {
+  const competenciaDoDia = new Map<string, string>()
+  // Do mais antigo pro mais novo: o dia MAIS RECENTE de cada cliente é o que
+  // vale, e o de hoje ganha de todos por ser o último.
+  const emOrdem = [...perto].sort((a, b) => a.dia.localeCompare(b.dia))
+  emOrdem.forEach(d => {
     if (d.dia === hoje) clientesHoje.add(d.clientId!)
     else if (d.dia < hoje) clientesPassados.add(d.clientId!)
-    else clientesFuturos.add(d.clientId!)
+    else { clientesFuturos.add(d.clientId!); return }   // dia futuro não define competência
+    // A nota manda; sem mês na nota, o dia responde por si.
+    const m = mesDaNota(d.nota)
+    const alvo = m
+      ? `${Number(d.dia.slice(0, 4))}-${String(m).padStart(2, '0')}`
+      : d.dia.slice(0, 7)
+    competenciaDoDia.set(d.clientId!, alvo)
   })
   // Cliente que tem dia HOJE não é atraso por um dia anterior — hoje é a
   // combinação que vale.
@@ -119,7 +173,7 @@ export function contextoDaAgenda(
     hoje,
     temAgenda: perto.length > 0,
     clientesHoje, clientesPassados, clientesFuturos,
-    janelaDias,
+    janelaDias, competenciaDoDia,
   }
 }
 
@@ -147,8 +201,17 @@ export function baldeDoItem(item: ItemDaFila, ctx: ContextoDaFila): Balde {
     // O dia combinado passou e a coisa continua aberta. Este é o atraso que a
     // pessoa realmente tem, e ele aparece MESMO com a publicação lá na frente
     // — é justamente o caso que a data de publicação escondia.
-    if (ctx.clientesPassados.has(item.clientId)) return 'passou'
-    if (ctx.clientesHoje.has(item.clientId)) return 'agora'
+    // O dia é daquele cliente — mas de QUAL cronograma?
+    //
+    // O dia do NI HAO dizia "Cronograma set" e sobraram 3 posts de OUTUBRO,
+    // criados adiantado. Mês do card DEPOIS do mês que o dia trata não é
+    // trabalho daquele dia: nem de hoje, nem atraso. Vai pra "outros dias" —
+    // visível, sem sumir e sem cobrar. Mês anterior ou igual continua valendo:
+    // aí é trabalho de verdade, e esconder seria pior.
+    const alvo = ctx.competenciaDoDia?.get(item.clientId)
+    const doMesSeguinte = !!alvo && !!item.competencia && item.competencia > alvo
+    if (ctx.clientesPassados.has(item.clientId)) return doMesSeguinte ? 'proximos' : 'passou'
+    if (ctx.clientesHoje.has(item.clientId)) return doMesSeguinte ? 'proximos' : 'agora'
     if (ctx.clientesFuturos.has(item.clientId)) return 'proximos'
     return 'semDia'
   }
