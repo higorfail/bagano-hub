@@ -145,6 +145,42 @@ type ParaVoceRowItem = {
   id: string; kind: string; title: string; clientId: string; dueDate: string | null
   ajuste: boolean; href: string; postType?: string | null; campaignType?: string | null
   labels?: CardLabel[] | null; ajusteAlvo?: string | null
+  /** A etapa do card — é dela que sai o verbo do trabalho. */
+  status?: string | null
+}
+
+/** A tabela por trás de cada tipo de item, pra perguntar a etapa. */
+function tabelaDo(kind: string) {
+  return kind === 'post' ? 'schedules' : kind === 'task' ? 'personal_tasks'
+    : kind === 'extra' ? 'extras' : 'materials'
+}
+
+/**
+ * O verbo do trabalho: "revisar", "criar", "agendar", "entregar".
+ *
+ * "6 posts" não diz nada pra quem faz trabalho de etapa — a Yasmim recebe 9
+ * repasses por dia e todos apareciam como "N posts", sem dizer que o que ela
+ * tem pela frente é REVISAR. O verbo é a informação que muda o que a pessoa
+ * faz depois de ler a linha.
+ */
+function verboDo(it: ParaVoceRowItem) {
+  if (it.ajuste) return 'ajustar'
+  return etapaDoItem(tabelaDo(it.kind), it.status)?.verbo || null
+}
+
+/**
+ * A etiqueta do verbo. Discreta de propósito: ela diz o que FAZER, e por isso
+ * vem antes das etiquetas do card na ordem de leitura — mas não pode competir
+ * com o título nem com o vermelho do atraso.
+ */
+function EtiquetaVerbo({ verbo }: { verbo: string | null }) {
+  if (!verbo) return null
+  return (
+    <span className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
+      style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
+      {verbo}
+    </span>
+  )
 }
 
 function ClientAvatar({ client }: { client?: { name: string; color_hex?: string; logo_url?: string | null } }) {
@@ -214,6 +250,7 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
         </span>
         {/* O que o cliente pediu pra mudar. Sem isto o designer abre o card
             pra descobrir que a alteração era só na legenda. */}
+        <EtiquetaVerbo verbo={verboDo(it)} />
         {it.ajuste && it.ajusteAlvo && ALVO_LABEL[it.ajusteAlvo] && (
           <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
             {ALVO_LABEL[it.ajusteAlvo]}
@@ -257,15 +294,32 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
   const totalItems = items.length
   const shownItems = clientGroups.slice(0, cap).reduce((s, g) => s + g.its.length, 0)
 
-  // "1 material, 2 posts" — resumo curto do que tem ali dentro, já que o
-  // grupo agora mistura tipos.
+  /**
+   * "4 posts pra revisar · 1 material pra entregar".
+   *
+   * Era só a contagem por tipo — "6 posts" —, que não diz o que fazer. Pra
+   * quem trabalha por etapa isso é a informação inteira: a Yasmim recebe
+   * repasse o dia todo e precisava abrir o card pra descobrir que o que a
+   * espera é REVISAR. Agrupa por verbo primeiro; quando o grupo mistura tipos
+   * dentro do mesmo verbo, o tipo vira "itens".
+   */
   function summarize(its: ParaVoceRowItem[]) {
-    const counts: Record<string, number> = {}
-    its.forEach(i => { counts[i.kind] = (counts[i.kind] || 0) + 1 })
-    return (['post', 'extra', 'material', 'task'] as const)
-      .filter(k => counts[k])
-      .map(k => { const n = counts[k]; const [s1, p1] = KIND_LABEL[k]; return `${n} ${pl(n, s1, p1)}` })
-      .join(', ')
+    const porVerbo = new Map<string, ParaVoceRowItem[]>()
+    its.forEach(i => {
+      const v = verboDo(i) || '—'
+      if (!porVerbo.has(v)) porVerbo.set(v, [])
+      porVerbo.get(v)!.push(i)
+    })
+    const partes: string[] = []
+    porVerbo.forEach((lista, verbo) => {
+      const tipos = new Set(lista.map(i => i.kind))
+      const n = lista.length
+      const nome = tipos.size === 1
+        ? pl(n, ...KIND_LABEL[[...tipos][0]] || ['item', 'itens'])
+        : pl(n, 'item', 'itens')
+      partes.push(verbo === '—' ? `${n} ${nome}` : `${n} ${nome} pra ${verbo}`)
+    })
+    return partes.join(' · ')
   }
 
   return (
@@ -320,6 +374,7 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
                       : summarize(its)}
                   </span>
                 )}
+                {its.length === 1 && <EtiquetaVerbo verbo={verboDo(its[0])} />}
                 {[...labelCounts.entries()].slice(0, 2).map(([text, { color, n }]) => (
                   <span key={text} className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: color }}>
                     {n === its.length ? text : `${n} ${text}`}
