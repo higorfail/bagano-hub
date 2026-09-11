@@ -147,11 +147,11 @@ type ParaVoceRowItem = {
   labels?: CardLabel[] | null; ajusteAlvo?: string | null
   /** A etapa do card — é dela que sai o verbo do trabalho. */
   status?: string | null
-  /** Voltou da revisão interna: o que a fila chama de "criar" é AJUSTAR. */
-  voltouDaRevisao?: boolean
-  /** O recado que veio junto com a volta, quando houve. */
-  recadoDaVolta?: string | null
 }
+
+/** O que voltou da revisão, por id de item. Mapa à parte pelo mesmo motivo do
+ *  `agingMap`: injetar no item quebra a memoização de quem monta a lista. */
+export type VoltasDaRevisao = Record<string, { quando: string; recado: string | null }>
 
 /** A tabela por trás de cada tipo de item, pra perguntar a etapa. */
 function tabelaDo(kind: string) {
@@ -167,11 +167,11 @@ function tabelaDo(kind: string) {
  * tem pela frente é REVISAR. O verbo é a informação que muda o que a pessoa
  * faz depois de ler a linha.
  */
-function verboDo(it: ParaVoceRowItem) {
+function verboDo(it: ParaVoceRowItem, voltas?: VoltasDaRevisao) {
   if (it.ajuste) return 'ajustar'
   // Produção DEPOIS de uma volta da revisão não é criar: é consertar o que a
   // revisão apontou. Mesma etapa no banco, trabalho diferente na mão.
-  if (it.voltouDaRevisao && it.status === 'producao') return 'ajustar'
+  if (it.status === 'producao' && voltas?.[it.id]) return 'ajustar'
   return etapaDoItem(tabelaDo(it.kind), it.status)?.verbo || null
 }
 
@@ -199,7 +199,7 @@ function ClientAvatar({ client }: { client?: { name: string; color_hex?: string;
   )
 }
 
-function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap, campaignNameMap, sempreCliente }: {
+function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap, campaignNameMap, sempreCliente, voltasDaRevisao }: {
   label: string
   items: ParaVoceRowItem[]
   /**
@@ -218,6 +218,8 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
    * antes era a exceção.
    */
   sempreCliente?: boolean
+  /** O que voltou da revisão interna, por id — vira verbo "ajustar" e recado. */
+  voltasDaRevisao?: VoltasDaRevisao
   clientMap: Record<string, { name: string; color_hex?: string; logo_url?: string | null }>
   router: ReturnType<typeof useRouter>
   todayStr: string
@@ -261,13 +263,13 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
             "faltou a capa aqui". Estava num comentário que a fila não lia, e é
             exatamente o que decide o que fazer a seguir. Mesma ideia do pedido
             do cliente, que já aparece assim na página de aprovação. */}
-        {it.recadoDaVolta && (
-          <span className="text-[10px] italic truncate max-w-[14rem] flex-shrink" title={it.recadoDaVolta}
+        {voltasDaRevisao?.[it.id]?.recado && (
+          <span className="text-[10px] italic truncate max-w-[14rem] flex-shrink" title={voltasDaRevisao[it.id].recado!}
             style={{ color: 'var(--ds-warn-text)' }}>
-            "{it.recadoDaVolta}"
+            “{voltasDaRevisao[it.id].recado}”
           </span>
         )}
-        <EtiquetaVerbo verbo={verboDo(it)} />
+        <EtiquetaVerbo verbo={verboDo(it, voltasDaRevisao)} />
         {it.ajuste && it.ajusteAlvo && ALVO_LABEL[it.ajusteAlvo] && (
           <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
             {ALVO_LABEL[it.ajusteAlvo]}
@@ -323,7 +325,7 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
   function summarize(its: ParaVoceRowItem[]) {
     const porVerbo = new Map<string, ParaVoceRowItem[]>()
     its.forEach(i => {
-      const v = verboDo(i) || '—'
+      const v = verboDo(i, voltasDaRevisao) || '—'
       if (!porVerbo.has(v)) porVerbo.set(v, [])
       porVerbo.get(v)!.push(i)
     })
@@ -391,13 +393,13 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
                       : summarize(its)}
                   </span>
                 )}
-                {its.length === 1 && its[0].recadoDaVolta && (
-                  <span className="text-[10px] italic truncate max-w-[12rem] flex-shrink" title={its[0].recadoDaVolta}
+                {its.length === 1 && voltasDaRevisao?.[its[0].id]?.recado && (
+                  <span className="text-[10px] italic truncate max-w-[12rem] flex-shrink" title={voltasDaRevisao[its[0].id].recado!}
                     style={{ color: 'var(--ds-warn-text)' }}>
-                    "{its[0].recadoDaVolta}"
+                    “{voltasDaRevisao[its[0].id].recado}”
                   </span>
                 )}
-                {its.length === 1 && <EtiquetaVerbo verbo={verboDo(its[0])} />}
+                {its.length === 1 && <EtiquetaVerbo verbo={verboDo(its[0], voltasDaRevisao)} />}
                 {[...labelCounts.entries()].slice(0, 2).map(([text, { color, n }]) => (
                   <span key={text} className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-white" style={{ background: color }}>
                     {n === its.length ? text : `${n} ${text}`}
@@ -1134,8 +1136,6 @@ export default function DashboardPage() {
     competencia?: string | null
     postType?: string | null; campaignType?: string | null; labels?: CardLabel[] | null
     ajusteAlvo?: string | null
-    voltouDaRevisao?: boolean
-    recadoDaVolta?: string | null
   }
   // Etiqueta às vezes vem como texto JSON do banco, não como lista — normaliza
   // pra nunca quebrar a exibição nem o resumo da IA.
@@ -1167,8 +1167,6 @@ export default function DashboardPage() {
     ...directAssigned.map((s): ParaVoceItem => ({
       id: `post-${s.id}`, kind: 'post', title: s.title, clientId: s.client_id, status: s.status,
       competencia: s.year && s.month ? `${s.year}-${String(s.month).padStart(2, '0')}` : null,
-      voltouDaRevisao: !!voltasDaRevisao[`post-${s.id}`],
-      recadoDaVolta: voltasDaRevisao[`post-${s.id}`]?.recado || null,
       dueDate: s.scheduled_date, ajuste: s.status === CFG.S.ajuste,
       waitingClient: s.status === CFG.S.aguardandoAprovacao && !stillOwesWork(openLabels(asLabels((s as any).labels), s.legenda)),
       entregue: false,
@@ -1378,7 +1376,7 @@ export default function DashboardPage() {
    * comentário nenhum. Por isso o hub passou a PEDIR o motivo no gesto (ver o
    * modal em PostCard); o texto vem de lá.
    */
-  const [voltasDaRevisao, setVoltasDaRevisao] = useState<Record<string, { quando: string; recado: string | null }>>({})
+  const [voltasDaRevisao, setVoltasDaRevisao] = useState<VoltasDaRevisao>({})
   useEffect(() => {
     if (loading || directAssigned.length === 0) return
     const ids = directAssigned.map(s => s.id)
@@ -1396,7 +1394,7 @@ export default function DashboardPage() {
         if (!voltas?.length) return
         // A mais recente de cada card manda.
         const ultima: Record<string, string> = {}
-        voltas.forEach((v: any) => { if (!ultima[v.record_id]) ultima[v.record_id] = v.created_at })
+        voltas.forEach(v => { if (!ultima[v.record_id]) ultima[v.record_id] = v.created_at })
 
         const { data: comentarios } = await supabase
           .from('schedule_comments')
@@ -1404,12 +1402,12 @@ export default function DashboardPage() {
           .in('schedule_id', Object.keys(ultima))
           .order('created_at', { ascending: false })
 
-        const mapa: Record<string, { quando: string; recado: string | null }> = {}
+        const mapa: VoltasDaRevisao = {}
         Object.entries(ultima).forEach(([id, quando]) => {
           // O recado é o comentário mais novo A PARTIR da volta. Comentário
           // anterior é de outra conversa e enganaria mais do que ajudaria.
-          const c = (comentarios || []).find((x: any) => x.schedule_id === id && x.created_at >= quando)
-          mapa[`post-${id}`] = { quando, recado: (c as any)?.body?.trim() || null }
+          const c = (comentarios || []).find(x => x.schedule_id === id && x.created_at >= quando)
+          mapa[`post-${id}`] = { quando, recado: c?.body?.trim() || null }
         })
         setVoltasDaRevisao(mapa)
       } catch {}
@@ -1694,7 +1692,7 @@ export default function DashboardPage() {
                 {/* 1. Alguém está esperando resposta. Aqui a unidade é o ITEM,
                        porque o cliente pediu sobre um post específico. */}
                 {needsYouAjusteItems.length > 0 && (
-                  <ParaVoceGroup label="🔴 Esperando você" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} />
+                  <ParaVoceGroup label="🔴 Esperando você" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao} />
                 )}
 
                 {/* 2. O trabalho de agora. Aqui a unidade é o CLIENTE — é assim
@@ -1711,7 +1709,7 @@ export default function DashboardPage() {
                     label={contextoFila.temAgenda ? '📌 Hoje'
                       : `📌 Mais urgente · sai em até ${JANELA_SEM_AGENDA} dias`}
                     items={fazerAgora} clientMap={clientMap} router={router} todayStr={todayStr} cap={6}
-                    agingMap={agingMap} campaignNameMap={campaignNameMap}
+                    agingMap={agingMap} campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao}
                     sempreCliente />
                 )}
 
@@ -1736,7 +1734,7 @@ export default function DashboardPage() {
                       <div className="mt-1.5">
                         <ParaVoceGroup label="" items={acompanhando} clientMap={clientMap} router={router}
                           todayStr={todayStr} cap={20} agingMap={agingMap}
-                          campaignNameMap={campaignNameMap} sempreCliente muted />
+                          campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao} sempreCliente muted />
                       </div>
                     )}
                   </div>
@@ -1755,7 +1753,7 @@ export default function DashboardPage() {
                       <div className="mt-1.5">
                         <ParaVoceGroup label="" items={resto} clientMap={clientMap} router={router}
                           todayStr={todayStr} cap={20} agingMap={agingMap}
-                          campaignNameMap={campaignNameMap} sempreCliente muted />
+                          campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao} sempreCliente muted />
                       </div>
                     )}
                   </div>
