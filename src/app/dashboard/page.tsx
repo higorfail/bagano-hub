@@ -147,6 +147,10 @@ type ParaVoceRowItem = {
   labels?: CardLabel[] | null; ajusteAlvo?: string | null
   /** A etapa do card — é dela que sai o verbo do trabalho. */
   status?: string | null
+  /** Voltou da revisão interna: o que a fila chama de "criar" é AJUSTAR. */
+  voltouDaRevisao?: boolean
+  /** O recado que veio junto com a volta, quando houve. */
+  recadoDaVolta?: string | null
 }
 
 /** A tabela por trás de cada tipo de item, pra perguntar a etapa. */
@@ -165,6 +169,9 @@ function tabelaDo(kind: string) {
  */
 function verboDo(it: ParaVoceRowItem) {
   if (it.ajuste) return 'ajustar'
+  // Produção DEPOIS de uma volta da revisão não é criar: é consertar o que a
+  // revisão apontou. Mesma etapa no banco, trabalho diferente na mão.
+  if (it.voltouDaRevisao && it.status === 'producao') return 'ajustar'
   return etapaDoItem(tabelaDo(it.kind), it.status)?.verbo || null
 }
 
@@ -250,6 +257,16 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
         </span>
         {/* O que o cliente pediu pra mudar. Sem isto o designer abre o card
             pra descobrir que a alteração era só na legenda. */}
+        {/* O recado da revisão na própria linha: "ficou cena a mais no final",
+            "faltou a capa aqui". Estava num comentário que a fila não lia, e é
+            exatamente o que decide o que fazer a seguir. Mesma ideia do pedido
+            do cliente, que já aparece assim na página de aprovação. */}
+        {it.recadoDaVolta && (
+          <span className="text-[10px] italic truncate max-w-[14rem] flex-shrink" title={it.recadoDaVolta}
+            style={{ color: 'var(--ds-warn-text)' }}>
+            "{it.recadoDaVolta}"
+          </span>
+        )}
         <EtiquetaVerbo verbo={verboDo(it)} />
         {it.ajuste && it.ajusteAlvo && ALVO_LABEL[it.ajusteAlvo] && (
           <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: 'var(--ds-error-text)', background: 'var(--ds-error-bg)' }}>
@@ -372,6 +389,12 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
                     {its.length === 1
                       ? `${emojiFor(its[0])} ${its[0].title || 'Sem título'}`
                       : summarize(its)}
+                  </span>
+                )}
+                {its.length === 1 && its[0].recadoDaVolta && (
+                  <span className="text-[10px] italic truncate max-w-[12rem] flex-shrink" title={its[0].recadoDaVolta}
+                    style={{ color: 'var(--ds-warn-text)' }}>
+                    "{its[0].recadoDaVolta}"
                   </span>
                 )}
                 {its.length === 1 && <EtiquetaVerbo verbo={verboDo(its[0])} />}
@@ -1111,6 +1134,8 @@ export default function DashboardPage() {
     competencia?: string | null
     postType?: string | null; campaignType?: string | null; labels?: CardLabel[] | null
     ajusteAlvo?: string | null
+    voltouDaRevisao?: boolean
+    recadoDaVolta?: string | null
   }
   // Etiqueta às vezes vem como texto JSON do banco, não como lista — normaliza
   // pra nunca quebrar a exibição nem o resumo da IA.
@@ -1142,6 +1167,8 @@ export default function DashboardPage() {
     ...directAssigned.map((s): ParaVoceItem => ({
       id: `post-${s.id}`, kind: 'post', title: s.title, clientId: s.client_id, status: s.status,
       competencia: s.year && s.month ? `${s.year}-${String(s.month).padStart(2, '0')}` : null,
+      voltouDaRevisao: !!voltasDaRevisao[`post-${s.id}`],
+      recadoDaVolta: voltasDaRevisao[`post-${s.id}`]?.recado || null,
       dueDate: s.scheduled_date, ajuste: s.status === CFG.S.ajuste,
       waitingClient: s.status === CFG.S.aguardandoAprovacao && !stillOwesWork(openLabels(asLabels((s as any).labels), s.legenda)),
       entregue: false,
@@ -1336,6 +1363,59 @@ export default function DashboardPage() {
 
   // A chamada de IA que gerava esta frase saiu junto: sem ninguém lendo o
   // resultado, ela só queimaria a cota diária gratuita a cada carregamento.
+
+  /**
+   * O que VOLTOU da revisão, e o recado que veio junto.
+   *
+   * O fluxo interno: quem faz entrega em "Revisão interna" e marca a
+   * estrategista; se algo precisa mudar, ela devolve pra "Produção" e escreve o
+   * ajuste num comentário. O card volta a dizer "criar" — mas ninguém vai criar
+   * nada, vai AJUSTAR, e o que mudar está num comentário que a fila não lê.
+   *
+   * Nada disso precisa de interpretação: a volta é um fato no histórico, e o
+   * recado é o comentário mais recente depois dela. O que precisaria de IA — e
+   * não resolve — é o silêncio: de 15 voltas em 60 dias, 10 não tinham
+   * comentário nenhum. Por isso o hub passou a PEDIR o motivo no gesto (ver o
+   * modal em PostCard); o texto vem de lá.
+   */
+  const [voltasDaRevisao, setVoltasDaRevisao] = useState<Record<string, { quando: string; recado: string | null }>>({})
+  useEffect(() => {
+    if (loading || directAssigned.length === 0) return
+    const ids = directAssigned.map(s => s.id)
+    ;(async () => {
+      try {
+        const { data: voltas } = await supabase
+          .from('activity_log')
+          .select('record_id, created_at')
+          .in('record_id', ids)
+          .eq('action', 'status_changed')
+          // Só a VOLTA — não qualquer entrada em produção. "Aprovado o crono →
+          // Produção" é começo de trabalho, não retrabalho.
+          .ilike('description', '%de "Revisão interna" para "Produção"%')
+          .order('created_at', { ascending: false })
+        if (!voltas?.length) return
+        // A mais recente de cada card manda.
+        const ultima: Record<string, string> = {}
+        voltas.forEach((v: any) => { if (!ultima[v.record_id]) ultima[v.record_id] = v.created_at })
+
+        const { data: comentarios } = await supabase
+          .from('schedule_comments')
+          .select('schedule_id, body, created_at')
+          .in('schedule_id', Object.keys(ultima))
+          .order('created_at', { ascending: false })
+
+        const mapa: Record<string, { quando: string; recado: string | null }> = {}
+        Object.entries(ultima).forEach(([id, quando]) => {
+          // O recado é o comentário mais novo A PARTIR da volta. Comentário
+          // anterior é de outra conversa e enganaria mais do que ajudaria.
+          const c = (comentarios || []).find((x: any) => x.schedule_id === id && x.created_at >= quando)
+          mapa[`post-${id}`] = { quando, recado: (c as any)?.body?.trim() || null }
+        })
+        setVoltasDaRevisao(mapa)
+      } catch {}
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, directAssigned.length])
 
   // "Parado há X dias" — busca updated_at à parte, isolado com try/catch: se a
   // coluna ainda não existir (migração não rodada), falha em silêncio e o
