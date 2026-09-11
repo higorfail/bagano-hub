@@ -70,7 +70,7 @@ export default function SimulacaoInstagram({
   //
   // Foto solta e capa de pasta não têm faixa nenhuma. Só nesses dois o link
   // aparece por fora — senão a única porta pro Drive sumiria.
-  const rodapeDaPrevia = previaTemRodape(driveUrl, driveFolderUrl, postType)
+  const rodapeDaPrevia = previaTemRodape(driveUrl, driveFolderUrl)
   const arroba = arrobaDoCliente(clienteInstagram, clienteNome)
   const iniciais = (clienteNome || '?').split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase()
 
@@ -135,7 +135,12 @@ export default function SimulacaoInstagram({
       </div>
     </div>
 
-    {/* Só quando a prévia não tem faixa própria (foto solta, capa de pasta). */}
+    {/* Rede pro caso que sobrou: conteúdo que a prévia não conseguiu desenhar.
+        Antes este botão aparecia também em foto solta e capa de pasta, que não
+        tinham faixa — e aí o link do Drive mudava de LUGAR conforme o tipo do
+        post: dentro do cartão no carrossel, fora e embaixo da legenda na foto.
+        Agora toda prévia tem a mesma faixa, e aqui só cai o que não tem prévia
+        nenhuma. */}
     {linkDrive && !rodapeDaPrevia && (
       <a
         href={linkDrive.split(/\s+/)[0]}

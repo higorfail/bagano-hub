@@ -87,8 +87,48 @@ function coresDaFaixa(noHub: boolean) {
         pontoAtivo: '#374151', pontoInativo: '#d1d5db' }
 }
 
-export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe = false, semRodape = false, noHub = false, capaId }: { id: string; folderUrl?: string; ratio?: string; comecarNoIframe?: boolean; semRodape?: boolean; noHub?: boolean; capaId?: string }) {
+/**
+ * A faixa do Drive, a MESMA em toda prévia.
+ *
+ * Havia quatro geometrias diferentes pro mesmo pedaço de interface: carrossel
+ * com `7px 12px` e fonte 11.5, reel com `10px 0` e fonte 13 em negrito, capa de
+ * pasta com `12px 0`, galeria com `9px 0`. Cada prévia tinha nascido em um
+ * momento e ninguém tinha voltado pra igualar — então trocar o tipo do post
+ * mudava a altura do cartão e o peso do texto, sem que nada disso significasse
+ * coisa alguma.
+ *
+ * A medida que ficou é a do carrossel, que era a menor: a faixa é informação de
+ * apoio, não deve competir com a peça.
+ *
+ * Quando há mais de um slide, as bolinhas vão à esquerda e o link à direita.
+ * Sem slides — foto solta, reel, capa de pasta —, o link fica centralizado,
+ * sozinho, na mesma altura.
+ */
+export function FaixaDoDrive({ href, texto, noHub = false, children }: {
+  href: string
+  texto: string
+  noHub?: boolean
+  /** As bolinhas do carrossel. Sem elas, o link centraliza. */
+  children?: React.ReactNode
+}) {
   const cores = coresDaFaixa(noHub)
+  const temPontos = !!children
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      justifyContent: temPontos ? 'space-between' : 'center',
+      padding: '7px 12px', background: cores.fundo, borderTop: `1px solid ${cores.borda}`,
+    }}>
+      {temPontos && <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>{children}</div>}
+      <a href={href} target="_blank" rel="noopener noreferrer"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: cores.texto, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+        {texto}
+      </a>
+    </div>
+  )
+}
+
+export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe = false, semRodape = false, noHub = false, capaId }: { id: string; folderUrl?: string; ratio?: string; comecarNoIframe?: boolean; semRodape?: boolean; noHub?: boolean; capaId?: string }) {
   // Começar pelo iframe do Drive é o padrão da EQUIPE, no computador: o player
   // do Google funciona ali e não custa nada pra gente. O nosso streaming existe
   // pro CLIENTE, no celular — no iOS o iframe fica preto porque o Safari bloqueia
@@ -108,12 +148,7 @@ export function DriveVideo({ id, folderUrl, ratio = '177.78%', comecarNoIframe =
       {/* Dentro da simulação, quem mostra o link do Drive é o cartão inteiro,
           uma vez só, embaixo. Aqui ele apareceria entre o vídeo e o coração —
           e post de verdade não tem isso. */}
-      {!semRodape && (
-        <a href={driveLink} target="_blank" rel="noopener noreferrer"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', background: cores.fundo, borderTop: `1px solid ${cores.borda}`, fontSize: 13, fontWeight: 700, color: cores.texto, textDecoration: 'none' }}>
-          🎬 Abrir conteúdo no Drive
-        </a>
-      )}
+      {!semRodape && <FaixaDoDrive href={driveLink} texto="🎬 Abrir conteúdo no Drive" noHub={noHub} />}
     </div>
   )
 }
@@ -249,24 +284,16 @@ export function CarouselPreview({ folderId, folderUrl, ratio = '100%', semRodape
           "Abrir pasta no Drive". Duas alturas pra duas informações pequenas, e
           o carrossel empurrado pra cima. Agora dividem uma faixa fina — as
           bolinhas (ou o número) à esquerda, o link à direita. */}
-      {(items.length > 1 || !semRodape) && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '7px 12px', background: cores.fundo, borderTop: `1px solid ${cores.borda}` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-            {items.length > 1 && (items.length <= 8 ? items.map((_, i) => (
-              <button key={i} onClick={() => setSlide(i)} aria-label={`Ir para ${i + 1} de ${items.length}`}
-                style={{ width: i === slide ? 16 : 6, height: 6, borderRadius: 3, border: 'none', padding: 0,
-                  background: i === slide ? cores.pontoAtivo : cores.pontoInativo, cursor: 'pointer', transition: 'width 0.2s, background 0.2s' }} />
-            )) : (
-              <span style={{ fontSize: 11, fontWeight: 700, color: cores.texto }}>{slide + 1} / {items.length}</span>
-            ))}
-          </div>
-          {!semRodape && (
-            <a href={folderUrl} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: cores.texto, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-              📂 Abrir pasta no Drive
-            </a>
-          )}
-        </div>
+      {!semRodape && (
+        <FaixaDoDrive href={folderUrl} texto="📂 Abrir pasta no Drive" noHub={noHub}>
+          {items.length > 1 && (items.length <= 8 ? items.map((_, i) => (
+            <button key={i} onClick={() => setSlide(i)} aria-label={`Ir para ${i + 1} de ${items.length}`}
+              style={{ width: i === slide ? 16 : 6, height: 6, borderRadius: 3, border: 'none', padding: 0,
+                background: i === slide ? cores.pontoAtivo : cores.pontoInativo, cursor: 'pointer', transition: 'width 0.2s, background 0.2s' }} />
+          )) : (
+            <span style={{ fontSize: 11, fontWeight: 700, color: cores.texto }}>{slide + 1} / {items.length}</span>
+          ))}
+        </FaixaDoDrive>
       )}
     </div>
   )
@@ -277,7 +304,6 @@ export function CarouselPreview({ folderId, folderUrl, ratio = '100%', semRodape
 // depender de listar uma pasta (não sabemos o mimetype de cada um, então
 // trata tudo como imagem, que é o caso real que motivou isso).
 export function MultiFilePreview({ ids, fallbackUrl, ratio = '100%', noHub = false }: { ids: string[]; fallbackUrl?: string | null; ratio?: string; noHub?: boolean }) {
-  const cores = coresDaFaixa(noHub)
   const [slide, setSlide] = useState(0)
   const { ratio: frameRatio, onMediaSize } = useMediaRatio(ratio)
   const prev = () => setSlide(s => (s - 1 + ids.length) % ids.length)
@@ -304,10 +330,8 @@ export function MultiFilePreview({ ids, fallbackUrl, ratio = '100%', noHub = fal
         </>
       )}
       {fallbackUrl && (
-        <a href={fallbackUrl.split(/\s+/)[0]} target="_blank" rel="noopener noreferrer"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 0', background: cores.fundo, borderTop: `1px solid ${cores.borda}`, fontSize: 12, fontWeight: 600, color: cores.texto, textDecoration: 'none' }}>
-          🔗 {slide + 1}/{ids.length} · Abrir no Drive
-        </a>
+        <FaixaDoDrive href={fallbackUrl.split(/\s+/)[0]} noHub={noHub}
+          texto={`🔗 ${slide + 1}/${ids.length} · Abrir no Drive`} />
       )}
     </div>
   )
@@ -393,10 +417,7 @@ export function ReelFolderPreview({ folderId, folderUrl, comecarNoIframe = false
     <DriveVideo id={video.id} folderUrl={folderUrl} comecarNoIframe={comecarNoIframe} semRodape={semRodape} noHub={noHub} capaId={capa?.id} />
   ) : (
     semRodape ? null : (
-      <a href={folderUrl} target="_blank" rel="noopener noreferrer"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', background: coresDaFaixa(noHub).fundo, borderTop: `1px solid ${coresDaFaixa(noHub).borda}`, fontSize: 13, fontWeight: 600, color: coresDaFaixa(noHub).texto, textDecoration: 'none' }}>
-        🎬 Abrir reel no Drive
-      </a>
+      <FaixaDoDrive href={folderUrl} texto="🎬 Abrir reel no Drive" noHub={noHub} />
     )
   )
 }
@@ -450,15 +471,30 @@ export function PreviaDoPost({
   }
   if (ehVideo && pasta) return <ReelFolderPreview folderId={pasta} folderUrl={driveFolderUrl || ''} comecarNoIframe={noHub} semRodape={semRodape} noHub={noHub} />
   if (ehCarrossel && pasta) return <CarouselPreview folderId={pasta} folderUrl={driveFolderUrl || ''} semRodape={semRodape} noHub={noHub} />
-  if (pasta) return <FolderThumb folderId={pasta} />
+  if (pasta) return (
+    // A capa de pasta também ganha a faixa. Antes ela não tinha nenhuma, e o
+    // link ia parar FORA do cartão, embaixo da legenda — num lugar onde nada
+    // mais mora, e com outro tamanho. Agora é a mesma faixa dos outros, só sem
+    // bolinha e com o link no centro.
+    <div>
+      <FolderThumb folderId={pasta} />
+      {!semRodape && <FaixaDoDrive href={driveFolderUrl || ''} texto="📂 Abrir pasta no Drive" noHub={noHub} />}
+    </div>
+  )
   if (varios) return <MultiFilePreview ids={ids} fallbackUrl={driveUrl} noHub={noHub} />
   if (foto) {
     return (
-      // Altura natural da imagem. Altura fixa com `cover` cortava a arte pela
-      // metade — e o cliente aprovava o que não viu inteiro.
-      <div style={{ background: '#f5f5f3', lineHeight: 0 }}>
-        <img src={foto} alt={titulo || ''} style={{ width: '100%', height: 'auto', display: 'block' }}
-          onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
+      <div>
+        {/* Altura natural da imagem. Altura fixa com `cover` cortava a arte
+            pela metade — e o cliente aprovava o que não viu inteiro. */}
+        <div style={{ background: '#f5f5f3', lineHeight: 0 }}>
+          <img src={foto} alt={titulo || ''} style={{ width: '100%', height: 'auto', display: 'block' }}
+            onError={e => { (e.target as HTMLImageElement).closest('div')!.style.display = 'none' }} />
+        </div>
+        {!semRodape && (
+          <FaixaDoDrive noHub={noHub} texto="🖼️ Abrir no Drive"
+            href={(driveFolderUrl || driveUrl || '').split(/\s+/)[0] || `https://drive.google.com/file/d/${primeiro}/view`} />
+        )}
       </div>
     )
   }
@@ -468,28 +504,21 @@ export function PreviaDoPost({
 /**
  * Essa prévia já traz o link do Drive numa faixa própria?
  *
- * Carrossel, vídeo, reel e galeria têm — o link fica na mesma linha do contador,
- * que é onde a pessoa está olhando. Foto solta e capa de pasta não têm faixa
- * nenhuma, e aí quem chama precisa oferecer o link por fora, senão a única
- * porta pro Drive some.
+ * Agora TODAS trazem, e por isso esta função só responde "tem conteúdo?". Ela
+ * ficou pra quem chama não precisar saber disso — e porque a resposta "não"
+ * ainda existe: prévia que não conseguiu montar nada não tem faixa nenhuma.
  *
- * Existe pra essa pergunta não virar mais uma cópia da cadeia de seis casos.
+ * Antes foto solta e capa de pasta respondiam `false`, e quem chamava desenhava
+ * um botão POR FORA do cartão, embaixo da legenda, com outro tamanho e em outro
+ * lugar. Trocar o tipo do post mudava onde o link aparecia — era a maior das
+ * inconsistências entre as prévias.
  */
-export function previaTemRodape(
-  driveUrl?: string | null,
-  driveFolderUrl?: string | null,
-  postType?: string | null,
-) {
-  const ids = extractDriveIds(driveUrl || '')
-  const pasta = driveFolderUrl?.match(/\/folders\/([-\w]{25,})/)?.[1]
-  const ehVideo = postType === 'reels'
-  const ehCarrossel = postType === 'carrossel' || postType === 'carrossel_stories'
-  if (ids[0] && ehVideo) return true          // DriveVideo
-  if (ehVideo && pasta) return true           // ReelFolderPreview
-  if (ehCarrossel && pasta) return true       // CarouselPreview
-  if (pasta) return false                     // FolderThumb: só a imagem
-  if (ids.length > 1) return true             // MultiFilePreview
-  return false                                // foto solta
+export function previaTemRodape(driveUrl?: string | null, driveFolderUrl?: string | null) {
+  // Uma linha só: se a prévia consegue desenhar alguma coisa, ela tem faixa.
+  // Era uma cadeia de seis casos que precisava ser mantida em par com a cadeia
+  // de `PreviaDoPost` — duas listas iguais em arquivos diferentes é como nasce
+  // divergência, e foi por aqui que foto solta e capa de pasta ficaram de fora.
+  return temConteudoEntregue(driveUrl, driveFolderUrl)
 }
 
 /** Tem conteúdo entregue? É o que decide se o card estica. */
