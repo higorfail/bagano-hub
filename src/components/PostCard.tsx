@@ -14,6 +14,7 @@ import { fetchLinkTitle } from '@/lib/linkTitle'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
 import { PreviaDoPost, temConteudoEntregue } from '@/components/PreviaDrive'
 import SimulacaoInstagram from '@/components/SimulacaoInstagram'
+import { withBase } from '@/lib/base'
 import AttachmentsGrid from '@/components/AttachmentsGrid'
 import { renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
@@ -536,7 +537,33 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
   // deles é FAZER UMA PERGUNTA — e pergunta nova não nasce respondida.
   const PERGUNTANDO_DE_NOVO = new Set(['aguardando_aprovacao', 'aguardando_aprovacao_crono'])
 
+  /**
+   * Devolver da revisão pede o motivo — na mesma ação.
+   *
+   * Medido em 60 dias: 15 cards voltaram de "Revisão interna" pra "Produção" e
+   * só 5 traziam comentário. Nos outros 10 quem ia consertar recebia o card de
+   * volta sem saber o quê — e isso não é problema de IA ler comentário: não dá
+   * pra ler o que ninguém escreveu.
+   *
+   * O caminho é o mesmo que já funciona do lado do cliente: lá pedir ajuste
+   * EXIGE escrever o que muda, e por isso 100% dos pedidos do cliente têm
+   * texto. Aqui o recado é opcional (devolver sem explicar às vezes é
+   * legítimo — vocês conversaram na mesa), mas a caixa aparece por padrão em
+   * vez de depender de alguém lembrar de comentar depois.
+   */
+  const [devolucao, setDevolucao] = useState<{ alvo: string } | null>(null)
+  const [motivoDevolucao, setMotivoDevolucao] = useState('')
+
   async function changeStatus(v: string) {
+    const prevStatus = formRef.current.status
+    if (prevStatus === 'revisao_interna' && v === 'producao' && !devolucao) {
+      setDevolucao({ alvo: v }); setMotivoDevolucao('')
+      return
+    }
+    return aplicarStatus(v)
+  }
+
+  async function aplicarStatus(v: string) {
     const prevStatus = formRef.current.status
     const old = STATUS_LABEL[prevStatus] || prevStatus
     const wasAjuste = prevStatus === 'ajuste'
@@ -598,6 +625,52 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     if (approvalPatch !== undefined) setApprovalStatus(approvalPatch || '')
     persist(approvalPatch !== undefined ? { status: v, approval_status: approvalPatch } : { status: v }, `${who} moveu de "${old}" para "${STATUS_LABEL[v] || v}"`, 'status_changed')
   }
+  /** Confirma a devolução: muda a etapa e, se houver recado, grava como comentário. */
+  // O texto vem por PARÂMETRO, não do estado: "devolver sem recado" precisaria
+  // limpar o estado antes de chamar, e `setState` só vale no próximo render —
+  // a função ainda leria o texto antigo e gravaria o comentário que a pessoa
+  // acabou de dispensar.
+  async function confirmarDevolucao(comRecado: boolean) {
+    const alvo = devolucao?.alvo
+    const texto = comRecado ? motivoDevolucao.trim() : ''
+    setDevolucao(null); setMotivoDevolucao('')
+    if (!alvo) return
+    await aplicarStatus(alvo)
+    if (!texto) return
+    const pid = await ensurePostId(); if (!pid) return
+    const { data, error } = await supabase.from('schedule_comments')
+      .insert({ schedule_id: pid, author_name: currentMember?.name || 'Equipe', body: texto }).select().single()
+    if (dbError(error, toast, 'salvar o motivo')) return
+    if (data) setComments(c => [...c, data])
+    // As @menções continuam valendo: é assim que quem vai consertar fica
+    // sabendo, e o roteamento já existe.
+    const mencionados = await ensureWatchingFromMentions('schedules', pid, texto, members)
+    await logActivity({
+      tableName: 'schedules', recordId: pid, clientId, action: 'commented', mencionados,
+      actorName: currentMember?.name, actorId: currentMember?.id,
+      description: `${currentMember?.name || 'Alguém'} devolveu pra produção: "${texto.slice(0, 80)}${texto.length > 80 ? '…' : ''}"`,
+    })
+    setActivityKey(k => k + 1)
+
+    // Classifica o recado em arte/legenda e grava em `ajuste_alvo`.
+    //
+    // A rota já existia e já fazia isso pro pedido do CLIENTE — é o que faz o
+    // ajuste cair na pessoa certa ("faltou a capa" é do designer, "trocar a
+    // chamada" é de quem escreve). Ajuste interno é a mesma pergunta sobre o
+    // mesmo tipo de texto; não havia motivo pra ter ficado de fora.
+    //
+    // Falha em silêncio de propósito: sem classificação o roteamento cai no
+    // tipo do post, que é o comportamento de antes.
+    try {
+      const r = await fetch(withBase('/api/ai-ajuste-alvo'), {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ comment: texto, postType: formRef.current.post_type, title: formRef.current.title }),
+      })
+      const { alvo } = await r.json()
+      if (alvo) await supabase.from('schedules').update({ ajuste_alvo: alvo }).eq('id', pid)
+    } catch {}
+  }
+
   function setField(field: keyof PostForm, v: any, logMsg?: string) { setForm(f => ({ ...f, [field]: v })); persist({ [field]: v }, logMsg) }
   async function toggleMember(id: string) {
     const adding = !assignedMembers.includes(id)
@@ -1498,6 +1571,39 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             </div>
           </div>
         </div>
+
+        {/* Devolver da revisão: o motivo vira comentário no card, e é ele que
+            aparece na fila de quem vai consertar ("ficou cena a mais no
+            final"). Sem isto, 10 de 15 devoluções chegavam mudas. */}
+        {devolucao && (
+          <ModalPortal>
+            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40" onClick={() => setDevolucao(null)}>
+              <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-4 w-[26rem] max-w-[92vw] shadow-pop" onClick={e => e.stopPropagation()}>
+                <p className="text-sm font-bold text-[var(--color-text-primary)]">Devolver pra Produção</p>
+                <p className="text-xs text-[var(--color-text-muted)] mt-1 mb-3">
+                  O que precisa mudar? Quem for consertar lê isto direto na fila dele.
+                  Use <span className="font-semibold">@nome</span> pra avisar alguém.
+                </p>
+                <textarea autoFocus value={motivoDevolucao} onChange={e => setMotivoDevolucao(e.target.value)}
+                  rows={3} placeholder="Ex: @Franz faltou a capa, assim não rola pro feed"
+                  className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] bg-[var(--color-bg-input)] text-[var(--color-text-primary)] resize-none" />
+                <div className="flex items-center justify-end gap-2 mt-3">
+                  {/* Devolver sem explicar continua possível: às vezes vocês já
+                      conversaram. O que muda é que agora é uma ESCOLHA, e não
+                      o caminho padrão por esquecimento. */}
+                  <button onClick={() => confirmarDevolucao(false)}
+                    className="text-xs font-medium px-3 py-2 rounded-xl text-[var(--color-text-muted)] hover:bg-[var(--color-bg-subtle)]">
+                    Devolver sem recado
+                  </button>
+                  <button onClick={() => confirmarDevolucao(true)} disabled={!motivoDevolucao.trim()}
+                    className="text-xs font-semibold px-4 py-2 rounded-xl bg-[var(--color-text-primary)] text-[var(--color-bg-page)] disabled:opacity-40">
+                    Devolver com o recado
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ModalPortal>
+        )}
 
         {showLabelPicker && (
           <ModalPortal>

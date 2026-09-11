@@ -722,8 +722,36 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
    */
   const postsSemLegenda = posts.filter(p => p.status === 'aguardando_aprovacao' && !(p.legenda || '').trim())
 
-  function copyLink() { navigator.clipboard.writeText(approvalLink); setCopied(true); setTimeout(() => setCopied(false), 2000) }
-  function openWhatsApp() { window.open(`https://wa.me/?text=${encodeURIComponent(aiMessage || approvalLink)}`, '_blank') }
+  /**
+   * Registra que o link FOI ENVIADO.
+   *
+   * O hub sabe que um post está "aguardando aprovação", mas não sabe se o
+   * cliente chegou a receber alguma coisa — e são dois trabalhos diferentes pra
+   * quem cuida disso: ENVIAR o link e COBRAR a resposta. Hoje a fila da social
+   * diz "cobrar" nos dois casos, porque o dado pra separar não existia.
+   *
+   * Existe token, mas ele nasce quando alguém ABRE este modal, não quando
+   * manda — e o link `geral` é permanente, então a mera existência dele não
+   * quer dizer nada. Copiar ou abrir o WhatsApp é o gesto mais próximo do
+   * envio de verdade que o hub consegue observar.
+   *
+   * Só grava; ninguém lê ainda. É de propósito: com o histórico em mãos, a
+   * distinção "enviar" × "cobrar" passa a ser verdade verificável em vez de
+   * palpite — e palpite numa fila de trabalho é o que faz a pessoa parar de
+   * confiar na tela.
+   */
+  function registrarEnvio(via: string) {
+    logActivity({
+      tableName: 'clients', recordId: clientId, clientId,
+      action: 'approval_link_sent', actorName: currentMember?.name, actorId: currentMember?.id,
+      description: `${currentMember?.name || 'Alguém'} enviou o link de ${approvalType === 'final' ? 'conteúdo final' : 'cronograma'} de ${CRONO_MONTHS[month - 1]} por ${via}`,
+      // Não é evento de card: ninguém precisa de push por copiar um link.
+      skipPush: true,
+    }).catch(() => {})
+  }
+
+  function copyLink() { navigator.clipboard.writeText(approvalLink); setCopied(true); setTimeout(() => setCopied(false), 2000); registrarEnvio('cópia do link') }
+  function openWhatsApp() { registrarEnvio('WhatsApp'); window.open(`https://wa.me/?text=${encodeURIComponent(aiMessage || approvalLink)}`, '_blank') }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
