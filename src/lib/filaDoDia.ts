@@ -38,6 +38,11 @@ export type ItemDaFila = {
   ajuste: boolean
   /** Publicação (post) ou entrega (extra/material/tarefa). Null = sem data. */
   data: string | null
+  /**
+   * A etapa é de repasse: alguém passou a bola e está esperando. Ver
+   * `esperandoVoce` em donoDaEtapa.ts.
+   */
+  esperandoVoce?: boolean
 }
 
 export type ContextoDaFila = {
@@ -127,6 +132,14 @@ export function baldeDoItem(item: ItemDaFila, ctx: ContextoDaFila): Balde {
   // estar no ar, o material devia estar entregue. Isto vale pra todo mundo, e
   // é a única leitura de `data` que significa prazo.
   if (item.data && item.data < ctx.hoje) return 'passou'
+
+  // Repasse é AGORA, qualquer que seja a data de publicação.
+  //
+  // Um post em revisão interna marcado pra você está parado na SUA mão — o
+  // time entregou e está esperando. Publicar dia 30 não faz a revisão ser dia
+  // 30. Sem esta linha, 6 dos 10 posts em revisão da Yasmim caíam em "outros
+  // dias" e sumiam atrás de um link fechado.
+  if (item.esperandoVoce) return 'agora'
 
   if (ctx.temAgenda) {
     // Sem cliente não há como cruzar com a agenda.

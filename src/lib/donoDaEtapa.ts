@@ -32,6 +32,20 @@ export type Etapa = {
   marcadosSaoDonos: boolean
   /** O trabalho nesta etapa, na voz de quem faz. */
   verbo: string
+  /**
+   * Alguém passou a bola e está esperando você AGORA.
+   *
+   * Nessas etapas o prazo não é a data de publicação — é o momento do
+   * repasse. O fluxo real: a Yasmim põe o post em produção e marca quem faz;
+   * entregue, quem fez sai do card e marca ela em `revisao_interna`; ela
+   * confere e passa pra Gabis enviar. Dos 10 posts parados na mão dela, SEIS
+   * tinham data de publicação longe — e por isso caíam em "outros dias",
+   * escondidos atrás de um link fechado, enquanto o time esperava a revisão.
+   *
+   * É o mesmo erro que a fila tinha ido consertar (tratar data de publicação
+   * como prazo de trabalho), reaparecendo pra quem não está na agenda.
+   */
+  esperandoVoce?: boolean
 }
 
 /**
@@ -55,8 +69,11 @@ const SCHEDULES: Record<string, Etapa> = {
   aguardando_aprovacao_crono: { funcoesDonas: ['social'],     marcadosSaoDonos: false, verbo: 'cobrar' },
   captacao:                   { funcoesDonas: ['estrategia'], marcadosSaoDonos: false, verbo: 'decidir captação' },
   producao:                   { funcoesDonas: ['videos', 'posts'], marcadosSaoDonos: true, verbo: 'criar' },
-  ajuste:                     { funcoesDonas: ['videos', 'posts'], marcadosSaoDonos: true, verbo: 'ajustar' },
-  revisao_interna:            { funcoesDonas: ['estrategia'], marcadosSaoDonos: false, verbo: 'revisar' },
+  ajuste:                     { funcoesDonas: ['videos', 'posts'], marcadosSaoDonos: true, verbo: 'ajustar', esperandoVoce: true },
+  // Marcação CONTA aqui: o repasse desta equipe é literalmente "saio do card e
+  // marco quem revisa". Exigir função registrada faria a bola sumir justamente
+  // de quem acabou de recebê-la.
+  revisao_interna:            { funcoesDonas: ['estrategia'], marcadosSaoDonos: true, verbo: 'revisar', esperandoVoce: true },
   aguardando_aprovacao:       { funcoesDonas: ['social'],     marcadosSaoDonos: false, verbo: 'cobrar' },
   aprovado:                   { funcoesDonas: ['social'],     marcadosSaoDonos: false, verbo: 'agendar' },
   // `agendado`, `publicado` e `cancelado` ficam FORA do mapa de propósito:
@@ -66,9 +83,9 @@ const SCHEDULES: Record<string, Etapa> = {
 const EXTRAS_MATERIAIS: Record<string, Etapa> = {
   backlog:              { funcoesDonas: ['videos', 'posts'], marcadosSaoDonos: true,  verbo: 'criar' },
   producao:             { funcoesDonas: ['videos', 'posts'], marcadosSaoDonos: true,  verbo: 'criar' },
-  ajuste:               { funcoesDonas: ['videos', 'posts'], marcadosSaoDonos: true,  verbo: 'ajustar' },
+  ajuste:               { funcoesDonas: ['videos', 'posts'], marcadosSaoDonos: true,  verbo: 'ajustar', esperandoVoce: true },
   // "A social entrega e cobra" — a regra é a mesma que já vale no aviso.
-  feito:                { funcoesDonas: ['social'], marcadosSaoDonos: false, verbo: 'entregar' },
+  feito:                { funcoesDonas: ['social'], marcadosSaoDonos: false, verbo: 'entregar', esperandoVoce: true },
   aguardando_aprovacao: { funcoesDonas: ['social'], marcadosSaoDonos: false, verbo: 'cobrar' },
 }
 

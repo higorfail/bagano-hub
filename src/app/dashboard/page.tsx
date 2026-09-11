@@ -22,7 +22,7 @@ import { fromActiveClients } from '@/lib/activeClients'
 import { withBase } from '@/lib/base'
 import { caminhoCliente } from '@/lib/clienteSlug'
 import { fetchAgencyAlerts, type AgencyAlert } from '@/lib/agencyAlerts'
-import { papelNoItem } from '@/lib/donoDaEtapa'
+import { papelNoItem, etapaDoItem } from '@/lib/donoDaEtapa'
 import { baldeDoItem, contextoDaAgenda, fraseDaFila, sugestaoDeAdiantar, somaDias, type Balde, type ClienteDeHoje } from '@/lib/filaDoDia'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
@@ -1193,7 +1193,13 @@ export default function DashboardPage() {
   const minhaFila = useMemo(() => {
     const b: Record<Balde, ParaVoceItem[]> = { ajuste: [], passou: [], agora: [], proximos: [], semDia: [] }
     needsYou.forEach(i => {
-      b[baldeDoItem({ clientId: i.clientId || null, ajuste: i.ajuste, data: i.dueDate || null }, contextoFila)].push(i)
+      const etapa = etapaDoItem(
+        i.kind === 'post' ? 'schedules' : i.kind === 'task' ? 'personal_tasks' : i.kind === 'extra' ? 'extras' : 'materials',
+        i.status)
+      b[baldeDoItem({
+        clientId: i.clientId || null, ajuste: i.ajuste, data: i.dueDate || null,
+        esperandoVoce: !!etapa?.esperandoVoce,
+      }, contextoFila)].push(i)
     })
     return b
   }, [needsYou, contextoFila])
