@@ -10,7 +10,7 @@ import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
 import { approvalShort } from '@/lib/approvalKind'
 import { dbError } from '@/lib/dbError'
-import { ChevronRight, Check, Copy, Search, X, Zap, ClipboardCheck, Link2, Sparkles, ClipboardList, ChevronDown, GripVertical } from 'lucide-react'
+import { ChevronRight, Check, Copy, Search, X, ClipboardCheck, Link2, Sparkles, ClipboardList, ChevronDown, GripVertical } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { ensureWatching } from '@/lib/watch'
@@ -231,7 +231,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [campaigns, setCampaigns] = useState<{ id: string; name: string; type: string }[]>([])
   const [cronoStatus, setCronoStatus] = useState<CronoStatus>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
 
   const [showPostCard, setShowPostCard] = useState(false)
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
@@ -769,7 +768,6 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   }
   const visiblePosts = posts.filter(matchesFilters)
   const hasFilter = !!(filterStatus || filterType || filterText)
-  const estrategiaPosts = posts.filter(p => p.status === 'estrategia')
   const revisaoPosts = posts.filter(p => p.status === 'revisao_interna')
 
   return (
@@ -828,28 +826,21 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 "Ações do cronograma" que precisava ser aberto toda vez; o
                 acordeão gastava uma linha pra esconder o que mais importa. */}
             <div className="order-1 md:order-2 grid grid-cols-2 gap-2 w-full md:flex md:w-auto md:ml-auto md:items-center md:gap-2 md:flex-wrap">
-              {/* Grupo Crono: finalizar+enviar (sempre) + Pra Criação (se houver pendência) + copiar link (sempre) */}
+              {/* Grupo Crono: os dois links de aprovação.
+                  
+                  "Pra Criação" saiu daqui — era o terceiro botão em LOTE, junto
+                  com "finalizar crono" e "conteúdo entregue" que já tinham
+                  saído pelo mesmo motivo: o mês nunca fecha certinho, sempre
+                  sobra um post pra captar depois, e botão que age em tudo de
+                  uma vez passa a declarar algo que não é verdade.
+                  
+                  Este era o mais arriscado dos três: o próprio título dizia
+                  "pular aprovação", ou seja, mandava o cronograma inteiro pra
+                  produção sem o cliente ter visto a pauta.
+                  
+                  Enviar um post pra Criação continua existindo — no menu do
+                  card, um a um, que é como a equipe já fazia na prática. */}
               <div className="col-span-2 md:col-auto flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-purple-border,var(--color-border))' }}>
-                {estrategiaPosts.length > 0 && (
-                  <>
-                    <button onClick={async () => {
-                      setSaving(true)
-                      const res = await Promise.all(estrategiaPosts.map(p => supabase.from('schedules').update({ status: 'producao' }).eq('id', p.id)))
-                      const err = res.find(r => r.error)?.error
-                      setSaving(false)
-                      // Sem esta checagem o aviso dizia "N posts enviados!"
-                      // mesmo quando nenhum tinha saído do lugar.
-                      if (err) { dbError(err, toast, 'enviar pra Criação'); return }
-                      setPosts(prev => prev.map(p => estrategiaPosts.find(ep => ep.id === p.id) ? { ...p, status: 'producao' } : p))
-                      toast(`${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} enviado${estrategiaPosts.length !== 1 ? 's' : ''} para Criação!`)
-                    }} disabled={saving}
-                      title={`Pular aprovação e mandar ${estrategiaPosts.length} post${estrategiaPosts.length !== 1 ? 's' : ''} direto pra Criação`}
-                      className="h-8 flex items-center gap-1.5 text-xs font-semibold px-3 border-l transition-all hover:opacity-90 disabled:opacity-50"
-                      style={{ borderColor: '#f59e0b66', color: '#b45309', background: '#f59e0b18' }}>
-                      <Zap size={12} /> Pra Criação
-                    </button>
-                  </>
-                )}
                 <button onClick={() => openApprovalModal('cronograma')}
                   title="Copiar link de aprovação do cronograma (pauta/estratégia, sem produção)"
                   className="flex-1 md:flex-none h-8 justify-center flex items-center gap-1.5 text-xs font-medium px-3 border-l transition-all hover:opacity-90"
