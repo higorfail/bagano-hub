@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { usuarioLogado } from '@/lib/apiAuth'
 import { GEMINI } from '@/lib/gemini'
 import { noticiasDoNicho } from '@/lib/noticiasDoNicho'
+import { completarFotos } from '@/lib/fotoDeBanco'
 
 // Tendências do nicho, buscadas de verdade.
 //
@@ -87,8 +88,17 @@ export async function POST(req: NextRequest) {
   // O Google Notícias continua sendo buscado e vira REDE: se os feeds caírem e
   // sobrar pouca coisa com foto, melhor uma tendência sem imagem do que
   // nenhuma tendência.
-  const comFoto = noticias.filter(n => n.imagem)
-  const base = comFoto.length >= 10 ? comFoto : noticias
+  // O Google Notícias VOLTOU pro páreo.
+  //
+  // Eu tinha cortado tudo sem foto pra garantir card ilustrado, e o preço foi
+  // alto: sumiram justamente as tendências de gastronomia que a equipe achava
+  // boas, porque as melhores vinham de lá. Resolver a foto cortando a notícia
+  // é resolver o problema errado.
+  //
+  // A separação certa: a NOTÍCIA decide o conteúdo, a FOTO vem de onde der.
+  // Quem tem foto própria usa a da matéria (é a que ilustra aquele assunto);
+  // quem não tem ganha uma de banco de imagem livre, lá embaixo.
+  const base = noticias
 
   const material = base
     .map((n, i) => `${i + 1}.${n.imagem ? ' [COM FOTO]' : ''} ${n.titulo}\n   veículo: ${n.veiculo} · ${n.data}\n   resumo: ${n.resumo || '(sem resumo)'}\n   link: ${n.link}`)
@@ -110,6 +120,7 @@ Regras, todas obrigatórias:
 - Nada de conselho atemporal ("poste com frequência", "mostre os bastidores"). Isso não é tendência, é manual — a equipe já sabe.
 - Traga quantas encontrar, até ${quantas}. Se só três matérias virarem tendência de verdade, traga três. Lista curta e verdadeira vale mais que longa e forçada.
 - Se o resumo da matéria citar um perfil ou um post do Instagram (um @ ou um link instagram.com), copie em "instagram". Se não citar, deixe "".
+- "busca_imagem" descreve a FOTO, não a tendência: coisas visíveis. "sushi tube dessert" serve; "restaurant trend 2026" não serve porque não é foto de nada. Em inglês, que é onde os bancos de imagem têm acervo.
 - Entre duas matérias que sustentam tendências igualmente boas, prefira a marcada [COM FOTO] — a tela mostra a foto da matéria, e card sem imagem rende menos. Isso é desempate, não critério: tendência fraca com foto continua fora.
 
 Responda APENAS com JSON válido (sem markdown, sem crases):
@@ -123,6 +134,7 @@ Responda APENAS com JSON válido (sem markdown, sem crases):
       "categoria": "um de: ${CATEGORIAS.join(' | ')}",
       "fonte": "o link exato da matéria de onde saiu",
       "instagram": "@perfil ou link instagram.com citado na matéria, senão vazio",
+      "busca_imagem": "2 a 4 palavras em INGLÊS descrevendo a foto que ilustra esta tendência",
       "exemplos": ["quem já fez, se a matéria disser"]
     }
   ]
@@ -198,11 +210,22 @@ Responda APENAS com JSON válido (sem markdown, sem crases):
         // existe, e a do feed é a que ilustra aquele assunto.
         imagem_url: noticia?.imagem || null,
         instagram_url: normalizarInstagram(t?.instagram),
+        buscaImagem: String(t?.busca_imagem || '').slice(0, 60),
         exemplos: Array.isArray(t?.exemplos) ? t.exemplos.filter((x: any) => typeof x === 'string').slice(0, 5) : [],
       }
     }).filter((t: any) => t.titulo && t.fonte)
 
-    return NextResponse.json({ tendencias, buscadoEm: new Date().toISOString(), materiasLidas: base.length })
+    // Quem não trouxe foto da matéria ganha uma de banco. Sem a chave do
+    // Pexels isto é um no-op e a tendência entra sem imagem, como antes.
+    const comFoto = await completarFotos(tendencias)
+
+    return NextResponse.json({
+      // `buscaImagem` sai daqui: a tela insere o objeto inteiro na tabela, e
+      // campo que não é coluna derruba o insert. `undefined` some no JSON.
+      tendencias: comFoto.map(t => ({ ...t, buscaImagem: undefined })),
+      buscadoEm: new Date().toISOString(),
+      materiasLidas: base.length,
+    })
   } catch {
     return NextResponse.json({ error: 'Erro ao chamar a API do Gemini' }, { status: 500 })
   }
