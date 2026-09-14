@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
 import { withBase } from '@/lib/base'
+import { sóAsNovas } from '@/lib/tendenciaRepetida'
 import { desdeQuando } from '@/lib/registrarAbertura'
 import { Search, Plus, Archive, TrendingUp, X } from 'lucide-react'
 
@@ -87,7 +88,13 @@ export default function TendenciasView({ heading }: { heading?: React.ReactNode 
       const res = await fetch(withBase('/api/ai-tendencias'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ concorrentes: (conc || []).map(c => c.instagram).filter(Boolean) }),
+        // O que JÁ está no quadro vai junto: sem isso a IA não tinha como
+        // saber e repetia — "Restaurantes que proíbem celulares" apareceu duas
+        // vezes, de matérias diferentes.
+        body: JSON.stringify({
+          concorrentes: (conc || []).map(c => c.instagram).filter(Boolean),
+          jaTemos: tendencias.slice(0, 80).map(t => t.titulo).filter(Boolean),
+        }),
       })
       const json = await res.json()
       if (!res.ok || json.error) {
@@ -100,8 +107,17 @@ export default function TendenciasView({ heading }: { heading?: React.ReactNode 
         setBuscando(false)
         return
       }
-      const novas = (json.tendencias || []).map((t: any) => ({ ...t, buscado_em: json.buscadoEm }))
-      if (!novas.length) { setErroBusca('A busca não trouxe nada novo desta vez.'); setBuscando(false); return }
+      // Instrução não é garantia — mesma regra que a rota já aplica ao link da
+      // fonte. Aqui o filtro é local e final: nada repetido entra no banco,
+      // nem contra o que já existe, nem dentro do próprio lote.
+      const brutas = (json.tendencias || []).map((t: any) => ({ ...t, buscado_em: json.buscadoEm }))
+      const novas = sóAsNovas(brutas, tendencias.map(t => t.titulo))
+      if (!novas.length) {
+        setErroBusca(brutas.length
+          ? `As ${brutas.length} que vieram já estavam no quadro. Tenta de novo mais tarde, quando houver matéria nova.`
+          : 'A busca não trouxe nada novo desta vez.')
+        setBuscando(false); return
+      }
       const { data, error } = await supabase.from('tendencias').insert(novas).select('*')
       if (dbError(error, toast, 'guardar as tendências')) { setBuscando(false); return }
       setTendencias(l => [...((data || []) as Tendencia[]), ...l])

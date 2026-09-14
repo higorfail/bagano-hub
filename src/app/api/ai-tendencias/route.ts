@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY não configurada' }, { status: 503 })
 
-  const { concorrentes = [], quantas = 8 } = await req.json().catch(() => ({}))
+  const { concorrentes = [], quantas = 8, jaTemos = [] } = await req.json().catch(() => ({}))
 
   const hoje = new Date()
   const DIAS = 45
@@ -56,6 +56,12 @@ export async function POST(req: NextRequest) {
     }, { status: 503 })
   }
 
+  // O que já está no quadro. Sem isso o modelo repetia o que a equipe já tinha
+  // — não por teimosia, por não saber: cada busca era a primeira pra ele.
+  const evitar = Array.isArray(jaTemos) && jaTemos.length
+    ? `\n\nJÁ TEMOS estas no quadro — não repita nenhuma, nem com outro nome:\n${jaTemos.slice(0, 80).map((t: string) => `- ${t}`).join('\n')}`
+    : ''
+
   const alvos = Array.isArray(concorrentes) && concorrentes.length
     ? `\n\nConcorrentes dos nossos clientes, para contexto do que é o nicho: ${concorrentes.slice(0, 25).join(', ')}`
     : ''
@@ -66,19 +72,38 @@ export async function POST(req: NextRequest) {
   // (que não têm foto) e ignorou as 21 com foto — as do Google News parecem
   // mais "tendência" e ele foi direto nelas. O resultado tinha substância e
   // nenhuma imagem, que era justamente o pedido.
-  const material = noticias
+  // SÓ matéria com foto vai pro modelo.
+  //
+  // A preferência por [COM FOTO] era desempate, e desempate não bastou: o
+  // modelo continuava escolhendo as do Google Notícias, que nunca têm foto e
+  // cujo título soa mais "tendência". O resultado era o quadro cheio de card
+  // cinza — 0 de 31 itens do Google têm imagem, contra 178 de 190 dos feeds.
+  //
+  // Não dá pra buscar a imagem depois: o link do Google Notícias não
+  // redireciona no servidor e o formato novo não expõe a URL real da matéria
+  // (testado). Então a única forma de garantir card com foto é escolher a
+  // matéria pela foto desde o começo.
+  //
+  // O Google Notícias continua sendo buscado e vira REDE: se os feeds caírem e
+  // sobrar pouca coisa com foto, melhor uma tendência sem imagem do que
+  // nenhuma tendência.
+  const comFoto = noticias.filter(n => n.imagem)
+  const base = comFoto.length >= 10 ? comFoto : noticias
+
+  const material = base
     .map((n, i) => `${i + 1}.${n.imagem ? ' [COM FOTO]' : ''} ${n.titulo}\n   veículo: ${n.veiculo} · ${n.data}\n   resumo: ${n.resumo || '(sem resumo)'}\n   link: ${n.link}`)
     .join('\n\n')
 
   const prompt = `Você trabalha numa agência brasileira de social media especializada em GASTRONOMIA (restaurantes, pizzarias, sushi, sorveterias, padarias, hamburguerias).
 
-Abaixo estão ${noticias.length} matérias REAIS publicadas de ${desde} para cá. Leia e extraia as que representam uma TENDÊNCIA que um restaurante consegue usar nas próximas semanas.${alvos}
+Abaixo estão ${base.length} matérias REAIS publicadas de ${desde} para cá. Leia e extraia as que representam uma TENDÊNCIA que um restaurante consegue usar nas próximas semanas.${alvos}
 
 MATÉRIAS:
-${material}
+${material}${evitar}
 
 Regras, todas obrigatórias:
 
+- NÃO repita nada da lista "JÁ TEMOS". Mesma tendência com outro título continua sendo repetição — se a matéria só confirma o que já está no quadro, pule.
 - Use SOMENTE o que está nas matérias acima. Não acrescente tendência que você conhece de outro lugar — se não está na lista, não entra.
 - O campo "fonte" tem que ser o link EXATO de uma das matérias acima. Nunca escreva outro link.
 - Ignore matéria que não vira conteúdo: turismo, agenda de evento de uma cidade só, notícia de celebridade, curso, feira setorial.
@@ -156,8 +181,8 @@ Responda APENAS com JSON válido (sem markdown, sem crases):
     // Só entra tendência cujo link ESTÁ na lista que mandamos. O modelo tem
     // instrução de copiar um dos links, mas instrução não é garantia — e uma
     // fonte inventada é pior que fonte nenhuma, porque parece verificável.
-    const linksReais = new Set(noticias.map(n => n.link))
-    const porLink = new Map(noticias.map(n => [n.link, n]))
+    const linksReais = new Set(base.map(n => n.link))
+    const porLink = new Map(base.map(n => [n.link, n]))
 
     const tendencias = lista.slice(0, 20).map((t: any) => {
       const fonte = String(t?.fonte || '').trim()
@@ -177,7 +202,7 @@ Responda APENAS com JSON válido (sem markdown, sem crases):
       }
     }).filter((t: any) => t.titulo && t.fonte)
 
-    return NextResponse.json({ tendencias, buscadoEm: new Date().toISOString(), materiasLidas: noticias.length })
+    return NextResponse.json({ tendencias, buscadoEm: new Date().toISOString(), materiasLidas: base.length })
   } catch {
     return NextResponse.json({ error: 'Erro ao chamar a API do Gemini' }, { status: 500 })
   }

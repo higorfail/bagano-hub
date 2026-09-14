@@ -40,6 +40,11 @@ const FEEDS: { veiculo: string; url: string }[] = [
   // Comida e casa — receita, ingrediente, hábito à mesa.
   { veiculo: 'Casa e Jardim',   url: 'https://revistacasaejardim.globo.com/rss/casaejardim/' },
   { veiculo: 'Catraca Livre',   url: 'https://catracalivre.com.br/feed/' },
+  // VEJA SP entrou pelo COMER E BEBER, que é a seção de restaurante, bar,
+  // drinque e hambúrguer — o nicho exato. Medido: 100 itens, 100% com foto, o
+  // melhor índice de todas as fontes testadas. Vem misturado com notícia de
+  // cidade (metrô, obra, clima), e disso o `interessa()` já dá conta.
+  { veiculo: 'VEJA SP',         url: 'https://vejasp.abril.com.br/feed/' },
 ]
 
 // G1 e CNN saíram: feed generalista de 100 itens passa acidente de trânsito e
