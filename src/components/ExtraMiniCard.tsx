@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Calendar, CheckSquare, AlertCircle, MessageSquare, Paperclip, Play, Archive } from 'lucide-react'
 import { cardDue } from '@/lib/cardDue'
 import { withBase } from '@/lib/base'
+import { faltaLegenda } from '@/lib/faltaLegenda'
 
 interface ExtraLite {
   id: string
@@ -14,6 +15,8 @@ interface ExtraLite {
   drive_url?: string | null
   description?: string | null
   briefing?: string | null
+  /** Só pra saber se está vazia — ver `faltaLegenda`. */
+  legenda?: string | null
   ai_summary?: string | null
   labels?: { text: string; color: string }[] | null
   client_id?: string | null
@@ -248,6 +251,11 @@ export default function ExtraMiniCard({
             )}
             {extra.client_approval_status === 'aguardando' && extra.client_approval_comment && (
               <span title={extra.client_approval_comment} className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#f59e0b22', color: '#f59e0b' }}>🟡 Ajustado</span>
+            )}
+            {faltaLegenda(extra, 'extra') && (
+              <span title="O link do cliente mostra a legenda — sem ela, a peça chega sem texto."
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>⚠️ Sem legenda</span>
             )}
           </div>
 

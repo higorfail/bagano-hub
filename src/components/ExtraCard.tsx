@@ -15,6 +15,7 @@ import { useEnsureOnce } from '@/lib/ensureOnce'
 import WatchButton from '@/components/WatchButton'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { generateAiLegenda } from '@/lib/aiLegenda'
+import { faltaLegenda } from '@/lib/faltaLegenda'
 import { hostOf, formatBytes } from '@/lib/url'
 import { fetchLinkTitle } from '@/lib/linkTitle'
 import { useDragToDismiss } from '@/lib/gestures'
@@ -1218,7 +1219,16 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
               placeholder="A legenda final, com hashtags e CTA…"
               value={legenda} minH={70}
               onCommit={v => { const hadId = !!id; setLegenda(v); persist({ legenda: v }, hadId ? `${who} editou a legenda` : undefined); autoAttachLinks(v) }}
-              labelExtra={(briefing?.trim() || copy?.trim()) ? (
+              labelExtra={faltaLegenda({ status, legenda }, 'extra') ? (
+                /* Mesmo aviso dos posts, no mesmo lugar: em cima do campo que
+                   resolve. Vale de "feito" em diante — quem produziu terminou e
+                   a social vai entregar, que é o portão do extra. */
+                <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  title="O link do cliente mostra a legenda — sem ela, a peça chega sem texto."
+                  style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)', border: '1px solid var(--ds-warn-border)' }}>
+                  ⚠️ Sem legenda, o cliente vê a peça muda
+                </span>
+              ) : (briefing?.trim() || copy?.trim()) ? (
                 <button onClick={suggestLegenda} disabled={generatingLegenda}
                   className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
                   style={{ background: '#8b5cf618', color: '#8b5cf6' }}>

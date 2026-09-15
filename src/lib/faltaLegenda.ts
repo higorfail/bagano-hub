@@ -1,4 +1,4 @@
-// Este post vai chegar mudo no cliente?
+// Este post (ou extra) vai chegar mudo no cliente?
 //
 // O link final mostra SÓ a legenda — o `copy` é campo interno e às vezes guarda
 // roteiro de gravação, com direção de câmera. Então post sem legenda chega no
@@ -21,8 +21,8 @@
 // Produção fica de fora de propósito: lá são 69, a legenda realmente vem
 // depois, e aviso que aparece em tudo deixa de ser aviso.
 
-/** Etapas em que a legenda já deveria existir. */
-const DEPOIS_DA_REVISAO = new Set([
+/** Post: da revisão interna em diante. */
+const ETAPAS_POST = new Set([
   'revisao_interna',
   'ajuste',
   'aguardando_aprovacao',
@@ -30,7 +30,28 @@ const DEPOIS_DA_REVISAO = new Set([
   'agendado',
 ])
 
-export function faltaLegenda(post: { status?: string | null; legenda?: string | null }): boolean {
-  if (!DEPOIS_DA_REVISAO.has(post.status || '')) return false
-  return !(post.legenda || '').trim()
+/**
+ * Extra: de "feito" em diante.
+ *
+ * O extra não tem revisão interna — o fluxo é backlog → feito → com o cliente.
+ * "Feito" é o portão equivalente: quem produziu terminou e a social vai
+ * entregar. `backlog` fica de fora pelo mesmo motivo que `producao` fica nos
+ * posts: lá a legenda ainda vem.
+ *
+ * Que extra tem legenda não é suposição: os 33 já criados são todos peça de
+ * Instagram (post, story, carrossel, reels) e 13 deles têm o campo preenchido.
+ */
+const ETAPAS_EXTRA = new Set([
+  'feito',
+  'ajuste',
+  'aguardando_aprovacao',
+])
+
+export function faltaLegenda(
+  item: { status?: string | null; legenda?: string | null },
+  tipo: 'post' | 'extra' = 'post',
+): boolean {
+  const etapas = tipo === 'extra' ? ETAPAS_EXTRA : ETAPAS_POST
+  if (!etapas.has(item.status || '')) return false
+  return !(item.legenda || '').trim()
 }
