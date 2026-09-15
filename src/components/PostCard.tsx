@@ -20,6 +20,7 @@ import { renderWithMentions } from '@/lib/useMentions'
 import { buildReplyDraft } from '@/lib/commentReply'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { generateAiLegenda } from '@/lib/aiLegenda'
+import { faltaLegenda } from '@/lib/faltaLegenda'
 import { ensureWatching, ensureWatchingFromMentions } from '@/lib/watch'
 import { approvalKind, approvalLabel } from '@/lib/approvalKind'
 import { useDragToDismiss } from '@/lib/gestures'
@@ -1684,6 +1685,18 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
             {textField('copy', 'Copy', '· conceito / roteiro', 'Ideia central, roteiro do reels, texto das artes…', 70)}
             {textField('legenda', 'Legenda', '· o texto que vai no Instagram', 'A legenda final do post, com hashtags e CTA…', 70,
               <span className="ml-auto flex items-center gap-1.5">
+                {/* O aviso onde a pessoa REALMENTE confere o post.
+                    Ele existia só no card pequeno do cronograma e só em
+                    "aguardando aprovação" — quando o link já foi pro cliente.
+                    Aqui ele aparece da revisão interna em diante, em cima do
+                    campo vazio: é o lugar e o momento de resolver. */}
+                {faltaLegenda({ status: form.status, legenda: form.legenda }) && (
+                  <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    title="O link do cliente mostra só a legenda — sem ela, o post chega sem texto nenhum."
+                    style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)', border: '1px solid var(--ds-warn-border)' }}>
+                    ⚠️ Sem legenda, o cliente vê o post mudo
+                  </span>
+                )}
                 {/* Só aparece quando a legenda existe e tem tamanho de legenda —
                     marcar "oi" como referência de tom de voz não ajuda ninguém. */}
                 {ehReferencia !== null && (

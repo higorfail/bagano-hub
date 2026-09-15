@@ -5,6 +5,7 @@ import { Calendar, Paperclip, Copy, Package, Play, Zap, MessageSquare } from 'lu
 import { approvalShort } from '@/lib/approvalKind'
 import { STATUS as STATUS_META, STATUS_ORDER } from '@/lib/status'
 import { withBase } from '@/lib/base'
+import { faltaLegenda } from '@/lib/faltaLegenda'
 
 const TYPE: Record<string, { label: string; color: string }> = {
   carrossel:         { label: 'Carrossel',         color: '#3b82f6' },
@@ -73,12 +74,9 @@ export default function PostMiniCard({ post, clientColor, campaignName, selected
   const isAdjusted        = !isRejected && post.status !== 'ajuste' && !!post.approval_comment
   const isAdjustedPending = isAdjusted && post.status === 'aguardando_aprovacao'
   const isRevisao   = post.status === 'revisao_interna'
-  // Está com o cliente AGORA e sem legenda. O link final passou a mostrar só
-  // `legenda` (o `copy` é interno e às vezes guarda roteiro de gravação), então
-  // um post nessa situação chega mudo: o cliente vê a arte e nenhum texto.
-  // Só em "aguardando_aprovacao" — antes disso a legenda ainda está sendo
-  // escrita na produção, e avisar cedo vira barulho.
-  const semLegenda  = post.status === 'aguardando_aprovacao' && !(post.legenda || '').trim()
+  // A regra mora em src/lib/faltaLegenda.ts — três telas mostram este aviso e
+  // não podem divergir sobre quando ele vale.
+  const semLegenda  = faltaLegenda(post)
   const refs      = post.reference_images?.length || 0
   const delivered = !!(post.drive_url || post.drive_folder_url)
   const isVideo   = post.post_type === 'reels'

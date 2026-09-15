@@ -25,6 +25,7 @@ import { linkPublico, novoCodigo } from '@/lib/linkAprovacao'
 import { getOrCreateMonthToken } from '@/lib/approvalLinks'
 import { renumerarPosts } from '@/lib/renumerarPosts'
 import { numerosNoDestino } from '@/lib/numeroNoDestino'
+import { faltaLegenda } from '@/lib/faltaLegenda'
 import { proximoPassoDoEndereco } from '@/lib/enderecoDoPost'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -719,6 +720,12 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
    * legenda chega mudo. Este aviso é pra equipe mover o texto pro campo certo
    * antes de mandar o link.
    */
+  // DE PROPÓSITO mais estreito que `faltaLegenda` (src/lib/faltaLegenda.ts).
+  //
+  // Aquele aviso vale da revisão interna em diante, porque é sobre trabalho que
+  // falta. Este é sobre o que o CLIENTE vai ver ao abrir o link agora — e o
+  // link final só mostra o que já está com ele. Listar aqui um post que ainda
+  // está em revisão seria alarme falso: ele nem entra neste link.
   const postsSemLegenda = posts.filter(p => p.status === 'aguardando_aprovacao' && !(p.legenda || '').trim())
 
   /**
@@ -1006,6 +1013,17 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                               {TYPE_LABEL[post.post_type] || post.post_type || '—'}
                             </span>
                             {campaign && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: 'var(--ds-info-bg)', color: 'var(--ds-info-text)' }}>📣 {campaign.name}</span>}
+                            {/* Também na LISTA. A coluna de legenda é opcional
+                                aqui, então com ela desligada não havia como
+                                notar o campo vazio — e é justamente a visão que
+                                a estrategista usa pra conferir o mês inteiro. */}
+                            {faltaLegenda(post) && (
+                              <span title="O link do cliente mostra só a legenda — sem ela, o post chega sem texto nenhum."
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-md"
+                                style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>
+                                ⚠️ Sem legenda
+                              </span>
+                            )}
                             {post.comments_count > 0 && (
                               <BalaoComentarios postId={post.id} quantos={post.comments_count} />
                             )}
