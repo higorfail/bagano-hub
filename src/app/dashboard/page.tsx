@@ -23,6 +23,7 @@ import { withBase } from '@/lib/base'
 import { caminhoCliente } from '@/lib/clienteSlug'
 import { fetchAgencyAlerts, type AgencyAlert } from '@/lib/agencyAlerts'
 import { papelNoItem, etapaDoItem } from '@/lib/donoDaEtapa'
+import { ordenarDoCliente } from '@/lib/ordemDoCliente'
 import { baldeDoItem, contextoDaAgenda, fraseDaFila, sugestaoDeAdiantar, somaDias, type Balde, type ClienteDeHoje } from '@/lib/filaDoDia'
 
 // ─── CFG — nomes de colunas/tabelas Supabase (corrigir aqui se mudar) ───────
@@ -199,7 +200,7 @@ function ClientAvatar({ client }: { client?: { name: string; color_hex?: string;
   )
 }
 
-function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap, campaignNameMap, sempreCliente, voltasDaRevisao }: {
+function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap = 5, agingMap, campaignNameMap, sempreCliente, voltasDaRevisao, campaignDateMap }: {
   label: string
   items: ParaVoceRowItem[]
   /**
@@ -220,6 +221,8 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
   sempreCliente?: boolean
   /** O que voltou da revisão interna, por id — vira verbo "ajustar" e recado. */
   voltasDaRevisao?: VoltasDaRevisao
+  /** `cliente:campanha` → data-alvo. Faz post de campanha subir na fila. */
+  campaignDateMap?: Record<string, string>
   clientMap: Record<string, { name: string; color_hex?: string; logo_url?: string | null }>
   router: ReturnType<typeof useRouter>
   todayStr: string
@@ -309,7 +312,17 @@ function ParaVoceGroup({ label, items, clientMap, router, todayStr, muted, cap =
     if (!byClient.has(it.clientId)) byClient.set(it.clientId, [])
     byClient.get(it.clientId)!.push(it)
   }
-  const clientGroups = [...byClient.entries()].map(([clientId, its]) => ({ key: clientId, its }))
+  // Dentro do cliente, o que fazer primeiro. A regra mora em
+  // src/lib/ordemDoCliente.ts — o hub já sabia o que era urgente e a lista
+  // saía na ordem em que o banco devolveu.
+  const ctxOrdem = {
+    hoje: todayStr,
+    voltouDaRevisao: (id: string) => !!voltasDaRevisao?.[id],
+    dataDaCampanha: (clientId?: string, tipo?: string | null) =>
+      (clientId && tipo && campaignDateMap?.[`${clientId}:${tipo}`]) || null,
+  }
+  const clientGroups = [...byClient.entries()]
+    .map(([clientId, its]) => ({ key: clientId, its: ordenarDoCliente(its, ctxOrdem) }))
   const totalItems = items.length
   const shownItems = clientGroups.slice(0, cap).reduce((s, g) => s + g.its.length, 0)
 
@@ -503,6 +516,8 @@ export default function DashboardPage() {
   }, [])
   const [agingMap,     setAgingMap]     = useState<Record<string, string>>({})
   const [campaignNameMap, setCampaignNameMap] = useState<Record<string, string>>({})
+  /** A data-alvo de cada campanha — é o que faz o post dela subir na fila. */
+  const [campaignDateMap, setCampaignDateMap] = useState<Record<string, string>>({})
   const [loading,      setLoading]      = useState(true)
   const [loadError,    setLoadError]    = useState(false)
 
@@ -1451,12 +1466,20 @@ export default function DashboardPage() {
     const withCampaign = paraVoceItems.filter(i => i.campaignType)
     if (withCampaign.length === 0) return
     const clientIds = [...new Set(withCampaign.map(i => i.clientId))]
-    supabase.from('campaigns').select('client_id, type, name').in('client_id', clientIds)
+    // `target_date` entra junto: é ela que faz um post de campanha subir na
+    // fila do cliente. O nome já vinha; a data, que é o que decide a ordem,
+    // ficava no banco sem ninguém pedir.
+    supabase.from('campaigns').select('client_id, type, name, target_date').in('client_id', clientIds)
       .then(({ data, error }) => {
         if (error || !data) return
-        const next: Record<string, string> = {}
-        data.forEach((c: any) => { next[`${c.client_id}:${c.type}`] = c.name })
-        setCampaignNameMap(next)
+        const nomes: Record<string, string> = {}
+        const datas: Record<string, string> = {}
+        data.forEach(c => {
+          nomes[`${c.client_id}:${c.type}`] = c.name
+          if (c.target_date) datas[`${c.client_id}:${c.type}`] = c.target_date
+        })
+        setCampaignNameMap(nomes)
+        setCampaignDateMap(datas)
       })
   }, [loading, paraVoceItems.length])
 
@@ -1692,7 +1715,7 @@ export default function DashboardPage() {
                 {/* 1. Alguém está esperando resposta. Aqui a unidade é o ITEM,
                        porque o cliente pediu sobre um post específico. */}
                 {needsYouAjusteItems.length > 0 && (
-                  <ParaVoceGroup label="🔴 Esperando você" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao} />
+                  <ParaVoceGroup label="🔴 Esperando você" items={needsYouAjusteItems} clientMap={clientMap} router={router} todayStr={todayStr} cap={4} agingMap={agingMap} campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao} campaignDateMap={campaignDateMap} />
                 )}
 
                 {/* 2. O trabalho de agora. Aqui a unidade é o CLIENTE — é assim
@@ -1709,7 +1732,7 @@ export default function DashboardPage() {
                     label={contextoFila.temAgenda ? '📌 Hoje'
                       : `📌 Mais urgente · sai em até ${JANELA_SEM_AGENDA} dias`}
                     items={fazerAgora} clientMap={clientMap} router={router} todayStr={todayStr} cap={6}
-                    agingMap={agingMap} campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao}
+                    agingMap={agingMap} campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao} campaignDateMap={campaignDateMap}
                     sempreCliente />
                 )}
 
@@ -1734,7 +1757,7 @@ export default function DashboardPage() {
                       <div className="mt-1.5">
                         <ParaVoceGroup label="" items={acompanhando} clientMap={clientMap} router={router}
                           todayStr={todayStr} cap={20} agingMap={agingMap}
-                          campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao} sempreCliente muted />
+                          campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao} campaignDateMap={campaignDateMap} sempreCliente muted />
                       </div>
                     )}
                   </div>
@@ -1753,7 +1776,7 @@ export default function DashboardPage() {
                       <div className="mt-1.5">
                         <ParaVoceGroup label="" items={resto} clientMap={clientMap} router={router}
                           todayStr={todayStr} cap={20} agingMap={agingMap}
-                          campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao} sempreCliente muted />
+                          campaignNameMap={campaignNameMap} voltasDaRevisao={voltasDaRevisao} campaignDateMap={campaignDateMap} sempreCliente muted />
                       </div>
                     )}
                   </div>
