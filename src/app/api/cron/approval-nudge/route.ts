@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import webpush from 'web-push'
 import { storeNotifications } from '@/lib/storeNotifications'
+import { destinatariosDeReserva, avisoDeTimeVazio } from '@/lib/destinatariosDeReserva'
 import { activeClientIds, fromActiveClients } from '@/lib/activeClients'
 
 
@@ -75,8 +76,15 @@ export async function GET(req: NextRequest) {
     // Quem fala com o cliente: estrategista e social media.
     const { data: time } = await supabase.from('client_team')
       .select('member_id, funcao').eq('client_id', clientId).in('funcao', ['estrategia', 'social'])
-    const memberIds = [...new Set((time || []).map((t: any) => t.member_id))].filter(Boolean)
-    if (!memberIds.length) continue
+    let memberIds = [...new Set((time || []).map((t: any) => t.member_id))].filter(Boolean)
+    // Cliente sem estrategista nem social é exatamente o que ninguém está
+    // olhando — cobrar ninguém é o pior destino possível pra esse caso.
+    let semTime = false
+    if (!memberIds.length) {
+      memberIds = await destinatariosDeReserva(supabase)
+      semTime = true
+      if (!memberIds.length) continue
+    }
 
     // Não repete todo dia. Sem esta trava, o cliente que demora duas semanas
     // gera catorze cobranças iguais e a pessoa para de ler todas.
@@ -88,9 +96,10 @@ export async function GET(req: NextRequest) {
 
     const dias = Math.max(DIAS_PARA_COBRAR, Math.round((Date.now() - new Date(info.maisAntigo).getTime()) / 86_400_000))
     const nome = nomeCliente.get(clientId) || 'Cliente'
-    const body = info.qtd === 1
+    const base = info.qtd === 1
       ? `${nome} está há ${dias} dias sem aprovar 1 conteúdo. Vale lembrar.`
       : `${nome} está há ${dias} dias sem aprovar ${info.qtd} conteúdos. Vale lembrar.`
+    const body = semTime ? base + avisoDeTimeVazio(nome) : base
     const url = `/dashboard/aprovacao?client=${clientId}`
 
     await storeNotifications(supabase, {

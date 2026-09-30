@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/supabaseAdmin'
 import webpush from 'web-push'
 import { storeNotifications } from '@/lib/storeNotifications'
+import { destinatariosDeReserva, avisoDeTimeVazio } from '@/lib/destinatariosDeReserva'
 
 
 const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
@@ -85,7 +86,15 @@ export async function GET(req: NextRequest) {
     const body = `${clientName} ${parts.join(', ')}.${pendencia}`
 
     const { data: team } = await supabase.from('client_team').select('member_id').eq('client_id', row.client_id)
-    const memberIds = [...new Set((team || []).map((t: any) => t.member_id))]
+    let memberIds = [...new Set((team || []).map((t: any) => t.member_id))]
+
+    // Time vazio não pode virar silêncio: a fila é apagada logo abaixo, então o
+    // aviso que não sai aqui não sai nunca mais.
+    let corpo = body
+    if (memberIds.length === 0) {
+      memberIds = await destinatariosDeReserva(supabase)
+      corpo = body + avisoDeTimeVazio(clientName)
+    }
 
     if (memberIds.length > 0) {
       // Grava ANTES de enviar: o push é o aviso, isto é o registro. Sem esta
@@ -95,14 +104,14 @@ export async function GET(req: NextRequest) {
         clientId: row.client_id,
         kind: 'approval_digest',
         title: `Resumo de aprovação · ${clientName}`,
-        body,
+        body: corpo,
         url: `/dashboard/cronograma?client=${row.client_id}`,
         actorName: clientName,
       })
 
       const { data: subs } = await supabase.from('push_subscriptions')
         .select('id, endpoint, p256dh, auth').in('member_id', memberIds)
-      const payload = JSON.stringify({ title: '📋 Resumo de aprovação', body, url: `/dashboard/cronograma?client=${row.client_id}` })
+      const payload = JSON.stringify({ title: '📋 Resumo de aprovação', body: corpo, url: `/dashboard/cronograma?client=${row.client_id}` })
       await Promise.all((subs || []).map(async (sub: any) => {
         try {
           await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload)
