@@ -82,16 +82,37 @@ html, body { background-color: var(--color-bg-page); }
   :root:not([data-theme="light"]) { color-scheme: dark; }
 }
 
+/* A barra de rolagem só aparece quando o ponteiro está na área que rola.
+ *
+ * O trilho continua reservando a largura o tempo todo — só o polegar fica
+ * invisível. Isso é de propósito: fazer a barra NASCER no hover mudaria a
+ * largura útil do conteúdo e empurraria tudo alguns pixels pro lado toda vez
+ * que o mouse entrasse, que é bem pior que uma listra cinza parada.
+ *
+ * Vale pro hub inteiro — menu lateral, listas, modais. A exceção é
+ * `.rolagem-invisivel`, usada na fileira de abas, onde a barra some de vez.
+ *
+ * Em tela de toque não existe hover, mas também não existe barra permanente:
+ * o sistema já mostra a dela enquanto o dedo arrasta e esconde depois. */
 * {
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover, *:focus-within {
   scrollbar-color: var(--color-border-strong) transparent;
 }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background-color: var(--color-border-strong);
+  background-color: transparent;
   border-radius: 8px;
   border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color .15s;
+}
+*:hover::-webkit-scrollbar-thumb,
+*:focus-within::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-strong);
   background-clip: content-box;
 }
 *::-webkit-scrollbar-thumb:hover {
