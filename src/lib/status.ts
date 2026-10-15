@@ -28,11 +28,12 @@ export const STATUS: Record<StatusKey, Meta> = {
   // espaço apertava — e dois status diferentes começavam com "Aguardando
   // aprovação", um da pauta e outro da arte, lado a lado na mesma lista.
   //
-  // "Cliente · pauta" e "Cliente · arte" separam os dois pelo que o cliente
-  // está olhando. E "Pauta" venceu "Estratégia" porque é o que a equipe fala
-  // em voz alta; estratégia é o nome da disciplina, não da etapa.
-  estrategia:                 { label: 'Pauta',                short: 'Pauta',      color: '#6b7280' },
-  aguardando_aprovacao_crono: { label: 'Cliente · pauta',      short: 'Cliente pauta', color: '#f472b6' },
+  // "Cliente · crono" e "Cliente · arte" separam os dois pelo que o cliente
+  // está olhando. "Crono" e não "pauta" porque é a palavra que a equipe fala
+  // em voz alta — e nome de etapa que não é o nome falado obriga todo mundo a
+  // traduzir duas vezes por dia.
+  estrategia:                 { label: 'Estratégia',           short: 'Estratégia', color: '#6b7280' },
+  aguardando_aprovacao_crono: { label: 'Cliente · crono',      short: 'Cliente crono', color: '#f472b6' },
   captacao:                   { label: 'Captação',             short: 'Captação',   color: '#0ea5e9' },
   // Entre captar e produzir existia um buraco: voltando da filmagem, quem
   // captou marcava "Produção" — e era mentira, porque ninguém tinha editado

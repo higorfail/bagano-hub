@@ -552,8 +552,10 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     const { error } = await supabase.from('schedules').update({ status: loteDestino }).eq('client_id', clientId).in('id', ids)
     if (error) { setLoteSalvando(false); dbError(error, toast, 'mover os posts'); return }
 
-    const de = statusLabel(filterStatus)
     const para = statusLabel(loteDestino)
+    // De onde cada um saiu, lido ANTES da tela mudar: sem filtro, os posts do
+    // lote vêm de etapas diferentes, e um "de" só seria mentira pra maioria.
+    const origem = new Map(posts.map(p => [p.id, p.status]))
     setPosts(prev => prev.map(p => (loteMarcados.has(p.id) ? { ...p, status: loteDestino } : p)))
 
     // Um registro POR POST, não um só pro lote: o histórico de cada card
@@ -562,9 +564,9 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     const quem = currentMember?.name || 'Alguém'
     await Promise.all(ids.map(id => logActivity({
       tableName: 'schedules', recordId: id, clientId,
-      action: 'status_changed', field: 'status', oldValue: de, newValue: para,
+      action: 'status_changed', field: 'status', oldValue: statusLabel(origem.get(id)), newValue: para,
       actorName: quem, actorId: currentMember?.id,
-      description: `${quem} moveu de ${de} para ${para} (junto com outros ${ids.length - 1})`,
+      description: `${quem} moveu de ${statusLabel(origem.get(id))} para ${para}${ids.length > 1 ? ` (junto com outros ${ids.length - 1})` : ''}`,
     })))
 
     setLoteSalvando(false)
@@ -887,6 +889,11 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 item da barra: é a pergunta "que mês estou vendo?", que vem
                 antes de qualquer ação sobre ele. */}
             {barraInicio && (
+              // O bloco do mês fica entre dois traços: um aqui, fechando à
+              // direita, e outro dentro de `barraInicio`, entre os contadores
+              // e o seletor. Com um só, o seletor de mês ficava solto —
+              // separado dos contadores mas colado nos ícones de filtro, como
+              // se pertencesse a eles.
               <div className="order-1 w-full md:w-auto md:mr-3 md:pr-3 md:border-r md:border-[var(--color-border)] flex items-center gap-3 flex-wrap">{barraInicio}</div>
             )}
 
@@ -972,18 +979,26 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               )}
             </div>
 
-            {/* MOVER EM LOTE — só existe com um status filtrado.
+            {/* MOVER EM LOTE.
             
-                O filtro VIRA a seleção. A frase da estrategista já é um
-                filtro ("tudo que está em Produção vira Revisão"), então a
-                tela não precisa de um segundo jeito de dizer a mesma coisa —
-                e o card parado não ganha caixinha nenhuma. */}
-            {filterStatus && visiblePosts.length > 0 && (
+                Nasceu aparecendo só com um status filtrado — a ideia era que
+                o filtro VIRASSE a seleção, sem caixinha em card nenhum. A
+                segunda metade continua valendo, mas a primeira escondeu o
+                botão de quem não filtra, que é justamente quem sentiu falta
+                dele. Agora ele está sempre na barra; o filtro, quando existe,
+                só muda o que vem marcado.
+            
+                Com status filtrado ele ganha a frase inteira ("Mover 6 de
+                Produção"), porque aí a ação é específica e vale o espaço. */}
+            {visiblePosts.length > 0 && (
               <button onClick={abrirLote}
-                className="order-5 md:order-2 flex items-center gap-1.5 h-9 px-3 rounded-xl border text-[13px] font-medium transition-colors flex-shrink-0"
-                style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent-bg)' }}>
-                <ArrowRightLeft size={14} />
-                Mover {visiblePosts.length} de {statusLabel(filterStatus)}
+                title="Mover vários posts de etapa de uma vez"
+                className={`order-5 md:order-2 flex items-center justify-center gap-1.5 h-9 rounded-xl border text-[13px] font-medium transition-colors flex-shrink-0 ${filterStatus ? 'px-3' : 'w-9'}`}
+                style={filterStatus
+                  ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent-bg)' }
+                  : { borderColor: 'var(--color-border)', background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
+                <ArrowRightLeft size={15} />
+                {filterStatus && <>Mover {visiblePosts.length} de {statusLabel(filterStatus)}</>}
               </button>
             )}
 
@@ -1007,10 +1022,10 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                   card, um a um, que é como a equipe já fazia na prática. */}
               <div className="col-span-2 md:col-auto flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-purple-border,var(--color-border))' }}>
                 <button onClick={() => openApprovalModal('cronograma')}
-                  title="Copiar o link em que o cliente aprova a PAUTA do mês — os temas, antes de qualquer arte existir"
+                  title="Copiar o link do CRONO: o cliente aprova os temas do mês, antes de qualquer arte existir"
                   className="flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-xs font-medium px-2.5 border-l transition-all hover:opacity-90 whitespace-nowrap"
                   style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)' }}>
-                  <Link2 size={12} /> Aprovar pauta
+                  <Link2 size={12} /> Link do crono
                 </button>
               </div>
 
@@ -1022,7 +1037,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                   title="Copiar o link em que o cliente aprova a ARTE pronta — o conteúdo já produzido"
                   className={`flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-xs font-medium px-2.5 transition-all hover:opacity-90 whitespace-nowrap ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
                   style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)' }}>
-                  <Link2 size={12} /> Aprovar arte
+                  <Link2 size={12} /> Link final
                 </button>
               </div>
 
@@ -1459,7 +1474,9 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-[var(--color-text-primary)]">Mover posts de etapa</p>
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                    Saindo de <strong className="font-semibold">{statusLabel(filterStatus)}</strong>
+                    {filterStatus
+                      ? <>Saindo de <strong className="font-semibold">{statusLabel(filterStatus)}</strong></>
+                      : <>Desmarque os que não devem ir junto</>}
                   </p>
                 </div>
                 <button onClick={() => setLoteAberto(false)} aria-label="Fechar"

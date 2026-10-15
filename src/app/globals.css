@@ -189,3 +189,16 @@ img.h-full { height: 100% !important; }
 .rounded-xl   { border-radius: 0.875rem; }  /* 14px  (era 12px) */
 .rounded-2xl  { border-radius: 1.25rem;  }  /* 20px  (era 16px) */
 .rounded-3xl  { border-radius: 1.75rem;  }  /* 28px  (era 24px) */
+
+/* Fileira que rola sem mostrar que rola.
+ *
+ * A barra de abas da página do cliente divide a linha com o nome do cliente e
+ * com os ícones. Quando as treze não cabem, o navegador desenha uma barra de
+ * rolagem embaixo delas — e uma barra cinza atravessada sob a navegação
+ * principal lê como "algo quebrou", não como "tem mais pro lado".
+ *
+ * A rolagem continua: arrastar, roda do mouse e teclado funcionam igual. Só o
+ * traço some. Serve pra fileira curta e horizontal; nunca pra área de
+ * conteúdo, onde a barra é a única pista de que há mais coisa embaixo. */
+.rolagem-invisivel { scrollbar-width: none; -ms-overflow-style: none; }
+.rolagem-invisivel::-webkit-scrollbar { display: none; }

@@ -473,7 +473,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
             {/* As abas ao lado do nome, menores, ocupando o espaço que a foto
                 grande e os números liberaram ao encolher. */}
             {inline && (
-              <div className="flex items-center gap-0.5 flex-1 min-w-0 overflow-x-auto">
+              <div className="flex items-center gap-0.5 flex-1 min-w-0 overflow-x-auto rolagem-invisivel">
                 {renderTabs(true)}
               </div>
             )}
@@ -508,8 +508,8 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                   return `${window.location.origin}${await linkPublico(createClient(), generalToken)}`
                 })
                 toast(ok ? 'Link da Central de aprovação copiado!' : 'Erro ao gerar link')
-              }} className="hidden md:flex items-center justify-center gap-1.5 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl h-9 px-3 text-sm font-medium hover:bg-[var(--color-bg-subtle)] transition-colors whitespace-nowrap" title="Copia um link só com tudo que está esperando o cliente: pauta, arte e extras">
-                <ClipboardCheck size={14} /> Aprovação
+              }} className="hidden md:flex items-center justify-center border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl h-9 w-9 hover:bg-[var(--color-bg-subtle)] transition-colors flex-shrink-0" title="Central de aprovação — copia um link só com tudo que está esperando o cliente: crono, arte e extras">
+                <ClipboardCheck size={15} />
               </button>
               <button onClick={openEditClient} title="Editar cliente"
                 className="w-9 h-9 rounded-xl border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors">
@@ -534,7 +534,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
           {/* Só quando NÃO está encolhido: rolando, as abas sobem pra linha do
               nome (lá em cima) em vez de ocuparem uma linha própria. */}
           {!inline && (
-            <div className="flex items-center gap-1 mt-2.5 md:mt-3 overflow-x-auto -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
+            <div className="flex items-center gap-1 mt-2.5 md:mt-3 overflow-x-auto rolagem-invisivel -mx-3 px-3 md:-mx-4 md:px-4 lg:mx-0 lg:px-0">
               {renderTabs(false)}
             </div>
           )}
@@ -590,6 +590,10 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                     </button>
                   )}
                 </div>
+                {/* Traço entre o que o mês TEM (contadores) e qual mês é
+                    (seletor): duas informações diferentes que estavam coladas
+                    numa fileira só. */}
+                <div className="hidden md:block self-stretch border-l border-[var(--color-border)]" />
                 <div className="relative flex items-center gap-1">
                   <button onClick={() => setSelectedMonth(m => { const prev = m===1?12:m-1; if (prev===12) setSelectedYear(y=>y-1); return prev })} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
                   <button onClick={() => setShowMonthPicker(p => !p)} className="text-sm font-medium text-[var(--color-text-primary)] px-2 py-1 rounded-lg hover:bg-[var(--color-bg-subtle)] min-w-[120px] text-center">
