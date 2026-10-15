@@ -28,7 +28,7 @@ import RecorrentesView from '@/components/recorrentes/RecorrentesView'
 import { statusBadge, statusLabel, STATUS_ORDER as POST_STATUS_ORDER } from '@/lib/status'
 import TaskMiniCard from '@/components/TaskMiniCard'
 import TaskCard from '@/components/TaskCard'
-import { Plus, ChevronLeft, Pencil, Link as LinkIcon } from 'lucide-react'
+import { Plus, ChevronLeft, Pencil, Link as LinkIcon, ClipboardCheck } from 'lucide-react'
 import { useIsWideScreen } from '@/lib/useMediaQuery'
 import { linkPublico } from '@/lib/linkAprovacao'
 import { useClienteDaURL } from '@/lib/clienteSlug'
@@ -130,7 +130,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
         // com o nome. Mas aba é a navegação principal da tela — ler o nome
         // dela não pode ser esforço. Com Onboarding fora e 13px, as treze
         // cabem na mesma linha sem apertar.
-        className={`flex-shrink-0 rounded-lg font-medium transition-all whitespace-nowrap ${menor ? 'px-2.5 py-1.5 text-[13px]' : 'px-3 md:px-4 py-1.5 md:py-2 text-sm'} ${tab === t.key ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>
+        className={`flex-shrink-0 rounded-lg font-medium transition-all whitespace-nowrap ${menor ? 'px-3 py-1.5 text-sm' : 'px-3 md:px-4 py-1.5 md:py-2 text-sm'} ${tab === t.key ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>
         {t.label}
       </button>
     ))
@@ -508,8 +508,8 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                   return `${window.location.origin}${await linkPublico(createClient(), generalToken)}`
                 })
                 toast(ok ? 'Link da Central de aprovação copiado!' : 'Erro ao gerar link')
-              }} className={`hidden md:flex items-center justify-center gap-1.5 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl h-9 font-medium hover:bg-[var(--color-bg-subtle)] transition-colors whitespace-nowrap ${inline ? 'w-9' : 'px-3 text-sm'}`} title="Copia o link com tudo que está pendente de aprovação (crono + final + extras)">
-                <LinkIcon size={14} />{!inline && 'Central de aprovação'}
+              }} className="hidden md:flex items-center justify-center gap-1.5 border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl h-9 px-3 text-sm font-medium hover:bg-[var(--color-bg-subtle)] transition-colors whitespace-nowrap" title="Copia um link só com tudo que está esperando o cliente: pauta, arte e extras">
+                <ClipboardCheck size={14} /> Aprovação
               </button>
               <button onClick={openEditClient} title="Editar cliente"
                 className="w-9 h-9 rounded-xl border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors">

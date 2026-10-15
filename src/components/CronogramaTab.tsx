@@ -10,7 +10,7 @@ import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
 import { approvalShort } from '@/lib/approvalKind'
 import { dbError } from '@/lib/dbError'
-import { ChevronRight, Check, Copy, Search, X, ClipboardCheck, Link2, Sparkles, ClipboardList, ChevronDown, GripVertical, SlidersHorizontal } from 'lucide-react'
+import { ChevronRight, Check, Copy, Search, X, ClipboardCheck, Link2, Sparkles, ClipboardList, ChevronDown, GripVertical, SlidersHorizontal, ArrowRightLeft } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { ensureWatching } from '@/lib/watch'
@@ -246,6 +246,14 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [buscaAberta, setBuscaAberta] = useState(false)
   const [filtrosAbertos, setFiltrosAbertos] = useState(false)
   const caixaFiltros = useRef<HTMLDivElement>(null)
+
+  // Mover em lote. `loteAberto` é o modal; `loteMarcados` são os posts que vão
+  // de fato (todos, menos os que a pessoa desmarcar); `loteDestino` é o status
+  // de chegada.
+  const [loteAberto, setLoteAberto] = useState(false)
+  const [loteDestino, setLoteDestino] = useState('')
+  const [loteMarcados, setLoteMarcados] = useState<Set<string>>(new Set())
+  const [loteSalvando, setLoteSalvando] = useState(false)
 
   const [filterText, setFilterText] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -522,6 +530,53 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   }
 
 
+
+  /**
+   * Move vários posts de uma etapa pra outra.
+   *
+   * Já existiram três botões de lote aqui — "finalizar crono", "conteúdo
+   * entregue" e "pra Criação" — e os três foram removidos pelo mesmo motivo: o
+   * mês nunca fecha certinho, sempre sobra um post que não devia ir junto, e
+   * botão que age em TUDO passa a declarar algo que não é verdade.
+   *
+   * A diferença aqui é onde mora a exceção. Ela não sumiu: ela virou uma
+   * caixinha na confirmação, que nasce marcada e a pessoa desmarca. Por isso
+   * não existe caixa de seleção em card nenhum — o card parado continua
+   * limpo, e o lote só aparece depois de filtrar por status, que é a forma
+   * como a pergunta ("tudo que está em Produção") já é feita na prática.
+   */
+  async function moverEmLote() {
+    const ids = [...loteMarcados]
+    if (!loteDestino || ids.length === 0) return
+    setLoteSalvando(true)
+    const { error } = await supabase.from('schedules').update({ status: loteDestino }).eq('client_id', clientId).in('id', ids)
+    if (error) { setLoteSalvando(false); dbError(error, toast, 'mover os posts'); return }
+
+    const de = statusLabel(filterStatus)
+    const para = statusLabel(loteDestino)
+    setPosts(prev => prev.map(p => (loteMarcados.has(p.id) ? { ...p, status: loteDestino } : p)))
+
+    // Um registro POR POST, não um só pro lote: o histórico de cada card
+    // precisa dizer o que aconteceu com ELE. Quem abrir o post #8 daqui a um
+    // mês não vai procurar por uma linha que fala de outros cinco.
+    const quem = currentMember?.name || 'Alguém'
+    await Promise.all(ids.map(id => logActivity({
+      tableName: 'schedules', recordId: id, clientId,
+      action: 'status_changed', field: 'status', oldValue: de, newValue: para,
+      actorName: quem, actorId: currentMember?.id,
+      description: `${quem} moveu de ${de} para ${para} (junto com outros ${ids.length - 1})`,
+    })))
+
+    setLoteSalvando(false)
+    setLoteAberto(false)
+    toast(`${ids.length} post${ids.length !== 1 ? 's movidos' : ' movido'} para ${para}`)
+  }
+
+  function abrirLote() {
+    setLoteDestino('')
+    setLoteMarcados(new Set(visiblePosts.map(p => p.id)))
+    setLoteAberto(true)
+  }
 
   async function sendToCriacao(postId: string) {
     const { error } = await supabase.from('schedules').update({ status: 'producao' }).eq('id', postId)
@@ -832,7 +887,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 item da barra: é a pergunta "que mês estou vendo?", que vem
                 antes de qualquer ação sobre ele. */}
             {barraInicio && (
-              <div className="order-1 w-full md:w-auto md:mr-1 flex items-center gap-2 flex-wrap">{barraInicio}</div>
+              <div className="order-1 w-full md:w-auto md:mr-3 md:pr-3 md:border-r md:border-[var(--color-border)] flex items-center gap-3 flex-wrap">{barraInicio}</div>
             )}
 
             {/* FILTROS — dois ícones, não três campos.
@@ -917,6 +972,21 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               )}
             </div>
 
+            {/* MOVER EM LOTE — só existe com um status filtrado.
+            
+                O filtro VIRA a seleção. A frase da estrategista já é um
+                filtro ("tudo que está em Produção vira Revisão"), então a
+                tela não precisa de um segundo jeito de dizer a mesma coisa —
+                e o card parado não ganha caixinha nenhuma. */}
+            {filterStatus && visiblePosts.length > 0 && (
+              <button onClick={abrirLote}
+                className="order-5 md:order-2 flex items-center gap-1.5 h-9 px-3 rounded-xl border text-[13px] font-medium transition-colors flex-shrink-0"
+                style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent-bg)' }}>
+                <ArrowRightLeft size={14} />
+                Mover {visiblePosts.length} de {statusLabel(filterStatus)}
+              </button>
+            )}
+
             {/* AÇÕES DO CRONO — primeiro no celular. Estavam atrás de um
                 "Ações do cronograma" que precisava ser aberto toda vez; o
                 acordeão gastava uma linha pra esconder o que mais importa. */}
@@ -937,10 +1007,10 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                   card, um a um, que é como a equipe já fazia na prática. */}
               <div className="col-span-2 md:col-auto flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-purple-border,var(--color-border))' }}>
                 <button onClick={() => openApprovalModal('cronograma')}
-                  title="Copiar link de aprovação do cronograma (pauta/estratégia, sem produção)"
-                  className="flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-[13px] font-medium px-3.5 border-l transition-all hover:opacity-90"
+                  title="Copiar o link em que o cliente aprova a PAUTA do mês — os temas, antes de qualquer arte existir"
+                  className="flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-xs font-medium px-2.5 border-l transition-all hover:opacity-90 whitespace-nowrap"
                   style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)' }}>
-                  <Link2 size={12} /> Link do crono
+                  <Link2 size={12} /> Aprovar pauta
                 </button>
               </div>
 
@@ -949,17 +1019,17 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                   Checklist em vez de cada um gastar uma faixa inteira. */}
               <div className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto flex items-center rounded-xl border overflow-hidden`} style={{ borderColor: 'var(--ds-success-border,var(--color-border))' }}>
                 <button onClick={() => openApprovalModal('final')}
-                  title="Copiar link de aprovação final (conteúdo já produzido)"
-                  className={`flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-[13px] font-medium px-3.5 transition-all hover:opacity-90 ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
+                  title="Copiar o link em que o cliente aprova a ARTE pronta — o conteúdo já produzido"
+                  className={`flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-xs font-medium px-2.5 transition-all hover:opacity-90 whitespace-nowrap ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
                   style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)' }}>
-                  <Link2 size={12} /> Link final
+                  <Link2 size={12} /> Aprovar arte
                 </button>
               </div>
 
               {/* Checklist de produção — gerado por IA, sob demanda, sem misturar com aprovação */}
               <button onClick={generatePreplist}
                 title="Gerar checklist de produção do mês com IA — pra equipe de captação usar no dia da gravação"
-                className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto h-9 justify-center md:justify-start flex items-center gap-1.5 text-[13px] font-medium px-3.5 rounded-xl border transition-all hover:opacity-90`}
+                className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto h-9 justify-center md:justify-start flex items-center gap-1.5 text-xs font-medium px-2.5 rounded-xl border transition-all hover:opacity-90 whitespace-nowrap`}
                 style={{ borderColor: '#8b5cf666', color: '#8b5cf6' }}>
                 <ClipboardList size={12} /> Checklist
               </button>
@@ -1380,6 +1450,79 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
       )}
 
       {/* PostCard modal */}
+      {loteAberto && (
+        <ModalPortal>
+          <div className="fixed inset-0 bg-black/40 z-[90] flex items-center justify-center p-4"
+            onClick={e => { if (e.target === e.currentTarget) setLoteAberto(false) }}>
+            <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg shadow-pop flex flex-col max-h-[85vh]">
+              <div className="p-4 border-b border-[var(--color-border)] flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[var(--color-text-primary)]">Mover posts de etapa</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                    Saindo de <strong className="font-semibold">{statusLabel(filterStatus)}</strong>
+                  </p>
+                </div>
+                <button onClick={() => setLoteAberto(false)} aria-label="Fechar"
+                  className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] flex-shrink-0"><X size={16} /></button>
+              </div>
+
+              <div className="p-4 flex flex-col gap-1.5 border-b border-[var(--color-border)]">
+                <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Mover para</span>
+                <select value={loteDestino} onChange={e => setLoteDestino(e.target.value)}
+                  className="h-10 w-full text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-page)] px-3 text-[var(--color-text-primary)] outline-none">
+                  <option value="">Escolha a etapa de destino…</option>
+                  {STATUSES.filter(st => st.value !== filterStatus).map(st => (
+                    <option key={st.value} value={st.value}>{st.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* A lista com as caixinhas É a proteção. Todos nascem marcados
+                  porque o caso comum é mover tudo; o post que não devia ir
+                  junto sai com um clique, aqui, e não precisou de nenhuma
+                  caixa de seleção na tela do dia a dia. */}
+              <div className="flex-1 overflow-y-auto p-2">
+                {visiblePosts.map(p => {
+                  const marcado = loteMarcados.has(p.id)
+                  return (
+                    <button key={p.id}
+                      onClick={() => setLoteMarcados(prev => {
+                        const n = new Set(prev)
+                        if (n.has(p.id)) n.delete(p.id); else n.add(p.id)
+                        return n
+                      })}
+                      className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[var(--color-bg-subtle)] transition-colors text-left">
+                      <span className="w-4 h-4 rounded-[5px] border flex items-center justify-center flex-shrink-0 transition-colors"
+                        style={marcado
+                          ? { background: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                          : { borderColor: 'var(--color-border-strong)' }}>
+                        {marcado && <Check size={11} className="text-white" strokeWidth={3} />}
+                      </span>
+                      <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0 w-7">#{p.post_number}</span>
+                      <span className={`text-sm truncate ${marcado ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-faint)] line-through'}`}>
+                        {p.title || 'Sem título'}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="p-4 border-t border-[var(--color-border)] flex items-center justify-between gap-3">
+                <button onClick={() => setLoteAberto(false)}
+                  className="text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={moverEmLote} disabled={!loteDestino || loteMarcados.size === 0 || loteSalvando}
+                  className="text-sm font-semibold px-4 h-10 rounded-xl text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                  style={{ background: clientColor || 'var(--color-brand)' }}>
+                  {loteSalvando ? 'Movendo…' : `Mover ${loteMarcados.size} post${loteMarcados.size !== 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
       {showPostCard && (
         <PostCard
           postId={editingPostId || undefined}
