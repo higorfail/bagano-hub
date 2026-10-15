@@ -3,12 +3,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
-import { X, Calendar, Trash2, Link2, Upload, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles, Reply, BookMarked, Lightbulb } from 'lucide-react'
+import { X, Calendar, Trash2, Link2, Upload, Package, Check, ChevronDown, Send, ExternalLink, Bold, Italic, List, Smile, Copy, Move, Pencil, Users, Tag, Sparkles, Reply, BookMarked, Lightbulb, Hash } from 'lucide-react'
 import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { moveToTrash, deleteFromTrash } from '@/lib/trash'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
+import { colarHashtags, jaTemHashtags, contarHashtags } from '@/lib/hashtagsDoCliente'
 import { autoGrow } from '@/lib/autoGrow'
 import { fetchLinkTitle } from '@/lib/linkTitle'
 import { DriveThumbnail, FolderThumbnail } from '@/components/DriveThumbnail'
@@ -513,6 +514,21 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
     }
     if (pid && AUTO_ATTACH_FIELDS.includes(field)) await autoAttachLinks(v)
   }
+  // Cola o bloco e GRAVA, em vez de abrir o campo em edição como faz a
+  // sugestão da IA. São gestos diferentes: a sugestão é um rascunho que pede
+  // revisão, isto é um texto que a equipe já escreveu e aprovou uma vez — pedir
+  // pra confirmar de novo seria cerimônia. Continua editável como qualquer
+  // legenda, e desfazer é apagar.
+  async function colarHashtagsNaLegenda() {
+    const bloco = clientManual?.hashtags
+    const atual = formRef.current.legenda
+    const novo = colarHashtags(atual, bloco)
+    if (novo === (atual || '').trim()) return
+    setForm(f => ({ ...f, legenda: novo }))
+    const pid = await persist({ legenda: novo }, `${who} colou as hashtags do cliente na legenda`)
+    if (pid) await autoAttachLinks(novo)
+  }
+
   async function suggestLegenda() {
     setGeneratingLegenda(true)
     const f = formRef.current
@@ -1707,6 +1723,17 @@ export default function PostCard({ postId, clientId, clientName, clientColor, mo
                       ? { background: 'var(--ds-success-bg)', color: 'var(--ds-success-text)' }
                       : { background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
                     {ehReferencia ? <><Check size={11} /> É referência</> : <><BookMarked size={11} /> Usar como referência</>}
+                  </button>
+                )}
+                {/* As hashtags da marca, coladas no fim sem passar pela IA.
+                    Some quando já estão lá: o botão que oferece o que já foi
+                    feito é o que faz a pessoa colar duas vezes. */}
+                {!!(clientManual?.hashtags || '').trim() && !jaTemHashtags(form.legenda, clientManual?.hashtags) && (
+                  <button onClick={colarHashtagsNaLegenda}
+                    title={`Colar no fim da legenda as ${contarHashtags(clientManual?.hashtags)} hashtags do manual deste cliente`}
+                    className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors"
+                    style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
+                    <Hash size={11} /> Hashtags
                   </button>
                 )}
                 {(form.briefing?.trim() || form.copy?.trim()) && (

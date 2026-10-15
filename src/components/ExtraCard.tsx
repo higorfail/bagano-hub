@@ -16,6 +16,7 @@ import WatchButton from '@/components/WatchButton'
 import { generateAiSummary } from '@/lib/aiSummary'
 import { generateAiLegenda } from '@/lib/aiLegenda'
 import { faltaLegenda } from '@/lib/faltaLegenda'
+import { colarHashtags, jaTemHashtags, contarHashtags } from '@/lib/hashtagsDoCliente'
 import { hostOf, formatBytes } from '@/lib/url'
 import { fetchLinkTitle } from '@/lib/linkTitle'
 import { useDragToDismiss } from '@/lib/gestures'
@@ -34,7 +35,7 @@ import {
   Trash2, Link2, Check, Upload,
   ChevronRight, ChevronDown, Package, ExternalLink, Send, Users, Tag, Pencil,
   Camera, Images, Video, Image as ImageIcon, Sparkles
-, Reply} from 'lucide-react'
+, Reply, Hash} from 'lucide-react'
 
 type ExtraType     = 'story' | 'carrossel_stories' | 'reels' | 'post' | 'carrossel' | 'post_story'
 type ExtraStatus   = 'backlog' | 'feito' | 'aguardando_aprovacao' | 'done'
@@ -456,6 +457,16 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     const name = v ? (clients.find(c => c.id === v)?.name || '') : 'sem cliente'
     persist({ client_id: v || null }, `${who} definiu o cliente: ${name}`)
   }
+  // Mesma regra do post: cola e grava. Ver src/lib/hashtagsDoCliente.ts.
+  async function colarHashtagsNaLegenda() {
+    const novo = colarHashtags(legenda, clientManual?.hashtags)
+    if (novo === (legenda || '').trim()) return
+    const tinhaId = !!id
+    setLegenda(novo)
+    await persist({ legenda: novo }, tinhaId ? `${who} colou as hashtags do cliente na legenda` : undefined)
+    autoAttachLinks(novo)
+  }
+
   async function suggestLegenda() {
     setGeneratingLegenda(true)
     const suggestion = await generateAiLegenda({ title, post_type: type, briefing, copy, manual: clientManual, clientId: fixedClientId || clientId })
@@ -1219,22 +1230,39 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
               placeholder="A legenda final, com hashtags e CTA…"
               value={legenda} minH={70}
               onCommit={v => { const hadId = !!id; setLegenda(v); persist({ legenda: v }, hadId ? `${who} editou a legenda` : undefined); autoAttachLinks(v) }}
-              labelExtra={faltaLegenda({ status, legenda }, 'extra') ? (
-                /* Mesmo aviso dos posts, no mesmo lugar: em cima do campo que
-                   resolve. Vale de "feito" em diante — quem produziu terminou e
-                   a social vai entregar, que é o portão do extra. */
-                <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                  title="O link do cliente mostra a legenda — sem ela, a peça chega sem texto."
-                  style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)', border: '1px solid var(--ds-warn-border)' }}>
-                  ⚠️ Sem legenda, o cliente vê a peça muda
+              labelExtra={
+                /* Era um ou/ou: o aviso de legenda faltando ESCONDIA o botão da
+                   IA. Com as hashtags entrando aqui também, virou uma fileira —
+                   o aviso diz o problema e os botões ficam do lado, que é onde
+                   se resolve. */
+                <span className="ml-auto flex items-center gap-1.5">
+                  {faltaLegenda({ status, legenda }, 'extra') && (
+                    /* Mesmo aviso dos posts, no mesmo lugar: em cima do campo que
+                       resolve. Vale de "feito" em diante — quem produziu terminou e
+                       a social vai entregar, que é o portão do extra. */
+                    <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      title="O link do cliente mostra a legenda — sem ela, a peça chega sem texto."
+                      style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)', border: '1px solid var(--ds-warn-border)' }}>
+                      ⚠️ Sem legenda, o cliente vê a peça muda
+                    </span>
+                  )}
+                  {!!(clientManual?.hashtags || '').trim() && !jaTemHashtags(legenda, clientManual?.hashtags) && (
+                    <button onClick={colarHashtagsNaLegenda}
+                      title={`Colar no fim da legenda as ${contarHashtags(clientManual?.hashtags)} hashtags do manual deste cliente`}
+                      className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors"
+                      style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
+                      <Hash size={11} /> Hashtags
+                    </button>
+                  )}
+                  {(briefing?.trim() || copy?.trim()) && (
+                    <button onClick={suggestLegenda} disabled={generatingLegenda}
+                      className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
+                      style={{ background: '#8b5cf618', color: '#8b5cf6' }}>
+                      {generatingLegenda ? <><div className="w-2.5 h-2.5 border border-[#8b5cf6] border-t-transparent rounded-full animate-spin" /> Gerando…</> : <><Sparkles size={11} /> Sugerir com IA</>}
+                    </button>
+                  )}
                 </span>
-              ) : (briefing?.trim() || copy?.trim()) ? (
-                <button onClick={suggestLegenda} disabled={generatingLegenda}
-                  className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
-                  style={{ background: '#8b5cf618', color: '#8b5cf6' }}>
-                  {generatingLegenda ? <><div className="w-2.5 h-2.5 border border-[#8b5cf6] border-t-transparent rounded-full animate-spin" /> Gerando…</> : <><Sparkles size={11} /> Sugerir com IA</>}
-                </button>
-              ) : undefined}
+              }
             />
 
             {/* CHECKLIST */}
