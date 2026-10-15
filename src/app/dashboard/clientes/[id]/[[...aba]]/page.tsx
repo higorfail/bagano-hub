@@ -25,7 +25,7 @@ import OnboardingTab from '@/components/OnboardingTab'
 import ManualTab from '@/components/ManualTab'
 import TrocadorDeCliente from '@/components/TrocadorDeCliente'
 import RecorrentesView from '@/components/recorrentes/RecorrentesView'
-import { statusBadge } from '@/lib/status'
+import { statusBadge, statusLabel, STATUS_ORDER as POST_STATUS_ORDER } from '@/lib/status'
 import TaskMiniCard from '@/components/TaskMiniCard'
 import TaskCard from '@/components/TaskCard'
 import { Plus, ChevronLeft, Pencil, Link as LinkIcon } from 'lucide-react'
@@ -49,7 +49,9 @@ type Post = {
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const typeColor: Record<string,string> = { 'reels':'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]','carrossel':'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]','story':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','carrossel_stories':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]','post':'bg-[var(--ds-caution-bg)] text-[var(--ds-caution-text)]','post_story':'bg-[var(--ds-purple-bg)] text-[var(--ds-purple-text)]' }
-const STATUS_LABEL: Record<string,string> = { estrategia:'Estratégia', aguardando_aprovacao_crono:'Ag. crono', captacao:'Captação', producao:'Produção', revisao_interna:'Revisão', aguardando_aprovacao:'Aguardando aprovação', ajuste:'Ajuste', aprovado:'Aprovado', agendado:'Agendado', publicado:'Publicado' }
+// Era a quarta cópia da mesma lista (as outras: CronogramaTab, PostFormModal e
+// o gráfico do Início). Agora sai de src/lib/status.ts como todas.
+const STATUS_LABEL: Record<string,string> = Object.fromEntries(POST_STATUS_ORDER.map(k => [k, statusLabel(k)]))
 const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'Carrossel/Stories' , post_story:'Post/Story'}
 const FUNCAO_LABEL: Record<string,string> = { videos:'Editor', posts:'Designer', estrategia:'Estratégia', social:'Social Media', acompanha:'Acompanha', outro:'Outro' }
 function getInitials(name: string) { return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() }

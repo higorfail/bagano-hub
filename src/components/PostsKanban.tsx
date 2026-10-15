@@ -8,7 +8,7 @@ import { dbError } from '@/lib/dbError'
 import { groupByClient, useClientGrouping } from '@/lib/useClientGrouping'
 import { approvalShort } from '@/lib/approvalKind'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { statusColor } from '@/lib/status'
+import { statusColor, statusLabel } from '@/lib/status'
 import { fromActiveClients } from '@/lib/activeClients'
 import { avisarSeCortou } from '@/lib/limitePostgrest'
 
@@ -30,19 +30,19 @@ const COLUMNS = [
   // quadro.
   // Cores de src/lib/status.ts — estas já batiam com a paleta canônica, mas
   // eram cópia: a próxima mudança lá não chegaria aqui sozinha.
-  { key: 'aguardando_aprovacao', label: 'Com cliente',  color: statusColor('aguardando_aprovacao') },
+  { key: 'aguardando_aprovacao', label: statusLabel('aguardando_aprovacao'), color: statusColor('aguardando_aprovacao') },
   // Captação não tinha coluna, e por isso não tinha lugar nenhum: aparecia só
   // misturada na Criação (que é do designer e do editor) e nos alertas do
   // Início. Captação é FILMAGEM — outro trabalho, outra pessoa. Com a saída
   // dela da Criação, sem esta coluna os 44 posts parados nela ficariam sem
   // nenhuma lista onde alguém os visse.
-  { key: 'captacao',             label: 'Captação',     color: statusColor('captacao') },
-  { key: 'captado',              label: 'Captado',      color: statusColor('captado') },
-  { key: 'producao',             label: 'Em Produção',  color: statusColor('producao') },
-  { key: 'revisao_interna',      label: 'Revisão',      color: statusColor('revisao_interna') },
-  { key: 'aprovado',             label: 'Aprovado',     color: statusColor('aprovado') },
-  { key: 'agendado',             label: 'Agendado',     color: statusColor('agendado') },
-  { key: 'publicado',            label: 'Publicado',    color: statusColor('publicado') },
+  { key: 'captacao',             label: statusLabel('captacao'),             color: statusColor('captacao') },
+  { key: 'captado',              label: statusLabel('captado'),              color: statusColor('captado') },
+  { key: 'producao',             label: statusLabel('producao'),             color: statusColor('producao') },
+  { key: 'revisao_interna',      label: statusLabel('revisao_interna'),      color: statusColor('revisao_interna') },
+  { key: 'aprovado',             label: statusLabel('aprovado'),             color: statusColor('aprovado') },
+  { key: 'agendado',             label: statusLabel('agendado'),             color: statusColor('agendado') },
+  { key: 'publicado',            label: statusLabel('publicado'),            color: statusColor('publicado') },
 ]
 
 const TYPE_LABEL: Record<string, string> = {

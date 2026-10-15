@@ -21,8 +21,18 @@ export type StatusKey =
 type Meta = { label: string; short: string; color: string }
 
 export const STATUS: Record<StatusKey, Meta> = {
-  estrategia:                 { label: 'Estratégia',           short: 'Estratégia', color: '#6b7280' },
-  aguardando_aprovacao_crono: { label: 'Aguardando o cliente (crono)', short: 'Ag. crono', color: '#f472b6' },
+  // Os nomes respondem UMA pergunta: de quem é a vez?
+  //
+  // Antes não respondiam. O mesmo status se chamava "Ag. aprovação crono" no
+  // filtro, "Aguardando o cliente (crono)" na etiqueta e "Ag. crono" quando o
+  // espaço apertava — e dois status diferentes começavam com "Aguardando
+  // aprovação", um da pauta e outro da arte, lado a lado na mesma lista.
+  //
+  // "Cliente · pauta" e "Cliente · arte" separam os dois pelo que o cliente
+  // está olhando. E "Pauta" venceu "Estratégia" porque é o que a equipe fala
+  // em voz alta; estratégia é o nome da disciplina, não da etapa.
+  estrategia:                 { label: 'Pauta',                short: 'Pauta',      color: '#6b7280' },
+  aguardando_aprovacao_crono: { label: 'Cliente · pauta',      short: 'Cliente pauta', color: '#f472b6' },
   captacao:                   { label: 'Captação',             short: 'Captação',   color: '#0ea5e9' },
   // Entre captar e produzir existia um buraco: voltando da filmagem, quem
   // captou marcava "Produção" — e era mentira, porque ninguém tinha editado
@@ -33,8 +43,8 @@ export const STATUS: Record<StatusKey, Meta> = {
   captado:                    { label: 'Captado',              short: 'Captado',    color: '#06b6d4' },
   producao:                   { label: 'Produção',             short: 'Produção',   color: '#f59e0b' },
   revisao_interna:            { label: 'Revisão interna',      short: 'Revisão',    color: '#8b5cf6' },
-  aguardando_aprovacao:       { label: 'Aguardando aprovação', short: 'Ag. cliente', color: '#ec4899' },
-  ajuste:                     { label: 'Ajuste solicitado',    short: 'Ajuste',     color: '#ef4444' },
+  aguardando_aprovacao:       { label: 'Cliente · arte',       short: 'Cliente arte', color: '#ec4899' },
+  ajuste:                     { label: 'Ajuste pedido',        short: 'Ajuste',     color: '#ef4444' },
   aprovado:                   { label: 'Aprovado',             short: 'Aprovado',   color: '#3b82f6' },
   agendado:                   { label: 'Agendado',             short: 'Agendado',   color: '#14b8a6' },
   publicado:                  { label: 'Publicado',            short: 'Publicado',  color: '#22c55e' },

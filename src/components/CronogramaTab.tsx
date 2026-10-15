@@ -19,7 +19,7 @@ import ListCell from '@/components/ListCell'
 import LinksCurtos from '@/components/cronograma/LinksCurtos'
 import BalaoComentarios from '@/components/cronograma/BalaoComentarios'
 import { useIsWideScreen } from '@/lib/useMediaQuery'
-import { statusBadge } from '@/lib/status'
+import { statusBadge, statusLabel, STATUS_ORDER as POST_STATUS_ORDER } from '@/lib/status'
 import { withBase } from '@/lib/base'
 import { linkPublico, novoCodigo } from '@/lib/linkAprovacao'
 import { getOrCreateMonthToken } from '@/lib/approvalLinks'
@@ -40,19 +40,11 @@ const POST_TYPES = [
   { value: 'carrossel_stories', label: 'Carrossel/Stories' },
   { value: 'post_story',        label: 'Post/Story' },
 ]
-const STATUSES = [
-  { value: 'estrategia',                 label: 'Estratégia' },
-  { value: 'aguardando_aprovacao_crono', label: 'Ag. aprovação crono' },
-  { value: 'captacao',                   label: 'Captação' },
-  { value: 'captado',                    label: 'Captado' },
-  { value: 'producao',                   label: 'Produção' },
-  { value: 'revisao_interna',            label: 'Revisão interna' },
-  { value: 'aguardando_aprovacao',       label: 'Aguardando aprovação' },
-  { value: 'ajuste',                     label: 'Ajuste solicitado' },
-  { value: 'aprovado',                   label: 'Aprovado' },
-  { value: 'agendado',                   label: 'Agendado' },
-  { value: 'publicado',                  label: 'Publicado' },
-]
+// Derivada de src/lib/status.ts, não copiada. A lista daqui era a terceira de
+// três, e as três discordavam: o mesmo status se chamava "Ag. aprovação crono"
+// neste filtro e "Aguardando o cliente (crono)" na etiqueta do card ao lado.
+// Filtro que usa outra palavra que a tela não é filtro, é adivinhação.
+const STATUSES = POST_STATUS_ORDER.map(value => ({ value, label: statusLabel(value) }))
 const STATUS_LABEL: Record<string,string> = Object.fromEntries(STATUSES.map(s => [s.value, s.label]))
 const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'Carrossel/Stories' , post_story:'Post/Story'}
 const typeColor: Record<string,string> = {

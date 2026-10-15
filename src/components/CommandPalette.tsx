@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Search, Users, FileText, Package, X, LayoutList } from 'lucide-react'
 import { caminhoCliente } from '@/lib/clienteSlug'
+import { statusLabel, STATUS_ORDER } from '@/lib/status'
 
-const STATUS_LABEL: Record<string,string> = {
-  producao: 'Produção', revisao_interna: 'Revisão', aguardando_aprovacao: 'Com cliente',
-  aprovado: 'Aprovado', agendado: 'Agendado', publicado: 'Publicado',
-}
+// Quinta cópia, e a mais furada: só tinha SEIS status, então post em Pauta ou
+// Captação aparecia na busca sem etapa nenhuma ao lado do nome.
+const STATUS_LABEL: Record<string,string> = Object.fromEntries(STATUS_ORDER.map(k => [k, statusLabel(k)]))
 const TYPE_LABEL: Record<string,string> = {
   reels: 'Reels', carrossel: 'Carrossel', post: 'Post', story: 'Story', carrossel_stories: 'Carrossel/Stories', post_story: 'Post/Story',
 }

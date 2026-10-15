@@ -19,6 +19,7 @@ import LineChart from '@/components/ui/LineChart'
 import { brasiliaISOFromDate } from '@/lib/timezone'
 import { POST_DONE_STAGES, temMaterial, contaComoFolego } from '@/lib/postStages'
 import { fromActiveClients } from '@/lib/activeClients'
+import { statusLabel } from '@/lib/status'
 import { withBase } from '@/lib/base'
 import { caminhoCliente } from '@/lib/clienteSlug'
 import { fetchAgencyAlerts, type AgencyAlert } from '@/lib/agencyAlerts'
@@ -1047,14 +1048,14 @@ export default function DashboardPage() {
   // (ver STATUSES em PostCard.tsx) — um status esquecido aqui fica invisível
   // no gráfico mas continua contando no total, e as fatias nunca somam 100%.
   const STATUS_SLICES: { key: string; label: string; tone: BadgeTone }[] = [
-    { key: 'estrategia',                 label: 'Estratégia',      tone: 'neutral' },
-    { key: 'aguardando_aprovacao_crono', label: 'Ag. crono',       tone: 'purple'  },
-    { key: CFG.S.captacao,            label: 'Captação',        tone: 'blue'    },
-    { key: CFG.S.captado,             label: 'Captado',         tone: 'blue'    },
-    { key: CFG.S.producao,            label: 'Em produção',     tone: 'amber'   },
-    { key: CFG.S.revisaoInterna,      label: 'Revisão interna', tone: 'orange'  },
-    { key: CFG.S.aguardandoAprovacao, label: 'Com cliente',     tone: 'blue'    },
-    { key: CFG.S.ajuste,              label: 'Ajuste',          tone: 'red'     },
+    { key: 'estrategia',                 label: statusLabel('estrategia'),                 tone: 'neutral' },
+    { key: 'aguardando_aprovacao_crono', label: statusLabel('aguardando_aprovacao_crono'), tone: 'purple'  },
+    { key: CFG.S.captacao,            label: statusLabel('captacao'),        tone: 'blue'    },
+    { key: CFG.S.captado,             label: statusLabel('captado'),         tone: 'blue'    },
+    { key: CFG.S.producao,            label: statusLabel('producao'),        tone: 'amber'   },
+    { key: CFG.S.revisaoInterna,      label: statusLabel('revisao_interna'), tone: 'orange'  },
+    { key: CFG.S.aguardandoAprovacao, label: statusLabel('aguardando_aprovacao'), tone: 'blue' },
+    { key: CFG.S.ajuste,              label: statusLabel('ajuste'),          tone: 'red'     },
     { key: CFG.S.aprovado,            label: 'Aprovado',        tone: 'purple'  },
     { key: CFG.S.agendado,            label: 'Agendado',        tone: 'green'   },
     { key: CFG.S.publicado,           label: 'Publicado',       tone: 'neutral' },

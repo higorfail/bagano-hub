@@ -6,6 +6,7 @@ import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
+import { statusLabel, STATUS_ORDER } from '@/lib/status'
 import ModalPortal from '@/components/ModalPortal'
 import { X } from 'lucide-react'
 import { ensureWatching } from '@/lib/watch'
@@ -18,14 +19,11 @@ const POST_TYPES = [
   { value: 'carrossel_stories',label: 'Carrossel/Stories' },
   { value: 'post_story',       label: 'Post/Story' },
 ]
-const STATUSES = [
-  { value: 'producao',             label: 'Produção' },
-  { value: 'revisao_interna',      label: 'Revisão interna' },
-  { value: 'aguardando_aprovacao', label: 'Aguardando aprovação' },
-  { value: 'aprovado',             label: 'Aprovado' },
-  { value: 'agendado',             label: 'Agendado' },
-  { value: 'publicado',            label: 'Publicado' },
-]
+// Oferecia SEIS dos onze: criar um post direto em Pauta ou Captação era
+// impossível por aqui, embora seja o começo normal do fluxo — quem fazia isso
+// criava em Produção e corrigia depois no card. Agora é a mesma lista de todo
+// lugar, derivada de src/lib/status.ts.
+const STATUSES = STATUS_ORDER.map(value => ({ value, label: statusLabel(value) }))
 const FUNIL_OPTIONS = ['Topo de funil', 'Meio de funil', 'Fundo de funil', 'Institucional', 'Promocional', 'Engajamento', 'Venda']
 
 const SEASONAL_EMOJI: Record<string, string> = {

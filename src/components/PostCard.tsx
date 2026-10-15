@@ -50,7 +50,10 @@ const POST_TYPES = [
 // e "estratégia" dividia o mesmo roxo com "revisão interna" no próprio seletor.
 const STATUSES = STATUS_ORDER.map(value => ({
   value,
-  label: value === 'aguardando_aprovacao_crono' ? 'Ag. crono' : STATUS[value].label,
+  // O apelido "Ag. crono" existia porque o nome de origem era longo demais
+  // ("Aguardando o cliente (crono)"). Com "Cliente · pauta" ele cabe, e o card
+  // passa a dizer o mesmo que o filtro e o quadro.
+  label: STATUS[value].label,
   color: STATUS[value].color,
 }))
 const FUNIL_OPTIONS = ['Topo de funil','Meio de funil','Fundo de funil','Institucional','Promocional','Engajamento','Venda']
