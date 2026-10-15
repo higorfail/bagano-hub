@@ -23,6 +23,7 @@ import IdeiasView from '@/components/IdeiasView'
 import ActivityLog from '@/components/ActivityLog'
 import OnboardingTab from '@/components/OnboardingTab'
 import ManualTab from '@/components/ManualTab'
+import TrocadorDeCliente from '@/components/TrocadorDeCliente'
 import RecorrentesView from '@/components/recorrentes/RecorrentesView'
 import { statusBadge } from '@/lib/status'
 import TaskMiniCard from '@/components/TaskMiniCard'
@@ -455,7 +456,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                 ? <img src={client.logo_url} alt={client.name} className={`rounded-full object-cover flex-shrink-0 transition-all duration-200 ${compacto ? 'w-8 h-8' : 'w-9 h-9 md:w-12 md:h-12'}`} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
                 : <div className={`rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 transition-all duration-200 ${compacto ? 'w-8 h-8 text-[10px]' : 'w-9 h-9 md:w-12 md:h-12 text-xs md:text-sm'}`} style={{ background: client.color_hex }}>{getInitials(client.name)}</div>
               }
-              <h1 className={`font-bold text-[var(--color-text-primary)] tracking-tight truncate transition-all duration-200 ${compacto ? 'text-base' : 'text-base md:text-2xl'}`}>{client.name}</h1>
+              <TrocadorDeCliente clienteAtual={{ id: client.id, name: client.name }} aba={tab} compacto={compacto} />
             </div>
 
             {/* As abas ao lado do nome, menores, ocupando o espaço que a foto
