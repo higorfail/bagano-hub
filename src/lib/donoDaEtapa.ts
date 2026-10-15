@@ -68,6 +68,10 @@ const SCHEDULES: Record<string, Etapa> = {
   estrategia:                 { funcoesDonas: ['estrategia'], marcadosSaoDonos: false, verbo: 'montar a pauta' },
   aguardando_aprovacao_crono: { funcoesDonas: ['social'],     marcadosSaoDonos: false, verbo: 'cobrar' },
   captacao:                   { funcoesDonas: ['estrategia'], marcadosSaoDonos: false, verbo: 'decidir captação' },
+  // Captado é da ESTRATEGISTA, não de quem filmou: quem captou terminou a
+  // parte dele. Sem esta linha o post sairia da fila de todo mundo justamente
+  // no momento em que alguém precisa olhar pra ele e mandar produzir.
+  captado:                    { funcoesDonas: ['estrategia'], marcadosSaoDonos: false, verbo: 'mandar pra produção', esperandoVoce: true },
   producao:                   { funcoesDonas: ['videos', 'posts'], marcadosSaoDonos: true, verbo: 'criar' },
   ajuste:                     { funcoesDonas: ['videos', 'posts'], marcadosSaoDonos: true, verbo: 'ajustar', esperandoVoce: true },
   // Marcação CONTA aqui: o repasse desta equipe é literalmente "saio do card e

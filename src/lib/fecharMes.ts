@@ -23,7 +23,7 @@ import { numerosNoDestino } from './numeroNoDestino'
 
 /** Etapas em que o post ainda não terminou. */
 export const ABERTO = [
-  'estrategia', 'aguardando_aprovacao_crono', 'captacao', 'producao',
+  'estrategia', 'aguardando_aprovacao_crono', 'captacao', 'captado', 'producao',
   'revisao_interna', 'aguardando_aprovacao', 'ajuste', 'aprovado', 'agendado',
 ]
 

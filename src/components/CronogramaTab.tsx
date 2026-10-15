@@ -44,6 +44,7 @@ const STATUSES = [
   { value: 'estrategia',                 label: 'Estratégia' },
   { value: 'aguardando_aprovacao_crono', label: 'Ag. aprovação crono' },
   { value: 'captacao',                   label: 'Captação' },
+  { value: 'captado',                    label: 'Captado' },
   { value: 'producao',                   label: 'Produção' },
   { value: 'revisao_interna',            label: 'Revisão interna' },
   { value: 'aguardando_aprovacao',       label: 'Aguardando aprovação' },

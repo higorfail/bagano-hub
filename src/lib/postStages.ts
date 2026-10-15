@@ -24,6 +24,13 @@ export function isPostDone(status: string | null | undefined) {
 // `cancelado` entra aqui não por falta de material, mas porque não vai ao ar:
 // contar um post descartado como fôlego prometeria conteúdo que não existe,
 // que é o erro que esta lista existe pra evitar.
+//
+// `captado` fica de FORA desta lista, e isso é a decisão, não esquecimento: o
+// post captado é exatamente o que JÁ TEM material — foi filmado, está no Drive,
+// só não foi editado. Colocá-lo aqui faria a "Situação dos clientes" anunciar
+// que o cliente está sem conteúdo no dia seguinte a uma diária inteira de
+// captação. Seria o erro do Toit ao contrário, e mais difícil de notar, porque
+// ninguém desconfia de um alarme que toca demais.
 export const POST_SEM_MATERIAL = ['estrategia', 'captacao', 'cancelado']
 
 /**

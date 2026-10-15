@@ -13,7 +13,7 @@
 //   azul   = aprovado, falta agendar    teal     = agendado, falta sair
 //   verde  = no ar (só o fim é verde)
 export type StatusKey =
-  | 'estrategia' | 'aguardando_aprovacao_crono' | 'captacao' | 'producao'
+  | 'estrategia' | 'aguardando_aprovacao_crono' | 'captacao' | 'captado' | 'producao'
   | 'revisao_interna' | 'aguardando_aprovacao' | 'ajuste'
   | 'aprovado' | 'agendado' | 'publicado' | 'pendente' | 'cancelado'
   | 'backlog' | 'feito' | 'finalizado' | 'done'
@@ -24,6 +24,13 @@ export const STATUS: Record<StatusKey, Meta> = {
   estrategia:                 { label: 'Estratégia',           short: 'Estratégia', color: '#6b7280' },
   aguardando_aprovacao_crono: { label: 'Aguardando o cliente (crono)', short: 'Ag. crono', color: '#f472b6' },
   captacao:                   { label: 'Captação',             short: 'Captação',   color: '#0ea5e9' },
+  // Entre captar e produzir existia um buraco: voltando da filmagem, quem
+  // captou marcava "Produção" — e era mentira, porque ninguém tinha editado
+  // nada. O material existia e estava parado, com a tela dizendo que estava
+  // sendo feito. Agora quem capta entrega aqui, e a estrategista decide quando
+  // vira produção. A cor fica entre o azul da captação e o âmbar da produção:
+  // o olho lê a passagem, não um estado solto.
+  captado:                    { label: 'Captado',              short: 'Captado',    color: '#06b6d4' },
   producao:                   { label: 'Produção',             short: 'Produção',   color: '#f59e0b' },
   revisao_interna:            { label: 'Revisão interna',      short: 'Revisão',    color: '#8b5cf6' },
   aguardando_aprovacao:       { label: 'Aguardando aprovação', short: 'Ag. cliente', color: '#ec4899' },
@@ -55,7 +62,7 @@ export const STATUS_ORDER_TAREFA: StatusKey[] = ['backlog', 'feito', 'aguardando
 /** Ordem do fluxo — use isto pra ordenar coluna, filtro ou seletor, em vez de
  *  cada tela reescrever a sequência (e discordar da vizinha). */
 export const STATUS_ORDER: StatusKey[] = [
-  'estrategia', 'aguardando_aprovacao_crono', 'captacao', 'producao',
+  'estrategia', 'aguardando_aprovacao_crono', 'captacao', 'captado', 'producao',
   'revisao_interna', 'aguardando_aprovacao', 'ajuste',
   'aprovado', 'agendado', 'publicado',
 ]

@@ -36,6 +36,7 @@ const CFG = {
   S: {
     estrategia:          'estrategia',
     captacao:            'captacao',
+    captado:             'captado',
     producao:            'producao',
     revisaoInterna:      'revisao_interna',
     aguardandoAprovacao: 'aguardando_aprovacao',
@@ -79,7 +80,7 @@ type Schedule = {
 // Etapas que ainda não terminaram. `publicado` fica de fora porque é fim; os
 // outros todos são trabalho que alguém ainda precisa tocar.
 const ABERTO_NO_MES = [
-  'estrategia', 'aguardando_aprovacao_crono', 'captacao', 'producao',
+  'estrategia', 'aguardando_aprovacao_crono', 'captacao', 'captado', 'producao',
   'revisao_interna', 'aguardando_aprovacao', 'ajuste', 'aprovado', 'agendado',
 ]  // 'publicado' e 'cancelado' ficam de fora: os dois são fim.
 
@@ -1049,6 +1050,7 @@ export default function DashboardPage() {
     { key: 'estrategia',                 label: 'Estratégia',      tone: 'neutral' },
     { key: 'aguardando_aprovacao_crono', label: 'Ag. crono',       tone: 'purple'  },
     { key: CFG.S.captacao,            label: 'Captação',        tone: 'blue'    },
+    { key: CFG.S.captado,             label: 'Captado',         tone: 'blue'    },
     { key: CFG.S.producao,            label: 'Em produção',     tone: 'amber'   },
     { key: CFG.S.revisaoInterna,      label: 'Revisão interna', tone: 'orange'  },
     { key: CFG.S.aguardandoAprovacao, label: 'Com cliente',     tone: 'blue'    },
@@ -1127,7 +1129,9 @@ export default function DashboardPage() {
       // atribuído a pessoa nenhuma, então não aparecia pra absolutamente
       // ninguém. Mesmo acréscimo da revisão interna: quem está marcado continua
       // vendo, a estrategista passa a ver também.
-      if (s.status === CFG.S.captacao) return assignedToMe || myStrategistClients.has(s.client_id)
+      // Captado tem a mesma dona que captação: é a estrategista que olha o
+      // material e decide produzir. Fora daqui, o post sairia da tela dela.
+      if (s.status === CFG.S.captacao || s.status === CFG.S.captado) return assignedToMe || myStrategistClients.has(s.client_id)
       // Pedido de alteração do cliente vai pra quem faz aquele tipo de peça:
       // reels pro editor, carrossel/post/story pro designer, e só a legenda
       // pro social — mesma lógica de acréscimo da revisão interna, quem está

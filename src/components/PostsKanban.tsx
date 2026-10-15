@@ -37,6 +37,7 @@ const COLUMNS = [
   // dela da Criação, sem esta coluna os 44 posts parados nela ficariam sem
   // nenhuma lista onde alguém os visse.
   { key: 'captacao',             label: 'Captação',     color: statusColor('captacao') },
+  { key: 'captado',              label: 'Captado',      color: statusColor('captado') },
   { key: 'producao',             label: 'Em Produção',  color: statusColor('producao') },
   { key: 'revisao_interna',      label: 'Revisão',      color: statusColor('revisao_interna') },
   { key: 'aprovado',             label: 'Aprovado',     color: statusColor('aprovado') },

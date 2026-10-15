@@ -54,6 +54,10 @@ function etapaParaCliente(status: string): { texto: string; cor: string } | null
   switch (status) {
     case 'aguardando_aprovacao_crono': return null
     case 'captacao':             return { texto: 'Aprovado · vamos captar', cor: '#0ea5e9' }
+    // Pro cliente, captado e em produção são a mesma notícia boa: está sendo
+    // feito. A diferença entre os dois é interna — quem precisa dela é a
+    // estrategista, não quem está esperando o post.
+    case 'captado':              return { texto: 'Captado · em produção',   cor: '#06b6d4' }
     case 'producao':
     case 'revisao_interna':      return { texto: 'Em produção',             cor: '#8b5cf6' }
     case 'aguardando_aprovacao':
@@ -552,16 +556,20 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
   /** Material captado → o post segue pra produção. */
   async function marcarCaptado(postId: string) {
     setSubmitting(postId)
-    const { error } = await supabase.from('schedules').update({ status: 'producao' }).eq('id', postId)
+    // Este botão se chamava "captado" e gravava `producao` — dizia uma coisa e
+    // fazia outra. O post aparecia como "sendo feito" no minuto em que a
+    // filmagem acabou, sem ninguém ter editado nada, e a estrategista perdia o
+    // momento de olhar o material e decidir. Agora grava o que o botão diz.
+    const { error } = await supabase.from('schedules').update({ status: 'captado' }).eq('id', postId)
     if (error) { showToast('Não deu pra marcar agora — tenta de novo.', false); setSubmitting(null); return }
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'producao' } : p))
-    // Sem o registro o designer não fica sabendo que o material chegou — e
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'captado' } : p))
+    // Sem o registro a estrategista não fica sabendo que o material chegou — e
     // esperar sem saber que já dá pra começar é o mesmo que não ter captado.
     await logActivity({
       db: supabase, token,
       tableName: 'schedules', recordId: postId, clientId: tokenData?.client_id,
       action: 'status_changed', actorName: 'Equipe (captação)',
-      description: 'Material captado — post liberado pra produção',
+      description: 'Material captado — falta mandar pra produção',
     })
     showToast('Marcado como captado ✓')
     setSubmitting(null)
@@ -1600,6 +1608,10 @@ export default function ApprovalPage({ token, equipe = false }: { token: string;
     // porque serve de referência do que já existe, mas não disputa o topo.
     const ETAPAS: { chave: string; titulo: string; status: string[]; cor: string }[] = [
       { chave: 'captar',   titulo: 'Precisa captar',   status: ['captacao'],                                          cor: '#0ea5e9' },
+      // Sem este grupo, o post sumia da tela no instante em que era marcado —
+      // e quem está na filmagem perde a conferência do que já fez no dia. Fica
+      // logo abaixo do que falta, que é a ordem da diária.
+      { chave: 'captado',  titulo: 'Captado hoje',     status: ['captado'],                                           cor: '#06b6d4' },
       { chave: 'produzir', titulo: 'Em produção',      status: ['producao', 'revisao_interna'],                       cor: '#8b5cf6' },
       { chave: 'cliente',  titulo: 'Com o cliente',    status: ['aguardando_aprovacao', 'aguardando_aprovacao_crono', 'ajuste'], cor: '#ec4899' },
       { chave: 'aprovado', titulo: 'Aprovado',         status: ['aprovado'],                                          cor: '#3b82f6' },

@@ -169,6 +169,8 @@ function decidir(e: Evento): Decisao {
       switch (s) {
         // Aprovado o crono, alguém precisa decidir captação ou produção.
         case 'captacao':   return { ids: estrategia(), motivo: 'precisa decidir captação ou produção', porFuncao: true }
+        // Filmou: a bola volta pra estrategista, que manda produzir.
+        case 'captado':    return { ids: estrategia(), motivo: 'material captado, falta mandar produzir', porFuncao: true }
         case 'producao':   return { ids: [...marcados, ...producao(e)], motivo: 'material chegou, dá pra produzir', porFuncao: true }
         case 'revisao_interna': return { ids: estrategia(), motivo: 'arte pronta pra revisão', porFuncao: true }
         // Foi pro cliente: internamente ninguém age, mas quem cobra precisa saber.
