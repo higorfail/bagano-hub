@@ -17,8 +17,10 @@ type Member = { id: string; name: string; role: string; color: string }
 //
 // A lista aqui era a do funcao, então toda tentativa de adicionar alguém batia
 // na trava team_members_role_check do banco e morria no toast — a tela nunca
-// conseguiu cadastrar ninguém. Os valores abaixo são os que já existem em
-// linhas da tabela, ou seja, comprovadamente aceitos pela trava.
+// conseguiu cadastrar ninguém. Os valores abaixo são os oito da trava, lidos
+// com pg_get_constraintdef. Mexer aqui sem mexer na trava quebra o cadastro de
+// novo; `social_media` é o lembrete disso, porque ninguém o usa ainda e ele
+// ficou de fora quando a lista saiu dos cargos em uso.
 //
 // Quem lê esse campo espera esse vocabulário: o cron do fôlego busca
 // role = 'gerente', e o push/notify usa o role pra manter o gerente fora do
@@ -28,6 +30,7 @@ const ROLES = [
   { value: 'editor',       label: 'Editor de vídeo' },
   { value: 'foto_video',   label: 'Foto e vídeo' },
   { value: 'estrategista', label: 'Estrategista' },
+  { value: 'social_media', label: 'Social Media' },
   { value: 'gerente',      label: 'Gerente' },
   { value: 'comercial',    label: 'Comercial' },
   { value: 'assistente',   label: 'Assistente' },
