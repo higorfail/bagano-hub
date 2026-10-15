@@ -995,7 +995,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 title="Mover vários posts de etapa de uma vez"
                 className={`order-5 md:order-2 flex items-center justify-center gap-1.5 h-9 rounded-xl border text-[13px] font-medium transition-colors flex-shrink-0 ${filterStatus ? 'px-3' : 'w-9'}`}
                 style={filterStatus
-                  ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent-bg)' }
+                  ? { borderColor: clientColor || 'var(--color-brand)', color: clientColor || 'var(--color-brand)', background: 'transparent' }
                   : { borderColor: 'var(--color-border)', background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
                 <ArrowRightLeft size={15} />
                 {filterStatus && <>Mover {visiblePosts.length} de {statusLabel(filterStatus)}</>}
@@ -1020,11 +1020,10 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                   
                   Enviar um post pra Criação continua existindo — no menu do
                   card, um a um, que é como a equipe já fazia na prática. */}
-              <div className="col-span-2 md:col-auto flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-purple-border,var(--color-border))' }}>
+              <div className="col-span-2 md:col-auto flex items-center rounded-xl border border-[var(--color-border)] overflow-hidden">
                 <button onClick={() => openApprovalModal('cronograma')}
                   title="Copiar o link do CRONO: o cliente aprova os temas do mês, antes de qualquer arte existir"
-                  className="flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-xs font-medium px-2.5 border-l transition-all hover:opacity-90 whitespace-nowrap"
-                  style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)' }}>
+                  className="flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-xs font-medium px-2.5 whitespace-nowrap text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors">
                   <Link2 size={12} /> Link do crono
                 </button>
               </div>
@@ -1032,11 +1031,10 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               {/* Grupo Aprovação final: ação (se houver pendência) + copiar link (sempre).
                   Sem pendência sobra só "Link final", que divide a linha com o
                   Checklist em vez de cada um gastar uma faixa inteira. */}
-              <div className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto flex items-center rounded-xl border overflow-hidden`} style={{ borderColor: 'var(--ds-success-border,var(--color-border))' }}>
+              <div className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto flex items-center rounded-xl border border-[var(--color-border)] overflow-hidden`}>
                 <button onClick={() => openApprovalModal('final')}
                   title="Copiar o link em que o cliente aprova a ARTE pronta — o conteúdo já produzido"
-                  className={`flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-xs font-medium px-2.5 transition-all hover:opacity-90 whitespace-nowrap ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
-                  style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)' }}>
+                  className={`flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-xs font-medium px-2.5 whitespace-nowrap text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors ${revisaoPosts.length > 0 ? 'border-l border-[var(--color-border)]' : ''}`}>
                   <Link2 size={12} /> Link final
                 </button>
               </div>
@@ -1044,8 +1042,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               {/* Checklist de produção — gerado por IA, sob demanda, sem misturar com aprovação */}
               <button onClick={generatePreplist}
                 title="Gerar checklist de produção do mês com IA — pra equipe de captação usar no dia da gravação"
-                className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto h-9 justify-center md:justify-start flex items-center gap-1.5 text-xs font-medium px-2.5 rounded-xl border transition-all hover:opacity-90 whitespace-nowrap`}
-                style={{ borderColor: '#8b5cf666', color: '#8b5cf6' }}>
+                className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto h-9 justify-center md:justify-start flex items-center gap-1.5 text-xs font-medium px-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors whitespace-nowrap`}>
                 <ClipboardList size={12} /> Checklist
               </button>
 
@@ -1075,8 +1072,8 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               )}
 
               <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
-                className="flex-shrink-0 flex items-center justify-center md:justify-start gap-1.5 text-sm font-semibold px-4 h-10 md:h-9 rounded-xl text-white shadow-sm transition-opacity hover:opacity-90"
-                style={{ background: clientColor || 'var(--color-brand)' }}>
+                className="botao-marca flex-shrink-0 flex items-center justify-center md:justify-start gap-1.5 text-sm font-semibold px-4 h-10 md:h-9 rounded-xl"
+                style={{ ['--marca' as any]: clientColor || 'var(--color-brand)' }}>
                 + Novo post
               </button>
             </div>
@@ -1511,7 +1508,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                       className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-[var(--color-bg-subtle)] transition-colors text-left">
                       <span className="w-4 h-4 rounded-[5px] border flex items-center justify-center flex-shrink-0 transition-colors"
                         style={marcado
-                          ? { background: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+                          ? { background: clientColor || 'var(--color-brand)', borderColor: clientColor || 'var(--color-brand)' }
                           : { borderColor: 'var(--color-border-strong)' }}>
                         {marcado && <Check size={11} className="text-white" strokeWidth={3} />}
                       </span>
@@ -1530,8 +1527,8 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                   Cancelar
                 </button>
                 <button onClick={moverEmLote} disabled={!loteDestino || loteMarcados.size === 0 || loteSalvando}
-                  className="text-sm font-semibold px-4 h-10 rounded-xl text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-                  style={{ background: clientColor || 'var(--color-brand)' }}>
+                  className="botao-marca text-sm font-semibold px-4 h-10 rounded-xl disabled:opacity-40"
+                  style={{ ['--marca' as any]: clientColor || 'var(--color-brand)' }}>
                   {loteSalvando ? 'Movendo…' : `Mover ${loteMarcados.size} post${loteMarcados.size !== 1 ? 's' : ''}`}
                 </button>
               </div>

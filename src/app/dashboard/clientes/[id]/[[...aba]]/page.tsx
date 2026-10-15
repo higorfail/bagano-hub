@@ -508,7 +508,8 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                   return `${window.location.origin}${await linkPublico(createClient(), generalToken)}`
                 })
                 toast(ok ? 'Link da Central de aprovação copiado!' : 'Erro ao gerar link')
-              }} className="hidden md:flex items-center justify-center border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl h-9 w-9 hover:bg-[var(--color-bg-subtle)] transition-colors flex-shrink-0" title="Central de aprovação — copia um link só com tudo que está esperando o cliente: crono, arte e extras">
+              }} className="dica hidden md:flex items-center justify-center border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-xl h-9 w-9 hover:bg-[var(--color-bg-subtle)] transition-colors flex-shrink-0"
+                data-dica="Central de aprovação · copia um link com tudo que espera o cliente">
                 <ClipboardCheck size={15} />
               </button>
               <button onClick={openEditClient} title="Editar cliente"
@@ -583,7 +584,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                     <button
                       onClick={() => { setSelectedMonth(otherPending.month); setSelectedYear(otherPending.year) }}
                       title={`${otherPending.count} post${otherPending.count !== 1 ? 's' : ''} esperando resposta em ${CRONO_MONTHS[otherPending.month - 1]}`}
-                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold flex-shrink-0 transition-opacity hover:opacity-80"
+                      className="flex items-center gap-1.5 px-2 py-1 ml-0.5 mr-1 rounded-lg text-[11px] font-semibold flex-shrink-0 transition-opacity hover:opacity-80"
                       style={{ background: 'var(--ds-warn-bg)', color: 'var(--ds-warn-text)' }}>
                       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--ds-warn-accent)' }} />
                       {CRONO_MONTHS[otherPending.month - 1].slice(0, 3)} · {otherPending.count}
@@ -593,7 +594,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                 {/* Traço entre o que o mês TEM (contadores) e qual mês é
                     (seletor): duas informações diferentes que estavam coladas
                     numa fileira só. */}
-                <div className="hidden md:block self-stretch border-l border-[var(--color-border)]" />
+                <div className="hidden md:block self-stretch border-l border-[var(--color-border)] ml-1" />
                 <div className="relative flex items-center gap-1">
                   <button onClick={() => setSelectedMonth(m => { const prev = m===1?12:m-1; if (prev===12) setSelectedYear(y=>y-1); return prev })} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
                   <button onClick={() => setShowMonthPicker(p => !p)} className="text-sm font-medium text-[var(--color-text-primary)] px-2 py-1 rounded-lg hover:bg-[var(--color-bg-subtle)] min-w-[120px] text-center">

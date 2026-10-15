@@ -202,3 +202,53 @@ img.h-full { height: 100% !important; }
  * conteúdo, onde a barra é a única pista de que há mais coisa embaixo. */
 .rolagem-invisivel { scrollbar-width: none; -ms-overflow-style: none; }
 .rolagem-invisivel::-webkit-scrollbar { display: none; }
+
+/* Botão que veste a cor do CLIENTE.
+ *
+ * A cor varia por cliente, então ela entra por variável inline (`--marca`) e
+ * o estado de hover mora aqui — pseudo-classe não existe em style inline, que
+ * é o motivo de isto não ser mais um objeto de estilo no componente.
+ *
+ * Contorno parado, preenchido no hover. A versão anterior era sólida com
+ * sombra, e sombra em botão de barra compete com os cards: o cronograma
+ * inteiro é feito de retângulos brancos elevados, e mais um elevado no meio
+ * dos controles tira a hierarquia de quem é conteúdo e quem é comando. */
+.botao-marca {
+  border: 1.5px solid var(--marca);
+  color: var(--marca);
+  background: transparent;
+  transition: background-color .15s, color .15s, border-color .15s;
+}
+.botao-marca:hover {
+  /* Mais escuro que a borda, não a mesma cor: preencher com o tom exato da
+     borda dá um bloco chapado onde o contorno some. */
+  background: color-mix(in srgb, var(--marca) 85%, black);
+  border-color: color-mix(in srgb, var(--marca) 85%, black);
+  color: #fff;
+}
+
+/* Dica que aparece na hora, presa a um elemento com `position: relative`.
+ *
+ * O `title` do navegador demora ~1,5s e some sozinho — num ícone sem rótulo,
+ * isso é tempo suficiente pra pessoa desistir e clicar pra descobrir. Aqui
+ * aparece no primeiro quadro do hover. */
+.dica { position: relative; }
+.dica::after {
+  content: attr(data-dica);
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  white-space: nowrap;
+  background: var(--color-text-primary);
+  color: var(--color-bg-page);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 9px;
+  border-radius: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition: opacity .12s, transform .12s;
+  z-index: 60;
+}
+.dica:hover::after { opacity: 1; transform: translateY(0); }
