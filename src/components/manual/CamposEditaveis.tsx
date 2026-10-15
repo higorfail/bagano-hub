@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Check, X, Plus, Pencil } from 'lucide-react'
+import { Check, X, Plus, Pencil, Link as LinkIcon } from 'lucide-react'
 
 // As peças de edição do manual do cliente.
 //
@@ -338,5 +338,91 @@ export function Salvo({ visivel }: { visivel: boolean }) {
     <span className="inline-flex items-center gap-1 text-[11px] font-medium" style={{ color: 'var(--ds-success-text)' }}>
       <Check size={11} /> salvo
     </span>
+  )
+}
+
+/**
+ * Links soltos da marca: Drive das fotos, Canva, planilha de preços, pasta de
+ * referências.
+ *
+ * Existe separado de `delivery_links` porque aquele é uma lista de URLs cruas
+ * de iFood e Rappi, e isto aqui precisa de NOME — "Canva da marca" diz o que
+ * é; `canva.com/design/DAGx7…` não diz nada, e é o que ficaria na tela.
+ *
+ * Clicável de verdade: link que não abre é endereço pra copiar à mão, que é
+ * exatamente o trabalho que ele deveria poupar. O lápis fica separado do link
+ * pra que clicar no nome não vire edição por acidente.
+ */
+export function LinksEditaveis({
+  links,
+  aoSalvar,
+}: {
+  links: { label: string; url: string }[] | null | undefined
+  aoSalvar: (v: { label: string; url: string }[]) => void | Promise<void>
+}) {
+  const lista = Array.isArray(links) ? links : []
+  const [editando, setEditando] = useState<number | null>(null)
+  const [novoNome, setNovoNome] = useState('')
+  const [novaUrl, setNovaUrl] = useState('')
+
+  // Quem digita "drive.google.com/..." quer um link, não uma busca. Sem isto o
+  // href vira relativo e o navegador tenta abrir dentro do hub.
+  const comProtocolo = (u: string) => (/^https?:\/\//i.test(u) ? u : `https://${u}`)
+
+  const trocar = (i: number, patch: Partial<{ label: string; url: string }>) =>
+    aoSalvar(lista.map((l, j) => (j === i ? { ...l, ...patch } : l)))
+  const remover = (i: number) => aoSalvar(lista.filter((_, j) => j !== i))
+
+  const adicionar = () => {
+    const url = novaUrl.trim()
+    if (!url) return
+    setNovoNome(''); setNovaUrl('')
+    void aoSalvar([...lista, { label: novoNome.trim() || url.replace(/^https?:\/\//i, '').split('/')[0], url }])
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {lista.map((l, i) => (
+        <div key={i} className="group flex items-center gap-2 rounded-xl px-3 py-2.5 bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-hover,var(--color-bg-subtle))] transition-colors">
+          {editando === i ? (
+            <>
+              <input autoFocus value={l.label} onChange={e => trocar(i, { label: e.target.value })}
+                placeholder="Nome" className="w-36 text-sm font-medium bg-transparent outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-faint)] border-b border-[var(--color-border-strong)] py-0.5 flex-shrink-0" />
+              <input value={l.url} onChange={e => trocar(i, { url: e.target.value })}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditando(null) }}
+                onBlur={() => setEditando(null)}
+                placeholder="https://…" className="flex-1 min-w-0 text-xs bg-transparent outline-none text-[var(--color-text-secondary)] placeholder-[var(--color-text-faint)] border-b border-[var(--color-border-strong)] py-0.5" />
+            </>
+          ) : (
+            <>
+              <a href={comProtocolo(l.url)} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 min-w-0 flex-1">
+                <LinkIcon size={13} className="text-[var(--color-text-muted)] flex-shrink-0" />
+                <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">{l.label || l.url}</span>
+                <span className="text-[11px] text-[var(--color-text-faint)] truncate hidden sm:inline">{l.url.replace(/^https?:\/\//i, '')}</span>
+              </a>
+              <button onClick={() => setEditando(i)} aria-label={`Editar ${l.label}`}
+                className="opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity flex-shrink-0">
+                <Pencil size={12} className="text-[var(--color-text-muted)]" />
+              </button>
+            </>
+          )}
+          <button onClick={() => remover(i)} aria-label={`Remover ${l.label}`}
+            className="opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity flex-shrink-0">
+            <X size={13} className="text-[var(--color-text-muted)]" />
+          </button>
+        </div>
+      ))}
+
+      <div className="flex items-center gap-2 rounded-xl px-3 py-2 border border-dashed border-[var(--color-border)]">
+        <Plus size={13} className="text-[var(--color-text-faint)] flex-shrink-0" />
+        <input value={novoNome} onChange={e => setNovoNome(e.target.value)}
+          placeholder="Nome" className="w-36 text-sm bg-transparent outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-faint)] flex-shrink-0" />
+        <input value={novaUrl} onChange={e => setNovaUrl(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); adicionar() } }}
+          onBlur={adicionar}
+          placeholder="https://…" className="flex-1 min-w-0 text-sm bg-transparent outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-faint)]" />
+      </div>
+    </div>
   )
 }

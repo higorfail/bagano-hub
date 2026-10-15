@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { TextoEditavel, Etiquetas, CardsEditaveis, CoresEditaveis, ParesEditaveis, Salvo } from '@/components/manual/CamposEditaveis'
+import { TextoEditavel, Etiquetas, CardsEditaveis, CoresEditaveis, ParesEditaveis, LinksEditaveis, Salvo } from '@/components/manual/CamposEditaveis'
 import { createClient } from '@/lib/supabase'
 import { withBase } from '@/lib/base'
+import { copyTextAsync } from '@/lib/clipboard'
 import {
   MapPin, Phone, AtSign, Globe, Truck, BookOpen,
-  ChevronDown, ChevronRight, Sparkles, X, ExternalLink, FileUp,
+  ChevronDown, ChevronRight, Sparkles, X, ExternalLink, FileUp, Plus, Copy, Check,
 } from 'lucide-react'
 
 type Pillar       = { name: string; description: string }
@@ -49,29 +50,118 @@ type ManualData = {
   editorial_pillars: Pillar[]
   content_series: ContentSeries[]
   production_notes: string
+  // Os três abaixo são NOSSOS, não da marca: o que a equipe anota, guarda e
+  // cola. Ficam fora do que a IA escreve de propósito — "Regerar com IA"
+  // sobrescreve o manual inteiro com o JSON do modelo, e o modelo não devolve
+  // estas chaves, então o que vocês digitaram sobrevive à regeração.
+  notes: string
+  links: { label: string; url: string }[]
+  /** Bloco fixo que vai no fim das legendas. Lido pelo botão do card. */
+  hashtags: string
 }
 
 const TABS = [
+  // A ordem é a de uso, não a de importância da marca: quem abre o manual
+  // durante o cronograma quer hashtag, link e anotação. Visual e Cardápio
+  // ficam pro fim porque se consultam uma vez por mês, não vinte por dia.
+  { key: 'mesa',         label: 'Dia a dia' },
   { key: 'overview',     label: 'Visão Geral' },
-  { key: 'visual',       label: 'Visual' },
+  { key: 'voice',        label: 'Tom de Voz' },
+  { key: 'content',      label: 'Conteúdo' },
   { key: 'operational',  label: 'Operacional' },
   { key: 'menu',         label: 'Cardápio' },
-  { key: 'content',      label: 'Conteúdo' },
-  { key: 'voice',        label: 'Tom de Voz' },
+  { key: 'visual',       label: 'Visual' },
 ]
 
-function SectionBlock({ title, children }: { title: string; children: React.ReactNode }) {
+// O manual é uma tela de ESCREVER, e estava desenhada como uma de ler: coluna
+// estreita, título de seção em 10px cinza-claro, tudo empilhado numa fileira
+// só que descia três telas. Dava pra consultar; não dava vontade de preencher
+// — e o manual vazio é o que a gente tinha em quase todo cliente.
+//
+// O título agora tem o peso de um título, a seção pode dizer em uma linha o
+// que espera de quem escreve, e os blocos se distribuem em duas colunas
+// quando a tela permite (ver `Grade`). Mesmo conteúdo, metade da rolagem.
+function SectionBlock({ title, dica, children, largura = 'meia' }: {
+  title: string
+  /** Uma linha dizendo pra que serve o campo. Em branco, não aparece. */
+  dica?: string
+  children: React.ReactNode
+  /** 'cheia' atravessa as duas colunas — pra bloco longo ou lista larga. */
+  largura?: 'meia' | 'cheia'
+}) {
   return (
-    <div className="flex flex-col gap-3">
-      <h3 className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest">{title}</h3>
+    <section className={`flex flex-col gap-2.5 ${largura === 'cheia' ? 'md:col-span-2' : ''}`}>
+      <div className="flex flex-col gap-0.5">
+        <h3 className="text-sm font-bold text-[var(--color-text-primary)] tracking-tight">{title}</h3>
+        {dica && <p className="text-xs text-[var(--color-text-muted)] leading-snug">{dica}</p>}
+      </div>
       {children}
+    </section>
+  )
+}
+
+type Secao = {
+  chave: string
+  titulo: string
+  dica?: string
+  /** 'cheia' atravessa as duas colunas — pra bloco longo ou lista larga. */
+  largura?: 'meia' | 'cheia'
+  vazio: boolean
+  render: () => React.ReactNode
+}
+
+/**
+ * As seções em duas colunas a partir do tablet; uma só no celular.
+ *
+ * E o que está vazio não ocupa espaço. Antes, cada aba mostrava todos os
+ * campos existissem eles ou não, e um manual pela metade virava uma parede de
+ * "Clique para escrever…" — a informação que ESTAVA lá se perdia no meio da
+ * que não estava. Agora o vazio se recolhe num botão no pé, que diz quais são
+ * e abre o que você escolher.
+ *
+ * Note que isto é o oposto da decisão anterior deste arquivo, que mostrava
+ * todo campo vazio justamente pra combater os 19 manuais sem cores. O motivo
+ * de mudar: aquilo resolvia o preencher e estragava o consultar, e consultar é
+ * o que acontece vinte vezes por dia enquanto se monta cronograma. O convite
+ * pra preencher continua existindo — só deixou de gritar o tempo todo.
+ */
+function Grade({ secoes }: { secoes: Secao[] }) {
+  const [reveladas, setReveladas] = useState<Set<string>>(new Set())
+
+  const visiveis = secoes.filter(s => !s.vazio || reveladas.has(s.chave))
+  const ocultas  = secoes.filter(s => s.vazio && !reveladas.has(s.chave))
+
+  return (
+    <div className="flex flex-col gap-6">
+      {visiveis.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-7 items-start">
+          {visiveis.map(s => (
+            <SectionBlock key={s.chave} title={s.titulo} dica={s.dica} largura={s.largura}>
+              {s.render()}
+            </SectionBlock>
+          ))}
+        </div>
+      )}
+
+      {ocultas.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <span className="text-xs text-[var(--color-text-faint)] mr-0.5">Adicionar:</span>
+          {ocultas.map(s => (
+            <button key={s.chave} onClick={() => setReveladas(r => new Set(r).add(s.chave))}
+              title={s.dica}
+              className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] border border-dashed border-[var(--color-border)] hover:border-[var(--color-border-strong)] rounded-lg px-2.5 py-1 transition-colors">
+              <Plus size={11} /> {s.titulo}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 function Card({ children, className = '', style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
-    <div className={`bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4 ${className}`} style={style}>
+    <div className={`bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-5 ${className}`} style={style}>
       {children}
     </div>
   )
@@ -99,85 +189,138 @@ type Salvar = (p: Record<string, any>) => Promise<void>
 // Por isso sumiram os `hasContent` que devolviam <Empty>. Campo vazio agora é
 // campo vazio clicável, não uma frase dizendo que não tem.
 
+/**
+ * A mesa de trabalho de quem monta cronograma.
+ *
+ * As outras seis abas DESCREVEM o cliente; esta é o que a gente usa enquanto
+ * trabalha nele. Nasceu da observação de que a estrategista abre o manual não
+ * pra ler a história da marca, mas pra três coisas: pegar a hashtag, abrir um
+ * link e lembrar de algo que não cabia em campo nenhum.
+ *
+ * Por isso ela é a PRIMEIRA aba, e por isso hashtag vem antes de link, que vem
+ * antes de anotação: é a ordem de quantas vezes por dia cada uma é usada.
+ */
+function MesaTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
+  const tov = data.tone_of_voice || {}
+  const [copiado, setCopiado] = useState(false)
+
+  async function copiarHashtags() {
+    const txt = (data.hashtags || '').trim()
+    if (!txt) return
+    const ok = await copyTextAsync(async () => txt)
+    if (!ok) return
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 1600)
+  }
+
+  return <Grade secoes={[
+    {
+      chave: 'hashtags', titulo: 'Hashtags do fim da legenda', vazio: false, largura: 'cheia',
+      dica: 'O bloco fixo que fecha as legendas deste cliente. O botão “hashtags” no card do post cola exatamente isto.',
+      render: () => (
+        <Card>
+          <TextoEditavel valor={data.hashtags} linhas={3}
+            placeholder="#pizzaria #curitiba #comidaitaliana…"
+            aoSalvar={v => salvar({ hashtags: v })} />
+          {(data.hashtags || '').trim() && (
+            <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-[var(--color-border)]">
+              <span className="text-[11px] text-[var(--color-text-faint)]">
+                {(data.hashtags || '').trim().split(/\s+/).filter(t => t.startsWith('#')).length} hashtags
+              </span>
+              <button onClick={copiarHashtags}
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] transition-colors">
+                {copiado ? <><Check size={12} /> Copiado</> : <><Copy size={12} /> Copiar</>}
+              </button>
+            </div>
+          )}
+        </Card>
+      ),
+    },
+    {
+      chave: 'links', titulo: 'Links', vazio: false, largura: 'cheia',
+      dica: 'Drive das fotos, Canva, planilha de preços, pasta de referências — o que você abre toda semana.',
+      render: () => <LinksEditaveis links={data.links} aoSalvar={v => salvar({ links: v })} />,
+    },
+    {
+      chave: 'notes', titulo: 'Anotações', vazio: false, largura: 'cheia',
+      dica: 'O que não cabe em campo nenhum: o combinado da reunião, a senha do Wi-Fi, o nome do primo que atende.',
+      render: () => <Card><TextoEditavel valor={data.notes} linhas={8}
+        placeholder="Escreva aqui o que você sempre tem que perguntar de novo…"
+        aoSalvar={v => salvar({ notes: v })} /></Card>,
+    },
+    {
+      chave: 'avoid_words', titulo: 'Palavras pra evitar', vazio: !(tov.avoid_words?.length),
+      dica: 'O que o cliente já pediu pra tirar. Repetido do Tom de Voz porque é o que mais volta como ajuste.',
+      render: () => <Card><Etiquetas itens={tov.avoid_words} cor="ruim" placeholder="+ palavra"
+        aoSalvar={v => salvar({ tone_of_voice: { ...tov, avoid_words: v } })} /></Card>,
+    },
+    {
+      chave: 'differentials', titulo: 'Diferenciais', vazio: !(data.differentials?.length),
+      dica: 'Os argumentos que sempre rendem legenda.',
+      render: () => <Card><Etiquetas itens={data.differentials} placeholder="+ diferencial"
+        aoSalvar={v => salvar({ differentials: v })} /></Card>,
+    },
+  ]} />
+}
+
 function OverviewTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
-  return (
-    <div className="flex flex-col gap-6">
-      <SectionBlock title="Tagline">
-        <Card>
-          <TextoEditavel valor={data.tagline} linhas={2}
-            placeholder="A frase que resume a marca…"
-            aoSalvar={v => salvar({ tagline: v })} />
-        </Card>
-      </SectionBlock>
-
-      <SectionBlock title="Conceito">
-        <Card>
-          <TextoEditavel valor={data.concept} linhas={4}
-            placeholder="O que a marca é, em poucas linhas…"
-            aoSalvar={v => salvar({ concept: v })} />
-        </Card>
-      </SectionBlock>
-
-      <SectionBlock title="História">
-        <Card>
-          <TextoEditavel valor={data.history} linhas={5}
-            placeholder="De onde veio, quem começou, o que mudou…"
-            aoSalvar={v => salvar({ history: v })} />
-        </Card>
-      </SectionBlock>
-
-      <SectionBlock title="Pilares da Marca">
-        <CardsEditaveis<Pillar>
-          itens={data.pillars}
-          campos={[
-            { chave: 'name', rotulo: 'Pilar', linhas: 1 },
-            { chave: 'description', rotulo: 'O que significa', linhas: 2 },
-          ]}
-          rotuloNovo="Adicionar pilar"
-          aoSalvar={v => salvar({ pillars: v })}
-        />
-      </SectionBlock>
-
-      <SectionBlock title="Diferenciais">
-        <Card>
-          <Etiquetas itens={data.differentials} placeholder="+ diferencial"
-            aoSalvar={v => salvar({ differentials: v })} />
-        </Card>
-      </SectionBlock>
-    </div>
-  )
+  return <Grade secoes={[
+    {
+      chave: 'tagline', titulo: 'Tagline', vazio: !data.tagline?.trim(),
+      dica: 'A frase que resume a marca numa linha.',
+      render: () => <Card><TextoEditavel valor={data.tagline} linhas={2}
+        placeholder="Ex.: Sabor de casa, há 40 anos" aoSalvar={v => salvar({ tagline: v })} /></Card>,
+    },
+    {
+      chave: 'concept', titulo: 'Conceito', vazio: !data.concept?.trim(),
+      dica: 'O que a marca é, pra quem nunca ouviu falar dela.',
+      render: () => <Card><TextoEditavel valor={data.concept} linhas={4}
+        placeholder="O que a marca é, em poucas linhas…" aoSalvar={v => salvar({ concept: v })} /></Card>,
+    },
+    {
+      chave: 'differentials', titulo: 'Diferenciais', vazio: !(data.differentials?.length),
+      dica: 'O que essa marca tem e a concorrência não. Vira argumento de legenda.',
+      render: () => <Card><Etiquetas itens={data.differentials} placeholder="+ diferencial"
+        aoSalvar={v => salvar({ differentials: v })} /></Card>,
+    },
+    {
+      chave: 'pillars', titulo: 'Pilares da marca', vazio: !(data.pillars?.length),
+      dica: 'Os valores que sustentam tudo que a marca diz.',
+      render: () => <CardsEditaveis<Pillar> itens={data.pillars}
+        campos={[{ chave: 'name', rotulo: 'Pilar', linhas: 1 }, { chave: 'description', rotulo: 'O que significa', linhas: 2 }]}
+        rotuloNovo="Adicionar pilar" aoSalvar={v => salvar({ pillars: v })} />,
+    },
+    {
+      chave: 'history', titulo: 'História', vazio: !data.history?.trim(), largura: 'cheia',
+      dica: 'De onde veio, quem começou, o que mudou. Rende post de aniversário e de bastidor.',
+      render: () => <Card><TextoEditavel valor={data.history} linhas={5}
+        placeholder="De onde veio, quem começou, o que mudou…" aoSalvar={v => salvar({ history: v })} /></Card>,
+    },
+  ]} />
 }
 
 function VisualTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
   const tov = data.tone_of_voice || {}
-  return (
-    <div className="flex flex-col gap-6">
-      <SectionBlock title="Paleta de Cores">
-        <CoresEditaveis cores={data.colors} aoSalvar={v => salvar({ colors: v })} />
-      </SectionBlock>
-
-      <SectionBlock title="Tipografia">
-        <CardsEditaveis<Font>
-          itens={data.fonts}
-          campos={[
-            { chave: 'role', rotulo: 'Uso', linhas: 1 },
-            { chave: 'family', rotulo: 'Fonte', linhas: 1 },
-          ]}
-          rotuloNovo="Adicionar fonte"
-          aoSalvar={v => salvar({ fonts: v })}
-        />
-      </SectionBlock>
-
-      {/* Taglines moram dentro de tone_of_voice no banco, mas quem procura
-          "as frases da marca" olha aqui, no visual, junto de cor e fonte. */}
-      <SectionBlock title="Taglines">
-        <Card>
-          <Etiquetas itens={tov.taglines} placeholder="+ tagline"
-            aoSalvar={v => salvar({ tone_of_voice: { ...tov, taglines: v } })} />
-        </Card>
-      </SectionBlock>
-    </div>
-  )
+  return <Grade secoes={[
+    {
+      chave: 'colors', titulo: 'Paleta de cores', vazio: !(data.colors?.length),
+      dica: 'Clique no quadrado pra escolher; o código fica do lado, pra copiar.',
+      render: () => <CoresEditaveis cores={data.colors} aoSalvar={v => salvar({ colors: v })} />,
+    },
+    {
+      chave: 'fonts', titulo: 'Tipografia', vazio: !(data.fonts?.length),
+      dica: 'Qual fonte em quê: título, corpo, destaque.',
+      render: () => <CardsEditaveis<Font> itens={data.fonts}
+        campos={[{ chave: 'role', rotulo: 'Uso', linhas: 1 }, { chave: 'family', rotulo: 'Fonte', linhas: 1 }]}
+        rotuloNovo="Adicionar fonte" aoSalvar={v => salvar({ fonts: v })} />,
+    },
+    {
+      chave: 'taglines', titulo: 'Frases da marca', vazio: !(tov.taglines?.length),
+      dica: 'As frases que se repetem nas artes.',
+      render: () => <Card><Etiquetas itens={tov.taglines} placeholder="+ frase"
+        aoSalvar={v => salvar({ tone_of_voice: { ...tov, taglines: v } })} /></Card>,
+    },
+  ]} />
 }
 
 function OperationalTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
@@ -191,39 +334,37 @@ function OperationalTab({ data, salvar }: { data: ManualData; salvar: Salvar }) 
     </div>
   )
 
-  return (
-    <div className="flex flex-col gap-6">
-      <SectionBlock title="Contato">
-        <Card>
-          <div className="flex flex-col gap-1">
-            {linha(MapPin, 'address', 'Endereço')}
-            {linha(Phone, 'phone', 'Telefone')}
-            {linha(AtSign, 'instagram', '@ do Instagram')}
-            {linha(Globe, 'website', 'Site')}
-          </div>
-        </Card>
-      </SectionBlock>
+  const semContato = !data.address?.trim() && !data.phone?.trim() && !data.instagram?.trim() && !data.website?.trim()
 
-      <SectionBlock title="Horários de Funcionamento">
-        <Card>
-          <ParesEditaveis pares={data.hours} rotuloChave="dia" rotuloValor="18h–23h"
-            aoSalvar={v => salvar({ hours: v })} />
-        </Card>
-      </SectionBlock>
-
-      <SectionBlock title="Delivery">
-        <Card>
-          <div className="flex items-start gap-2.5">
-            <Truck size={13} className="text-[var(--color-text-muted)] mt-1.5 flex-shrink-0" />
-            <div className="flex-1">
-              <Etiquetas itens={data.delivery_links} placeholder="+ iFood, Rappi…"
-                aoSalvar={v => salvar({ delivery_links: v })} />
-            </div>
-          </div>
-        </Card>
-      </SectionBlock>
-    </div>
-  )
+  return <Grade secoes={[
+    {
+      chave: 'contato', titulo: 'Contato', vazio: semContato,
+      dica: 'O que entra no rodapé da legenda. Confira antes de copiar.',
+      render: () => <Card><div className="flex flex-col gap-1">
+        {linha(MapPin, 'address', 'Endereço')}
+        {linha(Phone, 'phone', 'Telefone')}
+        {linha(AtSign, 'instagram', '@ do Instagram')}
+        {linha(Globe, 'website', 'Site')}
+      </div></Card>,
+    },
+    {
+      chave: 'hours', titulo: 'Horários', vazio: !Object.keys(data.hours || {}).length,
+      dica: 'Dia e faixa de horário. Escreva o dia e aperte Enter.',
+      render: () => <Card><ParesEditaveis pares={data.hours} rotuloChave="dia" rotuloValor="18h–23h"
+        aoSalvar={v => salvar({ hours: v })} /></Card>,
+    },
+    {
+      chave: 'delivery', titulo: 'Delivery', vazio: !(data.delivery_links?.length),
+      dica: 'iFood, Rappi, WhatsApp de pedido.',
+      render: () => <Card><div className="flex items-start gap-2.5">
+        <Truck size={13} className="text-[var(--color-text-muted)] mt-1.5 flex-shrink-0" />
+        <div className="flex-1">
+          <Etiquetas itens={data.delivery_links} placeholder="+ iFood, Rappi…"
+            aoSalvar={v => salvar({ delivery_links: v })} />
+        </div>
+      </div></Card>,
+    },
+  ]} />
 }
 
 function MenuTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
@@ -311,150 +452,79 @@ function MenuTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
 }
 
 function ContentTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
-  return (
-    <div className="flex flex-col gap-6">
-      <SectionBlock title="Pilares Editoriais">
-        <CardsEditaveis<Pillar>
-          itens={data.editorial_pillars}
-          campos={[
-            { chave: 'name', rotulo: 'Pilar', linhas: 1 },
-            { chave: 'description', rotulo: 'O que entra nele', linhas: 2 },
-          ]}
-          rotuloNovo="Adicionar pilar editorial"
-          aoSalvar={v => salvar({ editorial_pillars: v })}
-        />
-      </SectionBlock>
-
-      <SectionBlock title="Séries de Conteúdo">
-        <CardsEditaveis<ContentSeries>
-          itens={data.content_series}
-          campos={[
-            { chave: 'name', rotulo: 'Série', linhas: 1 },
-            { chave: 'description', rotulo: 'Do que se trata', linhas: 2 },
-            { chave: 'frequency', rotulo: 'Frequência', linhas: 1 },
-          ]}
-          rotuloNovo="Adicionar série"
-          aoSalvar={v => salvar({ content_series: v })}
-        />
-      </SectionBlock>
-
-      <SectionBlock title="Personas">
-        <CardsEditaveis<Persona>
-          itens={data.personas?.map(p => ({ ...p, age: String(p.age ?? '') }))}
-          campos={[
-            { chave: 'name', rotulo: 'Quem é', linhas: 1 },
-            { chave: 'age', rotulo: 'Idade', linhas: 1 },
-            { chave: 'profile', rotulo: 'Perfil', linhas: 2 },
-            { chave: 'behaviors', rotulo: 'Como se comporta', linhas: 2 },
-          ]}
-          rotuloNovo="Adicionar persona"
-          aoSalvar={v => salvar({ personas: v })}
-        />
-      </SectionBlock>
-
-      <SectionBlock title="Promoções & Ativações">
-        <CardsEditaveis<Promotion>
-          itens={data.promotions}
-          campos={[
-            { chave: 'title', rotulo: 'Promoção', linhas: 1 },
-            { chave: 'description', rotulo: 'Como funciona', linhas: 2 },
-          ]}
-          rotuloNovo="Adicionar promoção"
-          aoSalvar={v => salvar({ promotions: v })}
-        />
-      </SectionBlock>
-
-      <SectionBlock title="Datas & Eventos">
-        <CardsEditaveis<CalEvent>
-          itens={data.events}
-          campos={[
-            { chave: 'date', rotulo: 'Quando', linhas: 1 },
-            { chave: 'title', rotulo: 'O quê', linhas: 1 },
-            { chave: 'description', rotulo: 'Detalhes', linhas: 2 },
-          ]}
-          rotuloNovo="Adicionar data"
-          aoSalvar={v => salvar({ events: v })}
-        />
-      </SectionBlock>
-
-      <SectionBlock title="Notas de Produção">
-        <Card>
-          <TextoEditavel valor={data.production_notes} linhas={4}
-            placeholder="O que a equipe precisa saber pra produzir…"
-            aoSalvar={v => salvar({ production_notes: v })} />
-        </Card>
-      </SectionBlock>
-    </div>
-  )
+  return <Grade secoes={[
+    {
+      chave: 'editorial_pillars', titulo: 'Pilares editoriais', vazio: !(data.editorial_pillars?.length),
+      dica: 'Os assuntos que se revezam no cronograma.',
+      render: () => <CardsEditaveis<Pillar> itens={data.editorial_pillars}
+        campos={[{ chave: 'name', rotulo: 'Pilar', linhas: 1 }, { chave: 'description', rotulo: 'O que entra nele', linhas: 2 }]}
+        rotuloNovo="Adicionar pilar editorial" aoSalvar={v => salvar({ editorial_pillars: v })} />,
+    },
+    {
+      chave: 'content_series', titulo: 'Séries de conteúdo', vazio: !(data.content_series?.length),
+      dica: 'O que se repete toda semana ou todo mês.',
+      render: () => <CardsEditaveis<ContentSeries> itens={data.content_series}
+        campos={[{ chave: 'name', rotulo: 'Série', linhas: 1 }, { chave: 'description', rotulo: 'Do que se trata', linhas: 2 }, { chave: 'frequency', rotulo: 'Frequência', linhas: 1 }]}
+        rotuloNovo="Adicionar série" aoSalvar={v => salvar({ content_series: v })} />,
+    },
+    {
+      chave: 'events', titulo: 'Datas & eventos', vazio: !(data.events?.length),
+      dica: 'Aniversário da casa, feriado que lota, festival da cidade.',
+      render: () => <CardsEditaveis<CalEvent> itens={data.events}
+        campos={[{ chave: 'date', rotulo: 'Quando', linhas: 1 }, { chave: 'title', rotulo: 'O quê', linhas: 1 }, { chave: 'description', rotulo: 'Detalhes', linhas: 2 }]}
+        rotuloNovo="Adicionar data" aoSalvar={v => salvar({ events: v })} />,
+    },
+    {
+      chave: 'promotions', titulo: 'Promoções & ativações', vazio: !(data.promotions?.length),
+      dica: 'O que está rodando agora e pode virar post.',
+      render: () => <CardsEditaveis<Promotion> itens={data.promotions}
+        campos={[{ chave: 'title', rotulo: 'Promoção', linhas: 1 }, { chave: 'description', rotulo: 'Como funciona', linhas: 2 }]}
+        rotuloNovo="Adicionar promoção" aoSalvar={v => salvar({ promotions: v })} />,
+    },
+    {
+      chave: 'personas', titulo: 'Personas', vazio: !(data.personas?.length), largura: 'cheia',
+      dica: 'Pra quem a legenda está falando.',
+      render: () => <CardsEditaveis itens={data.personas?.map(p => ({ ...p, age: String(p.age ?? '') })) as any}
+        campos={[{ chave: 'name', rotulo: 'Quem é', linhas: 1 }, { chave: 'age', rotulo: 'Idade', linhas: 1 }, { chave: 'profile', rotulo: 'Perfil', linhas: 2 }, { chave: 'behaviors', rotulo: 'Como se comporta', linhas: 2 }]}
+        rotuloNovo="Adicionar persona" aoSalvar={v => salvar({ personas: v })} />,
+    },
+  ]} />
 }
 
-function VoiceTab({ data, salvar }: { data: ManualData; salvar: (p: Record<string, any>) => Promise<void> }) {
+function VoiceTab({ data, salvar }: { data: ManualData; salvar: Salvar }) {
   const tov = data.tone_of_voice || {}
-
   // Editar um pedaço do tom de voz sem apagar os outros: o campo é um objeto
   // só no banco, e mandar `{ personality }` sozinho zeraria as palavras.
   const salvarVoz = (patch: Record<string, any>) => salvar({ tone_of_voice: { ...tov, ...patch } })
 
-  return (
-    <div className="flex flex-col gap-6">
-      {/* Sem `if (vazio) return`: campo vazio é justamente onde alguém precisa
-          escrever. Esconder o que falta foi como 19 manuais ficaram sem cores. */}
-      <SectionBlock title="Personalidade da Marca">
-        <Card>
-          <TextoEditavel
-            valor={tov.personality}
-            linhas={4}
-            placeholder="Como esta marca fala? Ex.: acolhedora, sem formalidade, fala de comida como quem convida pra mesa."
-            aoSalvar={v => salvarVoz({ personality: v })}
-          />
-          <p className="text-[11px] text-[var(--color-text-faint)] mt-2">
-            É daqui que a IA tira o jeito de escrever a legenda.
-          </p>
-        </Card>
-      </SectionBlock>
-
-      <SectionBlock title="Palavras & Expressões para Usar">
-        <Etiquetas itens={tov.use_words} cor="boa" placeholder="+ palavra"
-          aoSalvar={v => salvarVoz({ use_words: v })} />
-      </SectionBlock>
-
-      <SectionBlock title="Palavras & Expressões para Evitar">
-        <Etiquetas itens={tov.avoid_words} cor="ruim" placeholder="+ palavra"
-          aoSalvar={v => salvarVoz({ avoid_words: v })} />
-      </SectionBlock>
-
-      <SectionBlock title="Taglines">
-        <Etiquetas itens={tov.taglines} placeholder="+ tagline"
-          aoSalvar={v => salvarVoz({ taglines: v })} />
-      </SectionBlock>
-
-      <SectionBlock title="Personas">
-        <CardsEditaveis
-          itens={data.personas as any}
-          rotuloNovo="Nova persona"
-          campos={[
-            { chave: 'name', rotulo: 'Nome', linhas: 1 },
-            { chave: 'age', rotulo: 'Idade', linhas: 1 },
-            { chave: 'profile', rotulo: 'Perfil' },
-            { chave: 'behaviors', rotulo: 'Comportamento' },
-          ]}
-          aoSalvar={v => salvar({ personas: v })}
-        />
-      </SectionBlock>
-
-      <SectionBlock title="Pilares Editoriais">
-        <CardsEditaveis
-          itens={data.editorial_pillars as any}
-          rotuloNovo="Novo pilar"
-          campos={[
-            { chave: 'name', rotulo: 'Pilar', linhas: 1 },
-            { chave: 'description', rotulo: 'O que é' },
-          ]}
-          aoSalvar={v => salvar({ editorial_pillars: v })}
-        />
-      </SectionBlock>
-    </div>
-  )
+  return <Grade secoes={[
+    {
+      chave: 'personality', titulo: 'Personalidade da marca', vazio: !tov.personality?.trim(), largura: 'cheia',
+      dica: 'É daqui que a IA tira o jeito de escrever a legenda.',
+      render: () => <Card><TextoEditavel valor={tov.personality} linhas={4}
+        placeholder="Como esta marca fala? Ex.: acolhedora, sem formalidade, fala de comida como quem convida pra mesa."
+        aoSalvar={v => salvarVoz({ personality: v })} /></Card>,
+    },
+    {
+      chave: 'use_words', titulo: 'Palavras pra usar', vazio: !(tov.use_words?.length),
+      dica: 'O vocabulário da casa.',
+      render: () => <Card><Etiquetas itens={tov.use_words} cor="boa" placeholder="+ palavra"
+        aoSalvar={v => salvarVoz({ use_words: v })} /></Card>,
+    },
+    {
+      chave: 'avoid_words', titulo: 'Palavras pra evitar', vazio: !(tov.avoid_words?.length),
+      dica: 'O que o cliente já pediu pra tirar.',
+      render: () => <Card><Etiquetas itens={tov.avoid_words} cor="ruim" placeholder="+ palavra"
+        aoSalvar={v => salvarVoz({ avoid_words: v })} /></Card>,
+    },
+    {
+      chave: 'production_notes', titulo: 'Notas de produção', vazio: !data.production_notes?.trim(), largura: 'cheia',
+      dica: 'O que quem produz precisa saber e sempre esquece.',
+      render: () => <Card><TextoEditavel valor={data.production_notes} linhas={4}
+        placeholder="O que a equipe precisa saber pra produzir…"
+        aoSalvar={v => salvar({ production_notes: v })} /></Card>,
+    },
+  ]} />
 }
 
 // ── GERADOR DE RASCUNHO VIA IA (pesquisa na web) ───────────────────────────────
@@ -530,7 +600,7 @@ function ManualGeneratorModal({
 export default function ManualTab({ clientId }: { clientId: string }) {
   const [data, setData]       = useState<ManualData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState('mesa')
   const [clientInfo, setClientInfo] = useState<{ name: string; instagram_url: string | null; sous_chef_url: string | null } | null>(null)
 
   // Gerador de rascunho via IA (pesquisa na web) — pra clientes novos sem manual
@@ -784,7 +854,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
   )
 
   return (
-    <div className="flex flex-col gap-0 max-w-4xl">
+    <div className="flex flex-col gap-0 max-w-6xl">
       {inputArquivo}
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-5 pb-5 border-b border-[var(--color-border)]">
@@ -844,6 +914,7 @@ export default function ManualTab({ clientId }: { clientId: string }) {
       </div>
 
       {/* Content */}
+      {activeTab === 'mesa'        && <MesaTab        data={data} salvar={salvarCampo} />}
       {activeTab === 'overview'    && <OverviewTab    data={data} salvar={salvarCampo} />}
       {activeTab === 'visual'      && <VisualTab      data={data} salvar={salvarCampo} />}
       {activeTab === 'operational' && <OperationalTab data={data} salvar={salvarCampo} />}
