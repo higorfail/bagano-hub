@@ -227,6 +227,19 @@ img.h-full { height: 100% !important; }
   color: #fff;
 }
 
+/* A variante preenchida de leve, pra ação principal da barra.
+ *
+ * Contorno puro some numa tela cheia de retângulos brancos com borda — fica
+ * igual aos secundários. Um fundo lavado dá peso sem virar bloco sólido, que
+ * era o que competia com os cards. No hover ele fecha na cor cheia e a borda
+ * fica onde está, então o botão GANHA preenchimento em vez de trocar de cor. */
+.botao-marca--suave { background: color-mix(in srgb, var(--marca) 12%, transparent); }
+.botao-marca--suave:hover {
+  background: var(--marca);
+  border-color: var(--marca);
+  color: #fff;
+}
+
 /* Dica que aparece na hora, presa a um elemento com `position: relative`.
  *
  * O `title` do navegador demora ~1,5s e some sozinho — num ícone sem rótulo,

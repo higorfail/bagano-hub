@@ -105,22 +105,28 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
 
   // Ordem do fluxo, não alfabética nem histórica: o que se abre todo dia vem
   // primeiro e o que é consulta fica no fim.
+  // Ordem definida pelo uso, não pelo fluxo: Extras e Materiais sobem porque
+  // são abertos quase tanto quanto o Cronograma, e Kanban desce porque é
+  // leitura do mesmo conteúdo em outra forma. Histórico fica por último — é o
+  // que ninguém abre hoje.
+  //
+  // "Ideias" não estava na lista pedida e foi pro fim, não pro lixo: ela
+  // guarda o que ainda não virou trabalho, e sumir com ela apagaria o único
+  // lugar onde isso mora.
   const TABS = [
     { key: 'cronograma', label: 'Cronograma' },
-    // Mesmos posts do Cronograma, outra pergunta: lá é "o que sai e quando",
-    // aqui é "em que pé está".
-    { key: 'kanban', label: 'Kanban' },
-    // Ideias antes de Extras: as duas guardam o que está fora do cronograma,
-    // mas ideia ainda não é trabalho — extra já é.
-    { key: 'ideias', label: 'Ideias' },
     { key: 'extras', label: 'Extras' },
-    // Recorrentes ao lado de Extras: os dois são o que sai fora do cronograma.
+    { key: 'materiais', label: 'Materiais' },
     { key: 'recorrentes', label: 'Recorrentes' },
-    { key: 'materiais', label: 'Materiais' },   { key: 'tarefas', label: 'Tarefas' },
-    { key: 'campanhas', label: 'Campanhas' },   { key: 'feed', label: 'Feed' },
+    { key: 'kanban', label: 'Kanban' },
+    { key: 'tarefas', label: 'Tarefas' },
+    { key: 'campanhas', label: 'Campanhas' },
+    { key: 'manual', label: 'Manual' },
     { key: 'drive', label: 'Arquivos' },
-    { key: 'manual', label: 'Manual' },         { key: 'historico', label: 'Histórico' },
+    { key: 'feed', label: 'Feed' },
     { key: 'time', label: 'Time' },
+    { key: 'historico', label: 'Histórico' },
+    { key: 'ideias', label: 'Ideias' },
   ]
 
   function renderTabs(menor: boolean) {
@@ -594,7 +600,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                 {/* Traço entre o que o mês TEM (contadores) e qual mês é
                     (seletor): duas informações diferentes que estavam coladas
                     numa fileira só. */}
-                <div className="hidden md:block self-stretch border-l border-[var(--color-border)] ml-1" />
+                <div className="hidden md:block self-stretch border-l border-[var(--color-border)] mx-2" />
                 <div className="relative flex items-center gap-1">
                   <button onClick={() => setSelectedMonth(m => { const prev = m===1?12:m-1; if (prev===12) setSelectedYear(y=>y-1); return prev })} className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]">‹</button>
                   <button onClick={() => setShowMonthPicker(p => !p)} className="text-sm font-medium text-[var(--color-text-primary)] px-2 py-1 rounded-lg hover:bg-[var(--color-bg-subtle)] min-w-[120px] text-center">

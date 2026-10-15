@@ -270,10 +270,17 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   function toggleLegenda() {
     setShowLegenda(v => { try { localStorage.setItem('crono_list_legenda', v ? '0' : '1') } catch {} ; return !v })
   }
+  // A visão de LISTA está desligada, não removida: o botão sai da barra e o
+  // `localStorage` de quem a usava por último cai em Cards. Todo o código da
+  // tabela continua aqui embaixo, intacto — é a diferença entre "não queremos
+  // agora" e "não queremos mais", e apagar transformaria a primeira na
+  // segunda. Pra religar: devolver o botão e aceitar 'list' na leitura abaixo.
+  const LISTA_LIGADA = false
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'calendar'>(() => {
     if (typeof window === 'undefined') return 'grid'
     const saved = localStorage.getItem('crono_view')
-    return saved === 'list' || saved === 'calendar' ? saved : 'grid'
+    if (saved === 'list') return LISTA_LIGADA ? 'list' : 'grid'
+    return saved === 'calendar' ? saved : 'grid'
   })
   function changeView(v: 'grid' | 'list' | 'calendar') { setViewMode(v); try { localStorage.setItem('crono_view', v) } catch {} }
 
@@ -894,7 +901,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               // e o seletor. Com um só, o seletor de mês ficava solto —
               // separado dos contadores mas colado nos ícones de filtro, como
               // se pertencesse a eles.
-              <div className="order-1 w-full md:w-auto md:mr-3 md:pr-3 md:border-r md:border-[var(--color-border)] flex items-center gap-3 flex-wrap">{barraInicio}</div>
+              <div className="order-1 w-full md:w-auto md:mr-4 md:pr-4 md:border-r md:border-[var(--color-border)] flex items-center gap-3 flex-wrap">{barraInicio}</div>
             )}
 
             {/* FILTROS — dois ícones, não três campos.
@@ -1053,7 +1060,9 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                 ficavam desproporcionais. */}
             <div className="order-3 md:order-4 flex flex-col md:flex-row items-stretch md:items-center gap-2 w-full md:w-auto">
               <div className="flex-1 md:flex-none flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
-                <button onClick={() => changeView('list')} className={`flex-1 md:flex-none px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
+                {LISTA_LIGADA && (
+                  <button onClick={() => changeView('list')} className={`flex-1 md:flex-none px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
+                )}
                 <button onClick={() => changeView('grid')} className={`flex-1 md:flex-none px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
                 <button onClick={() => changeView('calendar')} className={`flex-1 md:flex-none px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${viewMode==='calendar'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Calendário</button>
               </div>
@@ -1072,7 +1081,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               )}
 
               <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
-                className="botao-marca flex-shrink-0 flex items-center justify-center md:justify-start gap-1.5 text-sm font-semibold px-4 h-10 md:h-9 rounded-xl"
+                className="botao-marca botao-marca--suave flex-shrink-0 flex items-center justify-center md:justify-start gap-1.5 text-sm font-semibold px-4 h-10 md:h-9 rounded-xl"
                 style={{ ['--marca' as any]: clientColor || 'var(--color-brand)' }}>
                 + Novo post
               </button>
@@ -1527,7 +1536,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
                   Cancelar
                 </button>
                 <button onClick={moverEmLote} disabled={!loteDestino || loteMarcados.size === 0 || loteSalvando}
-                  className="botao-marca text-sm font-semibold px-4 h-10 rounded-xl disabled:opacity-40"
+                  className="botao-marca botao-marca--suave text-sm font-semibold px-4 h-10 rounded-xl disabled:opacity-40"
                   style={{ ['--marca' as any]: clientColor || 'var(--color-brand)' }}>
                   {loteSalvando ? 'Movendo…' : `Mover ${loteMarcados.size} post${loteMarcados.size !== 1 ? 's' : ''}`}
                 </button>
