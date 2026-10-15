@@ -10,7 +10,7 @@ import { useToast } from '@/lib/ToastContext'
 import { copyTextAsync } from '@/lib/clipboard'
 import { approvalShort } from '@/lib/approvalKind'
 import { dbError } from '@/lib/dbError'
-import { ChevronRight, Check, Copy, Search, X, ClipboardCheck, Link2, Sparkles, ClipboardList, ChevronDown, GripVertical } from 'lucide-react'
+import { ChevronRight, Check, Copy, Search, X, ClipboardCheck, Link2, Sparkles, ClipboardList, ChevronDown, GripVertical, SlidersHorizontal } from 'lucide-react'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { ensureWatching } from '@/lib/watch'
@@ -242,6 +242,11 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
 
+  // A busca nasce fechada; o painel de filtros também. Ver a barra.
+  const [buscaAberta, setBuscaAberta] = useState(false)
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
+  const caixaFiltros = useRef<HTMLDivElement>(null)
+
   const [filterText, setFilterText] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterType, setFilterType] = useState('')
@@ -403,6 +408,17 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
     setPreplistCopied(true)
     setTimeout(() => setPreplistCopied(false), 2000)
   }
+
+  // Painel de filtro aberto some ao clicar fora — senão fica pendurado por
+  // cima dos cards enquanto a pessoa já voltou a trabalhar.
+  useEffect(() => {
+    if (!filtrosAbertos) return
+    const fora = (e: MouseEvent) => { if (caixaFiltros.current && !caixaFiltros.current.contains(e.target as Node)) setFiltrosAbertos(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setFiltrosAbertos(false) }
+    document.addEventListener('mousedown', fora)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('keydown', esc) }
+  }, [filtrosAbertos])
 
   const handledPostParam = useRef<string | null>(null)
 
@@ -778,6 +794,9 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   }
   const visiblePosts = posts.filter(matchesFilters)
   const hasFilter = !!(filterStatus || filterType || filterText)
+  // Só status e tipo acendem o ícone: a busca tem o próprio campo aberto na
+  // barra quando está em uso, então ela já se anuncia sozinha.
+  const filtrosAtivos = !!(filterStatus || filterType)
   const revisaoPosts = posts.filter(p => p.status === 'revisao_interna')
 
   return (
@@ -816,29 +835,85 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               <div className="order-1 w-full md:w-auto md:mr-1 flex items-center gap-2 flex-wrap">{barraInicio}</div>
             )}
 
-            {/* FILTROS — última linha no celular, tudo junto em vez da busca
-                sozinha ocupando uma faixa inteira só pra ela. */}
-            <div className="order-4 md:order-2 w-full md:w-auto flex items-center gap-2">
-              <div className="relative flex-1 md:w-[200px] md:flex-none">
-                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
-                <input value={filterText} onChange={e => setFilterText(e.target.value)} placeholder="Buscar..."
-                  className="w-full h-9 pl-8 pr-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]" />
-              </div>
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                className="h-9 flex-shrink-0 text-[13px] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 text-[var(--color-text-secondary)] outline-none">
-                <option value="">Status</option>
-                {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-              <select value={filterType} onChange={e => setFilterType(e.target.value)}
-                className="h-8 flex-shrink-0 text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 text-[var(--color-text-secondary)] outline-none">
-                <option value="">Tipo</option>
-                {POST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-              {hasFilter && (
-                <button onClick={() => { setFilterText(''); setFilterStatus(''); setFilterType('') }}
-                  className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0">
-                  <X size={11} /> {visiblePosts.length}/{posts.length}
+            {/* FILTROS — dois ícones, não três campos.
+            
+                Ocupavam ~420px fixos da barra (busca de 200px mais dois
+                seletores) pra algo que, com doze posts na tela, quase ninguém
+                abre: dá pra ler o cronograma inteiro de uma vez. Era a maior
+                fatia de largura da tela servindo a função menos usada dela, e
+                foi o que obrigou a barra a quebrar em duas linhas.
+            
+                Agora a busca nasce fechada e abre no clique, e os dois
+                seletores moram num painel. Nenhum dos dois sai do alcance —
+                mudam de "sempre ocupando" pra "um clique".
+            
+                O pontinho no ícone é a parte que não pode faltar: filtro
+                recolhido é filtro esquecível, e quem esquece um filtro ligado
+                acha que os posts sumiram. */}
+            <div className="order-4 md:order-2 flex items-center gap-1.5" ref={caixaFiltros}>
+              {buscaAberta || filterText ? (
+                <div className="relative w-[200px]">
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+                  <input autoFocus value={filterText} onChange={e => setFilterText(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Escape') { setFilterText(''); setBuscaAberta(false) } }}
+                    onBlur={() => { if (!filterText) setBuscaAberta(false) }}
+                    placeholder="Buscar..."
+                    className="w-full h-9 pl-8 pr-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]" />
+                </div>
+              ) : (
+                <button onClick={() => setBuscaAberta(true)} title="Buscar no cronograma"
+                  className="w-9 h-9 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)] transition-colors flex-shrink-0">
+                  <Search size={15} />
                 </button>
+              )}
+
+              <div className="relative flex-shrink-0">
+                <button onClick={() => setFiltrosAbertos(f => !f)}
+                  title={filtrosAtivos ? 'Filtros ativos' : 'Filtrar por status ou tipo'}
+                  className="w-9 h-9 rounded-xl border flex items-center justify-center transition-colors relative"
+                  style={filtrosAtivos
+                    ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent)', background: 'var(--color-accent-bg)' }
+                    : { borderColor: 'var(--color-border)', background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
+                  <SlidersHorizontal size={15} />
+                  {filtrosAtivos && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[var(--color-bg-page)]" style={{ background: 'var(--color-accent)' }} />
+                  )}
+                </button>
+
+                {filtrosAbertos && (
+                  <div className="absolute left-0 md:left-auto md:right-0 top-full mt-1.5 w-60 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl shadow-xl z-50 p-3 flex flex-col gap-2.5">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Status</span>
+                      <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                        className="h-9 w-full text-[13px] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-page)] px-2.5 text-[var(--color-text-primary)] outline-none">
+                        <option value="">Todos</option>
+                        {STATUSES.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Tipo</span>
+                      <select value={filterType} onChange={e => setFilterType(e.target.value)}
+                        className="h-9 w-full text-[13px] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-page)] px-2.5 text-[var(--color-text-primary)] outline-none">
+                        <option value="">Todos</option>
+                        {POST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
+                    </label>
+                    {hasFilter && (
+                      <button onClick={() => { setFilterText(''); setFilterStatus(''); setFilterType(''); setBuscaAberta(false) }}
+                        className="flex items-center justify-center gap-1.5 h-9 rounded-xl text-[13px] font-medium text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] transition-colors">
+                        <X size={13} /> Limpar filtros
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Quantos sobraram, ao lado do ícone: é a consequência do
+                  filtro, e precisa estar visível mesmo com o painel fechado. */}
+              {hasFilter && (
+                <span className="text-[13px] text-[var(--color-text-muted)] flex-shrink-0 whitespace-nowrap">
+                  {visiblePosts.length}/{posts.length}
+                </span>
               )}
             </div>
 

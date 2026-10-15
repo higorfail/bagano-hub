@@ -126,7 +126,11 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
   function renderTabs(menor: boolean) {
     return TABS.map(t => (
       <button key={t.key} onClick={() => setTab(t.key)}
-        className={`flex-shrink-0 rounded-lg font-medium transition-all whitespace-nowrap ${menor ? 'px-2 py-1 text-[11px]' : 'px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm'} ${tab === t.key ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>
+        // 11px era o preço de caber: as abas encolhiam pra dividir a linha
+        // com o nome. Mas aba é a navegação principal da tela — ler o nome
+        // dela não pode ser esforço. Com Onboarding fora e 13px, as treze
+        // cabem na mesma linha sem apertar.
+        className={`flex-shrink-0 rounded-lg font-medium transition-all whitespace-nowrap ${menor ? 'px-2.5 py-1.5 text-[13px]' : 'px-3 md:px-4 py-1.5 md:py-2 text-sm'} ${tab === t.key ? 'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}>
         {t.label}
       </button>
     ))
