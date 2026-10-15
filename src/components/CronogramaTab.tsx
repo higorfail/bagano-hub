@@ -212,11 +212,21 @@ type Props = {
    */
   aoAbrirPost?: (postNumber: number | null) => void
   onPostsChange?: (count: number) => void
+  /**
+   * O que a tela de fora quer VER DENTRO da barra: na página do cliente, os
+   * contadores do mês e o seletor de mês.
+   *
+   * Eles moravam numa faixa própria logo acima, e eram a terceira fileira de
+   * controle antes do primeiro card (nome, abas, contadores, barra). A tela
+   * existe pra mostrar post. O estado continua lá fora — quem manda no mês é
+   * quem desenha o endereço —, só os pixels mudam de lugar.
+   */
+  barraInicio?: React.ReactNode
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function CronogramaTab({ clientId, clientName, clientColor, month, year, postParam, aoAbrirPost, onPostsChange }: Props) {
+export default function CronogramaTab({ clientId, clientName, clientColor, month, year, postParam, aoAbrirPost, onPostsChange, barraInicio }: Props) {
   const { toast } = useToast()
   const { currentMember, members } = useUser()
   const supabase = createClient()
@@ -773,6 +783,8 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
   return (
     <>
       {viewMode !== 'calendar' && posts.length === 0 ? (
+        <div className="flex flex-col gap-6">
+        {barraInicio && <div className="flex items-center justify-between flex-wrap gap-2">{barraInicio}</div>}
         <div className="flex flex-col items-center justify-center min-h-[360px] text-center gap-6">
           <div className="relative">
             <div className="w-20 h-20 rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center text-4xl shadow-sm">📅</div>
@@ -788,6 +800,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             Criar primeiro post
           </button>
         </div>
+        </div>
       ) : (
         <>
           {/* Toolbar única. No celular a ordem é invertida em relação ao
@@ -796,16 +809,23 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               fim — buscar por status/tipo é o que menos se faz aqui. */}
           <div className="flex items-center gap-2 flex-wrap mb-4">
 
+            {/* Contadores e seletor de mês, vindos da tela de fora. Primeiro
+                item da barra: é a pergunta "que mês estou vendo?", que vem
+                antes de qualquer ação sobre ele. */}
+            {barraInicio && (
+              <div className="order-1 w-full md:w-auto md:mr-1 flex items-center gap-2 flex-wrap">{barraInicio}</div>
+            )}
+
             {/* FILTROS — última linha no celular, tudo junto em vez da busca
                 sozinha ocupando uma faixa inteira só pra ela. */}
-            <div className="order-3 md:order-1 w-full md:w-auto flex items-center gap-2">
+            <div className="order-4 md:order-2 w-full md:w-auto flex items-center gap-2">
               <div className="relative flex-1 md:w-[200px] md:flex-none">
                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
                 <input value={filterText} onChange={e => setFilterText(e.target.value)} placeholder="Buscar..."
-                  className="w-full h-8 pl-8 pr-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]" />
+                  className="w-full h-9 pl-8 pr-3 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] outline-none text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)]" />
               </div>
               <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                className="h-8 flex-shrink-0 text-xs rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2 text-[var(--color-text-secondary)] outline-none">
+                className="h-9 flex-shrink-0 text-[13px] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-2.5 text-[var(--color-text-secondary)] outline-none">
                 <option value="">Status</option>
                 {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
@@ -825,7 +845,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             {/* AÇÕES DO CRONO — primeiro no celular. Estavam atrás de um
                 "Ações do cronograma" que precisava ser aberto toda vez; o
                 acordeão gastava uma linha pra esconder o que mais importa. */}
-            <div className="order-1 md:order-2 grid grid-cols-2 gap-2 w-full md:flex md:w-auto md:ml-auto md:items-center md:gap-2 md:flex-wrap">
+            <div className="order-2 md:order-3 grid grid-cols-2 gap-2 w-full md:flex md:w-auto md:ml-auto md:items-center md:gap-2 md:flex-wrap">
               {/* Grupo Crono: os dois links de aprovação.
                   
                   "Pra Criação" saiu daqui — era o terceiro botão em LOTE, junto
@@ -843,7 +863,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               <div className="col-span-2 md:col-auto flex items-center rounded-xl border overflow-hidden" style={{ borderColor: 'var(--ds-purple-border,var(--color-border))' }}>
                 <button onClick={() => openApprovalModal('cronograma')}
                   title="Copiar link de aprovação do cronograma (pauta/estratégia, sem produção)"
-                  className="flex-1 md:flex-none h-8 justify-center flex items-center gap-1.5 text-xs font-medium px-3 border-l transition-all hover:opacity-90"
+                  className="flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-[13px] font-medium px-3.5 border-l transition-all hover:opacity-90"
                   style={{ borderColor: 'var(--ds-purple-border,var(--color-border))', color: 'var(--ds-purple-text)' }}>
                   <Link2 size={12} /> Link do crono
                 </button>
@@ -855,7 +875,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               <div className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto flex items-center rounded-xl border overflow-hidden`} style={{ borderColor: 'var(--ds-success-border,var(--color-border))' }}>
                 <button onClick={() => openApprovalModal('final')}
                   title="Copiar link de aprovação final (conteúdo já produzido)"
-                  className={`flex-1 md:flex-none h-8 justify-center flex items-center gap-1.5 text-xs font-medium px-3 transition-all hover:opacity-90 ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
+                  className={`flex-1 md:flex-none h-9 justify-center flex items-center gap-1.5 text-[13px] font-medium px-3.5 transition-all hover:opacity-90 ${revisaoPosts.length > 0 ? 'border-l' : ''}`}
                   style={{ borderColor: 'var(--ds-success-border,var(--color-border))', color: 'var(--ds-success-text)' }}>
                   <Link2 size={12} /> Link final
                 </button>
@@ -864,7 +884,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               {/* Checklist de produção — gerado por IA, sob demanda, sem misturar com aprovação */}
               <button onClick={generatePreplist}
                 title="Gerar checklist de produção do mês com IA — pra equipe de captação usar no dia da gravação"
-                className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto h-8 justify-center md:justify-start flex items-center gap-1.5 text-xs font-medium px-3 rounded-xl border transition-all hover:opacity-90`}
+                className={`${revisaoPosts.length > 0 ? 'col-span-2' : 'col-span-1'} md:col-auto h-9 justify-center md:justify-start flex items-center gap-1.5 text-[13px] font-medium px-3.5 rounded-xl border transition-all hover:opacity-90`}
                 style={{ borderColor: '#8b5cf666', color: '#8b5cf6' }}>
                 <ClipboardList size={12} /> Checklist
               </button>
@@ -874,11 +894,11 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             {/* Trocar de visualização e criar post: no celular cada um ocupa a
                 própria linha — lado a lado, as abas largas e o botão estreito
                 ficavam desproporcionais. */}
-            <div className="order-2 md:order-3 flex flex-col md:flex-row items-stretch md:items-center gap-2 w-full md:w-auto">
+            <div className="order-3 md:order-4 flex flex-col md:flex-row items-stretch md:items-center gap-2 w-full md:w-auto">
               <div className="flex-1 md:flex-none flex items-center bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg p-0.5">
-                <button onClick={() => changeView('list')} className={`flex-1 md:flex-none px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
-                <button onClick={() => changeView('grid')} className={`flex-1 md:flex-none px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
-                <button onClick={() => changeView('calendar')} className={`flex-1 md:flex-none px-2.5 py-1 rounded-md text-xs font-medium transition-all ${viewMode==='calendar'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Calendário</button>
+                <button onClick={() => changeView('list')} className={`flex-1 md:flex-none px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${viewMode==='list'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Lista</button>
+                <button onClick={() => changeView('grid')} className={`flex-1 md:flex-none px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${viewMode==='grid'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Cards</button>
+                <button onClick={() => changeView('calendar')} className={`flex-1 md:flex-none px-3 py-1.5 rounded-md text-[13px] font-medium transition-all ${viewMode==='calendar'?'bg-[var(--color-text-primary)] text-[var(--color-bg-page)]':'text-[var(--color-text-muted)]'}`}>Calendário</button>
               </div>
 
               {/* A legenda fica fora da tabela por padrão porque é o campo mais
@@ -895,7 +915,7 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
               )}
 
               <button onClick={() => { setEditingPostId(null); setShowPostCard(true) }}
-                className="flex-shrink-0 flex items-center justify-center md:justify-start gap-1.5 text-xs font-semibold px-3 py-2 md:py-1.5 rounded-xl text-white transition-opacity hover:opacity-90"
+                className="flex-shrink-0 flex items-center justify-center md:justify-start gap-1.5 text-sm font-semibold px-4 h-10 md:h-9 rounded-xl text-white shadow-sm transition-opacity hover:opacity-90"
                 style={{ background: clientColor || 'var(--color-brand)' }}>
                 + Novo post
               </button>

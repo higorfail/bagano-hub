@@ -93,10 +93,15 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
   // — com um só, parar de rolar exatamente em cima dele faz o cabeçalho piscar
   // entre os dois tamanhos a cada pixel.
   const [compacto, setCompacto] = useState(false)
-  // Encolhido E com largura pra isso: no celular as abas continuam na linha de
-  // baixo, senão sobrariam três delas visíveis ao lado do nome.
+  // Em tela larga as abas vivem NA LINHA DO NOME, sempre — não só depois de
+  // rolar. Era o estado que o cabeçalho assumia ao encolher, e ele provava que
+  // cabia: nome, treze abas e os ícones numa faixa só. Como padrão, devolve uma
+  // faixa inteira de conteúdo (~44px) logo na abertura, que é quando a pessoa
+  // está procurando o post, não depois que ela já rolou atrás dele.
+  //
+  // No celular continua em duas linhas: ao lado do nome caberiam três abas.
   const telaLarga = useIsWideScreen()
-  const inline = compacto && telaLarga
+  const inline = telaLarga
 
   // Ordem do fluxo, não alfabética nem histórica: o que se abre todo dia vem
   // primeiro e o que é consulta fica no fim.
@@ -113,7 +118,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
     { key: 'recorrentes', label: 'Recorrentes' },
     { key: 'materiais', label: 'Materiais' },   { key: 'tarefas', label: 'Tarefas' },
     { key: 'campanhas', label: 'Campanhas' },   { key: 'feed', label: 'Feed' },
-    { key: 'drive', label: 'Arquivos' },        { key: 'onboarding', label: 'Onboarding' },
+    { key: 'drive', label: 'Arquivos' },
     { key: 'manual', label: 'Manual' },         { key: 'historico', label: 'Histórico' },
     { key: 'time', label: 'Time' },
   ]
@@ -551,7 +556,12 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
         }}>
           {tab === 'cronograma' && (
             <div className="flex flex-col gap-4">
-              {/* Month/year nav */}
+              {/* Os contadores e o seletor de mês ENTRAM na barra do
+                  cronograma, em vez de ocuparem uma faixa própria acima dela.
+                  Eram duas fileiras de controle antes do primeiro card, numa
+                  tela em que o primeiro card é o assunto. */}
+              <CronogramaTab
+                barraInicio={<>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   {/* Estes números moravam lá em cima, no header do cliente,
@@ -608,7 +618,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                   )}
                 </div>
               </div>
-              <CronogramaTab
+                </>}
                 key={`${id}-${selectedMonth}-${selectedYear}`}
                 clientId={id}
                 clientName={client?.name}
