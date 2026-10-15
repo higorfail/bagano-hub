@@ -10,13 +10,27 @@ import { useUser } from '@/lib/UserContext'
 
 type Member = { id: string; name: string; role: string; color: string }
 
+// ATENÇÃO: isto é `team_members.role`, que NÃO é o mesmo vocabulário de
+// `client_team.funcao` (videos, posts, estrategia, social, acompanha). São duas
+// listas parecidas pra duas perguntas diferentes: funcao é o papel da pessoa
+// NAQUELE cliente, role é o cargo dela na agência.
+//
+// A lista aqui era a do funcao, então toda tentativa de adicionar alguém batia
+// na trava team_members_role_check do banco e morria no toast — a tela nunca
+// conseguiu cadastrar ninguém. Os valores abaixo são os que já existem em
+// linhas da tabela, ou seja, comprovadamente aceitos pela trava.
+//
+// Quem lê esse campo espera esse vocabulário: o cron do fôlego busca
+// role = 'gerente', e o push/notify usa o role pra manter o gerente fora do
+// aviso avulso. Inventar um valor novo aqui não quebra só o cadastro.
 const ROLES = [
-  { value: 'videos',     label: 'Editor de vídeo' },
-  { value: 'posts',      label: 'Designer' },
-  { value: 'estrategia', label: 'Estratégia' },
-  { value: 'social',     label: 'Social Media' },
-  { value: 'acompanha',  label: 'Acompanha' },
-  { value: 'outro',      label: 'Outro' },
+  { value: 'designer',     label: 'Designer' },
+  { value: 'editor',       label: 'Editor de vídeo' },
+  { value: 'foto_video',   label: 'Foto e vídeo' },
+  { value: 'estrategista', label: 'Estrategista' },
+  { value: 'gerente',      label: 'Gerente' },
+  { value: 'comercial',    label: 'Comercial' },
+  { value: 'assistente',   label: 'Assistente' },
 ]
 
 const COLORS = [
@@ -29,7 +43,7 @@ function initials(name: string) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
 
-const emptyForm = { name: '', role: 'posts', color: '#6366f1', birthday: '', emails_alternativos: '' }
+const emptyForm = { name: '', role: 'designer', color: '#6366f1', birthday: '', emails_alternativos: '' }
 
 export default function EquipePage() {
   useEffect(() => { document.title = 'Equipe · Bagano Hub' }, [])
@@ -257,7 +271,7 @@ export default function EquipePage() {
                     {/* Actions — visible on hover */}
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={() => { setEditing(m.id); setEditForm({ name: m.name, role: m.role || 'posts', color: m.color || '#6366f1', birthday: (m as any).birthday || '', emails_alternativos: ((m as any).emails_alternativos || []).join(', ') }) }}
+                        onClick={() => { setEditing(m.id); setEditForm({ name: m.name, role: m.role || 'designer', color: m.color || '#6366f1', birthday: (m as any).birthday || '', emails_alternativos: ((m as any).emails_alternativos || []).join(', ') }) }}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium text-[var(--color-text-secondary)] bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-page)] transition-colors"
                       >
                         <Pencil size={11} />
