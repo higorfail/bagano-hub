@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
+import { useFechamentoSeguro } from '@/lib/fechamentoSeguro'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
@@ -65,6 +66,13 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
   const [caption, setCaption]     = useState(editing?.caption || '')
   const [notes, setNotes]         = useState(editing?.notes || '')
   const [active, setActive]       = useState(editing?.active ?? true)
+
+  // Clicar fora fechava e descartava tudo, em silêncio — depois de alguém ter
+  // escrito a legenda dos sete dias. Agora pergunta antes.
+  const { fechar, marcarSalvo } = useFechamentoSeguro(
+    { clientId, title, type, mode, weekdays, monthDays, ordWeek, ordDay, dates, times, folderUrl, caption, notes, active },
+    onClose,
+  )
 
   // Legenda por sequência. Carrega o que já existe e guarda em memória enquanto
   // o modal está aberto — só grava no salvar, junto com o resto.
@@ -178,6 +186,9 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
     invalidateDriveFolder(folderUrl)
     setSaving(false)
     toast(editing ? 'Recorrente salvo' : 'Recorrente criado')
+    // Gravou: o que está na tela vira o novo "limpo", senão o próprio fechar
+    // logo abaixo perguntaria se pode descartar o que acabou de ser salvo.
+    marcarSalvo()
     onSaved()
     onClose()
   }
@@ -201,12 +212,12 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={e => { if (e.target === e.currentTarget) fechar() }}>
         <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh] shadow-pop">
 
           <div className="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
             <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">{editing ? 'Editar recorrente' : 'Novo recorrente'}</h2>
-            <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"><X size={18} /></button>
+            <button onClick={fechar} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"><X size={18} /></button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
@@ -517,7 +528,7 @@ export default function RecurringFormModal({ editing, fixedClientId, clients, on
                 </button>
               )
             )}
-            <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
+            <button onClick={fechar} className="px-4 py-2 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
             <button onClick={save} disabled={saving || !title.trim() || !clientId}
               className="px-4 py-2 text-sm text-[var(--color-brand-fg)] bg-[var(--color-brand)] rounded-lg disabled:opacity-50 font-semibold">
               {saving ? 'Salvando…' : editing ? 'Salvar' : 'Criar recorrente'}

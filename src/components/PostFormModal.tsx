@@ -6,6 +6,7 @@ import { useToast } from '@/lib/ToastContext'
 import { useUser } from '@/lib/UserContext'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
+import { useFechamentoSeguro } from '@/lib/fechamentoSeguro'
 import { statusLabel, STATUS_ORDER } from '@/lib/status'
 import ModalPortal from '@/components/ModalPortal'
 import { X } from 'lucide-react'
@@ -52,6 +53,9 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
   const { currentMember } = useUser()
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
+
+  // Fechar clicando fora apagava o formulário inteiro sem perguntar.
+  const { fechar, marcarSalvo } = useFechamentoSeguro(form, onClose)
   const [campaigns, setCampaigns] = useState<any[]>([])
 
   useEffect(() => {
@@ -82,6 +86,7 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
       await ensureWatching('schedules', data.id, [currentMember?.id])
       await logActivity({ tableName: 'schedules', recordId: data.id, clientId, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${form.title}"` })
     }
+    marcarSalvo()
     onSaved()
     onClose()
   }
@@ -97,7 +102,7 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4" onClick={e => { if (e.target === e.currentTarget) fechar() }}>
       <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh] shadow-pop">
 
         {/* Header */}
@@ -106,7 +111,7 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
             <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Novo post</h2>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">#{nextPostNumber} · {clientName}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] transition-colors">
+          <button onClick={fechar} className="w-8 h-8 rounded-lg hover:bg-[var(--color-bg-subtle)] flex items-center justify-center text-[var(--color-text-muted)] transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -189,7 +194,7 @@ export default function PostFormModal({ clientId, clientName, month, year, nextP
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-[var(--color-border)] flex gap-3 justify-end bg-[var(--color-bg-alt)] rounded-b-2xl">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
+          <button onClick={fechar} className="px-4 py-2 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition-colors">
             Cancelar
           </button>
           <button onClick={save} disabled={saving || !form.title.trim()} className="px-4 py-2 text-sm text-[var(--color-brand-fg)] bg-[var(--color-brand)] rounded-lg disabled:opacity-50 transition-colors">

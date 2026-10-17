@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext'
 import { useToast } from '@/lib/ToastContext'
 import { logActivity } from '@/lib/activity'
 import { dbError } from '@/lib/dbError'
+import { useFechamentoSeguro } from '@/lib/fechamentoSeguro'
 import ModalPortal from '@/components/ModalPortal'
 
 const TYPE_OPTIONS = ['Menu', 'Cardápio', 'Arte avulsa', 'Logo', 'Manual', 'Placa', 'Cartão', 'Sacola', 'Sousplat', 'Story', 'Capas destaque', 'Fundos', 'Outro']
@@ -35,12 +36,16 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
   const { members, currentMember } = useUser()
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
+
   const [clientManual, setClientManual] = useState(false)
   const [typeManual, setTypeManual] = useState(false)
   const [form, setForm] = useState<any>({
     title: '', type: 'Arte avulsa', status: 'producao', client_id: fixedClientId || '',
     description: '', drive_url: '', notes: '', due_date: '', assigned_to: '', label: '',
   })
+
+  // Fechar clicando fora apagava o formulário inteiro sem perguntar.
+  const { fechar, marcarSalvo } = useFechamentoSeguro(form, onClose)
 
   useEffect(() => {
     if (editingMaterial) {
@@ -97,17 +102,18 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
     setSaving(false)
     if (dbError(error, toast, 'salvar material')) return
     if (!editingMaterial && data) await logActivity({ tableName: 'materials', recordId: data.id, clientId: payload.client_id || null, action: 'created', actorName: currentMember?.name, actorId: currentMember?.id, description: `${currentMember?.name || 'Alguém'} criou "${form.title}"` })
+    marcarSalvo()
     onSaved()
     onClose()
   }
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={e => { if (e.target === e.currentTarget) fechar() }}>
       <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-lg flex flex-col max-h-[92vh] shadow-pop">
         <div className="p-5 border-b border-[var(--color-border)] flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">{editingMaterial ? 'Editar material' : 'Novo material'}</h2>
-          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-lg leading-none">×</button>
+          <button onClick={fechar} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] text-lg leading-none">×</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
@@ -153,7 +159,7 @@ export default function MaterialFormModal({ fixedClientId, clients = [], editing
         </div>
 
         <div className="p-5 border-t border-[var(--color-border)] flex gap-3 justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
+          <button onClick={fechar} className="px-4 py-2 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)]">Cancelar</button>
           <button onClick={save} disabled={saving||!form.title.trim()} className="px-4 py-2 text-sm text-[var(--color-brand-fg)] bg-[var(--color-brand)] rounded-lg disabled:opacity-50">{saving?'Salvando...':'Salvar material'}</button>
         </div>
       </div>
