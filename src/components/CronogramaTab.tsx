@@ -76,6 +76,9 @@ const typeColor: Record<string,string> = {
 type Post = MiniPost & {
   post_number: number
   scheduled_date: string | null
+  /** Dia em que o post foi marcado como publicado. Mantido por gatilho no
+   *  banco, então vale pra qualquer caminho que mude o status. */
+  published_at?: string | null
   status: string
   funil?: string | null
   campaign_type?: string | null
@@ -128,7 +131,7 @@ function fmtDiaMes(iso: string) {
 // `briefing` entra por causa da view Lista: é a coluna "Descrição" da planilha
 // que a estrategista usa pra montar o cronograma, e sem ela a lista não
 // conseguia mostrar do que o post trata.
-const SCHEDULE_COLS = 'id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, briefing, legenda, reference_notes, assigned_members, ai_summary, labels, month, year'
+const SCHEDULE_COLS = 'id, post_number, title, post_type, status, approval_status, approval_comment, scheduled_date, funil, campaign_type, drive_url, drive_folder_url, reference_images, copy, briefing, legenda, reference_notes, assigned_members, ai_summary, labels, month, year, published_at'
 
 // ─── Calendar chip (view Calendário) ───────────────────────────────────────────
 // Mesma lógica de thumbnail do PostMiniCard (capa da pasta/arquivo do Drive),
@@ -1390,10 +1393,45 @@ export default function CronogramaTab({ clientId, clientName, clientColor, month
             const dayKey = (d: number) => `${calYear}-${String(calMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 
             const calVisibleDated  = calPosts.filter(p => matchesFilters(p) && (calCronoFilter === 'all' || `${p.month}-${p.year}` === calCronoFilter))
-            const calVisibleNoDate = calNoDatePosts.filter(p => matchesFilters(p) && (calCronoFilter === 'all' || `${p.month}-${p.year}` === calCronoFilter))
+            // A gaveta "Sem data" existe pra uma pergunta: o que ainda falta
+            // encaixar no mês? Ela puxa TODO post do cliente sem data, de
+            // qualquer cronograma — então post de março, publicado lá atrás e
+            // nunca datado no hub, ficava empilhado no topo de outubro pedindo
+            // uma data que já não faz sentido.
+            //
+            // Post publicado sem data não some: ele vai pro DIA EM QUE FOI
+            // PUBLICADO (`published_at`, mantido por gatilho no banco). O
+            // calendário passa a mostrar o que de fato saiu naquele dia, que é
+            // a pergunta de quem olha pra trás, e a gaveta volta a ser só o
+            // que falta encaixar.
+            //
+            // Sem `published_at` (post publicado antes do gatilho existir), a
+            // regra antiga segue valendo: se é de outro cronograma, sai da
+            // gaveta; se é do mês aberto, fica, porque ali é um buraco de
+            // registro do mês que está na mão.
+            const diaDaPublicacao = (p: Post) => (p.published_at || '').slice(0, 10) || null
+            const publicadoComDia = (p: Post) => p.status === 'publicado' && !!diaDaPublicacao(p)
+            const publicadoSemDiaDeOutroMes = (p: Post) =>
+              p.status === 'publicado' && !diaDaPublicacao(p) && !(p.month === calMonth && p.year === calYear)
+
+            const calVisibleNoDate = calNoDatePosts.filter(p =>
+              matchesFilters(p)
+              && !publicadoComDia(p)
+              && !publicadoSemDiaDeOutroMes(p)
+              && (calCronoFilter === 'all' || `${p.month}-${p.year}` === calCronoFilter))
 
             const byDay: Record<string, Post[]> = {}
             for (const p of calVisibleDated) { (byDay[p.scheduled_date as string] ||= []).push(p) }
+            // Publicados sem data entram pelo dia em que foram publicados —
+            // só os que caem no mês que está na tela.
+            const prefixoDoMes = `${calYear}-${String(calMonth).padStart(2, '0')}`
+            for (const p of calNoDatePosts) {
+              if (!publicadoComDia(p) || !matchesFilters(p)) continue
+              if (calCronoFilter !== 'all' && `${p.month}-${p.year}` !== calCronoFilter) continue
+              const dia = diaDaPublicacao(p)!
+              if (!dia.startsWith(prefixoDoMes)) continue
+              ;(byDay[dia] ||= []).push(p)
+            }
 
             const cronoLabel = (p: Post) => p.month && p.year ? `${CRONO_MONTHS[p.month - 1].slice(0, 3)}/${String(p.year).slice(2)}` : undefined
             const otherCrono = (p: Post) => (p.month === calMonth && p.year === calYear) ? undefined : cronoLabel(p)
