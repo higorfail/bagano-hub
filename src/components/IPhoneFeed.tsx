@@ -668,7 +668,12 @@ function PostPanel({ post, onClose, nativeVideo }: { post: FeedPost; onClose: ()
         {(post.legenda || post.copy) && (
           <div style={{ background: 'var(--color-bg-subtle)', borderRadius: 10, padding: '10px 12px' }}>
             <p style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{post.legenda ? 'Legenda' : 'Rascunho de copy'}</p>
-            <p style={{ fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.6, margin: 0 }}>{post.legenda || post.copy}</p>
+            {/* `pre-wrap` ou a legenda vira um parágrafo corrido: o texto é
+                escrito com quebra de linha entre as ideias, como se publica no
+                Instagram, e sem isto o HTML come todas elas. A página de
+                aprovação já fazia certo; esta tela mostrava a mesma legenda de
+                outro jeito que o cliente veria. */}
+            <p style={{ fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{post.legenda || post.copy}</p>
           </div>
         )}
         {(media?.folderLink || post.drive_url) && (

@@ -12,7 +12,12 @@
 export function stripAiTells(text: string): string {
   return text
     // Travessão entre espaços vira vírgula: é o uso que soa a IA.
-    .replace(/\s+[—–]\s+/g, ', ')
+    //
+    // `[^\S\n]` e não `\s`: `\s` inclui a quebra de linha, então um travessão
+    // começando uma linha ("\n— Promoção") engolia a quebra e grudava a linha
+    // na anterior. Numa legenda de Instagram, que é escrita em blocos, isso
+    // transformava o texto inteiro num parágrafo corrido.
+    .replace(/[^\S\n]+[—–][^\S\n]+/g, ', ')
     // Travessão colado (intervalo tipo "10—12") vira hífen simples.
     .replace(/([^\s])[—–]([^\s])/g, '$1-$2')
     // Vírgula duplicada que a troca acima pode criar.

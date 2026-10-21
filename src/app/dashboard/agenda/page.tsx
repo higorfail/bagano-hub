@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useToast } from '@/lib/ToastContext'
 import { dbError } from '@/lib/dbError'
+import { duracaoEmTexto, DURACOES_DE_CAPTACAO } from '@/lib/duracao'
 import { Plus, ChevronLeft, ChevronRight, Camera, X, Check, Loader2, CalendarPlus, AlertTriangle } from 'lucide-react'
 import { fromActiveClients } from '@/lib/activeClients'
 import { detectarAusencia } from '@/lib/googleEventos'
@@ -734,9 +735,16 @@ export default function AgendaPage() {
                     className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Duração (min)</label>
-                  <input type="number" value={captForm.duration_minutes} onChange={e => setCaptForm(f => ({ ...f, duration_minutes: Number(e.target.value) }))}
-                    className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)]" />
+                  <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Duração</label>
+                  <select value={captForm.duration_minutes} onChange={e => setCaptForm(f => ({ ...f, duration_minutes: Number(e.target.value) }))}
+                    className="w-full border border-[var(--color-border)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] text-[var(--color-text-primary)] bg-[var(--color-bg-card)]">
+                    {/* Guarda minutos, mostra hora. Valor que não está na
+                        lista (veio da agenda do Google, por exemplo) aparece
+                        junto em vez de o campo abrir vazio e sumir com ele. */}
+                    {[...new Set([...DURACOES_DE_CAPTACAO, captForm.duration_minutes])].sort((a, b) => a - b).map(min => (
+                      <option key={min} value={min}>{duracaoEmTexto(min)}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-[var(--color-text-secondary)] mb-1.5 block">Meses cobertos</label>
@@ -826,7 +834,7 @@ function CaptacaoRow({ c, clientMap, memberMap, syncing, calendarOk, onSync, onD
       {/* Time + duration */}
       {c.scheduled_time && (
         <span className="text-xs text-[var(--color-text-muted)] tabular-nums flex-shrink-0">
-          {c.scheduled_time.slice(0, 5)} · {c.duration_minutes}min
+          {c.scheduled_time.slice(0, 5)} · {duracaoEmTexto(c.duration_minutes)}
         </span>
       )}
 

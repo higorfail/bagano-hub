@@ -457,6 +457,19 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
     const name = v ? (clients.find(c => c.id === v)?.name || '') : 'sem cliente'
     persist({ client_id: v || null }, `${who} definiu o cliente: ${name}`)
   }
+  // Busca o nome do cliente amarrado ao card quando a lista de clientes não
+  // veio (página do cliente). Uma linha, uma vez, só se precisar.
+  const [nomeDoClienteFixo, setNomeDoClienteFixo] = useState<string | undefined>()
+  useEffect(() => {
+    const cid = fixedClientId || clientId
+    if (!cid || clients.some(c => c.id === cid)) { setNomeDoClienteFixo(undefined); return }
+    let vivo = true
+    createClient().from('clients').select('name').eq('id', cid).maybeSingle()
+      .then(({ data }) => { if (vivo) setNomeDoClienteFixo(data?.name || undefined) })
+    return () => { vivo = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixedClientId, clientId, clients.length])
+
   // Mesma regra do post: cola e grava. Ver src/lib/hashtagsDoCliente.ts.
   async function colarHashtagsNaLegenda() {
     const novo = colarHashtags(legenda, clientManual?.hashtags)
@@ -823,7 +836,12 @@ export default function ExtraCard({ extraId, initialStatus, fixedClientId, initi
   const statusSelectValue = isAjuste ? 'ajuste' : status
   const statusSelectObj = isAjuste ? AJUSTE_OPTION : statusObj
   const priorityObj = PRIORITY_OPTIONS.find(p => p.value === priority)!
-  const clientName  = clients.find(c => c.id === clientId)?.name
+  // O nome sai da lista `clients` quando ela existe — e na página do CLIENTE
+  // ela chega vazia de propósito (lá não há seletor de cliente pra preencher).
+  // Resultado: o card do extra abria dizendo "sem cliente" dentro da tela de um
+  // cliente, com o extra corretamente amarrado nele no banco. Era só o nome
+  // que faltava, mas quem lê não tem como saber disso.
+  const clientName  = clients.find(c => c.id === clientId)?.name || nomeDoClienteFixo
 
   // Extra guarda a entrega num campo só: `drive_url` carrega link de pasta OU
   // de arquivo. `PreviaDoPost` recebe os dois casos separados, então a divisão

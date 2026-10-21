@@ -47,6 +47,21 @@ const POST_TYPES = [
 const STATUSES = POST_STATUS_ORDER.map(value => ({ value, label: statusLabel(value) }))
 const STATUS_LABEL: Record<string,string> = Object.fromEntries(STATUSES.map(s => [s.value, s.label]))
 const TYPE_LABEL: Record<string,string> = { reels:'Reels', carrossel:'Carrossel', post:'Post', story:'Story', carrossel_stories:'Carrossel/Stories' , post_story:'Post/Story'}
+
+// No celular a célula do calendário tem ~52px: não cabe "Carrossel". Cabe uma
+// letra, e uma letra basta pra separar o que é vídeo do que é arte.
+const SIGLA_TIPO: Record<string,string> = { reels:'R', carrossel:'C', post:'P', story:'S', carrossel_stories:'CS', post_story:'PS' }
+
+/** Cor do selo de tipo. Família própria, longe das cores de status, pra que as
+ *  duas etiquetas lado a lado no calendário não se confundam. */
+function typeBadge(t: string): React.CSSProperties {
+  const cores: Record<string, string> = {
+    reels: '#ef4444', carrossel: '#3b82f6', post: '#f59e0b',
+    story: '#8b5cf6', carrossel_stories: '#6366f1', post_story: '#d946ef',
+  }
+  const c = cores[t] || '#6b7280'
+  return { background: `${c}18`, color: c }
+}
 const typeColor: Record<string,string> = {
   reels: 'bg-[var(--ds-error-bg)] text-[var(--ds-error-text)]',
   carrossel: 'bg-[var(--ds-info-bg)] text-[var(--ds-info-text)]',
@@ -163,12 +178,19 @@ function CalendarChip({ post, members, dragging, otherCronograma, onDragStart, o
       <span className="md:hidden w-full block text-[9px] font-bold leading-[1.4] px-1 rounded text-center truncate" style={statusBadge(post.status)}
         title={`${post.post_number != null ? `#${post.post_number} ` : ''}${post.title || 'Sem título'} — ${st}`}>
         {post.post_number != null ? `#${post.post_number}` : '•'}
+        <span className="opacity-70"> {SIGLA_TIPO[post.post_type] || ''}</span>
       </span>
       <div className="hidden md:block w-8 h-8 rounded-md flex-shrink-0 overflow-hidden bg-[var(--color-bg-subtle)]">
         {thumbUrl && <img src={thumbUrl} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />}
       </div>
       <div className="hidden md:block min-w-0 flex-1">
         <div className="flex items-center gap-1 mb-0.5">
+          {/* O TIPO vem antes do status. No calendário, a pergunta de quem
+              está montando a semana é "o que sai nesse dia?" — e reels e
+              carrossel são trabalhos diferentes, de pessoas diferentes. O
+              status respondia só "em que pé está", que ali é a segunda
+              pergunta. Os dois cabem; o título desce pra linha de baixo. */}
+          <span className="text-[8px] font-bold uppercase tracking-wide px-1 py-px rounded flex-shrink-0" style={typeBadge(post.post_type)}>{TYPE_LABEL[post.post_type] || post.post_type}</span>
           <span className="text-[8px] font-bold uppercase tracking-wide px-1 py-px rounded truncate" style={statusBadge(post.status)}>{st}</span>
           {otherCronograma && (
             <span title={`Post do cronograma de ${otherCronograma}`}

@@ -155,6 +155,8 @@ Título/tema do post: ${title || 'sem título'}
 Briefing: ${briefing || 'não informado'}
 Copy/roteiro de referência: ${copy || 'não informado'}
 ${manualContext}${samplesContext}${signatureContext}
+Quebre a legenda em parágrafos curtos, separados por uma linha em branco, como se escreve legenda de Instagram. Um bloco único e corrido não é lido no celular.
+
 Responda APENAS com o texto da legenda pronta, sem explicações, sem aspas, sem markdown.`
 
   async function callGemini(model: string) {
