@@ -742,7 +742,7 @@ export default function AgendaPage() {
                         lista (veio da agenda do Google, por exemplo) aparece
                         junto em vez de o campo abrir vazio e sumir com ele. */}
                     {[...new Set([...DURACOES_DE_CAPTACAO, captForm.duration_minutes])].sort((a, b) => a - b).map(min => (
-                      <option key={min} value={min}>{duracaoEmTexto(min)}</option>
+                      <option key={min} value={min}>{duracaoEmTexto(min)} de duração</option>
                     ))}
                   </select>
                 </div>
@@ -831,10 +831,16 @@ function CaptacaoRow({ c, clientMap, memberMap, syncing, calendarOk, onSync, onD
         <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{label}</span>
       </div>
 
-      {/* Time + duration */}
+      {/* Hora de início e quanto dura.
+      
+          "14:00 · 3h" dá pra ler como "das 14 às 3", que é o contrário do que
+          é. A palavra inteira custa uns 60px e tira a ambiguidade de vez — e
+          aqui ambiguidade de horário é alguém chegando na filmagem errado. */}
       {c.scheduled_time && (
-        <span className="text-xs text-[var(--color-text-muted)] tabular-nums flex-shrink-0">
-          {c.scheduled_time.slice(0, 5)} · {duracaoEmTexto(c.duration_minutes)}
+        <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0 whitespace-nowrap">
+          <span className="tabular-nums">{c.scheduled_time.slice(0, 5)}</span>
+          {' · '}
+          <span className="tabular-nums">{duracaoEmTexto(c.duration_minutes)}</span> de duração
         </span>
       )}
 
