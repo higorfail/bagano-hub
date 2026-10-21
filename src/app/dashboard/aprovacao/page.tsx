@@ -780,7 +780,23 @@ function AprovacaoPageInner() {
             if (!byMonth[key]) byMonth[key] = []
             byMonth[key].push(p)
           })
-          const monthGroups = Object.entries(byMonth).sort(([a], [b]) => b.localeCompare(a))
+          // Mês antigo JÁ RESOLVIDO não aparece quando existe mês mais novo.
+          //
+          // O Toit abria com uma faixa de agosto com quatro posts, todos com
+          // selo verde de aprovado, empurrando o mês que ainda espera resposta
+          // pra baixo da dobra. Mês fechado não é pendência; é arquivo, e o
+          // cronograma do cliente já o guarda.
+          //
+          // O corte é por RESOLVIDO, não por idade: mês velho com post ainda
+          // esperando o cliente continua aparecendo, porque "parado há muito
+          // tempo" é exatamente o caso que esta tela existe pra mostrar. Some
+          // só o que não pede nada de ninguém.
+          const todosOsMeses = Object.entries(byMonth).sort(([a], [b]) => b.localeCompare(a))
+          const maisNovo = todosOsMeses[0]?.[0]
+          const monthGroups = todosOsMeses.filter(([key, lista]) =>
+            key === maisNovo || lista.some(p => !isFinalApproved(p))
+          )
+          const mesesOcultos = todosOsMeses.length - monthGroups.length
           const multiMonth  = monthGroups.length > 1
 
           return (
@@ -946,6 +962,15 @@ function AprovacaoPageInner() {
                           ))}
                         </div>
                       )}
+                    </div>
+                  )}
+                  {mesesOcultos > 0 && (
+                    <div className="px-5 py-2 border-b border-[var(--color-border)]">
+                      <span className="text-[11px] text-[var(--color-text-faint)]">
+                        {mesesOcultos === 1 ? '1 mês anterior já aprovado não aparece aqui' : `${mesesOcultos} meses anteriores já aprovados não aparecem aqui`}
+                        {' · '}
+                        <a href={`/dashboard/cronograma?client=${clientId}`} className="underline hover:text-[var(--color-text-secondary)]">ver no cronograma</a>
+                      </span>
                     </div>
                   )}
                   {monthGroups.map(([monthKey, mPostsRaw]) => {

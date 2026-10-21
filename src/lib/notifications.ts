@@ -222,7 +222,28 @@ export function groupNotifications(rows: NotificationRow[]): NotificationGroup[]
   const out: NotificationGroup[] = []
   for (const w of waves) {
     if (w.length < 2) { rest.push(...w); continue }
-    const rejected = w.filter(r => REJECT_KINDS.includes(r.kind)).length
+
+    // Conta POSTS DISTINTOS, não avisos.
+    //
+    // Contava linhas, e o Toit apareceu como "aprovou 12 posts" numa leva de
+    // 9: o mesmo post gera mais de um aviso quando o cliente aprova a
+    // estratégia e depois a arte, ou quando ele aprova, a equipe devolve pra
+    // ajuste e ele aprova de novo. É o mesmo erro que o resumo do cron já
+    // tinha corrigido em src/app/api/cron/approval-digest — e ele continuou
+    // vivo aqui porque as duas contas são escritas em lugares diferentes.
+    //
+    // As linhas chegam da mais nova pra mais antiga, então a PRIMEIRA que
+    // aparece de cada post é o estado em que ele terminou. É esse que vale:
+    // aprovado e depois recusado é um post esperando conserto, não um
+    // aprovado.
+    const estadoFinal = new Map<string, boolean>()
+    for (const r of w) {
+      const chave = r.card_id || r.id
+      if (!estadoFinal.has(chave)) estadoFinal.set(chave, REJECT_KINDS.includes(r.kind))
+    }
+    const rejected = [...estadoFinal.values()].filter(Boolean).length
+    const aprovados = estadoFinal.size - rejected
+
     out.push({
       key: `wave:${w[0].id}`,
       cardTable: null, cardId: null,
@@ -235,7 +256,7 @@ export function groupNotifications(rows: NotificationRow[]): NotificationGroup[]
       items: w,
       unread: w.filter(r => !r.read_at).length,
       latestAt: w[0].created_at,
-      approvalWave: { approved: w.length - rejected, rejected },
+      approvalWave: { approved: aprovados, rejected },
     })
   }
 

@@ -384,6 +384,44 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
     await logActivity({ tableName: 'materials', recordId: matId, clientId: id, action: 'status_changed', field: 'status', oldValue: oldLabel, newValue: newLabel, description: `Status mudou: ${oldLabel} → ${newLabel}` })
   }
 
+  /**
+   * Arrastar pra reordenar dentro da coluna.
+   *
+   * Soltar o card em cima de OUTRO card insere antes dele; soltar no vazio da
+   * coluna manda pro fim. A página geral de Materiais já fazia isso há tempos
+   * e esta aqui só trocava de status — mesmo quadro, duas capacidades
+   * diferentes, e quem usa as duas não tem como saber qual faz o quê.
+   *
+   * Grava `position` em todos os cards da coluna, não só no arrastado: posição
+   * é relativa, e mexer num item sem renumerar os vizinhos deixa dois com o
+   * mesmo número e a ordem volta a ser decidida por `created_at`.
+   */
+  async function reordenarMateriais(colKey: string, draggedId: string, dropId: string | null) {
+    const arrastado = materials.find(m => m.id === draggedId)
+    if (!arrastado || draggedId === dropId) return
+    const MAT_KNOWN = ['producao', 'feito', 'aguardando_aprovacao', 'finalizado']
+    const naColuna = materials.filter(m => {
+      if (m.id === draggedId) return false
+      const st = m.status || 'producao'
+      return colKey === 'producao' ? (st === 'producao' || !MAT_KNOWN.includes(st)) : st === colKey
+    })
+    const alvo = dropId ? naColuna.findIndex(m => m.id === dropId) : -1
+    const ordem = [...naColuna]
+    ordem.splice(alvo < 0 ? naColuna.length : alvo, 0, arrastado)
+
+    const antes = materials
+    setMaterials(prev => {
+      const fora = prev.filter(m => !ordem.some(o => o.id === m.id))
+      return [...fora, ...ordem.map((m, i) => ({ ...m, status: colKey, position: i }))]
+    })
+
+    const supabase = createClient()
+    const res = await Promise.all(
+      ordem.map((m, i) => supabase.from('materials').update({ position: i, status: colKey }).eq('id', m.id))
+    )
+    if (res.some(r => r.error)) { setMaterials(antes); toast('Não deu pra salvar a ordem') }
+  }
+
   function handleMatDeleted(matId: string) {
     setMaterials(prev => prev.filter(m => m.id !== matId))
     setCardOpen(null)
@@ -741,7 +779,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                         <div key={col.key} className="flex flex-col w-[calc(100vw-1.5rem)] flex-shrink-0 md:w-auto md:flex-1 md:min-w-[268px] md:flex-shrink snap-center snap-always md:snap-align-none overflow-hidden"
                           onDragOver={e => { e.preventDefault(); setMatDragOver(col.key) }}
                           onDragLeave={() => setMatDragOver(null)}
-                          onDrop={e => { e.preventDefault(); if (matDragging) moveMatStatus(matDragging, col.key); setMatDragging(null); setMatDragOver(null) }}>
+                          onDrop={e => { e.preventDefault(); if (matDragging) reordenarMateriais(col.key, matDragging, null); setMatDragging(null); setMatDragOver(null) }}>
                           <div className="flex items-center justify-between mb-2 px-1 flex-shrink-0">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.color }} />
@@ -754,7 +792,10 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                             {items.map(m => {
                               const ct = matCounts[m.id] || {}
                               return (
-                                <MaterialCardMini key={m.id}
+                                <div key={m.id}
+                                  onDragOver={e => { if (matDragging && matDragging !== m.id) { e.preventDefault(); e.stopPropagation() } }}
+                                  onDrop={e => { if (!matDragging) return; e.preventDefault(); e.stopPropagation(); reordenarMateriais(col.key, matDragging, m.id); setMatDragging(null); setMatDragOver(null) }}>
+                                <MaterialCardMini
                                   material={{ ...m, _checkTotal: ct.checklist||0, _checkDone: ct.checkDone||0, _comments: ct.comments||0, _attachments: ct.attachments||0, _preview: ct.preview||null }}
                                   members={allMembers}
                                   onClick={() => setCardOpen(m.id)}
@@ -763,6 +804,7 @@ function ClientePageInner({ id, slug, abaInicial, periodoURL, postURL }: {
                                   onMovePrev={prevCol ? () => moveMatStatus(m.id, prevCol.key) : undefined}
                                   onMoveNext={nextCol ? () => moveMatStatus(m.id, nextCol.key) : undefined}
                                 />
+                                </div>
                               )
                             })}
                             {items.length === 0 && (
